@@ -1,0 +1,791 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function activityDocPath(stakeId, activityId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId);
+    }
+
+    function legacyEventDocPath(eventId) {
+      return /databases/$(database)/documents/events/$(eventId);
+    }
+
+    function formConfigDocPath(stakeId, activityId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/config/form;
+    }
+
+    function registrationDocPath(stakeId, activityId, registrationId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/registrations/$(registrationId);
+    }
+
+    function currentUserExists() {
+      return isSignedIn() && exists(userDocPath(request.auth.uid));
+    }
+
+    function currentUser() {
+      return get(userDocPath(request.auth.uid)).data;
+    }
+
+    function isAdminRole(role) {
+      return role == 'admin' || role == 'super_admin';
+    }
+
+    function isCurrentUserAdmin() {
+      return currentUserExists() && isAdminRole(currentUser().role);
+    }
+
+    function isStakeAdmin(stakeId) {
+      return isCurrentUserAdmin()
+        && (
+          currentUser().role == 'super_admin'
+          || currentUser().stakeId == stakeId
+        );
+    }
+
+    function isUnitLeaderOfStake(stakeId) {
+      return currentUserExists()
+        && currentUser().role == 'unit_leader'
+        && currentUser().stakeId == stakeId;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function validGenderRoleCategory(value) {
+      return value in ['', 'giovane_uomo', 'giovane_donna', 'dirigente'];
+    }
+
+    function isPublicActivityDoc(data) {
+      return data.isPublic == true
+        && data.isVisible != false
+        && data.status != 'draft';
+    }
+
+    function isPublicActivityListDoc(data) {
+      return data.isPublic == true && data.isVisible == true;
+    }
+
+    function isPublicActivity(stakeId, activityId) {
+      return exists(activityDocPath(stakeId, activityId))
+        && isPublicActivityDoc(get(activityDocPath(stakeId, activityId)).data);
+    }
+
+    function isPublicLegacyEvent(eventId) {
+      return exists(legacyEventDocPath(eventId))
+        && isPublicActivityDoc(get(legacyEventDocPath(eventId)).data);
+    }
+
+    function activityAcceptsRegistrations(stakeId, activityId) {
+      return exists(activityDocPath(stakeId, activityId))
+        && get(activityDocPath(stakeId, activityId)).data.isPublic == true
+        && get(activityDocPath(stakeId, activityId)).data.isVisible != false
+        && get(activityDocPath(stakeId, activityId)).data.status == 'registrations_open';
+    }
+
+    function formAllowsGuestRegistration(stakeId, activityId) {
+      return exists(formConfigDocPath(stakeId, activityId))
+        && get(formConfigDocPath(stakeId, activityId)).data.allowGuestRegistration == true;
+    }
+
+    function hasOwnRegistration(stakeId, activityId) {
+      return isSignedIn()
+        && (
+          exists(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid))
+          || exists(registrationDocPath(stakeId, activityId, 'guest_' + request.auth.uid))
+        );
+    }
+
+    function isOwnRegistration(data) {
+      return isSignedIn()
+        && (
+          (data.userId is string && data.userId == request.auth.uid)
+          || (data.anonymousUid is string && data.anonymousUid == request.auth.uid)
+        );
+    }
+
+    function registrationBelongsToCaller(data) {
+      return isSignedIn()
+        && (
+          (
+            data.userId is string
+            && data.userId == request.auth.uid
+            && (!('anonymousUid' in data) || data.anonymousUid == null)
+          )
+          || (
+            data.anonymousUid is string
+            && data.anonymousUid == request.auth.uid
+            && (!('userId' in data) || data.userId == null)
+          )
+        );
+    }
+
+    function expectedRegistrationId(data) {
+      return data.userId is string
+        ? 'user_' + data.userId
+        : data.anonymousUid is string
+          ? 'guest_' + data.anonymousUid
+          : '__invalid__';
+    }
+
+    function isExpectedOwnRegistrationId(registrationId) {
+      return isSignedIn()
+        && (
+          registrationId == 'user_' + request.auth.uid
+          || registrationId == 'guest_' + request.auth.uid
+        );
+    }
+
+    function validRegistrationStatus(value) {
+      return value in ['draft', 'submitted', 'confirmed', 'waitlist', 'active', 'cancelled'];
+    }
+
+    function validRegistrationPayload(data) {
+      return data.keys().hasOnly([
+          'userId',
+          'anonymousUid',
+          'anonymousTokenId',
+          'firstName',
+          'lastName',
+          'fullName',
+          'email',
+          'phone',
+          'birthDate',
+          'genderRoleCategory',
+          'unitId',
+          'unitNameSnapshot',
+          'answers',
+          'roomPreferenceMatches',
+          'accessCode',
+          'recoveryCode',
+          'recoveryPdfGenerated',
+          'parentConsentDocumentName',
+          'parentConsentDocumentUrl',
+          'parentConsentDocumentPath',
+          'parentConsentUploadedAt',
+          'linkedLaterToUserId',
+          'registrationStatus',
+          'submittedByMode',
+          'assignedRoomId',
+          'assignedTempleShiftId',
+          'assignedServiceTeamIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.firstName is string
+        && data.lastName is string
+        && data.fullName is string
+        && data.email is string
+        && data.phone is string
+        && data.birthDate is string
+        && validGenderRoleCategory(data.genderRoleCategory)
+        && data.unitId is string
+        && data.unitNameSnapshot is string
+        && data.answers is map
+        && (!('roomPreferenceMatches' in data)
+          || data.roomPreferenceMatches == null
+          || data.roomPreferenceMatches is map)
+        && (data.accessCode == null || data.accessCode is string)
+        && (data.recoveryCode == null || data.recoveryCode is string)
+        && (data.anonymousTokenId == null || data.anonymousTokenId is string)
+        && data.recoveryPdfGenerated is bool
+        && (data.parentConsentDocumentName == null || data.parentConsentDocumentName is string)
+        && (data.parentConsentDocumentUrl == null || data.parentConsentDocumentUrl is string)
+        && (data.parentConsentDocumentPath == null || data.parentConsentDocumentPath is string)
+        && (data.parentConsentUploadedAt == null || data.parentConsentUploadedAt is string)
+        && (data.linkedLaterToUserId == null || data.linkedLaterToUserId is string)
+        && validRegistrationStatus(data.registrationStatus)
+        && data.submittedByMode in ['authenticated', 'anonymous']
+        && (data.assignedRoomId == null || data.assignedRoomId is string)
+        && (data.assignedTempleShiftId == null || data.assignedTempleShiftId is string)
+        && data.assignedServiceTeamIds is list
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    function validRegistrationCreate(stakeId, activityId, registrationId) {
+      return validRegistrationPayload(request.resource.data)
+        && registrationBelongsToCaller(request.resource.data)
+        && expectedRegistrationId(request.resource.data) == registrationId
+        && activityAcceptsRegistrations(stakeId, activityId)
+        && (
+          request.resource.data.userId == request.auth.uid
+          || (
+            request.resource.data.anonymousUid == request.auth.uid
+            && formAllowsGuestRegistration(stakeId, activityId)
+          )
+        )
+        && request.resource.data.submittedByMode
+          == (request.resource.data.userId == request.auth.uid ? 'authenticated' : 'anonymous')
+        && request.resource.data.parentConsentDocumentName == null
+        && request.resource.data.parentConsentDocumentUrl == null
+        && request.resource.data.parentConsentDocumentPath == null
+        && request.resource.data.parentConsentUploadedAt == null
+        && request.resource.data.assignedRoomId == null
+        && request.resource.data.assignedTempleShiftId == null
+        && request.resource.data.assignedServiceTeamIds.size() == 0
+        && request.resource.data.linkedLaterToUserId == null;
+    }
+
+    function validRegistrationUpdate() {
+      return validRegistrationPayload(request.resource.data)
+        && isOwnRegistration(resource.data)
+        && registrationBelongsToCaller(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.anonymousUid == resource.data.anonymousUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.submittedByMode == resource.data.submittedByMode
+        && request.resource.data.unitId == resource.data.unitId
+        && request.resource.data.assignedRoomId == resource.data.assignedRoomId
+        && request.resource.data.assignedTempleShiftId == resource.data.assignedTempleShiftId
+        && request.resource.data.assignedServiceTeamIds == resource.data.assignedServiceTeamIds
+        && request.resource.data.linkedLaterToUserId == resource.data.linkedLaterToUserId
+        && (
+          request.resource.data.anonymousTokenId == resource.data.anonymousTokenId
+          || (
+            resource.data.anonymousTokenId == null
+            && (
+              request.resource.data.anonymousTokenId == null
+              || request.resource.data.anonymousTokenId is string
+            )
+          )
+        )
+        && (
+          request.resource.data.recoveryCode == resource.data.recoveryCode
+          || (
+            resource.data.recoveryCode == null
+            && (
+              request.resource.data.recoveryCode == null
+              || request.resource.data.recoveryCode is string
+            )
+          )
+        )
+        && (
+          request.resource.data.accessCode == resource.data.accessCode
+          || (
+            resource.data.accessCode == null
+            && (
+              request.resource.data.accessCode == null
+              || request.resource.data.accessCode is string
+            )
+          )
+        )
+        && (
+          request.resource.data.recoveryPdfGenerated == resource.data.recoveryPdfGenerated
+          || (
+            resource.data.recoveryPdfGenerated == false
+            && request.resource.data.recoveryPdfGenerated == true
+          )
+        )
+        && (
+          request.resource.data.registrationStatus == resource.data.registrationStatus
+          || request.resource.data.registrationStatus == 'cancelled'
+        );
+    }
+
+    function canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId) {
+      return isSignedIn()
+        && registrationId == 'guest_' + request.auth.uid
+        && resource.data.anonymousUid == request.auth.uid
+        && exists(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid));
+    }
+
+    function validRegistrationAttemptStatus(value) {
+      return value in ['started', 'succeeded', 'failed'];
+    }
+
+    function validRegistrationAttemptStep(value) {
+      return value in [
+        'submit_started',
+        'registration_saved',
+        'recovery_saved',
+        'completed',
+        'pdf_generated',
+        'submit_failed',
+        'pdf_failed'
+      ];
+    }
+
+    function registrationAttemptBelongsToCaller(data) {
+      return isSignedIn()
+        && (
+          (
+            data.userId is string
+            && data.userId == request.auth.uid
+            && (!('anonymousUid' in data) || data.anonymousUid == null)
+          )
+          || (
+            data.anonymousUid is string
+            && data.anonymousUid == request.auth.uid
+            && (!('userId' in data) || data.userId == null)
+          )
+        );
+    }
+
+    function validRegistrationAttemptPayload(data) {
+      return data.keys().hasOnly([
+          'stakeId',
+          'eventId',
+          'eventTitle',
+          'registrationId',
+          'userId',
+          'anonymousUid',
+          'submittedByMode',
+          'fullName',
+          'email',
+          'phone',
+          'status',
+          'lastStep',
+          'route',
+          'displayMode',
+          'online',
+          'userAgent',
+          'registrationStatus',
+          'errorCode',
+          'errorMessage',
+          'startedAt',
+          'completedAt',
+          'failedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.stakeId is string
+        && data.eventId is string
+        && data.eventTitle is string
+        && (data.registrationId == null || data.registrationId is string)
+        && (data.userId == null || data.userId is string)
+        && (data.anonymousUid == null || data.anonymousUid is string)
+        && data.submittedByMode in ['authenticated', 'anonymous']
+        && data.fullName is string
+        && data.email is string
+        && data.phone is string
+        && validRegistrationAttemptStatus(data.status)
+        && validRegistrationAttemptStep(data.lastStep)
+        && data.route is string
+        && data.displayMode in ['browser', 'standalone', 'unknown']
+        && data.online is bool
+        && data.userAgent is string
+        && (data.registrationStatus == null || validRegistrationStatus(data.registrationStatus))
+        && (data.errorCode == null || data.errorCode is string)
+        && (data.errorMessage == null || data.errorMessage is string)
+        && data.startedAt is string
+        && (data.completedAt == null || data.completedAt is string)
+        && (data.failedAt == null || data.failedAt is string)
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    function validRegistrationAttemptCreate(stakeId) {
+      return validRegistrationAttemptPayload(request.resource.data)
+        && request.resource.data.stakeId == stakeId
+        && registrationAttemptBelongsToCaller(request.resource.data)
+        && request.resource.data.status == 'started'
+        && request.resource.data.lastStep == 'submit_started'
+        && request.resource.data.registrationId == null
+        && request.resource.data.registrationStatus == null
+        && request.resource.data.completedAt == null
+        && request.resource.data.failedAt == null
+        && request.resource.data.errorCode == null
+        && request.resource.data.errorMessage == null
+        && request.resource.data.createdAt == request.resource.data.startedAt;
+    }
+
+    function validRegistrationAttemptUpdate(stakeId) {
+      return validRegistrationAttemptPayload(request.resource.data)
+        && request.resource.data.stakeId == stakeId
+        && registrationAttemptBelongsToCaller(resource.data)
+        && registrationAttemptBelongsToCaller(request.resource.data)
+        && request.resource.data.stakeId == resource.data.stakeId
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.eventTitle == resource.data.eventTitle
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.anonymousUid == resource.data.anonymousUid
+        && request.resource.data.submittedByMode == resource.data.submittedByMode
+        && request.resource.data.fullName == resource.data.fullName
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.phone == resource.data.phone
+        && request.resource.data.route == resource.data.route
+        && request.resource.data.displayMode == resource.data.displayMode
+        && request.resource.data.userAgent == resource.data.userAgent
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.startedAt == resource.data.startedAt;
+    }
+
+    function validAnonymousTokenPayload(data) {
+      return data.keys().hasOnly([
+          'registrationId',
+          'activityId',
+          'stakeId',
+          'anonymousUid',
+          'recoveryCode',
+          'pdfDataSummary',
+          'createdAt',
+          'expiresAt'
+        ])
+        && data.registrationId is string
+        && data.activityId is string
+        && data.stakeId is string
+        && data.anonymousUid is string
+        && data.recoveryCode is string
+        && data.pdfDataSummary is map
+        && data.createdAt is string
+        && (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is string);
+    }
+
+    function validAlertSeverity(value) {
+      return value in ['info', 'warning', 'critical', 'success'];
+    }
+
+    function validAdminAlertPayload(data) {
+      return data.keys().hasOnly([
+          'type',
+          'stakeId',
+          'eventId',
+          'registrationId',
+          'eventTitle',
+          'participantName',
+          'submittedByMode',
+          'title',
+          'message',
+          'severity',
+          'active',
+          'readBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.type in ['registration_created']
+        && data.stakeId is string
+        && data.eventId is string
+        && (data.registrationId == null || data.registrationId is string)
+        && data.eventTitle is string
+        && data.participantName is string
+        && data.submittedByMode in ['authenticated', 'anonymous']
+        && data.title is string
+        && data.message is string
+        && validAlertSeverity(data.severity)
+        && data.active is bool
+        && data.readBy is list
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    function validAdminAlertUpdate(stakeId) {
+      return isStakeAdmin(stakeId)
+        && validAdminAlertPayload(request.resource.data)
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.stakeId == resource.data.stakeId
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.registrationId == resource.data.registrationId
+        && request.resource.data.eventTitle == resource.data.eventTitle
+        && request.resource.data.participantName == resource.data.participantName
+        && request.resource.data.submittedByMode == resource.data.submittedByMode
+        && request.resource.data.title == resource.data.title
+        && request.resource.data.message == resource.data.message
+        && request.resource.data.severity == resource.data.severity
+        && request.resource.data.active == resource.data.active
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validPushPermission(value) {
+      return value in ['default', 'denied', 'granted', 'unsupported'];
+    }
+
+    function validAdminPushSubscriptionKeys(data) {
+      return data.keys().hasOnly([
+          'auth',
+          'p256dh'
+        ])
+        && data.auth is string
+        && data.p256dh is string;
+    }
+
+    function validAdminPushSubscription(data) {
+      return data.keys().hasOnly([
+          'endpoint',
+          'expirationTime',
+          'keys'
+        ])
+        && data.endpoint is string
+        && (data.expirationTime == null || data.expirationTime is number)
+        && data.keys is map
+        && validAdminPushSubscriptionKeys(data.keys);
+    }
+
+    function validAdminPushDevicePayload(stakeId, data) {
+      return data.keys().hasOnly([
+          'id',
+          'stakeId',
+          'userId',
+          'userName',
+          'role',
+          'permission',
+          'subscription',
+          'userAgent',
+          'platform',
+          'isStandalone',
+          'createdAt',
+          'updatedAt',
+          'lastSeenAt',
+          'lastDeliveredAt',
+          'lastError'
+        ])
+        && data.id is string
+        && data.stakeId == stakeId
+        && data.userId is string
+        && data.userName is string
+        && data.role in ['admin', 'super_admin']
+        && validPushPermission(data.permission)
+        && (data.subscription == null
+          || (data.subscription is map && validAdminPushSubscription(data.subscription)))
+        && data.userAgent is string
+        && data.platform is string
+        && data.isStandalone is bool
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.lastSeenAt is string
+        && (!('lastDeliveredAt' in data) || data.lastDeliveredAt == null || data.lastDeliveredAt is string)
+        && (!('lastError' in data) || data.lastError == null || data.lastError is string);
+    }
+
+    function ownsReferencedAnonymousRegistration(data) {
+      return isSignedIn()
+        && data.anonymousUid == request.auth.uid
+        && exists(registrationDocPath(data.stakeId, data.activityId, data.registrationId))
+        && get(registrationDocPath(data.stakeId, data.activityId, data.registrationId)).data.anonymousUid == request.auth.uid;
+    }
+
+    function validUserPayload(data) {
+      return data.keys().hasOnly([
+          'firstName',
+          'lastName',
+          'fullName',
+          'email',
+          'role',
+          'birthDate',
+          'genderRoleCategory',
+          'unitId',
+          'unitName',
+          'stakeId',
+          'stakeSlug',
+          'stakeName',
+          'mustChangePassword',
+          'createdAt',
+          'updatedAt',
+          'lastLoginAt'
+        ])
+        && data.firstName is string
+        && data.lastName is string
+        && data.fullName is string
+        && (data.email == null || data.email is string)
+        && data.role in ['participant', 'admin', 'super_admin', 'unit_leader']
+        && data.birthDate is string
+        && validGenderRoleCategory(data.genderRoleCategory)
+        && data.unitId is string
+        && data.unitName is string
+        && data.stakeId is string
+        && data.stakeSlug is string
+        && data.stakeName is string
+        && data.mustChangePassword is bool
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.lastLoginAt is string;
+    }
+
+    function canCreateOwnUser(uid) {
+      return isSelf(uid)
+        && validUserPayload(request.resource.data)
+        && request.resource.data.role == 'participant'
+        && request.resource.data.mustChangePassword == false;
+    }
+
+    function canUpdateOwnUser(uid) {
+      return isSelf(uid)
+        && validUserPayload(request.resource.data)
+        && request.resource.data.role == resource.data.role
+        && (
+          !('createdAt' in resource.data)
+          || request.resource.data.createdAt == resource.data.createdAt
+        )
+        && (
+          request.resource.data.mustChangePassword == resource.data.mustChangePassword
+          || (
+            resource.data.mustChangePassword == true
+            && request.resource.data.mustChangePassword == false
+          )
+        )
+        && (
+          resource.data.role == 'participant'
+          || resource.data.stakeId == ''
+          || request.resource.data.stakeId == resource.data.stakeId
+        );
+    }
+
+    function canAdminAssignUserRole() {
+      return currentUserExists()
+        && validUserPayload(request.resource.data)
+        && isStakeAdmin(resource.data.stakeId)
+        && resource.data.role != 'super_admin'
+        && request.resource.data.stakeId == resource.data.stakeId
+        && request.resource.data.fullName == resource.data.fullName
+        && request.resource.data.firstName == resource.data.firstName
+        && request.resource.data.lastName == resource.data.lastName
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.birthDate == resource.data.birthDate
+        && request.resource.data.genderRoleCategory == resource.data.genderRoleCategory
+        && request.resource.data.unitId == resource.data.unitId
+        && request.resource.data.unitName == resource.data.unitName
+        && request.resource.data.stakeSlug == resource.data.stakeSlug
+        && request.resource.data.stakeName == resource.data.stakeName
+        && request.resource.data.mustChangePassword == resource.data.mustChangePassword
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastLoginAt == resource.data.lastLoginAt
+        && request.resource.data.updatedAt is string
+        && request.resource.data.role in ['participant', 'admin', 'unit_leader'];
+    }
+
+    match /users/{uid} {
+      allow get: if isSelf(uid) || isStakeAdmin(resource.data.stakeId) || isUnitLeaderOfStake(resource.data.stakeId);
+      allow list: if isStakeAdmin(resource.data.stakeId) || isUnitLeaderOfStake(resource.data.stakeId);
+      allow create: if canCreateOwnUser(uid);
+      allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole();
+      allow delete: if false;
+    }
+
+    match /stakes/{stakeId} {
+      allow get, list: if true;
+      allow create, update, delete: if isStakeAdmin(stakeId);
+
+      match /units/{unitId} {
+        allow get, list: if isStakeAdmin(stakeId) || resource.data.isActive == true;
+        allow create, update, delete: if isStakeAdmin(stakeId);
+      }
+
+      match /registrationAttempts/{attemptId} {
+        allow get, list: if isStakeAdmin(stakeId);
+        allow create: if isStakeAdmin(stakeId) || validRegistrationAttemptCreate(stakeId);
+        allow update: if isStakeAdmin(stakeId) || validRegistrationAttemptUpdate(stakeId);
+        allow delete: if false;
+      }
+
+      match /adminAlerts/{alertId} {
+        allow get, list: if isStakeAdmin(stakeId);
+        allow create: if isStakeAdmin(stakeId);
+        allow update: if validAdminAlertUpdate(stakeId);
+        allow delete: if false;
+      }
+
+      match /adminPushDevices/{deviceId} {
+        allow get, list: if isStakeAdmin(stakeId);
+        allow create: if isStakeAdmin(stakeId)
+          && validAdminPushDevicePayload(stakeId, request.resource.data)
+          && request.resource.data.userId == request.auth.uid;
+        allow update: if isStakeAdmin(stakeId)
+          && validAdminPushDevicePayload(stakeId, request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isStakeAdmin(stakeId)
+          || (isSignedIn() && resource.data.userId == request.auth.uid);
+      }
+
+      match /activities/{activityId} {
+        allow get: if isStakeAdmin(stakeId)
+          || isPublicActivityDoc(resource.data)
+          || hasOwnRegistration(stakeId, activityId)
+          || isUnitLeaderOfStake(stakeId);
+        allow list: if isStakeAdmin(stakeId) || isPublicActivityListDoc(resource.data) || isUnitLeaderOfStake(stakeId);
+        allow create, update, delete: if isStakeAdmin(stakeId);
+
+        match /config/{configId} {
+          allow get: if configId == 'form'
+            && (
+              isStakeAdmin(stakeId)
+              || isPublicActivity(stakeId, activityId)
+              || hasOwnRegistration(stakeId, activityId)
+            );
+          allow list: if false;
+          allow create, update, delete: if isStakeAdmin(stakeId);
+        }
+
+        match /formFields/{fieldId} {
+          allow get, list: if isStakeAdmin(stakeId)
+            || isPublicActivity(stakeId, activityId)
+            || hasOwnRegistration(stakeId, activityId);
+          allow create, update, delete: if isStakeAdmin(stakeId);
+        }
+
+        match /registrations/{registrationId} {
+          allow get: if isStakeAdmin(stakeId)
+            || isExpectedOwnRegistrationId(registrationId)
+            || isOwnRegistration(resource.data)
+            || isUnitLeaderOfStake(stakeId);
+          allow list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
+          allow create: if isStakeAdmin(stakeId)
+            || validRegistrationCreate(stakeId, activityId, registrationId);
+          allow update: if isStakeAdmin(stakeId) || validRegistrationUpdate();
+          allow delete: if isStakeAdmin(stakeId)
+            || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
+        }
+
+        match /transportNotes/{noteId} {
+          allow get, list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
+          allow create, update: if isUnitLeaderOfStake(stakeId)
+            && request.resource.data.keys().hasOnly(['registrationId', 'resolvedByUid', 'resolvedAt'])
+            && request.resource.data.registrationId == noteId
+            && request.resource.data.resolvedByUid == request.auth.uid
+            && request.resource.data.resolvedAt is string;
+          allow delete: if isUnitLeaderOfStake(stakeId);
+        }
+      }
+    }
+
+    match /anonymousRegistrationTokens/{tokenId} {
+      allow get: if isSignedIn()
+        && (
+          resource.data.anonymousUid == request.auth.uid
+          || isStakeAdmin(resource.data.stakeId)
+        );
+      allow list: if false;
+      allow create: if validAnonymousTokenPayload(request.resource.data)
+        && ownsReferencedAnonymousRegistration(request.resource.data);
+      allow update: if validAnonymousTokenPayload(request.resource.data)
+        && ownsReferencedAnonymousRegistration(request.resource.data)
+        && request.resource.data.registrationId == resource.data.registrationId
+        && request.resource.data.activityId == resource.data.activityId
+        && request.resource.data.stakeId == resource.data.stakeId
+        && request.resource.data.anonymousUid == resource.data.anonymousUid
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    match /settings/{settingId} {
+      allow get: if settingId == 'organization';
+      allow list: if false;
+      allow create, update, delete: if isStakeAdmin('roma-est') && settingId == 'organization';
+    }
+
+    match /events/{eventId} {
+      allow get: if isStakeAdmin('roma-est') || isPublicActivityDoc(resource.data);
+      allow list: if isStakeAdmin('roma-est') || isPublicActivityDoc(resource.data);
+      allow create, update, delete: if isStakeAdmin('roma-est');
+
+      match /config/{configId} {
+        allow get: if configId == 'form'
+          && (
+            isStakeAdmin('roma-est')
+            || isPublicLegacyEvent(eventId)
+          );
+        allow list: if false;
+        allow create, update, delete: if isStakeAdmin('roma-est');
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#120e0d" />
+  <title>IRNM - Audit Contenimento</title>
+  <link rel="stylesheet" href="/irnm/internal/assets/decoy-terminal.css" />
+</head>
+<body data-source-label="audit contenimento">
+  <div class="app">
+    <main class="frame" aria-label="IRNM audit contenimento">
+      <header class="topbar">
+        <div class="brand">
+          <p class="eyebrow">IRNM · Rete Quarantena</p>
+          <p class="title">Audit Contenimento / Sottorete Q-4</p>
+        </div>
+        <div class="status-chip">
+          <span class="status-chip__dot" aria-hidden="true"></span>
+          <span id="terminalStatus">Sessione non autorizzata</span>
+        </div>
+      </header>
+
+      <section class="shell">
+        <section class="hero">
+          <p class="hero__kicker">Interruzione richiesta</p>
+          <h1>Terminale non corretto</h1>
+          <p>
+            Questa schermata non deve essere usata per l'inoltro delle emergenze. Se resta aperta,
+            avvia un processo di infezione che blocca la console operativa principale.
+          </p>
+        </section>
+
+        <section class="countdown-card" id="activeState">
+          <span class="countdown-card__label">Tempo residuo prima del blocco</span>
+          <div class="countdown" id="countdown">00:15</div>
+          <p class="detail" id="terminalDetail">
+            Questa non e la console corretta. Chiudere la pagina immediatamente.
+          </p>
+        </section>
+
+        <section class="compromised" id="compromisedState" hidden>
+          <p class="compromised__kicker">Blocco di sistema</p>
+          <h2>Canale emergenze compromesso</h2>
+          <p>
+            Il terminale sbagliato e rimasto aperto oltre il limite consentito. La console corretta
+            e stata sospesa fino al ripristino amministrativo.
+          </p>
+        </section>
+
+        <section class="meta">
+          <div class="meta-card">
+            <span class="meta-card__label">Sessione</span>
+            <span class="meta-card__value" id="sessionId">--</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-card__label">Modulo</span>
+            <span class="meta-card__value">Audit quarantena</span>
+          </div>
+        </section>
+
+        <section class="notice">
+          <span class="notice__label">Avviso operativo</span>
+          <p>Se questa pagina non viene chiusa entro 15 secondi, il sistema non sara piu utilizzabile.</p>
+        </section>
+
+        <p class="footer-note">
+          IRNM · Rete di contenimento interno · Sessione monitorata in tempo reale
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script src="/irnm/internal/assets/system-state.js"></script>
+  <script src="/irnm/internal/assets/decoy-terminal.js"></script>
+</body>
+</html>

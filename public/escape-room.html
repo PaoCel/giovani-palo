@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1116" />
+  <title>IRNM - Console Emergenze</title>
+  <style>
+    :root{
+      --bg-0:#081015;
+      --bg-1:#0d161c;
+      --bg-2:#111c23;
+      --surface:#101920;
+      --surface-2:#14202a;
+      --surface-3:#0c1419;
+      --line:rgba(132,162,179,0.22);
+      --line-strong:rgba(167,199,216,0.36);
+      --text:#dbe6ed;
+      --muted:#7f95a3;
+      --accent:#7fb7cb;
+      --accent-2:#a9d1de;
+      --success:#97bda6;
+      --warning:#d8b873;
+      --danger:#cf8f88;
+      --shadow:0 20px 48px rgba(0,0,0,0.38);
+      --radius-xl:14px;
+      --radius-lg:10px;
+      --radius-md:8px;
+      --radius-sm:6px;
+      --fast:160ms ease;
+      --smooth:320ms ease;
+      --font-ui:"Aptos","Segoe UI","Helvetica Neue","Nimbus Sans",sans-serif;
+      --font-mono:"SFMono-Regular","IBM Plex Mono","Menlo","Consolas",monospace;
+    }
+
+    *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html{
+      min-height:100%;
+      scroll-padding-top:88px;
+    }
+
+    body{
+      min-height:100%;
+      margin:0;
+      color:var(--text);
+      font-family:var(--font-ui);
+      background:linear-gradient(180deg, var(--bg-1), var(--bg-0) 48%, #070d12);
+      overflow-x:hidden;
+      overflow-y:auto;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background:
+        linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+      background-size:100% 28px, 28px 100%;
+      opacity:.12;
+    }
+
+    body::after{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at top, rgba(120,183,203,.08), transparent 42%),
+        linear-gradient(180deg, transparent, rgba(0,0,0,.24));
+      opacity:.8;
+    }
+
+    .app{
+      position:relative;
+      min-height:100dvh;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      padding:
+        max(12px, env(safe-area-inset-top))
+        12px
+        max(20px, env(safe-area-inset-bottom))
+        12px;
+    }
+
+    .frame{
+      position:relative;
+      width:min(100%, 520px);
+      margin-bottom:18px;
+      border:1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01)),
+        linear-gradient(180deg, var(--surface), var(--surface-3));
+      box-shadow:var(--shadow);
+      border-radius:var(--radius-xl);
+      overflow:hidden;
+    }
+
+    .frame::before{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      top:0;
+      height:3px;
+      background:linear-gradient(90deg, rgba(207,143,136,.85), rgba(216,184,115,.7), rgba(127,183,203,.7));
+      opacity:.85;
+      pointer-events:none;
+    }
+
+    .frame::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      border:1px solid rgba(255,255,255,.03);
+      border-radius:inherit;
+      pointer-events:none;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,.05);
+      background:linear-gradient(180deg, rgba(10,17,22,.96), rgba(10,17,22,.88));
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+    }
+
+    .brand-mark{
+      width:38px;
+      height:38px;
+      border-radius:var(--radius-sm);
+      border:1px solid var(--line-strong);
+      background:linear-gradient(180deg, #16242d, #0d151b);
+      display:grid;
+      place-items:center;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .brand-mark::before,
+    .brand-mark::after{
+      content:"";
+      position:absolute;
+      background:rgba(219,230,237,.78);
+    }
+
+    .brand-mark::before{
+      width:16px;
+      height:2px;
+    }
+
+    .brand-mark::after{
+      width:2px;
+      height:16px;
+    }
+
+    .brand-text{
+      min-width:0;
+    }
+
+    .eyebrow{
+      margin:0;
+      color:var(--muted);
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.22em;
+      text-transform:uppercase;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .title{
+      margin:4px 0 0;
+      font-size:18px;
+      font-weight:600;
+      letter-spacing:.01em;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .status-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:34px;
+      padding:0 10px;
+      border-radius:var(--radius-sm);
+      border:1px solid rgba(207,143,136,.35);
+      background:rgba(103,33,28,.22);
+      color:#f1d1cc;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      white-space:nowrap;
+      flex-shrink:0;
+    }
+
+    .status-chip .dot{
+      width:8px;
+      height:8px;
+      border-radius:2px;
+      background:var(--danger);
+      animation:statusBlink 1.5s steps(2, end) infinite;
+    }
+
+    @keyframes statusBlink{
+      0%,49%{ opacity:1; }
+      50%,100%{ opacity:.42; }
+    }
+
+    .shell{
+      position:relative;
+      padding:16px;
+      display:grid;
+      gap:12px;
+    }
+
+    .meta{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+
+    .meta-card{
+      position:relative;
+      padding:12px;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      overflow:hidden;
+    }
+
+    .meta-card::after{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      top:0;
+      height:1px;
+      background:linear-gradient(90deg, transparent, rgba(169,209,222,.34), transparent);
+    }
+
+    .meta-label{
+      display:block;
+      color:var(--muted);
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .meta-value{
+      display:block;
+      font-size:13px;
+      font-family:var(--font-mono);
+      font-weight:600;
+      letter-spacing:.04em;
+      word-break:break-word;
+    }
+
+    .hero{
+      position:relative;
+      padding:16px;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(20,32,42,.94), rgba(12,20,25,.94));
+      overflow:hidden;
+    }
+
+    .hero::before{
+      content:"";
+      position:absolute;
+      top:0;
+      bottom:0;
+      left:0;
+      width:4px;
+      background:linear-gradient(180deg, rgba(216,184,115,.9), rgba(127,183,203,.9));
+    }
+
+    .hero::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:linear-gradient(90deg, rgba(255,255,255,.02), transparent 24%);
+    }
+
+    .hero h1{
+      margin:0;
+      padding-left:6px;
+      font-size:clamp(22px, 5.4vw, 30px);
+      line-height:1.08;
+      letter-spacing:-.02em;
+      font-weight:650;
+    }
+
+    .hero p{
+      margin:10px 0 0;
+      padding-left:6px;
+      color:#bfd0da;
+      font-size:14px;
+      line-height:1.5;
+      max-width:38ch;
+    }
+
+    .badges{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:8px;
+      margin-top:14px;
+    }
+
+    .badge{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-height:44px;
+      padding:8px 10px;
+      border-radius:var(--radius-md);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+      color:#d5e2ea;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.14em;
+      text-transform:uppercase;
+    }
+
+    .badge .mini{
+      width:8px;
+      height:8px;
+      border-radius:2px;
+      flex-shrink:0;
+      background:var(--accent-2);
+    }
+
+    .progress{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:8px;
+    }
+
+    .step-pill{
+      position:relative;
+      padding:10px 12px;
+      border-radius:var(--radius-md);
+      border:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      text-align:left;
+      overflow:hidden;
+      transition:border-color var(--fast), background var(--fast), transform var(--fast);
+    }
+
+    .step-pill::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:0;
+      bottom:0;
+      width:3px;
+      background:rgba(255,255,255,.06);
+    }
+
+    .step-pill .num{
+      display:block;
+      font-size:10px;
+      color:var(--muted);
+      font-family:var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .step-pill .name{
+      display:block;
+      font-size:12px;
+      font-weight:600;
+      letter-spacing:.03em;
+      color:var(--text);
+    }
+
+    .step-pill.current{
+      border-color:rgba(127,183,203,.44);
+      background:rgba(127,183,203,.08);
+      transform:translateY(-1px);
+    }
+
+    .step-pill.current::before{
+      background:var(--accent);
+    }
+
+    .step-pill.done{
+      border-color:rgba(151,189,166,.42);
+      background:rgba(151,189,166,.09);
+    }
+
+    .step-pill.done::before{
+      background:var(--success);
+    }
+
+    .panel{
+      position:relative;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(14,24,31,.98), rgba(10,17,22,.98));
+      padding:16px;
+      overflow:hidden;
+      min-height:auto;
+    }
+
+    .panel::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg, rgba(255,255,255,.015), transparent 26%);
+      pointer-events:none;
+    }
+
+    .panel-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:16px;
+    }
+
+    .panel-kicker{
+      color:var(--muted);
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.22em;
+      text-transform:uppercase;
+      margin:0 0 8px;
+    }
+
+    .panel-title{
+      margin:0;
+      font-size:20px;
+      line-height:1.15;
+      letter-spacing:-.02em;
+      font-weight:650;
+    }
+
+    .panel-side{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      align-items:flex-end;
+      flex-shrink:0;
+    }
+
+    .panel-tag{
+      padding:7px 10px;
+      border-radius:var(--radius-sm);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+      color:#cadbe5;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+
+    .panel-tag.live{
+      border-color:rgba(216,184,115,.34);
+      color:#e5d1a0;
+      background:rgba(74,55,18,.12);
+    }
+
+    .step{
+      display:none;
+      opacity:0;
+      transform:translateY(6px);
+      transition:opacity var(--smooth), transform var(--smooth);
+    }
+
+    .step.active{
+      display:block;
+      opacity:1;
+      transform:translateY(0);
+    }
+
+    .done-summary{
+      display:none;
+      position:relative;
+      margin-top:12px;
+      padding:12px 14px;
+      border-radius:var(--radius-md);
+      border:1px solid rgba(151,189,166,.28);
+      background:rgba(151,189,166,.08);
+      color:#dceadf;
+      overflow:hidden;
+    }
+
+    .done-summary.show{
+      display:block;
+      animation:fadeUp var(--smooth);
+    }
+
+    .done-summary .small{
+      display:block;
+      color:#a6bdaa;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .done-summary .value{
+      font-size:14px;
+      font-weight:600;
+      letter-spacing:.02em;
+    }
+
+    @keyframes fadeUp{
+      from{ opacity:0; transform:translateY(6px); }
+      to{ opacity:1; transform:translateY(0); }
+    }
+
+    .label{
+      display:block;
+      margin:0 0 10px;
+      color:var(--text);
+      font-size:14px;
+      font-weight:600;
+      letter-spacing:.01em;
+    }
+
+    .hint{
+      margin:-2px 0 14px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.55;
+    }
+
+    .field{
+      position:relative;
+      display:flex;
+      align-items:center;
+      min-height:56px;
+      border-radius:var(--radius-md);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+      transition:border-color var(--fast), background var(--fast), box-shadow var(--fast);
+      overflow:hidden;
+    }
+
+    .field:focus-within{
+      border-color:rgba(127,183,203,.45);
+      background:rgba(127,183,203,.06);
+      box-shadow:0 0 0 3px rgba(127,183,203,.08);
+    }
+
+    .field::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:0;
+      bottom:0;
+      width:4px;
+      background:rgba(127,183,203,.75);
+    }
+
+    .input{
+      width:100%;
+      min-height:56px;
+      padding:0 14px 0 18px;
+      background:transparent;
+      border:0;
+      outline:0;
+      color:var(--text);
+      font:600 18px/1 var(--font-mono);
+      letter-spacing:.08em;
+      appearance:none;
+    }
+
+    .input::placeholder{
+      color:#718694;
+      font-weight:500;
+      letter-spacing:.03em;
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      margin-top:14px;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid rgba(127,183,203,.42);
+      outline:0;
+      cursor:pointer;
+      user-select:none;
+      width:100%;
+      min-height:52px;
+      border-radius:var(--radius-sm);
+      padding:0 16px;
+      font:700 13px/1 var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      color:#081015;
+      background:linear-gradient(180deg, #bad5df, #7fb7cb);
+      transition:transform var(--fast), filter var(--fast), background var(--fast), border-color var(--fast);
+    }
+
+    .btn:hover{ filter:brightness(1.02); }
+
+    .btn:active{
+      transform:translateY(1px);
+    }
+
+    .btn.secondary{
+      color:var(--text);
+      background:rgba(255,255,255,.03);
+      border-color:var(--line);
+    }
+
+    .feedback{
+      min-height:20px;
+      margin-top:10px;
+      font-size:12px;
+      font-family:var(--font-mono);
+      line-height:1.45;
+      letter-spacing:.04em;
+    }
+
+    .feedback.error{ color:var(--danger); }
+    .feedback.success{ color:var(--success); }
+
+    .subgrid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:16px;
+    }
+
+    .mini-stat{
+      padding:12px;
+      border-radius:var(--radius-md);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+    }
+
+    .mini-stat .small{
+      display:block;
+      color:var(--muted);
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .mini-stat .big{
+      display:block;
+      font-size:13px;
+      font-weight:600;
+      letter-spacing:.02em;
+      color:#dbe6ed;
+    }
+
+    .integrity{
+      margin-top:14px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .bars{
+      display:grid;
+      grid-template-columns:repeat(10, 1fr);
+      gap:4px;
+      flex:1;
+    }
+
+    .bar{
+      height:8px;
+      border-radius:999px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.04);
+      overflow:hidden;
+      position:relative;
+    }
+
+    .bar::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(90deg, rgba(127,183,203,.45), rgba(169,209,222,.9));
+      transform-origin:left center;
+      transform:scaleX(0);
+      transition:transform .32s ease;
+    }
+
+    .bar.active::after{ transform:scaleX(1); }
+
+    .integrity-text{
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+
+    .final{
+      display:none;
+      position:relative;
+      min-height:auto;
+      border-radius:var(--radius-lg);
+      border:1px solid rgba(151,189,166,.24);
+      background:linear-gradient(180deg, rgba(16,25,32,.98), rgba(11,17,22,.98));
+      padding:18px 16px 16px;
+      overflow:hidden;
+      animation:finalIn .35s ease;
+    }
+
+    .final.show{ display:block; }
+
+    @keyframes finalIn{
+      from{ opacity:0; transform:translateY(6px); }
+      to{ opacity:1; transform:translateY(0); }
+    }
+
+    .final::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:linear-gradient(180deg, rgba(151,189,166,.06), transparent 45%);
+    }
+
+    .seal{
+      position:relative;
+      width:72px;
+      height:72px;
+      margin:2px auto 16px;
+      border-radius:10px;
+      display:grid;
+      place-items:center;
+      border:1px solid rgba(151,189,166,.32);
+      background:linear-gradient(180deg, rgba(151,189,166,.12), rgba(151,189,166,.04));
+      overflow:hidden;
+    }
+
+    .seal::before,
+    .seal::after{
+      content:"";
+      position:absolute;
+      background:#ddefe4;
+    }
+
+    .seal::before{
+      width:30px;
+      height:3px;
+    }
+
+    .seal::after{
+      width:3px;
+      height:30px;
+    }
+
+    .final-kicker{
+      text-align:center;
+      color:#aac3b1;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.2em;
+      text-transform:uppercase;
+      margin:0 0 10px;
+    }
+
+    .final h2{
+      margin:0;
+      text-align:center;
+      font-size:28px;
+      line-height:1.05;
+      letter-spacing:-.03em;
+      font-weight:650;
+    }
+
+    .final .lead{
+      margin:12px auto 0;
+      max-width:30ch;
+      text-align:center;
+      color:#d3e2d8;
+      font-size:14px;
+      line-height:1.55;
+    }
+
+    .final-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:18px;
+    }
+
+    .final-card{
+      padding:12px;
+      border-radius:var(--radius-md);
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.02);
+    }
+
+    .final-card .small{
+      display:block;
+      color:#a8bcae;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      margin-bottom:7px;
+    }
+
+    .final-card .big{
+      display:block;
+      color:#eff7f1;
+      font-size:13px;
+      font-weight:700;
+      letter-spacing:.06em;
+    }
+
+    .arrival{
+      margin-top:16px;
+      padding:14px;
+      border-radius:var(--radius-md);
+      border:1px solid rgba(151,189,166,.24);
+      background:rgba(151,189,166,.08);
+      text-align:center;
+      overflow:hidden;
+      position:relative;
+    }
+
+    .arrival::before{
+      content:"";
+      position:absolute;
+      inset:0 0 auto 0;
+      height:1px;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent);
+    }
+
+    .arrival span{
+      display:block;
+      color:#a5bba9;
+      font-size:10px;
+      font-family:var(--font-mono);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .arrival strong{
+      display:block;
+      font-size:14px;
+      font-weight:700;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      color:#eef8f1;
+    }
+
+    .footer-note{
+      color:var(--muted);
+      font-size:11px;
+      line-height:1.5;
+      text-align:left;
+      margin-top:2px;
+    }
+
+    .shake{
+      animation:shake .24s linear;
+    }
+
+    @keyframes shake{
+      0%,100%{ transform:translateX(0); }
+      25%{ transform:translateX(-3px); }
+      50%{ transform:translateX(3px); }
+      75%{ transform:translateX(-2px); }
+    }
+
+    .glow-ok{
+      box-shadow:0 0 0 3px rgba(151,189,166,.08);
+      border-color:rgba(151,189,166,.34)!important;
+      background:rgba(151,189,166,.05)!important;
+    }
+
+    .hidden{ display:none !important; }
+
+    .lock-screen{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:flex-end;
+      padding:16px;
+      background:rgba(7,11,14,.9);
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+      z-index:40;
+    }
+
+    .lock-screen.show{
+      display:flex;
+    }
+
+    .lock-screen__card{
+      width:100%;
+      border:1px solid rgba(207,143,136,.28);
+      border-radius:var(--radius-lg);
+      background:linear-gradient(180deg, rgba(33,16,14,.96), rgba(16,11,10,.96));
+      padding:18px 16px 14px;
+      box-shadow:0 20px 44px rgba(0,0,0,.34);
+    }
+
+    .lock-screen__kicker{
+      margin:0 0 8px;
+      color:#d5a39d;
+      font:10px/1.2 var(--font-mono);
+      letter-spacing:.2em;
+      text-transform:uppercase;
+    }
+
+    .lock-screen__title{
+      margin:0;
+      font-size:28px;
+      line-height:1.06;
+      letter-spacing:-.03em;
+      font-weight:650;
+    }
+
+    .lock-screen__copy{
+      margin:12px 0 0;
+      color:#efdad6;
+      font-size:14px;
+      line-height:1.6;
+    }
+
+    .lock-screen__status{
+      margin-top:16px;
+      padding:12px 13px;
+      border-radius:var(--radius-md);
+      border:1px solid rgba(207,143,136,.24);
+      background:rgba(255,255,255,.03);
+    }
+
+    .lock-screen__status-label{
+      display:block;
+      color:#c99b95;
+      font:10px/1.2 var(--font-mono);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .lock-screen__status-value{
+      display:block;
+      color:#fff0ee;
+      font:600 13px/1.5 var(--font-mono);
+      letter-spacing:.04em;
+    }
+
+    .lock-screen__footer{
+      margin-top:18px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:10px;
+    }
+
+    .lock-screen__code-link{
+      padding:0;
+      border:0;
+      background:none;
+      color:rgba(255,255,255,.56);
+      font:10px/1.2 var(--font-mono);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      cursor:pointer;
+    }
+
+    .lock-screen__code-link:hover{
+      color:rgba(255,255,255,.75);
+    }
+
+    .lock-screen__form{
+      width:100%;
+      display:flex;
+      gap:8px;
+    }
+
+    .lock-screen__input{
+      flex:1;
+      min-height:44px;
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      padding:0 12px;
+      font:600 17px/1 var(--font-mono);
+      letter-spacing:.22em;
+      outline:0;
+    }
+
+    .lock-screen__input:focus{
+      border-color:rgba(127,183,203,.42);
+      box-shadow:0 0 0 3px rgba(127,183,203,.08);
+    }
+
+    .lock-screen__submit{
+      min-width:72px;
+      min-height:44px;
+      border:1px solid rgba(127,183,203,.42);
+      border-radius:var(--radius-sm);
+      background:linear-gradient(180deg, #bad5df, #7fb7cb);
+      color:#081015;
+      font:700 12px/1 var(--font-mono);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      cursor:pointer;
+    }
+
+    .lock-screen__feedback{
+      min-height:16px;
+      color:#d7aba5;
+      font:10px/1.4 var(--font-mono);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+
+    @media (max-width:480px){
+      .topbar{
+        flex-wrap:wrap;
+        align-items:flex-start;
+      }
+
+      .panel-head{
+        flex-direction:column;
+        align-items:flex-start;
+      }
+
+      .panel-side{
+        width:100%;
+        align-items:flex-start;
+      }
+    }
+
+    @media (max-width:360px){
+      .app{
+        padding-left:8px;
+        padding-right:8px;
+      }
+
+      .shell{
+        padding:12px;
+        gap:10px;
+      }
+
+      .hero,
+      .panel,
+      .final{
+        padding:14px;
+      }
+
+      .badges,
+      .progress,
+      .subgrid,
+      .final-grid{
+        grid-template-columns:1fr;
+      }
+
+      .input{
+        font-size:16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="frame" aria-label="IRNM console emergenze">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-text">
+            <p class="eyebrow">IRNM · Console Segnalazioni Emergenze</p>
+            <p class="title">Protocollo Mnemosyne</p>
+          </div>
+        </div>
+        <div class="status-chip" id="globalStatus">
+          <span class="dot" aria-hidden="true"></span>
+          <span>Allarme attivo</span>
+        </div>
+      </header>
+
+      <section class="shell">
+        <div class="meta">
+          <div class="meta-card">
+            <span class="meta-label">Sessione</span>
+            <span class="meta-value" id="sessionId">IRNM-000000</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">Timestamp</span>
+            <span class="meta-value" id="timestamp">--/--/---- --:--:--</span>
+          </div>
+        </div>
+
+        <section class="hero">
+          <h1>Console di segnalazione emergenze</h1>
+          <p>
+            Compilare i campi richiesti per inoltrare la segnalazione al presidio interno. Ogni
+            parametro viene validato sui registri di laboratorio prima dell'apertura del canale di
+            risposta.
+          </p>
+          <div class="badges" aria-hidden="true">
+            <span class="badge"><span class="mini"></span> Rete interna</span>
+            <span class="badge"><span class="mini"></span> Audit locale</span>
+            <span class="badge"><span class="mini"></span> Priorità 1</span>
+          </div>
+        </section>
+
+        <section class="progress" aria-label="Stato avanzamento">
+          <div class="step-pill current" id="pill-1">
+            <span class="num">Step 01</span>
+            <span class="name">Emergenza</span>
+          </div>
+          <div class="step-pill" id="pill-2">
+            <span class="num">Step 02</span>
+            <span class="name">Proteina</span>
+          </div>
+          <div class="step-pill" id="pill-3">
+            <span class="num">Step 03</span>
+            <span class="name">Soggetto</span>
+          </div>
+        </section>
+
+        <section class="panel" id="workflowPanel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Workflow operativo</p>
+              <h2 class="panel-title" id="panelTitle">Validazione codice emergenza</h2>
+            </div>
+            <div class="panel-side">
+              <span class="panel-tag live" id="panelState">Attesa dati</span>
+              <span class="panel-tag" id="panelProtocol">Mnemosyne</span>
+            </div>
+          </div>
+
+          <!-- STEP 1 -->
+          <section class="step active" id="step-1" aria-labelledby="label-step-1">
+            <label class="label" id="label-step-1" for="emergencyInput">Numero di emergenza</label>
+            <p class="hint">Inserire il numero d'emergenza che si desidera chiamare.</p>
+
+            <div class="field" id="field-1">
+              <input
+                class="input"
+                id="emergencyInput"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="Codice numerico"
+                aria-describedby="feedback-1"
+              />
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="btn-1" type="button">Valida</button>
+            </div>
+
+            <div class="feedback" id="feedback-1" aria-live="polite"></div>
+
+            <div class="subgrid">
+              <div class="mini-stat">
+                <span class="small">Canale</span>
+                <span class="big">Verifica locale</span>
+              </div>
+              <div class="mini-stat">
+                <span class="small">Livello</span>
+                <span class="big">Risposta interna</span>
+              </div>
+            </div>
+          </section>
+
+          <div class="done-summary" id="summary-1">
+            <span class="small">Parametro validato</span>
+            <span class="value">Codice emergenza acquisito</span>
+          </div>
+
+          <!-- STEP 2 -->
+          <section class="step" id="step-2" aria-labelledby="label-step-2">
+            <label class="label" id="label-step-2" for="proteinInput">Proteina coinvolta</label>
+            <p class="hint">Usare la sigla tecnica registrata nell'archivio del laboratorio.</p>
+
+            <div class="field" id="field-2">
+              <input
+                class="input"
+                id="proteinInput"
+                type="text"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                placeholder="Sigla proteica"
+                aria-describedby="feedback-2"
+              />
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="btn-2" type="button">Valida</button>
+            </div>
+
+            <div class="feedback" id="feedback-2" aria-live="polite"></div>
+
+            <div class="subgrid">
+              <div class="mini-stat">
+                <span class="small">Archivio</span>
+                <span class="big">Sequenza proteica</span>
+              </div>
+              <div class="mini-stat">
+                <span class="small">Controllo</span>
+                <span class="big">Verifica nomenclatura</span>
+              </div>
+            </div>
+          </section>
+
+          <div class="done-summary" id="summary-2">
+            <span class="small">Sequenza validata</span>
+            <span class="value">Proteina confermata</span>
+          </div>
+
+          <!-- STEP 3 -->
+          <section class="step" id="step-3" aria-labelledby="label-step-3">
+            <label class="label" id="label-step-3" for="subjectInput">Identificativo soggetto</label>
+            <p class="hint">Per quale caso si desidera comunicare l'emergenza.</p>
+
+            <div class="field" id="field-3">
+              <input
+                class="input"
+                id="subjectInput"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="Numero caso"
+                aria-describedby="feedback-3"
+              />
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="btn-3" type="button">Valida</button>
+            </div>
+
+            <div class="feedback" id="feedback-3" aria-live="polite"></div>
+
+            <div class="subgrid">
+              <div class="mini-stat">
+                <span class="small">Registro</span>
+                <span class="big">Identificativo soggetto</span>
+              </div>
+              <div class="mini-stat">
+                <span class="small">Presidio</span>
+                <span class="big">Match richiesto</span>
+              </div>
+            </div>
+          </section>
+
+          <div class="done-summary" id="summary-3">
+            <span class="small">Identificativo validato</span>
+            <span class="value">Soggetto confermato</span>
+          </div>
+
+          <div class="integrity" aria-hidden="true">
+            <div class="bars" id="integrityBars">
+              <div class="bar active"></div>
+              <div class="bar active"></div>
+              <div class="bar active"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+            </div>
+            <div class="integrity-text" id="integrityText">Convalida 30%</div>
+          </div>
+        </section>
+
+        <section class="final" id="finalScreen" aria-live="polite">
+          <div class="seal" aria-hidden="true"></div>
+          <p class="final-kicker">Segnalazione inoltrata</p>
+          <h2>Emergenza registrata</h2>
+          <p class="lead">
+            Il protocollo Mnemosyne è stato trasmesso al presidio interno. Attendere l'arrivo
+            dell'unità di sicurezza.
+          </p>
+
+          <div class="final-grid">
+            <div class="final-card">
+              <span class="small">Stato protocollo</span>
+              <span class="big">ATTIVO</span>
+            </div>
+            <div class="final-card">
+              <span class="small">Convalida</span>
+              <span class="big">COMPLETATA</span>
+            </div>
+            <div class="final-card">
+              <span class="small">Risposta interna</span>
+              <span class="big">UNITA NOTIFICATE</span>
+            </div>
+            <div class="final-card">
+              <span class="small">Canale</span>
+              <span class="big">PRESIDIO INTERNO</span>
+            </div>
+          </div>
+
+          <div class="arrival">
+            <span>Stato del sistema</span>
+            <strong>Presidio in arrivo</strong>
+          </div>
+        </section>
+
+        <p class="footer-note">
+          IRNM · Terminale operativo interno · Accesso riservato al personale autorizzato
+        </p>
+      </section>
+
+      <section class="lock-screen" id="lockScreen" aria-live="polite">
+        <div class="lock-screen__card">
+          <p class="lock-screen__kicker">Terminale sospeso</p>
+          <h2 class="lock-screen__title">Accesso bloccato</h2>
+          <p class="lock-screen__copy">
+            Una sessione non autorizzata ha compromesso il canale operativo. Il terminale restera
+            fuori servizio fino al ripristino amministrativo.
+          </p>
+
+          <div class="lock-screen__status">
+            <span class="lock-screen__status-label">Stato sistema</span>
+            <span class="lock-screen__status-value" id="lockScreenStatus">Canale emergenze disabilitato</span>
+          </div>
+
+          <div class="lock-screen__footer">
+            <button class="lock-screen__code-link" id="lockCodeTrigger" type="button">codice</button>
+
+            <form class="lock-screen__form hidden" id="lockCodeForm">
+              <input
+                class="lock-screen__input"
+                id="lockCodeInput"
+                type="password"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="4"
+                autocomplete="off"
+                aria-label="Codice amministrativo"
+              />
+              <button class="lock-screen__submit" type="submit">OK</button>
+            </form>
+
+            <div class="lock-screen__feedback" id="lockCodeFeedback" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/irnm/internal/assets/system-state.js"></script>
+  <script>
+    /* ============================
+       PARAMETRI FACILI DA MODIFICARE
+       ============================ */
+    const EMERGENCY_CODE = "5472810660";
+    const PROTEIN_CODE = "7-SNM";
+    const SUBJECT_CODE = "72";
+
+    /* ============================
+       ELEMENTI UI
+       ============================ */
+    const timestampEl = document.getElementById("timestamp");
+    const sessionIdEl = document.getElementById("sessionId");
+    const panelTitle = document.getElementById("panelTitle");
+    const panelState = document.getElementById("panelState");
+    const globalStatus = document.getElementById("globalStatus");
+    const workflowPanel = document.getElementById("workflowPanel");
+    const finalScreen = document.getElementById("finalScreen");
+    const integrityText = document.getElementById("integrityText");
+    const integrityBars = [...document.querySelectorAll("#integrityBars .bar")];
+    const lockScreen = document.getElementById("lockScreen");
+    const lockScreenStatus = document.getElementById("lockScreenStatus");
+    const lockCodeTrigger = document.getElementById("lockCodeTrigger");
+    const lockCodeForm = document.getElementById("lockCodeForm");
+    const lockCodeInput = document.getElementById("lockCodeInput");
+    const lockCodeFeedback = document.getElementById("lockCodeFeedback");
+
+    const steps = {
+      1: {
+        section: document.getElementById("step-1"),
+        field: document.getElementById("field-1"),
+        input: document.getElementById("emergencyInput"),
+        button: document.getElementById("btn-1"),
+        feedback: document.getElementById("feedback-1"),
+        summary: document.getElementById("summary-1"),
+        pill: document.getElementById("pill-1")
+      },
+      2: {
+        section: document.getElementById("step-2"),
+        field: document.getElementById("field-2"),
+        input: document.getElementById("proteinInput"),
+        button: document.getElementById("btn-2"),
+        feedback: document.getElementById("feedback-2"),
+        summary: document.getElementById("summary-2"),
+        pill: document.getElementById("pill-2")
+      },
+      3: {
+        section: document.getElementById("step-3"),
+        field: document.getElementById("field-3"),
+        input: document.getElementById("subjectInput"),
+        button: document.getElementById("btn-3"),
+        feedback: document.getElementById("feedback-3"),
+        summary: document.getElementById("summary-3"),
+        pill: document.getElementById("pill-3")
+      }
+    };
+
+    let currentStep = 1;
+
+    /* ============================
+       UTILS
+       ============================ */
+    function pad(n){ return String(n).padStart(2, "0"); }
+
+    function updateTimestamp() {
+      const now = new Date();
+      const formatted =
+        `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ` +
+        `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      timestampEl.textContent = formatted;
+    }
+
+    function generateSessionId() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let token = "IRNM-";
+      for (let i = 0; i < 6; i++) token += chars[Math.floor(Math.random() * chars.length)];
+      sessionIdEl.textContent = token;
+    }
+
+    function normalizeNumeric(value) {
+      return String(value).replace(/\D+/g, "").trim();
+    }
+
+    function normalizeProtein(value) {
+      return String(value)
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, "")
+        .replace(/_/g, "-")
+        .replace(/–|—/g, "-");
+    }
+
+    function canonicalProtein(value) {
+      return normalizeProtein(value).replace(/-/g, "");
+    }
+
+    function getSystemStatus() {
+      if (!window.IRNMSystemState) {
+        return { locked: false, lockedBy: null };
+      }
+
+      return window.IRNMSystemState.getThreatStatus();
+    }
+
+    function setFeedback(stepIndex, message, type = "") {
+      const fb = steps[stepIndex].feedback;
+      fb.textContent = message;
+      fb.className = `feedback ${type}`.trim();
+    }
+
+    function pulseField(stepIndex, ok = false) {
+      const field = steps[stepIndex].field;
+      field.classList.remove("shake", "glow-ok");
+      void field.offsetWidth;
+      if (ok) {
+        field.classList.add("glow-ok");
+      } else {
+        field.classList.add("shake");
+      }
+    }
+
+    function focusInput(stepIndex) {
+      requestAnimationFrame(() => {
+        steps[stepIndex].input.focus();
+        steps[stepIndex].input.select?.();
+      });
+    }
+
+    function updateLockScreen() {
+      const status = getSystemStatus();
+      const locked = Boolean(status.locked);
+
+      lockScreen.classList.toggle("show", locked);
+
+      if (!locked) {
+        lockCodeForm.classList.add("hidden");
+        lockCodeInput.value = "";
+        lockCodeFeedback.textContent = "";
+        return;
+      }
+
+      document.activeElement?.blur?.();
+
+      const sourceLabel = status.lockedBy?.sourceLabel;
+      lockScreenStatus.textContent = sourceLabel
+        ? `Canale emergenze disabilitato · Origine ${sourceLabel}`
+        : "Canale emergenze disabilitato";
+    }
+
+    function setIntegrity(progress) {
+      integrityBars.forEach((bar, index) => {
+        bar.classList.toggle("active", index < progress);
+      });
+      const percentMap = {
+        3: "Convalida 30%",
+        6: "Convalida 60%",
+        10: "Convalida 100%"
+      };
+      integrityText.textContent = percentMap[progress] || `Convalida ${progress * 10}%`;
+    }
+
+    function updateHeaderForStep(stepIndex) {
+      if (stepIndex === 1) {
+        panelTitle.textContent = "Validazione codice emergenza";
+        panelState.textContent = "Attesa dati";
+      } else if (stepIndex === 2) {
+        panelTitle.textContent = "Verifica sequenza proteica";
+        panelState.textContent = "Verifica 02/03";
+      } else if (stepIndex === 3) {
+        panelTitle.textContent = "Identificazione soggetto";
+        panelState.textContent = "Verifica 03/03";
+      }
+    }
+
+    function activateStep(stepIndex, { focus = true } = {}) {
+      currentStep = stepIndex;
+      Object.keys(steps).forEach((key) => {
+        const index = Number(key);
+        steps[index].section.classList.toggle("active", index === stepIndex);
+        steps[index].pill.classList.toggle("current", index === stepIndex);
+      });
+      updateHeaderForStep(stepIndex);
+      if (focus) {
+        focusInput(stepIndex);
+      }
+    }
+
+    function completeStep(stepIndex, summaryText) {
+      const step = steps[stepIndex];
+      step.section.classList.remove("active");
+      step.summary.querySelector(".value").textContent = summaryText;
+      step.summary.classList.add("show");
+      step.pill.classList.remove("current");
+      step.pill.classList.add("done");
+      setFeedback(stepIndex, "");
+      pulseField(stepIndex, true);
+    }
+
+    function finalizeSequence() {
+      setIntegrity(10);
+      document.activeElement?.blur?.();
+      workflowPanel.classList.add("hidden");
+      finalScreen.classList.add("show");
+
+      const dot = globalStatus.querySelector(".dot");
+      dot.style.background = "var(--success)";
+      dot.style.boxShadow = "0 0 14px rgba(158,240,194,.6)";
+      globalStatus.querySelector("span:last-child").textContent = "Presidio allertato";
+    }
+
+    /* ============================
+       VALIDAZIONE STEP
+       ============================ */
+    function validateStep1() {
+      const value = normalizeNumeric(steps[1].input.value);
+      const expected = normalizeNumeric(EMERGENCY_CODE);
+
+      if (value === expected) {
+        setFeedback(1, "Codice validato", "success");
+        completeStep(1, "Codice emergenza acquisito");
+        setIntegrity(6);
+        setTimeout(() => activateStep(2), 260);
+      } else {
+        setFeedback(1, "Codice non presente nei registri", "error");
+        pulseField(1, false);
+      }
+    }
+
+    function validateStep2() {
+      const raw = steps[2].input.value;
+      const candidate = canonicalProtein(raw);
+      const expected = canonicalProtein(PROTEIN_CODE);
+
+      if (candidate === expected) {
+        steps[2].input.value = PROTEIN_CODE;
+        setFeedback(2, `Sequenza valida · ${PROTEIN_CODE}`, "success");
+        completeStep(2, `Proteina confermata · ${PROTEIN_CODE}`);
+        setIntegrity(8);
+        setTimeout(() => activateStep(3), 260);
+      } else {
+        setFeedback(2, "Sequenza non presente nei registri", "error");
+        pulseField(2, false);
+      }
+    }
+
+    function validateStep3() {
+      const value = normalizeNumeric(steps[3].input.value);
+      const expected = normalizeNumeric(SUBJECT_CODE);
+
+      if (value === expected) {
+        setFeedback(3, "Identificativo validato", "success");
+        completeStep(3, `Soggetto confermato · ${SUBJECT_CODE}`);
+        setTimeout(finalizeSequence, 300);
+      } else {
+        setFeedback(3, "Identificativo non corrispondente", "error");
+        pulseField(3, false);
+      }
+    }
+
+    /* ============================
+       EVENTI
+       ============================ */
+    steps[1].button.addEventListener("click", validateStep1);
+    steps[2].button.addEventListener("click", validateStep2);
+    steps[3].button.addEventListener("click", validateStep3);
+
+    steps[1].input.addEventListener("keydown", (e) => { if (e.key === "Enter") validateStep1(); });
+    steps[2].input.addEventListener("keydown", (e) => { if (e.key === "Enter") validateStep2(); });
+    steps[3].input.addEventListener("keydown", (e) => { if (e.key === "Enter") validateStep3(); });
+
+    steps[1].input.addEventListener("input", () => {
+      steps[1].input.value = steps[1].input.value.replace(/[^\d]/g, "");
+    });
+
+    steps[3].input.addEventListener("input", () => {
+      steps[3].input.value = steps[3].input.value.replace(/[^\d]/g, "");
+    });
+
+    steps[2].input.addEventListener("input", () => {
+      const cursor = steps[2].input.selectionStart;
+      steps[2].input.value = steps[2].input.value.toUpperCase();
+      try { steps[2].input.setSelectionRange(cursor, cursor); } catch (_) {}
+    });
+
+    lockCodeTrigger.addEventListener("click", () => {
+      lockCodeForm.classList.toggle("hidden");
+      lockCodeFeedback.textContent = "";
+
+      if (!lockCodeForm.classList.contains("hidden")) {
+        requestAnimationFrame(() => lockCodeInput.focus());
+      }
+    });
+
+    lockCodeForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const unlocked = window.IRNMSystemState?.unlockSystem(lockCodeInput.value);
+
+      if (unlocked) {
+        updateLockScreen();
+        return;
+      }
+
+      lockCodeFeedback.textContent = "Codice non valido";
+      lockCodeInput.select?.();
+    });
+
+    window.addEventListener("storage", updateLockScreen);
+
+    /* ============================
+       INIT
+       ============================ */
+    generateSessionId();
+    updateTimestamp();
+    setInterval(updateTimestamp, 1000);
+    setInterval(updateLockScreen, 400);
+    setIntegrity(3);
+    activateStep(1, { focus: false });
+    updateLockScreen();
+  </script>
+</body>
+</html>

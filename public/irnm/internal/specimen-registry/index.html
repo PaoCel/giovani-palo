@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#120e0d" />
+  <title>IRNM - Registro Campioni</title>
+  <link rel="stylesheet" href="/irnm/internal/assets/decoy-terminal.css" />
+</head>
+<body data-source-label="registro campioni">
+  <div class="app">
+    <main class="frame" aria-label="IRNM registro campioni">
+      <header class="topbar">
+        <div class="brand">
+          <p class="eyebrow">IRNM · Archivio Biologico</p>
+          <p class="title">Registro Campioni / Nodo A-17</p>
+        </div>
+        <div class="status-chip">
+          <span class="status-chip__dot" aria-hidden="true"></span>
+          <span id="terminalStatus">Sessione non autorizzata</span>
+        </div>
+      </header>
+
+      <section class="shell">
+        <section class="hero">
+          <p class="hero__kicker">Chiusura immediata</p>
+          <h1>Pagina errata</h1>
+          <p>
+            Questo terminale non appartiene al canale operativo per le emergenze. Se resta aperto,
+            il sistema interno verra infettato e la console principale sara disabilitata.
+          </p>
+        </section>
+
+        <section class="countdown-card" id="activeState">
+          <span class="countdown-card__label">Tempo residuo prima dell'infezione</span>
+          <div class="countdown" id="countdown">00:15</div>
+          <p class="detail" id="terminalDetail">
+            Questa non e la console corretta. Chiudere la pagina immediatamente.
+          </p>
+        </section>
+
+        <section class="compromised" id="compromisedState" hidden>
+          <p class="compromised__kicker">Contaminazione completata</p>
+          <h2>Console emergenze disabilitata</h2>
+          <p>
+            La sessione errata e rimasta aperta troppo a lungo. Il canale operativo principale non
+            e piu disponibile fino al ripristino amministrativo.
+          </p>
+        </section>
+
+        <section class="meta">
+          <div class="meta-card">
+            <span class="meta-card__label">Sessione</span>
+            <span class="meta-card__value" id="sessionId">--</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-card__label">Modulo</span>
+            <span class="meta-card__value">Catalogazione campioni</span>
+          </div>
+        </section>
+
+        <section class="notice">
+          <span class="notice__label">Avviso operativo</span>
+          <p>Se questa pagina non viene chiusa entro 15 secondi, l'intero sistema verra infettato.</p>
+        </section>
+
+        <p class="footer-note">
+          IRNM · Archivio tecnico interno · Accesso consentito solo a personale autorizzato
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script src="/irnm/internal/assets/system-state.js"></script>
+  <script src="/irnm/internal/assets/decoy-terminal.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function userDocPath(uid) {
+      return /databases/(default)/documents/users/$(uid);
+    }
+
+    function registrationDocPath(stakeId, activityId, registrationId) {
+      return /databases/(default)/documents/stakes/$(stakeId)/activities/$(activityId)/registrations/$(registrationId);
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserExists() {
+      return isSignedIn() && firestore.exists(userDocPath(request.auth.uid));
+    }
+
+    function currentUser() {
+      return firestore.get(userDocPath(request.auth.uid)).data;
+    }
+
+    function isAdminRole(role) {
+      return role == 'admin' || role == 'super_admin';
+    }
+
+    function isStakeAdmin(stakeId) {
+      return currentUserExists()
+        && isAdminRole(currentUser().role)
+        && (
+          currentUser().role == 'super_admin'
+          || currentUser().stakeId == stakeId
+        );
+    }
+
+    function isRegistrationOwner(stakeId, activityId, registrationId) {
+      return isSignedIn()
+        && firestore.exists(registrationDocPath(stakeId, activityId, registrationId))
+        && firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.userId == request.auth.uid;
+    }
+
+    match /public/stakes/{stakeId}/activities/{activityId}/{fileName=**} {
+      allow read: if true;
+      allow write: if isStakeAdmin(stakeId);
+    }
+
+    match /public/stakes/{stakeId}/settings/{assetKind}/{fileName=**} {
+      allow read: if true;
+      allow write: if isStakeAdmin(stakeId);
+    }
+
+    match /public/stakes/{stakeId}/drafts/{uid}/{fileName=**} {
+      allow read: if isStakeAdmin(stakeId);
+      allow write: if isStakeAdmin(stakeId);
+    }
+
+    match /protected/stakes/{stakeId}/activities/{activityId}/parent-consents/{registrationId}/{fileName=**} {
+      allow read: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
+      allow write: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
