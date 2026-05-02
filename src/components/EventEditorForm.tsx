@@ -44,6 +44,7 @@ interface EventEditorValues {
   roomsInfo: string;
   allowGuestRegistration: boolean;
   requireLoginForEdit: boolean;
+  questionsEnabled: boolean;
 }
 
 interface EventEditorStep {
@@ -101,6 +102,7 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     roomsInfo: event?.roomsInfo ?? "",
     allowGuestRegistration: event?.allowGuestRegistration ?? true,
     requireLoginForEdit: event?.requireLoginForEdit ?? true,
+    questionsEnabled: event?.questionsEnabled ?? false,
   };
 }
 
@@ -336,6 +338,7 @@ export function EventEditorForm({
       templateId: initialEvent?.templateId ?? null,
       allowGuestRegistration: values.allowGuestRegistration,
       requireLoginForEdit: values.requireLoginForEdit,
+      questionsEnabled: values.questionsEnabled,
     };
   }
 
@@ -721,6 +724,15 @@ export function EventEditorForm({
                     onChange={(event) => updateValue("requireLoginForEdit", event.target.checked)}
                   />
                   <span>Richiedi login per modificare l'iscrizione</span>
+                </label>
+
+                <label className="toggle-field">
+                  <input
+                    type="checkbox"
+                    checked={values.questionsEnabled}
+                    onChange={(event) => updateValue("questionsEnabled", event.target.checked)}
+                  />
+                  <span>Abilita domande dei partecipanti (caminetto)</span>
                 </label>
               </div>
             </>

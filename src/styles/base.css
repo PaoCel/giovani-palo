@@ -3123,6 +3123,10 @@ button {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.admin-subtabs--six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .admin-subtabs__item {
   min-height: 3.2rem;
   display: grid;
@@ -3885,6 +3889,10 @@ button {
   }
 
   .admin-subtabs--five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-subtabs--six {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

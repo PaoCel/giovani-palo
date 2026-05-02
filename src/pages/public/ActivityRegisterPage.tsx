@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { PageHero } from "@/components/PageHero";
+import { QuestionsSection } from "@/components/QuestionsSection";
 import { RegistrationEditor } from "@/components/RegistrationEditor";
 import { SectionCard } from "@/components/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -546,6 +547,24 @@ export function ActivityRegisterPage() {
           }
           registration={data.registration}
           sessionUid={session.firebaseUser.uid}
+          stakeId={data.stakeId}
+        />
+      ) : null}
+
+      {event?.questionsEnabled && data.registration && session ? (
+        <QuestionsSection
+          eventId={event.id}
+          registration={data.registration}
+          session={session}
+          stakeId={data.stakeId}
+        />
+      ) : null}
+
+      {event?.questionsEnabled && anonymousCompletion && session ? (
+        <QuestionsSection
+          eventId={event.id}
+          registration={anonymousCompletion}
+          session={session}
           stakeId={data.stakeId}
         />
       ) : null}

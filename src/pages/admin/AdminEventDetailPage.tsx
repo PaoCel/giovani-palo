@@ -14,8 +14,9 @@ import { storageService } from "@/services/firebase/storageService";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
+import { questionsService } from "@/services/firestore/questionsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
-import type { Registration } from "@/types";
+import type { Question, Registration } from "@/types";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { downloadRegistrationsExcel, type ExportOptions } from "@/utils/registrationExcel";
 import {
@@ -39,7 +40,13 @@ import {
   getRegistrationStatusTone,
 } from "@/utils/registrations";
 
-type AdminEventTab = "details" | "registrations" | "consents" | "overnight" | "stats";
+type AdminEventTab =
+  | "details"
+  | "registrations"
+  | "consents"
+  | "overnight"
+  | "questions"
+  | "stats";
 type RegistrationModalMode = "registration" | "overnight";
 type RegistrationCategoryFilter = "giovane_uomo" | "giovane_donna" | "dirigente";
 
@@ -181,6 +188,10 @@ function getAdminEventTabFromPath(pathname: string): AdminEventTab {
     return "overnight";
   }
 
+  if (pathname.endsWith("/questions")) {
+    return "questions";
+  }
+
   if (pathname.endsWith("/stats")) {
     return "stats";
   }
@@ -196,6 +207,8 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
       return `/admin/events/${eventId}/consents`;
     case "overnight":
       return `/admin/events/${eventId}/rooms`;
+    case "questions":
+      return `/admin/events/${eventId}/questions`;
     case "stats":
       return `/admin/events/${eventId}/stats`;
     default:
@@ -257,6 +270,21 @@ export function AdminEventDetailPage() {
     [eventId, refreshKey, stakeId],
     null,
   );
+
+  const questionsEnabled = data?.workspace.event.questionsEnabled === true;
+  const [questionsRefreshKey, setQuestionsRefreshKey] = useState(0);
+  const { data: questions, loading: questionsLoading, error: questionsError } =
+    useAsyncData<Question[]>(
+      async () => {
+        if (!eventId || !questionsEnabled) {
+          return [];
+        }
+
+        return questionsService.listAllForEvent(stakeId, eventId);
+      },
+      [eventId, stakeId, questionsEnabled, questionsRefreshKey],
+      [],
+    );
 
   const event = data?.workspace.event ?? null;
   const formConfig = data?.workspace.formConfig ?? null;
@@ -464,7 +492,31 @@ export function AdminEventDetailPage() {
         ) / 10
       : 0;
   const activeTab =
-    !resolvedEvent.overnight && routeTab === "overnight" ? "details" : routeTab;
+    (!resolvedEvent.overnight && routeTab === "overnight") ||
+    (!resolvedEvent.questionsEnabled && routeTab === "questions")
+      ? "details"
+      : routeTab;
+  const subtabsCountClass = (() => {
+    let count = 4;
+    if (resolvedEvent.overnight) count += 1;
+    if (resolvedEvent.questionsEnabled) count += 1;
+    if (count === 6) return "admin-subtabs admin-subtabs--six";
+    if (count === 5) return "admin-subtabs admin-subtabs--five";
+    return "admin-subtabs admin-subtabs--four";
+  })();
+  const registrationLookupById = useMemo(() => {
+    const map = new Map<string, Registration>();
+    for (const registration of registrations) {
+      map.set(registration.id, registration);
+    }
+    return map;
+  }, [registrations]);
+  const sortedQuestions = useMemo(
+    () => (questions ?? []).slice().sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+    [questions],
+  );
+  const visibleQuestions = sortedQuestions.filter((question) => question.status === "active");
+  const hiddenQuestions = sortedQuestions.filter((question) => question.status === "hidden");
   const registrationModal =
     registrationModalId !== null
       ? sortedRegistrations.find((registration) => registration.id === registrationModalId) ?? null
@@ -490,6 +542,56 @@ export function AdminEventDetailPage() {
 
   function openTab(tab: AdminEventTab) {
     navigate(getAdminEventTabHref(resolvedEventId, tab));
+  }
+
+  async function handleToggleQuestionStatus(question: Question) {
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      await questionsService.setStatus(
+        stakeId,
+        resolvedEventId,
+        question.registrationId,
+        question.id,
+        question.status === "active" ? "hidden" : "active",
+      );
+      setQuestionsRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile aggiornare la domanda.",
+      );
+    }
+  }
+
+  async function handleDeleteQuestion(question: Question) {
+    const confirmed = window.confirm("Eliminare definitivamente questa domanda?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      await questionsService.adminDelete(
+        stakeId,
+        resolvedEventId,
+        question.registrationId,
+        question.id,
+      );
+      setQuestionsRefreshKey((current) => current + 1);
+      setActionInfo("Domanda eliminata.");
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile eliminare la domanda.",
+      );
+    }
   }
 
   function toggleRegistrationFilter(filter: RegistrationCategoryFilter) {
@@ -713,11 +815,7 @@ export function AdminEventDetailPage() {
       </section>
 
       <div
-        className={
-          resolvedEvent.overnight
-            ? "admin-subtabs admin-subtabs--five"
-            : "admin-subtabs admin-subtabs--four"
-        }
+        className={subtabsCountClass}
         aria-label="Sezioni attività"
         role="tablist"
       >
@@ -773,6 +871,21 @@ export function AdminEventDetailPage() {
           >
             <AppIcon name="building" />
             <span>Stanze</span>
+          </button>
+        ) : null}
+        {resolvedEvent.questionsEnabled ? (
+          <button
+            aria-pressed={activeTab === "questions"}
+            className={
+              activeTab === "questions"
+                ? "admin-subtabs__item admin-subtabs__item--active"
+                : "admin-subtabs__item"
+            }
+            onClick={() => openTab("questions")}
+            type="button"
+          >
+            <AppIcon name="bell" />
+            <span>Domande</span>
           </button>
         ) : null}
         <button
@@ -1229,6 +1342,102 @@ export function AdminEventDetailPage() {
                   );
                 })}
               </div>
+            </article>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === "questions" && resolvedEvent.questionsEnabled ? (
+        <section className="admin-detail-stack">
+          <div className="admin-inline-metrics admin-inline-metrics--three">
+            <article className="admin-inline-metric">
+              <strong>{visibleQuestions.length}</strong>
+              <span>Visibili</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>{visibleQuestions.filter((question) => question.isAnonymous).length}</strong>
+              <span>Anonime</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>{hiddenQuestions.length}</strong>
+              <span>Nascoste</span>
+            </article>
+          </div>
+
+          {questionsError ? (
+            <div className="notice notice--warning">
+              <div>
+                <h3>Domande non disponibili</h3>
+                <p>{questionsError}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {questionsLoading ? (
+            <p className="subtle-text">Sto caricando le domande...</p>
+          ) : sortedQuestions.length === 0 ? (
+            <EmptyState
+              title="Nessuna domanda inviata"
+              description="Le domande dei partecipanti compariranno qui appena vengono inviate."
+            />
+          ) : (
+            <article className="surface-panel surface-panel--subtle admin-roster">
+              <div className="section-head admin-roster__head">
+                <div>
+                  <h3>Elenco domande</h3>
+                  <p>
+                    Le domande anonime non mostrano l'autore. Usa "Nascondi" per escluderle dal
+                    riepilogo da girare al Settanta.
+                  </p>
+                </div>
+              </div>
+
+              <ul className="plain-list">
+                {sortedQuestions.map((question) => {
+                  const isHidden = question.status === "hidden";
+                  const author = question.isAnonymous
+                    ? "Anonima"
+                    : question.authorName || "Senza nome";
+                  const ownerRegistration = registrationLookupById.get(question.registrationId);
+                  const unitLabel =
+                    !question.isAnonymous && ownerRegistration
+                      ? getUnitLabel(ownerRegistration)
+                      : "";
+
+                  return (
+                    <li
+                      key={`question-${question.id}`}
+                      className={isHidden ? "is-hidden" : undefined}
+                    >
+                      <strong>
+                        {author}
+                        {unitLabel ? ` • ${unitLabel}` : ""}
+                        {isHidden ? " • Nascosta" : ""}
+                      </strong>
+                      <span>{question.text}</span>
+                      <small>Inviata il {formatDateTime(question.createdAt)}</small>
+                      <div className="inline-actions inline-actions--compact">
+                        <button
+                          className="button button--ghost button--small"
+                          onClick={() => void handleToggleQuestionStatus(question)}
+                          type="button"
+                        >
+                          <AppIcon name={isHidden ? "eye" : "lock"} />
+                          <span>{isHidden ? "Ripristina" : "Nascondi"}</span>
+                        </button>
+                        <button
+                          className="button button--ghost button--small"
+                          onClick={() => void handleDeleteQuestion(question)}
+                          type="button"
+                        >
+                          <AppIcon name="trash" />
+                          <span>Elimina</span>
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </article>
           )}
         </section>
