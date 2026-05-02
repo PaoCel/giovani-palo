@@ -10,6 +10,7 @@ import { getStoredPublicStakeId, storePublicStakeId } from "@/utils/stakeSelecti
 
 type AudienceFilter = "all" | EventAudience;
 type RegistrationFilter = "all" | "open" | "closed";
+type TimeFilter = "upcoming" | "past" | "all";
 
 function isAudienceFilter(value: string | null): value is AudienceFilter {
   return (
@@ -24,8 +25,21 @@ function isRegistrationFilter(value: string | null): value is RegistrationFilter
   return value === "all" || value === "open" || value === "closed";
 }
 
+function isTimeFilter(value: string | null): value is TimeFilter {
+  return value === "upcoming" || value === "past" || value === "all";
+}
+
 function isOpenStatus(status: EventStatus) {
   return status === "registrations_open";
+}
+
+function isEventPast(event: { endDate: string; startDate: string }) {
+  const reference = event.endDate || event.startDate;
+  if (!reference) {
+    return false;
+  }
+  const time = new Date(reference).getTime();
+  return Number.isFinite(time) && time < Date.now();
 }
 
 export function ActivitiesPage() {
@@ -33,10 +47,12 @@ export function ActivitiesPage() {
   const requestedStakeId = searchParams.get("stake") ?? "";
   const requestedAudience = searchParams.get("audience");
   const requestedRegistration = searchParams.get("registrations");
+  const requestedTime = searchParams.get("time");
   const audienceFilter = isAudienceFilter(requestedAudience) ? requestedAudience : "all";
   const registrationFilter = isRegistrationFilter(requestedRegistration)
     ? requestedRegistration
     : "all";
+  const timeFilter: TimeFilter = isTimeFilter(requestedTime) ? requestedTime : "upcoming";
   const { data: stakes, loading: stakesLoading } = useAsyncData(
     () => stakesService.listActiveStakes(),
     [],
@@ -71,17 +87,36 @@ export function ActivitiesPage() {
 
         return registrationFilter === "open" ? isOpenStatus(event.status) : !isOpenStatus(event.status);
       })
+      .filter((event) => {
+        if (timeFilter === "all") {
+          return true;
+        }
+
+        const past = isEventPast(event);
+        return timeFilter === "past" ? past : !past;
+      })
       .sort((left, right) => {
+        const leftPast = isEventPast(left);
+        const rightPast = isEventPast(right);
+
+        if (leftPast !== rightPast) {
+          return leftPast ? 1 : -1;
+        }
+
+        if (leftPast) {
+          return new Date(right.startDate).getTime() - new Date(left.startDate).getTime();
+        }
+
         if (isOpenStatus(left.status) !== isOpenStatus(right.status)) {
           return isOpenStatus(left.status) ? -1 : 1;
         }
 
         return new Date(left.startDate).getTime() - new Date(right.startDate).getTime();
       });
-  }, [audienceFilter, events, registrationFilter]);
+  }, [audienceFilter, events, registrationFilter, timeFilter]);
 
   function updateSearchParam(
-    key: "stake" | "audience" | "registrations",
+    key: "stake" | "audience" | "registrations" | "time",
     value: string,
   ) {
     const nextParams = new URLSearchParams(searchParams);
@@ -142,6 +177,19 @@ export function ActivitiesPage() {
               <option value="all">Tutte</option>
               <option value="open">Iscrizioni aperte</option>
               <option value="closed">Iscrizioni chiuse</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Periodo</span>
+            <select
+              className="input"
+              value={timeFilter}
+              onChange={(eventInput) => updateSearchParam("time", eventInput.target.value)}
+            >
+              <option value="upcoming">In programma</option>
+              <option value="past">Passate</option>
+              <option value="all">Tutte (anche passate)</option>
             </select>
           </label>
         </div>
