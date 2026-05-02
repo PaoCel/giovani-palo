@@ -394,6 +394,20 @@ export function AdminEventDetailPage() {
       ),
     [activeRegistrationFilters, selectedUnitFilter, sortedRegistrations],
   );
+  const registrationLookupById = useMemo(() => {
+    const map = new Map<string, Registration>();
+    for (const registration of registrations) {
+      map.set(registration.id, registration);
+    }
+    return map;
+  }, [registrations]);
+  const sortedQuestions = useMemo(
+    () =>
+      (questions ?? [])
+        .slice()
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+    [questions],
+  );
 
   if (!eventId) {
     return (
@@ -504,17 +518,6 @@ export function AdminEventDetailPage() {
     if (count === 5) return "admin-subtabs admin-subtabs--five";
     return "admin-subtabs admin-subtabs--four";
   })();
-  const registrationLookupById = useMemo(() => {
-    const map = new Map<string, Registration>();
-    for (const registration of registrations) {
-      map.set(registration.id, registration);
-    }
-    return map;
-  }, [registrations]);
-  const sortedQuestions = useMemo(
-    () => (questions ?? []).slice().sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
-    [questions],
-  );
   const visibleQuestions = sortedQuestions.filter((question) => question.status === "active");
   const hiddenQuestions = sortedQuestions.filter((question) => question.status === "hidden");
   const registrationModal =
