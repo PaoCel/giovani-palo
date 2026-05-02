@@ -125,6 +125,20 @@ function mapRegistration(
         : null,
     parentConsentUploadedAt:
       typeof data.parentConsentUploadedAt === "string" ? data.parentConsentUploadedAt : null,
+    consentSignatureUrl:
+      typeof data.consentSignatureUrl === "string" ? data.consentSignatureUrl : null,
+    consentSignaturePath:
+      typeof data.consentSignaturePath === "string" ? data.consentSignaturePath : null,
+    consentSignatureSetAt:
+      typeof data.consentSignatureSetAt === "string" ? data.consentSignatureSetAt : null,
+    parentIdDocumentName:
+      typeof data.parentIdDocumentName === "string" ? data.parentIdDocumentName : null,
+    parentIdDocumentUrl:
+      typeof data.parentIdDocumentUrl === "string" ? data.parentIdDocumentUrl : null,
+    parentIdDocumentPath:
+      typeof data.parentIdDocumentPath === "string" ? data.parentIdDocumentPath : null,
+    parentIdUploadedAt:
+      typeof data.parentIdUploadedAt === "string" ? data.parentIdUploadedAt : null,
     linkedLaterToUserId:
       typeof data.linkedLaterToUserId === "string" ? data.linkedLaterToUserId : null,
     status: data.registrationStatus === "cancelled" ? "cancelled" : "active",
@@ -373,6 +387,13 @@ export const registrationsService = {
       parentConsentDocumentUrl: existing?.parentConsentDocumentUrl ?? null,
       parentConsentDocumentPath: existing?.parentConsentDocumentPath ?? null,
       parentConsentUploadedAt: existing?.parentConsentUploadedAt ?? null,
+      consentSignatureUrl: existing?.consentSignatureUrl ?? null,
+      consentSignaturePath: existing?.consentSignaturePath ?? null,
+      consentSignatureSetAt: existing?.consentSignatureSetAt ?? null,
+      parentIdDocumentName: existing?.parentIdDocumentName ?? null,
+      parentIdDocumentUrl: existing?.parentIdDocumentUrl ?? null,
+      parentIdDocumentPath: existing?.parentIdDocumentPath ?? null,
+      parentIdUploadedAt: existing?.parentIdUploadedAt ?? null,
       linkedLaterToUserId: existing?.linkedLaterToUserId ?? null,
       registrationStatus,
       submittedByMode: lookup.userId ? "authenticated" : "anonymous",
@@ -564,6 +585,72 @@ export const registrationsService = {
       parentConsentDocumentPath: input.path,
       parentConsentDocumentUrl: input.url,
       parentConsentUploadedAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+
+    return this.getRegistrationById(stakeId, eventId, registrationId);
+  },
+
+  async saveConsentSignature(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    input: { path: string; url: string },
+  ) {
+    const reference = getRegistrationReference(stakeId, eventId, registrationId);
+    const timestamp = nowIso();
+
+    await updateDoc(reference, {
+      consentSignatureUrl: input.url,
+      consentSignaturePath: input.path,
+      consentSignatureSetAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    return this.getRegistrationById(stakeId, eventId, registrationId);
+  },
+
+  async clearConsentSignature(stakeId: string, eventId: string, registrationId: string) {
+    const reference = getRegistrationReference(stakeId, eventId, registrationId);
+
+    await updateDoc(reference, {
+      consentSignatureUrl: null,
+      consentSignaturePath: null,
+      consentSignatureSetAt: null,
+      updatedAt: nowIso(),
+    });
+
+    return this.getRegistrationById(stakeId, eventId, registrationId);
+  },
+
+  async saveParentIdDocument(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    input: { path: string; url: string; name: string },
+  ) {
+    const reference = getRegistrationReference(stakeId, eventId, registrationId);
+    const timestamp = nowIso();
+
+    await updateDoc(reference, {
+      parentIdDocumentName: input.name,
+      parentIdDocumentUrl: input.url,
+      parentIdDocumentPath: input.path,
+      parentIdUploadedAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    return this.getRegistrationById(stakeId, eventId, registrationId);
+  },
+
+  async clearParentIdDocument(stakeId: string, eventId: string, registrationId: string) {
+    const reference = getRegistrationReference(stakeId, eventId, registrationId);
+
+    await updateDoc(reference, {
+      parentIdDocumentName: null,
+      parentIdDocumentUrl: null,
+      parentIdDocumentPath: null,
+      parentIdUploadedAt: null,
       updatedAt: nowIso(),
     });
 

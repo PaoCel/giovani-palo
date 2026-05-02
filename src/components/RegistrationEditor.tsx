@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { ConsentTextModal, type ConsentKind } from "@/components/ConsentTextModal";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
 import type {
   AuthSession,
@@ -51,6 +52,9 @@ interface RegistrationEditorValues {
   category: string;
   unitName: string;
   answers: RegistrationAnswers;
+  consentSignerName: string;
+  parentalConsentAccepted: boolean;
+  photoReleaseAccepted: boolean;
 }
 
 interface StepDefinition {
@@ -166,6 +170,14 @@ function getInitialValues(
       "",
     unitName: registration?.unitNameSnapshot || session?.profile.unitName || "",
     answers,
+    consentSignerName:
+      typeof registration?.answers.parentalConsentSignerName === "string"
+        ? registration.answers.parentalConsentSignerName
+        : typeof registration?.answers.photoReleaseSignerName === "string"
+          ? registration.answers.photoReleaseSignerName
+          : "",
+    parentalConsentAccepted: registration?.answers.parentalConsentAccepted === true,
+    photoReleaseAccepted: registration?.answers.photoReleaseAccepted === true,
   };
 }
 
@@ -247,8 +259,15 @@ export function RegistrationEditor({
       ),
     [unitOptions, values.answers.unitName, values.unitName],
   );
+  const isMinorParticipant = isMinorBirthDate(values.birthDate);
+  const eventRequiresParental = event.requiresParentalConsent && isMinorParticipant;
+  const eventRequiresPhotoRelease = event.requiresPhotoRelease;
+  const useNewConsentFlow = eventRequiresParental || eventRequiresPhotoRelease;
   const requiresParentConsent =
-    enabledStandardFields.includes("parentConfirmed") && isMinorBirthDate(values.birthDate);
+    !eventRequiresParental &&
+    enabledStandardFields.includes("parentConfirmed") &&
+    isMinorParticipant;
+  const [openConsentModal, setOpenConsentModal] = useState<ConsentKind | null>(null);
   const isAuthenticatedAccount = Boolean(session?.isAuthenticated && !session.isAnonymous);
   const shouldAskNameFields = !(
     isAuthenticatedAccount &&
@@ -292,11 +311,27 @@ export function RegistrationEditor({
   const stepDetailFields = useMemo(
     () =>
       activeStandardFields.filter(
-        (field) =>
-          detailFieldKeys.has(field.key) &&
-          (field.key !== "parentConfirmed" || requiresParentConsent),
+        (field) => {
+          if (!detailFieldKeys.has(field.key)) {
+            return false;
+          }
+
+          if (field.key === "parentConfirmed") {
+            return requiresParentConsent;
+          }
+
+          if (
+            (field.key === "photoInternalConsent" ||
+              field.key === "photoPublicConsent") &&
+            eventRequiresPhotoRelease
+          ) {
+            return false;
+          }
+
+          return true;
+        },
       ),
-    [activeStandardFields, requiresParentConsent],
+    [activeStandardFields, eventRequiresPhotoRelease, requiresParentConsent],
   );
   const hasPhotoConsentFields = stepDetailFields.some(
     (field) => field.key === "photoInternalConsent" || field.key === "photoPublicConsent",
@@ -308,7 +343,7 @@ export function RegistrationEditor({
     visibleIdentityFields.length > 0;
   const profileStepHasContent = stepProfileFields.length > 0;
   const detailStepHasContent =
-    stepDetailFields.length > 0 || formConfig.customFields.length > 0;
+    stepDetailFields.length > 0 || formConfig.customFields.length > 0 || useNewConsentFlow;
   const hasVisibleQuestions =
     identityStepHasContent || profileStepHasContent || detailStepHasContent;
   const registrationSteps = useMemo<StepDefinition[]>(() => {
@@ -834,9 +869,33 @@ export function RegistrationEditor({
       return;
     }
 
+    if (useNewConsentFlow) {
+      const missingParental = eventRequiresParental && !values.parentalConsentAccepted;
+      const missingPhoto = eventRequiresPhotoRelease && !values.photoReleaseAccepted;
+
+      if (missingParental || missingPhoto) {
+        const missingLabels = [
+          missingParental ? "consenso del genitore" : null,
+          missingPhoto ? "liberatoria immagini" : null,
+        ]
+          .filter(Boolean)
+          .join(" e ");
+
+        const proceed = window.confirm(
+          `Manca: ${missingLabels}.\n\nPer poter partecipare il genitore o tutore deve completare l'autorizzazione (anche dopo l'iscrizione, dalla scheda dell'attivita). Se non riesci, rivolgiti al tuo dirigente.\n\nVuoi continuare comunque?`,
+        );
+
+        if (!proceed) {
+          return;
+        }
+      }
+    }
+
     const fullName = `${values.firstName.trim()} ${values.lastName.trim()}`.trim();
     const category = getGenderRoleCategory(values.category);
     const youthGroup = getYouthGroupLabel(category);
+    const consentAcceptedAt = new Date().toISOString();
+    const trimmedSignerName = values.consentSignerName.trim();
 
     await onSubmit({
       firstName: values.firstName.trim(),
@@ -865,6 +924,24 @@ export function RegistrationEditor({
           requiresParentConsent &&
           (values.answers.parentConfirmed === true ||
             Boolean(initialRegistration?.parentConsentDocumentUrl)),
+        ...(eventRequiresParental
+          ? {
+              parentalConsentAccepted: values.parentalConsentAccepted,
+              parentalConsentAcceptedAt: values.parentalConsentAccepted
+                ? consentAcceptedAt
+                : null,
+              parentalConsentSignerName: trimmedSignerName,
+            }
+          : {}),
+        ...(eventRequiresPhotoRelease
+          ? {
+              photoReleaseAccepted: values.photoReleaseAccepted,
+              photoReleaseAcceptedAt: values.photoReleaseAccepted
+                ? consentAcceptedAt
+                : null,
+              photoReleaseSignerName: trimmedSignerName,
+            }
+          : {}),
       },
       registrationStatus: initialRegistration?.registrationStatus ?? "active",
       status: initialRegistration?.status === "cancelled" ? "cancelled" : "active",
@@ -873,6 +950,9 @@ export function RegistrationEditor({
 
   return (
     <form className="form-stack" onSubmit={handleSubmit}>
+      {openConsentModal ? (
+        <ConsentTextModal kind={openConsentModal} onClose={() => setOpenConsentModal(null)} />
+      ) : null}
       <div className="form-stepper form-stepper--registration">
         <div className="form-stepper__progress">
           <div className="form-stepper__track">
@@ -1022,6 +1102,101 @@ export function RegistrationEditor({
                   <div className="form-stack">
                     {formConfig.customFields.map((field) => renderCustomField(field))}
                   </div>
+                </div>
+              ) : null}
+
+              {useNewConsentFlow ? (
+                <div className="surface-panel surface-panel--subtle form-subsection">
+                  <h3>Autorizzazioni</h3>
+                  <p className="subtle-text">
+                    Spuntale ora se puoi. Se manca qualcosa puoi completare anche
+                    dopo l&apos;iscrizione (firma del genitore inclusa).
+                  </p>
+
+                  {eventRequiresParental ? (
+                    <label
+                      className={
+                        fieldErrors.parentalConsentAccepted
+                          ? "toggle-field toggle-field--error"
+                          : "toggle-field"
+                      }
+                    >
+                      <input
+                        checked={values.parentalConsentAccepted}
+                        onChange={(eventInput) => {
+                          clearFieldError("parentalConsentAccepted");
+                          setValues((current) => ({
+                            ...current,
+                            parentalConsentAccepted: eventInput.target.checked,
+                          }));
+                        }}
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>Consenso del genitore o tutore (per minori)</strong>
+                        <small>
+                          Accetto il consenso a nome del genitore o tutore.{" "}
+                          <button
+                            className="link-button"
+                            onClick={() => setOpenConsentModal("parental")}
+                            type="button"
+                          >
+                            Leggi il documento
+                          </button>
+                        </small>
+                      </span>
+                    </label>
+                  ) : null}
+
+                  {eventRequiresPhotoRelease ? (
+                    <label className="toggle-field">
+                      <input
+                        checked={values.photoReleaseAccepted}
+                        onChange={(eventInput) =>
+                          setValues((current) => ({
+                            ...current,
+                            photoReleaseAccepted: eventInput.target.checked,
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>Liberatoria per l&apos;uso delle immagini</strong>
+                        <small>
+                          Accetto la liberatoria immagini.{" "}
+                          <button
+                            className="link-button"
+                            onClick={() => setOpenConsentModal("photo")}
+                            type="button"
+                          >
+                            Leggi il documento
+                          </button>
+                        </small>
+                      </span>
+                    </label>
+                  ) : null}
+
+                  <label className="field">
+                    <span className="field__label">
+                      Nome del firmatario {eventRequiresParental ? "(genitore o tutore)" : ""}
+                    </span>
+                    <input
+                      className="input"
+                      onChange={(eventInput) =>
+                        setValues((current) => ({
+                          ...current,
+                          consentSignerName: eventInput.target.value,
+                        }))
+                      }
+                      placeholder="Es. Mario Rossi"
+                      type="text"
+                      value={values.consentSignerName}
+                    />
+                    <small>
+                      Firma digitale e documento d&apos;identita opzionali si
+                      caricano dopo l&apos;iscrizione, dalla scheda dell&apos;attivita.
+                    </small>
+                  </label>
                 </div>
               ) : null}
             </div>

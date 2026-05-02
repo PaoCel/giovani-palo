@@ -33,6 +33,24 @@ interface UploadParentConsentDocumentArgs {
   previousPath?: string;
 }
 
+interface UploadConsentSignatureArgs {
+  blob: Blob;
+  uploadedBy: string;
+  stakeId: string;
+  eventId: string;
+  registrationId: string;
+  previousPath?: string;
+}
+
+interface UploadParentIdDocumentArgs {
+  file: File;
+  uploadedBy: string;
+  stakeId: string;
+  eventId: string;
+  registrationId: string;
+  previousPath?: string;
+}
+
 const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 
 function getFileExtension(fileName: string) {
@@ -70,6 +88,35 @@ function buildParentConsentPath({
     slugify(file.name.replace(/\.[^.]+$/, "")) || "autorizzazione-genitore";
   return `protected/stakes/${stakeId}/activities/${eventId}/parent-consents/${registrationId}/${Date.now()}-${fileStem}.${extension}`;
 }
+
+function buildSignaturePath({
+  stakeId,
+  eventId,
+  registrationId,
+}: UploadConsentSignatureArgs) {
+  return `protected/stakes/${stakeId}/activities/${eventId}/signatures/${registrationId}/${Date.now()}-firma.png`;
+}
+
+function buildParentIdPath({
+  file,
+  stakeId,
+  eventId,
+  registrationId,
+}: UploadParentIdDocumentArgs) {
+  const extension = getFileExtension(file.name);
+  const fileStem = slugify(file.name.replace(/\.[^.]+$/, "")) || "documento-genitore";
+  return `protected/stakes/${stakeId}/activities/${eventId}/parent-ids/${registrationId}/${Date.now()}-${fileStem}.${extension}`;
+}
+
+const MAX_PARENT_ID_SIZE_BYTES = 12 * 1024 * 1024;
+const ACCEPTED_PARENT_ID_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "image/webp",
+  "application/pdf",
+]);
 
 function validateImageFile(file: File) {
   if (!file.type.startsWith("image/")) {
@@ -162,6 +209,77 @@ export const storageService = {
       },
       args.previousPath,
     );
+  },
+
+  async uploadConsentSignature(args: UploadConsentSignatureArgs) {
+    if (!args.stakeId || !args.eventId || !args.registrationId) {
+      throw new Error("Servono attività e registrazione per caricare la firma.");
+    }
+
+    if (args.blob.size > 2 * 1024 * 1024) {
+      throw new Error("La firma e troppo grande, riprova.");
+    }
+
+    const path = buildSignaturePath(args);
+    const fileReference = ref(storage, path);
+
+    await uploadBytes(fileReference, args.blob, {
+      contentType: "image/png",
+      customMetadata: {
+        uploadedBy: args.uploadedBy,
+        stakeId: args.stakeId,
+        eventId: args.eventId,
+        registrationId: args.registrationId,
+        assetKey: "consent-signature",
+      },
+    });
+
+    if (args.previousPath && args.previousPath !== path) {
+      await storageService.deleteFile(args.previousPath).catch(() => undefined);
+    }
+
+    return {
+      path,
+      url: await getDownloadURL(fileReference),
+    };
+  },
+
+  async uploadParentIdDocument(args: UploadParentIdDocumentArgs) {
+    if (!args.stakeId || !args.eventId || !args.registrationId) {
+      throw new Error("Servono attività e registrazione per caricare il documento.");
+    }
+
+    if (!ACCEPTED_PARENT_ID_TYPES.has(args.file.type)) {
+      throw new Error("Formato non supportato. Usa una foto (JPG/PNG/HEIC/WEBP) o un PDF.");
+    }
+
+    if (args.file.size > MAX_PARENT_ID_SIZE_BYTES) {
+      throw new Error("Il file supera 12 MB. Riduci il file e riprova.");
+    }
+
+    const path = buildParentIdPath(args);
+    const fileReference = ref(storage, path);
+
+    await uploadBytes(fileReference, args.file, {
+      contentType: args.file.type,
+      customMetadata: {
+        uploadedBy: args.uploadedBy,
+        stakeId: args.stakeId,
+        eventId: args.eventId,
+        registrationId: args.registrationId,
+        assetKey: "parent-id",
+      },
+    });
+
+    if (args.previousPath && args.previousPath !== path) {
+      await storageService.deleteFile(args.previousPath).catch(() => undefined);
+    }
+
+    return {
+      path,
+      url: await getDownloadURL(fileReference),
+      name: args.file.name,
+    };
   },
 
   async deleteFile(path: string) {

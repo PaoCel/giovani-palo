@@ -103,6 +103,8 @@ function mapEvent(
     overnight,
     templateId: typeof data.templateId === "string" ? data.templateId : null,
     questionsEnabled: data.questionsEnabled === true,
+    requiresParentalConsent: data.requiresParentalConsent === true,
+    requiresPhotoRelease: data.requiresPhotoRelease === true,
     createdBy: typeof data.createdBy === "string" ? data.createdBy : "",
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
@@ -148,6 +150,8 @@ function normalizeEventInput(input: EventWriteInput) {
     overnight,
     templateId: (input.templateId ?? "").trim() || null,
     questionsEnabled: input.questionsEnabled ?? false,
+    requiresParentalConsent: input.requiresParentalConsent ?? false,
+    requiresPhotoRelease: input.requiresPhotoRelease ?? false,
   };
 }
 
