@@ -569,6 +569,23 @@ export function AdminEventDetailPage() {
     }
   }
 
+  async function handleExportQuestionsPdf() {
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      const { downloadQuestionsPdf } = await import("@/utils/questionsPdf");
+      downloadQuestionsPdf({ event: resolvedEvent, questions: sortedQuestions });
+      setActionInfo("PDF domande generato.");
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile generare il PDF delle domande.",
+      );
+    }
+  }
+
   async function handleDeleteQuestion(question: Question) {
     const confirmed = window.confirm("Eliminare definitivamente questa domanda?");
 
@@ -1392,6 +1409,17 @@ export function AdminEventDetailPage() {
                     Le domande anonime non mostrano l'autore. Usa "Nascondi" per escluderle dal
                     riepilogo da girare al Settanta.
                   </p>
+                </div>
+                <div className="admin-section-actions">
+                  <button
+                    className="button button--ghost button--small"
+                    disabled={visibleQuestions.length === 0}
+                    onClick={() => void handleExportQuestionsPdf()}
+                    type="button"
+                  >
+                    <AppIcon name="download" />
+                    <span>Esporta PDF</span>
+                  </button>
                 </div>
               </div>
 
