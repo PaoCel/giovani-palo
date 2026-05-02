@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
+import { ConsentSection } from "@/components/ConsentSection";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
@@ -558,6 +559,35 @@ export function ActivityRegisterPage() {
           session={session}
           stakeId={data.stakeId}
         />
+      ) : null}
+
+      {event &&
+      (event.requiresParentalConsent || event.requiresPhotoRelease) &&
+      data.registration &&
+      session ? (
+        <SectionCard
+          title="Autorizzazioni e firma"
+          description="Completa firma digitale, consensi e (se vuoi) carica un documento del genitore."
+        >
+          <ConsentSection
+            event={event}
+            isMinor={isMinorBirthDate(data.registration.birthDate)}
+            onRegistrationUpdated={(updated) =>
+              setData((current) =>
+                current
+                  ? {
+                      ...current,
+                      registration: updated,
+                    }
+                  : current,
+              )
+            }
+            persistImmediately
+            registration={data.registration}
+            sessionUid={session.firebaseUser.uid}
+            stakeId={data.stakeId}
+          />
+        </SectionCard>
       ) : null}
     </div>
   );
