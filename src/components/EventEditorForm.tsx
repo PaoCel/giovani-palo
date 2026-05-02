@@ -45,6 +45,8 @@ interface EventEditorValues {
   allowGuestRegistration: boolean;
   requireLoginForEdit: boolean;
   questionsEnabled: boolean;
+  requiresParentalConsent: boolean;
+  requiresPhotoRelease: boolean;
 }
 
 interface EventEditorStep {
@@ -103,6 +105,8 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     allowGuestRegistration: event?.allowGuestRegistration ?? true,
     requireLoginForEdit: event?.requireLoginForEdit ?? true,
     questionsEnabled: event?.questionsEnabled ?? false,
+    requiresParentalConsent: event?.requiresParentalConsent ?? false,
+    requiresPhotoRelease: event?.requiresPhotoRelease ?? false,
   };
 }
 
@@ -339,6 +343,8 @@ export function EventEditorForm({
       allowGuestRegistration: values.allowGuestRegistration,
       requireLoginForEdit: values.requireLoginForEdit,
       questionsEnabled: values.questionsEnabled,
+      requiresParentalConsent: values.requiresParentalConsent,
+      requiresPhotoRelease: values.requiresPhotoRelease,
     };
   }
 
@@ -733,6 +739,24 @@ export function EventEditorForm({
                     onChange={(event) => updateValue("questionsEnabled", event.target.checked)}
                   />
                   <span>Abilita domande dei partecipanti (caminetto)</span>
+                </label>
+
+                <label className="toggle-field">
+                  <input
+                    type="checkbox"
+                    checked={values.requiresParentalConsent}
+                    onChange={(event) => updateValue("requiresParentalConsent", event.target.checked)}
+                  />
+                  <span>Richiedi consenso genitore (per minorenni)</span>
+                </label>
+
+                <label className="toggle-field">
+                  <input
+                    type="checkbox"
+                    checked={values.requiresPhotoRelease}
+                    onChange={(event) => updateValue("requiresPhotoRelease", event.target.checked)}
+                  />
+                  <span>Richiedi liberatoria immagini</span>
                 </label>
               </div>
             </>

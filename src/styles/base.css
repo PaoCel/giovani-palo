@@ -4339,3 +4339,121 @@ button {
 .unit-transport-btn--resolve:hover { background: #bbf7d0; }
 .unit-transport-btn--undo { background: #fee2e2; color: #991b1b; }
 .unit-transport-btn--undo:hover { background: #fecaca; }
+
+
+.signature-pad {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.signature-pad__surface {
+  position: relative;
+  border-radius: 0.85rem;
+  border: 1.5px dashed rgba(16, 28, 48, 0.25);
+  background: #ffffff;
+  overflow: hidden;
+  width: 100%;
+  height: 180px;
+}
+
+.signature-pad__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+}
+
+.signature-pad__preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.signature-pad__hint {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.signature-pad__hint small {
+  color: var(--muted);
+}
+
+.consent-text-modal {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.consent-text-modal h4 {
+  margin: 1rem 0 0.4rem;
+}
+
+.consent-text-modal p {
+  margin: 0.4rem 0;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.consent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(16, 28, 48, 0.12);
+  background: rgba(252, 253, 255, 0.85);
+}
+
+.consent-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.consent-card__head strong {
+  font-size: 1rem;
+}
+
+.consent-card__head small {
+  color: var(--muted);
+}
+
+.consent-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.consent-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.consent-card__status--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.consent-card__status--missing {
+  background: #fef3c7;
+  color: #92400e;
+}

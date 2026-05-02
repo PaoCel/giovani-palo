@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
+import { ConsentSection } from "@/components/ConsentSection";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
+// keep import order stable for Vite
 import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { SectionCard } from "@/components/SectionCard";
@@ -263,6 +265,32 @@ export function MyActivityDetailPage() {
               <p className="subtle-text">Nessuna risposta aggiuntiva oltre ai dati base.</p>
             )}
           </SectionCard>
+
+          {(data.event.requiresParentalConsent || data.event.requiresPhotoRelease) && session ? (
+            <SectionCard
+              title="Autorizzazioni e firma"
+              description="Completa o aggiorna i consensi richiesti per questa attivita. Tutto e visibile solo agli admin."
+            >
+              <ConsentSection
+                event={data.event}
+                isMinor={isMinorBirthDate(data.registration.birthDate)}
+                onRegistrationUpdated={(updated) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          registration: updated,
+                        }
+                      : current,
+                  )
+                }
+                persistImmediately
+                registration={data.registration}
+                sessionUid={session.firebaseUser.uid}
+                stakeId={stakeId}
+              />
+            </SectionCard>
+          ) : null}
 
           {showParentConsentCard && session ? (
             <ParentConsentUploadCard

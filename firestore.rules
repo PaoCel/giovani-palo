@@ -171,6 +171,13 @@ service cloud.firestore {
           'parentConsentDocumentUrl',
           'parentConsentDocumentPath',
           'parentConsentUploadedAt',
+          'consentSignatureUrl',
+          'consentSignaturePath',
+          'consentSignatureSetAt',
+          'parentIdDocumentName',
+          'parentIdDocumentUrl',
+          'parentIdDocumentPath',
+          'parentIdUploadedAt',
           'linkedLaterToUserId',
           'registrationStatus',
           'submittedByMode',
@@ -201,6 +208,13 @@ service cloud.firestore {
         && (data.parentConsentDocumentUrl == null || data.parentConsentDocumentUrl is string)
         && (data.parentConsentDocumentPath == null || data.parentConsentDocumentPath is string)
         && (data.parentConsentUploadedAt == null || data.parentConsentUploadedAt is string)
+        && (data.consentSignatureUrl == null || data.consentSignatureUrl is string)
+        && (data.consentSignaturePath == null || data.consentSignaturePath is string)
+        && (data.consentSignatureSetAt == null || data.consentSignatureSetAt is string)
+        && (data.parentIdDocumentName == null || data.parentIdDocumentName is string)
+        && (data.parentIdDocumentUrl == null || data.parentIdDocumentUrl is string)
+        && (data.parentIdDocumentPath == null || data.parentIdDocumentPath is string)
+        && (data.parentIdUploadedAt == null || data.parentIdUploadedAt is string)
         && (data.linkedLaterToUserId == null || data.linkedLaterToUserId is string)
         && validRegistrationStatus(data.registrationStatus)
         && data.submittedByMode in ['authenticated', 'anonymous']
@@ -229,6 +243,13 @@ service cloud.firestore {
         && request.resource.data.parentConsentDocumentUrl == null
         && request.resource.data.parentConsentDocumentPath == null
         && request.resource.data.parentConsentUploadedAt == null
+        && request.resource.data.consentSignatureUrl == null
+        && request.resource.data.consentSignaturePath == null
+        && request.resource.data.consentSignatureSetAt == null
+        && request.resource.data.parentIdDocumentName == null
+        && request.resource.data.parentIdDocumentUrl == null
+        && request.resource.data.parentIdDocumentPath == null
+        && request.resource.data.parentIdUploadedAt == null
         && request.resource.data.assignedRoomId == null
         && request.resource.data.assignedTempleShiftId == null
         && request.resource.data.assignedServiceTeamIds.size() == 0
