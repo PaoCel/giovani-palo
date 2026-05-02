@@ -291,6 +291,71 @@ service cloud.firestore {
         );
     }
 
+    function validQuestionStatus(value) {
+      return value in ['active', 'hidden'];
+    }
+
+    function validQuestionPayload(data) {
+      return data.keys().hasOnly([
+          'eventId',
+          'stakeId',
+          'registrationId',
+          'authorUserId',
+          'authorAnonymousUid',
+          'authorName',
+          'text',
+          'isAnonymous',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.eventId is string
+        && data.stakeId is string
+        && data.registrationId is string
+        && (data.authorUserId == null || data.authorUserId is string)
+        && (data.authorAnonymousUid == null || data.authorAnonymousUid is string)
+        && (data.authorName == null || data.authorName is string)
+        && data.text is string
+        && data.text.size() > 0
+        && data.text.size() <= 2000
+        && data.isAnonymous is bool
+        && validQuestionStatus(data.status)
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    function questionBelongsToCaller(data) {
+      return isSignedIn()
+        && (
+          (data.authorUserId is string && data.authorUserId == request.auth.uid)
+          || (data.authorAnonymousUid is string && data.authorAnonymousUid == request.auth.uid)
+        );
+    }
+
+    function validQuestionCreate(stakeId, activityId, registrationId) {
+      return validQuestionPayload(request.resource.data)
+        && questionBelongsToCaller(request.resource.data)
+        && request.resource.data.stakeId == stakeId
+        && request.resource.data.eventId == activityId
+        && request.resource.data.registrationId == registrationId
+        && request.resource.data.status == 'active'
+        && isExpectedOwnRegistrationId(registrationId)
+        && exists(registrationDocPath(stakeId, activityId, registrationId));
+    }
+
+    function validQuestionOwnerUpdate() {
+      return validQuestionPayload(request.resource.data)
+        && questionBelongsToCaller(resource.data)
+        && questionBelongsToCaller(request.resource.data)
+        && request.resource.data.stakeId == resource.data.stakeId
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.registrationId == resource.data.registrationId
+        && request.resource.data.authorUserId == resource.data.authorUserId
+        && request.resource.data.authorAnonymousUid == resource.data.authorAnonymousUid
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     function canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId) {
       return isSignedIn()
         && registrationId == 'guest_' + request.auth.uid
@@ -733,6 +798,24 @@ service cloud.firestore {
           allow update: if isStakeAdmin(stakeId) || validRegistrationUpdate();
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
+
+          match /questions/{questionId} {
+            allow get: if isStakeAdmin(stakeId)
+              || isExpectedOwnRegistrationId(registrationId);
+            allow list: if isStakeAdmin(stakeId)
+              || isExpectedOwnRegistrationId(registrationId);
+            allow create: if isStakeAdmin(stakeId)
+              || validQuestionCreate(stakeId, activityId, registrationId);
+            allow update: if (isStakeAdmin(stakeId)
+                && validQuestionPayload(request.resource.data)
+                && request.resource.data.stakeId == resource.data.stakeId
+                && request.resource.data.eventId == resource.data.eventId
+                && request.resource.data.registrationId == resource.data.registrationId
+                && request.resource.data.createdAt == resource.data.createdAt)
+              || validQuestionOwnerUpdate();
+            allow delete: if isStakeAdmin(stakeId)
+              || isExpectedOwnRegistrationId(registrationId);
+          }
         }
 
         match /transportNotes/{noteId} {

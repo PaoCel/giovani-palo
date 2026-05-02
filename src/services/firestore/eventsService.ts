@@ -102,6 +102,7 @@ function mapEvent(
       typeof data.maxParticipants === "number" ? data.maxParticipants : null,
     overnight,
     templateId: typeof data.templateId === "string" ? data.templateId : null,
+    questionsEnabled: data.questionsEnabled === true,
     createdBy: typeof data.createdBy === "string" ? data.createdBy : "",
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
@@ -146,6 +147,7 @@ function normalizeEventInput(input: EventWriteInput) {
     maxParticipants: input.maxParticipants,
     overnight,
     templateId: (input.templateId ?? "").trim() || null,
+    questionsEnabled: input.questionsEnabled ?? false,
   };
 }
 
