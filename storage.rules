@@ -38,7 +38,10 @@ service firebase.storage {
     function isRegistrationOwner(stakeId, activityId, registrationId) {
       return isSignedIn()
         && firestore.exists(registrationDocPath(stakeId, activityId, registrationId))
-        && firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.userId == request.auth.uid;
+        && (
+          firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.userId == request.auth.uid
+          || firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.anonymousUid == request.auth.uid
+        );
     }
 
     match /public/stakes/{stakeId}/activities/{activityId}/{fileName=**} {
@@ -57,6 +60,16 @@ service firebase.storage {
     }
 
     match /protected/stakes/{stakeId}/activities/{activityId}/parent-consents/{registrationId}/{fileName=**} {
+      allow read: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
+      allow write: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
+    }
+
+    match /protected/stakes/{stakeId}/activities/{activityId}/signatures/{registrationId}/{fileName=**} {
+      allow read: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
+      allow write: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
+    }
+
+    match /protected/stakes/{stakeId}/activities/{activityId}/parent-ids/{registrationId}/{fileName=**} {
       allow read: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
       allow write: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
     }

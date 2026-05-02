@@ -196,6 +196,8 @@ export interface Event {
   overnight: boolean;
   templateId: string | null;
   questionsEnabled: boolean;
+  requiresParentalConsent: boolean;
+  requiresPhotoRelease: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -252,6 +254,13 @@ export interface Registration {
   parentConsentDocumentUrl: string | null;
   parentConsentDocumentPath: string | null;
   parentConsentUploadedAt: string | null;
+  consentSignatureUrl: string | null;
+  consentSignaturePath: string | null;
+  consentSignatureSetAt: string | null;
+  parentIdDocumentName: string | null;
+  parentIdDocumentUrl: string | null;
+  parentIdDocumentPath: string | null;
+  parentIdUploadedAt: string | null;
   linkedLaterToUserId: string | null;
   status?: "active" | "cancelled";
   registrationStatus: RegistrationStatus;
@@ -335,6 +344,8 @@ export interface EventWriteInput {
   allowGuestRegistration?: boolean;
   requireLoginForEdit?: boolean;
   questionsEnabled?: boolean;
+  requiresParentalConsent?: boolean;
+  requiresPhotoRelease?: boolean;
 }
 
 export type QuestionStatus = "active" | "hidden";

@@ -1136,6 +1136,159 @@ export function AdminEventDetailPage() {
 
       {activeTab === "consents" ? (
         <section className="admin-detail-stack">
+          {resolvedEvent.requiresParentalConsent || resolvedEvent.requiresPhotoRelease ? (
+            <article className="surface-panel surface-panel--subtle">
+              <h3>Autorizzazioni digitali</h3>
+              <p className="subtle-text">
+                Stato per ogni iscritto: spunte accettate, firma digitale, documento d&apos;identita
+                del genitore. Scarica il PDF compilato per consegnarlo o archiviarlo.
+              </p>
+              {activeRegistrations.length === 0 ? (
+                <EmptyState
+                  title="Nessuna iscrizione attiva"
+                  description="Quando arrivano le iscrizioni vedrai lo stato dei consensi qui."
+                />
+              ) : (
+                <div className="stack">
+                  {activeRegistrations.map((registration) => {
+                    const parentalAccepted =
+                      registration.answers.parentalConsentAccepted === true;
+                    const photoAccepted =
+                      registration.answers.photoReleaseAccepted === true;
+                    const signerName =
+                      typeof registration.answers.parentalConsentSignerName === "string" &&
+                      registration.answers.parentalConsentSignerName
+                        ? registration.answers.parentalConsentSignerName
+                        : typeof registration.answers.photoReleaseSignerName === "string"
+                          ? registration.answers.photoReleaseSignerName
+                          : "";
+                    return (
+                      <article
+                        key={`consent-new-${registration.id}`}
+                        className="surface-panel surface-panel--subtle admin-registration-row"
+                      >
+                        <div>
+                          <strong>{getRegistrationDisplayName(registration)}</strong>
+                          <p>{getUnitLabel(registration)}</p>
+                          {signerName ? <p>Firmatario: {signerName}</p> : null}
+                          <div className="chip-row admin-chip-row" style={{ marginTop: "0.4rem" }}>
+                            {resolvedEvent.requiresParentalConsent ? (
+                              <StatusBadge
+                                label={parentalAccepted ? "Consenso genitore" : "Consenso mancante"}
+                                tone={parentalAccepted ? "success" : "warning"}
+                              />
+                            ) : null}
+                            {resolvedEvent.requiresPhotoRelease ? (
+                              <StatusBadge
+                                label={photoAccepted ? "Liberatoria foto" : "Liberatoria mancante"}
+                                tone={photoAccepted ? "success" : "warning"}
+                              />
+                            ) : null}
+                            <StatusBadge
+                              label={
+                                registration.consentSignatureUrl ? "Firma digitale" : "Senza firma"
+                              }
+                              tone={registration.consentSignatureUrl ? "success" : "warning"}
+                            />
+                            <StatusBadge
+                              label={
+                                registration.parentIdDocumentUrl ? "ID genitore" : "ID assente"
+                              }
+                              tone={registration.parentIdDocumentUrl ? "success" : "warning"}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="admin-registration-row__meta">
+                          {registration.consentSignatureUrl ? (
+                            <a
+                              className="button button--ghost button--small"
+                              href={registration.consentSignatureUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <AppIcon name="eye" />
+                              <span>Vedi firma</span>
+                            </a>
+                          ) : null}
+                          {registration.parentIdDocumentUrl ? (
+                            <a
+                              className="button button--ghost button--small"
+                              href={registration.parentIdDocumentUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <AppIcon name="eye" />
+                              <span>Vedi ID</span>
+                            </a>
+                          ) : null}
+                          {resolvedEvent.requiresParentalConsent ? (
+                            <button
+                              className="button button--ghost button--small"
+                              onClick={async () => {
+                                try {
+                                  const { downloadConsentPdf } = await import(
+                                    "@/utils/consentPdf"
+                                  );
+                                  downloadConsentPdf({
+                                    event: resolvedEvent,
+                                    registration,
+                                    kind: "parental",
+                                    signatureDataUrl:
+                                      registration.consentSignatureUrl ?? null,
+                                  });
+                                } catch (caughtError) {
+                                  setActionError(
+                                    caughtError instanceof Error
+                                      ? caughtError.message
+                                      : "PDF non generato.",
+                                  );
+                                }
+                              }}
+                              type="button"
+                            >
+                              <AppIcon name="download" />
+                              <span>PDF consenso</span>
+                            </button>
+                          ) : null}
+                          {resolvedEvent.requiresPhotoRelease ? (
+                            <button
+                              className="button button--ghost button--small"
+                              onClick={async () => {
+                                try {
+                                  const { downloadConsentPdf } = await import(
+                                    "@/utils/consentPdf"
+                                  );
+                                  downloadConsentPdf({
+                                    event: resolvedEvent,
+                                    registration,
+                                    kind: "photo",
+                                    signatureDataUrl:
+                                      registration.consentSignatureUrl ?? null,
+                                  });
+                                } catch (caughtError) {
+                                  setActionError(
+                                    caughtError instanceof Error
+                                      ? caughtError.message
+                                      : "PDF non generato.",
+                                  );
+                                }
+                              }}
+                              type="button"
+                            >
+                              <AppIcon name="download" />
+                              <span>PDF liberatoria</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </article>
+          ) : null}
+
           <div className="admin-inline-metrics admin-inline-metrics--three">
             <article className="admin-inline-metric">
               <strong>{minorRegistrations.length}</strong>
