@@ -195,6 +195,7 @@ export interface Event {
   maxParticipants: number | null;
   overnight: boolean;
   templateId: string | null;
+  questionsEnabled: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -333,6 +334,29 @@ export interface EventWriteInput {
   templateId?: string | null;
   allowGuestRegistration?: boolean;
   requireLoginForEdit?: boolean;
+  questionsEnabled?: boolean;
+}
+
+export type QuestionStatus = "active" | "hidden";
+
+export interface Question {
+  id: string;
+  eventId: string;
+  stakeId: string;
+  registrationId: string;
+  authorUserId: string | null;
+  authorAnonymousUid: string | null;
+  authorName: string | null;
+  text: string;
+  isAnonymous: boolean;
+  status: QuestionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestionWriteInput {
+  text: string;
+  isAnonymous: boolean;
 }
 
 export interface RegistrationWriteInput {

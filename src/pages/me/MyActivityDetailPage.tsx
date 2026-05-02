@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "@/components/EmptyState";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { PageHero } from "@/components/PageHero";
+import { QuestionsSection } from "@/components/QuestionsSection";
 import { SectionCard } from "@/components/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -279,6 +280,15 @@ export function MyActivityDetailPage() {
               }
               registration={data.registration}
               sessionUid={session.firebaseUser.uid}
+              stakeId={stakeId}
+            />
+          ) : null}
+
+          {data.event.questionsEnabled ? (
+            <QuestionsSection
+              eventId={data.event.id}
+              registration={data.registration}
+              session={session}
               stakeId={stakeId}
             />
           ) : null}
