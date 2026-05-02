@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 
 import type { Event, Question } from "@/types";
-import { formatDateRange, formatDateTime } from "@/utils/formatters";
+import { formatDateRange } from "@/utils/formatters";
 
 interface QuestionsPdfArgs {
   event: Event;
@@ -12,71 +12,71 @@ export function downloadQuestionsPdf({ event, questions }: QuestionsPdfArgs) {
   const visible = questions.filter((question) => question.status === "active");
   const doc = new jsPDF();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 16;
-  const contentWidth = 178;
-  let y = 20;
+  const marginX = 20;
+  const contentWidth = doc.internal.pageSize.getWidth() - marginX * 2;
+  const lineHeight = 7;
+  const questionGap = 6;
+  let y = 24;
 
-  function ensureSpace(neededLines: number) {
-    if (y + neededLines * 6 > pageHeight - 18) {
+  function ensureSpace(neededHeight: number) {
+    if (y + neededHeight > pageHeight - 20) {
       doc.addPage();
-      y = 20;
+      y = 24;
     }
   }
 
-  function writeWrapped(text: string, fontStyle: "normal" | "bold" | "italic" = "normal") {
-    doc.setFont("helvetica", fontStyle);
-    const lines = doc.splitTextToSize(text || "-", contentWidth);
-    ensureSpace(lines.length);
-    doc.text(lines, marginX, y);
-    y += lines.length * 6;
-  }
-
   doc.setFont("times", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(22);
   doc.text("Domande per il caminetto", marginX, y);
-  y += 9;
+  y += 11;
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  writeWrapped(event.title, "bold");
-  writeWrapped(`${formatDateRange(event.startDate, event.endDate)} - ${event.location || "-"}`);
-  y += 4;
+  doc.setFont("times", "italic");
+  doc.setFontSize(13);
+  const subtitle = `${event.title} - ${formatDateRange(event.startDate, event.endDate)}${event.location ? ` - ${event.location}` : ""}`;
+  const subtitleLines = doc.splitTextToSize(subtitle, contentWidth);
+  doc.text(subtitleLines, marginX, y);
+  y += subtitleLines.length * 7 + 6;
 
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(10);
-  writeWrapped(
-    `Domande inviate: ${visible.length}. Le domande contrassegnate "Anonima" non riportano l'autore.`,
-    "italic",
-  );
-  y += 4;
+  doc.setDrawColor(180);
+  doc.line(marginX, y, marginX + contentWidth, y);
+  y += 8;
 
   if (visible.length === 0) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    writeWrapped("Nessuna domanda da mostrare.");
-  } else {
-    doc.setFontSize(11);
-
-    visible.forEach((question, index) => {
-      const number = `${index + 1}.`;
-      const author = question.isAnonymous
-        ? "Anonima"
-        : question.authorName?.trim() || "Senza nome";
-      const meta = `${number} ${author} - ${formatDateTime(question.createdAt)}`;
-
-      ensureSpace(2);
-      doc.setFont("helvetica", "bold");
-      const metaLines = doc.splitTextToSize(meta, contentWidth);
-      doc.text(metaLines, marginX, y);
-      y += metaLines.length * 6;
-
-      doc.setFont("helvetica", "normal");
-      const bodyLines = doc.splitTextToSize(question.text || "-", contentWidth);
-      ensureSpace(bodyLines.length);
-      doc.text(bodyLines, marginX, y);
-      y += bodyLines.length * 6 + 4;
-    });
+    doc.setFontSize(12);
+    doc.text("Nessuna domanda da mostrare.", marginX, y);
+    doc.save(`domande-${event.slug || event.id}.pdf`);
+    return;
   }
+
+  doc.setFontSize(12);
+
+  visible.forEach((question, index) => {
+    const number = `${index + 1}.`;
+    const numberWidth = doc.getTextWidth(`${number} `);
+    const textIndent = marginX + numberWidth;
+    const textWidth = contentWidth - numberWidth;
+    const namedAuthor =
+      !question.isAnonymous && question.authorName?.trim() ? question.authorName.trim() : null;
+
+    const bodyLines = doc.splitTextToSize(question.text || "-", textWidth);
+    const namedHeight = namedAuthor ? lineHeight : 0;
+    const blockHeight = namedHeight + bodyLines.length * lineHeight + questionGap;
+    ensureSpace(blockHeight);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(number, marginX, y);
+
+    if (namedAuthor) {
+      doc.setFont("helvetica", "italic");
+      doc.text(namedAuthor, textIndent, y);
+      y += lineHeight;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.text(bodyLines, textIndent, y);
+    y += bodyLines.length * lineHeight + questionGap;
+  });
 
   doc.save(`domande-${event.slug || event.id}.pdf`);
 }
