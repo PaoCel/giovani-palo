@@ -90,6 +90,7 @@ export const router = createBrowserRouter([
           { path: "events/:eventId/registrations", element: <AdminEventDetailPage /> },
           { path: "events/:eventId/consents", element: <AdminEventDetailPage /> },
           { path: "events/:eventId/rooms", element: <AdminEventDetailPage /> },
+          { path: "events/:eventId/questions", element: <AdminEventDetailPage /> },
           { path: "events/:eventId/stats", element: <AdminEventDetailPage /> },
           { path: "registrations", element: <AdminStatsPage /> },
           { path: "stats", element: <AdminStatsPage /> },
