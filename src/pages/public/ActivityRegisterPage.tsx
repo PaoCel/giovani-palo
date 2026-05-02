@@ -559,15 +559,6 @@ export function ActivityRegisterPage() {
           stakeId={data.stakeId}
         />
       ) : null}
-
-      {event?.questionsEnabled && anonymousCompletion && session ? (
-        <QuestionsSection
-          eventId={event.id}
-          registration={anonymousCompletion}
-          session={session}
-          stakeId={data.stakeId}
-        />
-      ) : null}
     </div>
   );
 }

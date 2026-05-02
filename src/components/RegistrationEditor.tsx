@@ -255,10 +255,9 @@ export function RegistrationEditor({
     hasFilledText(session?.profile.firstName || sessionNames.firstName) &&
     hasFilledText(session?.profile.lastName || sessionNames.lastName)
   );
-  const shouldAskEmailField = !(
+  const shouldAskEmailField =
     isAuthenticatedAccount &&
-    hasFilledText(session?.profile.email || session?.firebaseUser.email || "")
-  );
+    !hasFilledText(session?.profile.email || session?.firebaseUser.email || "");
   const shouldHideBirthDateField = isAuthenticatedAccount && hasFilledText(session?.profile.birthDate);
   const shouldHideCategoryField =
     isAuthenticatedAccount && hasFilledText(session?.profile.genderRoleCategory);
@@ -976,7 +975,7 @@ export function RegistrationEditor({
                 </label>
               ) : null}
 
-              {!shouldAskNameFields || !shouldAskEmailField ? (
+              {isAuthenticatedAccount && (!shouldAskNameFields || !shouldAskEmailField) ? (
                 <div className="field field--full">
                   <div className="surface-panel surface-panel--subtle registration-account-hint">
                     <strong>Dati account gia riutilizzati</strong>
