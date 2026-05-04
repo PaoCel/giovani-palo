@@ -270,7 +270,8 @@ export function parseRoomPreferenceMatches(value: unknown): RoomPreferenceMatche
       matchedCategory:
         data.matchedCategory === "giovane_uomo" ||
         data.matchedCategory === "giovane_donna" ||
-        data.matchedCategory === "dirigente"
+        data.matchedCategory === "dirigente" ||
+        data.matchedCategory === "accompagnatore"
           ? data.matchedCategory
           : "",
       score: typeof data.score === "number" ? data.score : null,

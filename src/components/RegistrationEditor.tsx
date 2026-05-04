@@ -66,6 +66,7 @@ interface RegistrationEditorValues {
   medications: string;
   medicalNotes: string;
   dietaryNotes: string;
+  participatingDays: string[];
 }
 
 interface StepDefinition {
@@ -200,6 +201,9 @@ function getInitialValues(
     medications: getStoredParentField(registration, "medications"),
     medicalNotes: getStoredParentField(registration, "medicalNotes"),
     dietaryNotes: getStoredParentField(registration, "dietaryNotes"),
+    participatingDays: Array.isArray(registration?.participatingDays)
+      ? [...registration.participatingDays]
+      : [],
   };
 }
 
@@ -308,6 +312,37 @@ export function RegistrationEditor({
       ),
     [unitOptions, values.answers.unitName, values.unitName],
   );
+  const supportsParticipatingDays = useMemo(() => {
+    const type = event.activityType ?? (event.overnight ? "overnight" : "standard");
+    return (
+      type === "overnight" ||
+      type === "camp" ||
+      type === "multi_day" ||
+      type === "trip"
+    );
+  }, [event.activityType, event.overnight]);
+  const availableEventDays = useMemo(() => {
+    if (!supportsParticipatingDays) return [];
+    const startSrc = event.startDate;
+    const endSrc = event.endDate || event.startDate;
+    if (!startSrc) return [];
+    const start = new Date(startSrc);
+    const end = new Date(endSrc);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    if (endDay < startDay) return [];
+    const days: string[] = [];
+    const cursor = new Date(startDay);
+    while (cursor <= endDay && days.length < 60) {
+      const yyyy = cursor.getFullYear();
+      const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+      const dd = String(cursor.getDate()).padStart(2, "0");
+      days.push(`${yyyy}-${mm}-${dd}`);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }, [event.startDate, event.endDate, supportsParticipatingDays]);
   const isMinorParticipant = isMinorBirthDate(values.birthDate);
   const eventRequiresParental = event.requiresParentalConsent && isMinorParticipant;
   const eventRequiresPhotoRelease = event.requiresPhotoRelease;
@@ -486,6 +521,23 @@ export function RegistrationEditor({
   useEffect(() => {
     setCurrentStepIndex((current) => Math.min(current, registrationSteps.length - 1));
   }, [registrationSteps.length]);
+
+  useEffect(() => {
+    if (!supportsParticipatingDays || availableEventDays.length === 0) return;
+    setValues((current) => {
+      const filtered = current.participatingDays.filter((day) =>
+        availableEventDays.includes(day),
+      );
+      const next = filtered.length > 0 ? filtered : [...availableEventDays];
+      if (
+        next.length === current.participatingDays.length &&
+        next.every((day, index) => day === current.participatingDays[index])
+      ) {
+        return current;
+      }
+      return { ...current, participatingDays: next };
+    });
+  }, [availableEventDays, supportsParticipatingDays]);
 
   const currentStep = registrationSteps[currentStepIndex];
   const progress = ((currentStepIndex + 1) / registrationSteps.length) * 100;
@@ -1095,6 +1147,9 @@ export function RegistrationEditor({
       },
       registrationStatus: nextRegistrationStatus,
       status: initialRegistration?.status === "cancelled" ? "cancelled" : "active",
+      participatingDays: supportsParticipatingDays
+        ? values.participatingDays.filter((day) => availableEventDays.includes(day))
+        : undefined,
     });
   }
 
@@ -1228,6 +1283,45 @@ export function RegistrationEditor({
 
           {currentStep.id === "details" ? (
             <div className="form-stack">
+              {supportsParticipatingDays && availableEventDays.length > 1 ? (
+                <div className="surface-panel surface-panel--subtle form-subsection">
+                  <h3>Giorni di partecipazione</h3>
+                  <p className="subtle-text">
+                    Seleziona i giorni in cui sarai presente. Per default sono selezionati tutti.
+                  </p>
+                  <div className="participating-days-grid">
+                    {availableEventDays.map((day) => {
+                      const checked = values.participatingDays.includes(day);
+                      return (
+                        <label key={day} className="participating-day-chip">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(eventInput) => {
+                              const next = eventInput.target.checked
+                                ? [...values.participatingDays, day]
+                                : values.participatingDays.filter((d) => d !== day);
+                              setValues((current) => ({
+                                ...current,
+                                participatingDays: availableEventDays.filter((d) =>
+                                  next.includes(d),
+                                ),
+                              }));
+                            }}
+                          />
+                          <span>
+                            {new Date(day).toLocaleDateString("it-IT", {
+                              weekday: "short",
+                              day: "2-digit",
+                              month: "short",
+                            })}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {!hasVisibleQuestions ? (
                 <div className="surface-panel surface-panel--subtle form-subsection">
                   <h3>Pronto per inviare</h3>

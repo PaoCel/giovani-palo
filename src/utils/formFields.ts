@@ -19,16 +19,16 @@ export const standardFieldDefinitions: StandardFieldDefinition[] = [
   {
     key: "genderRoleCategory",
     label: "Organizzazione",
-    helpText: "Seleziona se appartieni a GU, GD o ai dirigenti.",
+    helpText: "Seleziona se sei GU, GD, dirigente o accompagnatore.",
     inputType: "select",
-    options: ["giovane_uomo", "giovane_donna", "dirigente"],
+    options: ["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"],
   },
   {
     key: "youthGroup",
     label: "Organizzazione",
-    helpText: "Seleziona se appartieni a GU, GD o ai dirigenti.",
+    helpText: "Seleziona se sei GU, GD, dirigente o accompagnatore.",
     inputType: "select",
-    options: ["Giovani Uomini", "Giovani Donne", "Dirigente"],
+    options: ["Giovani Uomini", "Giovani Donne", "Dirigente", "Accompagnatore"],
   },
   {
     key: "phone",

@@ -4,6 +4,7 @@ import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { organizationService } from "@/services/firestore/organizationService";
+import type { GenderRoleCategory } from "@/types";
 
 const MANUAL_UNIT_VALUE = "__manual_unit__";
 
@@ -31,7 +32,7 @@ export function MyProfilePage() {
     firstName: "",
     lastName: "",
     birthDate: "",
-    genderRoleCategory: "giovane_uomo" as "giovane_uomo" | "giovane_donna" | "dirigente",
+    genderRoleCategory: "giovane_uomo" as GenderRoleCategory,
     unitName: "",
   });
 
@@ -231,16 +232,14 @@ export function MyProfilePage() {
                 onChange={(eventInput) =>
                   setValues((current) => ({
                     ...current,
-                    genderRoleCategory: eventInput.target.value as
-                      | "giovane_uomo"
-                      | "giovane_donna"
-                      | "dirigente",
+                    genderRoleCategory: eventInput.target.value as GenderRoleCategory,
                   }))
                 }
               >
                 <option value="giovane_uomo">Giovane uomo</option>
                 <option value="giovane_donna">Giovane donna</option>
                 <option value="dirigente">Dirigente</option>
+                <option value="accompagnatore">Accompagnatore</option>
               </select>
             </label>
           </div>

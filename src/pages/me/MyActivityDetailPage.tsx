@@ -234,6 +234,52 @@ export function MyActivityDetailPage() {
           </SectionCard>
 
           <SectionCard
+            title="Sondaggio post-evento"
+            description="Compila il modulo per dare un feedback sull'attività. Anonimo."
+          >
+            <Link
+              className="button button--primary"
+              to={`/me/sondaggi/${data.event.id}`}
+            >
+              Vai al sondaggio
+            </Link>
+          </SectionCard>
+
+          <SectionCard
+            title="Galleria foto e video"
+            description="Inserisci il codice ricevuto per accedere alla galleria."
+          >
+            <Link
+              className="button button--ghost"
+              to={`/me/galleria/${data.event.id}`}
+            >
+              Apri galleria
+            </Link>
+          </SectionCard>
+
+          {data.event.whatToBring?.trim() ? (
+            <SectionCard
+              title="Cosa portare"
+              description={
+                data.event.activityType === "camp" ||
+                data.event.activityType === "overnight" ||
+                data.event.overnight
+                  ? "Importante: leggi prima di partire."
+                  : "Materiale consigliato per partecipare."
+              }
+            >
+              <div className="what-to-bring-card">
+                {data.event.activityType === "camp" ||
+                data.event.activityType === "overnight" ||
+                data.event.overnight ? (
+                  <span className="what-to-bring-badge">⚠️ Consigliato leggere</span>
+                ) : null}
+                <p className="what-to-bring-text">{data.event.whatToBring}</p>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          <SectionCard
             title="Dati inviati"
             description="Valori principali e risposte raccolte dal modulo."
           >

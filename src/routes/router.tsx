@@ -19,6 +19,8 @@ import { MyActivityDetailPage } from "@/pages/me/MyActivityDetailPage";
 import { MyActivityEditPage } from "@/pages/me/MyActivityEditPage";
 import { MyCalendarPage } from "@/pages/me/MyCalendarPage";
 import { MyProfilePage } from "@/pages/me/MyProfilePage";
+import { SurveyAnswerPage } from "@/pages/me/SurveyAnswerPage";
+import { GalleryPage } from "@/pages/me/GalleryPage";
 import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { ActivityRegisterPage } from "@/pages/public/ActivityRegisterPage";
@@ -60,6 +62,8 @@ export const router = createBrowserRouter([
           { path: "activities", element: <MyActivitiesPage /> },
           { path: "activities/:eventId", element: <MyActivityDetailPage /> },
           { path: "activities/:eventId/edit", element: <MyActivityEditPage /> },
+          { path: "sondaggi/:eventId", element: <SurveyAnswerPage /> },
+          { path: "galleria/:eventId", element: <GalleryPage /> },
           { path: "profile", element: <MyProfilePage /> },
         ],
       },
