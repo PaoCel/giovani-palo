@@ -23,6 +23,7 @@ import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { ActivityRegisterPage } from "@/pages/public/ActivityRegisterPage";
 import { HomePage } from "@/pages/public/HomePage";
+import { ParentConfirmPage } from "@/pages/public/ParentConfirmPage";
 import { PhotoConsentPage } from "@/pages/public/PhotoConsentPage";
 import { PrivacyPage } from "@/pages/public/PrivacyPage";
 import { UnitActivityPage } from "@/pages/unit/UnitActivityPage";
@@ -30,6 +31,9 @@ import { UnitDashboardPage } from "@/pages/unit/UnitDashboardPage";
 import { AdminRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
 
 export const router = createBrowserRouter([
+  // Pagina genitore standalone, senza shell pubblico (no nav, no header app).
+  // Aperta da magic link Brevo: il genitore non deve essere distratto dal sito.
+  { path: "/parent-confirm/:token", element: <ParentConfirmPage /> },
   {
     element: <PublicLayout />,
     children: [

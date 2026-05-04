@@ -74,6 +74,21 @@ service firebase.storage {
       allow write: if isStakeAdmin(stakeId) || isRegistrationOwner(stakeId, activityId, registrationId);
     }
 
+    // PDF di audit dell'autorizzazione genitoriale: scritti solo da Cloud Functions
+    // (Admin SDK bypassa queste rules), letti solo da admin di stake.
+    // L'utente / genitore non deve poter leggere il PDF dal browser.
+    match /protected/stakes/{stakeId}/activities/{activityId}/parent-authorization-pdfs/{registrationId}/{fileName=**} {
+      allow read: if isStakeAdmin(stakeId);
+      allow write: if false;
+    }
+
+    // Firme genitore raccolte tramite magic-link (separate da quelle MVP esistenti
+    // per evitare collisioni con consenti gia' caricati dall'utente loggato).
+    match /protected/stakes/{stakeId}/activities/{activityId}/parent-authorization-signatures/{registrationId}/{fileName=**} {
+      allow read: if isStakeAdmin(stakeId);
+      allow write: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

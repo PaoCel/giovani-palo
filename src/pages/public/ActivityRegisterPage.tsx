@@ -318,9 +318,19 @@ export function ActivityRegisterPage() {
     event && session?.isAuthenticated && !session.isAnonymous && !canEditExisting
       ? !isEventAudienceEligible(event, session.profile.genderRoleCategory)
       : false;
+  // Per attivita' rafforzate (overnight/trip/camp/multi_day) con account
+  // obbligatorio: blocco i guest. Anche se formConfig.allowGuestRegistration
+  // fosse legacy true, qui prevale.
+  const eventForcesAccount = Boolean(event?.requiresAccount);
+  const allowGuestForThisActivity =
+    Boolean(formConfig?.allowGuestRegistration) && !eventForcesAccount;
+  const isAuthenticatedAccount = Boolean(session?.isAuthenticated && !session.isAnonymous);
+  const accountBlockedForGuest =
+    eventForcesAccount && session?.isAnonymous === true;
   const canSubmit =
     Boolean(event && formConfig && session) &&
     !audienceMismatch &&
+    !accountBlockedForGuest &&
     (canEditExisting || availability === "open" || availability === "guest-allowed");
   const showRegisteredMinorConsentUpload =
     Boolean(
@@ -463,7 +473,7 @@ export function ActivityRegisterPage() {
         </div>
       ) : null}
 
-      {!session && formConfig?.allowGuestRegistration ? (
+      {!session && allowGuestForThisActivity ? (
         <SectionCard
           title="Come vuoi procedere?"
           description={
@@ -498,10 +508,29 @@ export function ActivityRegisterPage() {
         </SectionCard>
       ) : null}
 
-      {!session && formConfig && !formConfig.allowGuestRegistration ? (
+      {!session && formConfig && !allowGuestForThisActivity ? (
         <SectionCard
-          title="Serve un account"
-          description="Per questa attività l'iscrizione è disponibile solo dopo autenticazione."
+          title={eventForcesAccount ? "Serve un account per questa attivita'" : "Serve un account"}
+          description={
+            eventForcesAccount
+              ? "Questa attivita' prevede pernottamento o trasferta: per motivi di sicurezza l'iscrizione e' disponibile solo con account autenticato."
+              : "Per questa attivita' l'iscrizione e' disponibile solo dopo autenticazione."
+          }
+        >
+          <Link
+            className="button button--primary"
+            to={`/login?redirect=${encodeURIComponent(`/activities/${eventId}/register`)}`}
+          >
+            <AppIcon name="user" />
+            <span>Vai al login</span>
+          </Link>
+        </SectionCard>
+      ) : null}
+
+      {accountBlockedForGuest ? (
+        <SectionCard
+          title="Iscrizione disponibile solo con account"
+          description="Stai usando una sessione anonima. Per le attivita' con pernottamento o trasferta serve creare un account o accedere."
         >
           <Link
             className="button button--primary"
