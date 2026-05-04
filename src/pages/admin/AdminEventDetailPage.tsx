@@ -16,6 +16,7 @@ import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { questionsService } from "@/services/firestore/questionsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
+import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
 import type { Question, Registration } from "@/types";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { downloadRegistrationsExcel, type ExportOptions } from "@/utils/registrationExcel";
@@ -224,7 +225,10 @@ export function AdminEventDetailPage() {
   const stakeId = session?.profile.stakeId ?? "roma-est";
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [busy, setBusy] = useState<null | "publish" | "delete">(null);
+  const [busy, setBusy] = useState<
+    null | "publish" | "delete" | "resendParentAuth" | "deleteRegistration"
+  >(null);
+  const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionInfo, setActionInfo] = useState<string | null>(null);
   const [registrationModalId, setRegistrationModalId] = useState<string | null>(null);
@@ -684,6 +688,71 @@ export function AdminEventDetailPage() {
     }
   }
 
+  async function handleResendParentAuthEmail(registration: Registration) {
+    setBusy("resendParentAuth");
+    setBusyRegistrationId(registration.id);
+    setActionError(null);
+    setActionInfo(null);
+    try {
+      const result = await parentAuthorizationService.resendByAdmin({
+        stakeId,
+        activityId: resolvedEventId,
+        registrationId: registration.id,
+      });
+      if (result.sent) {
+        setActionInfo(
+          `Email di autorizzazione reinviata a ${registration.parentAuthorization?.parentEmail || "genitore"}.`,
+        );
+      } else {
+        setActionError(
+          "Reinvio non riuscito (vecchio token invalidato ma email non partita). Controlla i log Cloud Functions.",
+        );
+      }
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile reinviare l'email di autorizzazione.",
+      );
+    } finally {
+      setBusy(null);
+      setBusyRegistrationId(null);
+    }
+  }
+
+  async function handleAdminDeleteRegistration(registration: Registration) {
+    const confirmed = window.confirm(
+      `Eliminare definitivamente l'iscrizione di ${registration.fullName}?\n\n` +
+        "L'iscrizione verra' rimossa dal database. Eventuali firme/PDF/documenti " +
+        "associati su Storage NON vengono eliminati automaticamente (vanno rimossi a mano se serve).\n\n" +
+        "Azione irreversibile.",
+    );
+    if (!confirmed) return;
+    setBusy("deleteRegistration");
+    setBusyRegistrationId(registration.id);
+    setActionError(null);
+    setActionInfo(null);
+    try {
+      await registrationsService.adminDeleteRegistration(
+        stakeId,
+        resolvedEventId,
+        registration.id,
+      );
+      setActionInfo(`Iscrizione di ${registration.fullName} eliminata.`);
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile eliminare l'iscrizione.",
+      );
+    } finally {
+      setBusy(null);
+      setBusyRegistrationId(null);
+    }
+  }
+
   function openExcelExportModal() {
     setActionError(null);
     setActionInfo(null);
@@ -1136,6 +1205,117 @@ export function AdminEventDetailPage() {
 
       {activeTab === "consents" ? (
         <section className="admin-detail-stack">
+          {resolvedEvent.requiresParentAuthorization ? (
+            <article className="surface-panel surface-panel--subtle">
+              <h3>Autorizzazione genitoriale via email (magic link)</h3>
+              <p className="subtle-text">
+                Stato del flusso email Brevo per ogni iscritto. Il sistema invia
+                automaticamente il link al genitore alla prima iscrizione. Da qui puoi
+                reinviare l&apos;email (invalida il vecchio link e crea uno nuovo) o
+                eliminare un&apos;iscrizione di test.
+              </p>
+              {sortedRegistrations.length === 0 ? (
+                <EmptyState
+                  title="Nessuna iscrizione"
+                  description="Quando arrivano iscrizioni vedrai qui lo stato dell'autorizzazione genitore."
+                />
+              ) : (
+                <div className="stack">
+                  {sortedRegistrations.map((registration) => {
+                    const auth = registration.parentAuthorization;
+                    const status = auth?.status ?? "not_required";
+                    const tone =
+                      status === "authorized"
+                        ? "success"
+                        : status === "rejected_by_parent" || status === "email_error"
+                          ? "danger"
+                          : status === "expired"
+                            ? "warning"
+                            : status === "email_sent" ||
+                                status === "pending_parent_authorization"
+                              ? "warning"
+                              : "info";
+                    const label =
+                      status === "authorized"
+                        ? "Autorizzata dal genitore"
+                        : status === "rejected_by_parent"
+                          ? "Rifiutata dal genitore"
+                          : status === "email_error"
+                            ? "Errore invio email"
+                            : status === "expired"
+                              ? "Link scaduto"
+                              : status === "email_sent"
+                                ? "Email inviata, in attesa"
+                                : status === "pending_parent_authorization"
+                                  ? "In attesa primo invio"
+                                  : "Non richiesta";
+                    const isCurrentBusy = busyRegistrationId === registration.id;
+                    return (
+                      <article
+                        key={`parentauth-${registration.id}`}
+                        className="surface-panel surface-panel--subtle admin-registration-row"
+                      >
+                        <div>
+                          <strong>{getRegistrationDisplayName(registration)}</strong>
+                          <p>{getUnitLabel(registration)}</p>
+                          {auth?.parentEmail ? (
+                            <p>
+                              Email genitore: <code>{auth.parentEmail}</code>
+                            </p>
+                          ) : null}
+                          {auth?.emailSentAt ? (
+                            <p>
+                              Ultimo invio: {formatDateTime(auth.emailSentAt)}
+                            </p>
+                          ) : null}
+                          {auth?.emailLastError ? (
+                            <p style={{ color: "#b14e44" }}>
+                              Errore: {auth.emailLastError}
+                            </p>
+                          ) : null}
+                          <div className="chip-row admin-chip-row" style={{ marginTop: "0.4rem" }}>
+                            <StatusBadge label={label} tone={tone} />
+                          </div>
+                        </div>
+
+                        <div className="admin-registration-row__meta">
+                          {status === "authorized" || status === "rejected_by_parent" ? null : (
+                            <button
+                              className="button button--ghost button--small"
+                              disabled={busy !== null}
+                              onClick={() => void handleResendParentAuthEmail(registration)}
+                              type="button"
+                            >
+                              <AppIcon name="mail" />
+                              <span>
+                                {isCurrentBusy && busy === "resendParentAuth"
+                                  ? "Reinvio..."
+                                  : "Reinvia email"}
+                              </span>
+                            </button>
+                          )}
+                          <button
+                            className="button button--ghost button--small"
+                            disabled={busy !== null}
+                            onClick={() => void handleAdminDeleteRegistration(registration)}
+                            type="button"
+                          >
+                            <AppIcon name="trash" />
+                            <span>
+                              {isCurrentBusy && busy === "deleteRegistration"
+                                ? "Eliminazione..."
+                                : "Elimina iscrizione"}
+                            </span>
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </article>
+          ) : null}
+
           {resolvedEvent.requiresParentalConsent || resolvedEvent.requiresPhotoRelease ? (
             <article className="surface-panel surface-panel--subtle">
               <h3>Autorizzazioni digitali</h3>

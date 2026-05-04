@@ -156,7 +156,29 @@ export const usersService = {
         lastLoginAt,
       };
 
-      await setDoc(reference, payload);
+      // Race con propagazione token Auth dopo signup: a volte il primo
+      // setDoc parte prima che le rules vedano request.auth.uid e ritorna
+      // permission-denied. Forzo refresh token + retry una volta.
+      try {
+        await setDoc(reference, payload);
+      } catch (firstError) {
+        const code =
+          firstError && typeof firstError === "object" && "code" in firstError
+            ? (firstError as { code?: string }).code
+            : null;
+        if (code === "permission-denied") {
+          try {
+            await user.getIdToken(true);
+          } catch (tokenError) {
+            // Non blocco sul refresh: ritento comunque.
+            void tokenError;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          await setDoc(reference, payload);
+        } else {
+          throw firstError;
+        }
+      }
       return mapUserProfile(user.uid, payload);
     }
 

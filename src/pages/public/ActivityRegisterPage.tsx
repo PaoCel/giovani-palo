@@ -465,6 +465,15 @@ export function ActivityRegisterPage() {
               Stato corrente: {getRegistrationStatusLabel(data.registration.registrationStatus)}.
               Le modifiche verranno salvate sullo stesso documento.
             </p>
+            {data.registration.registrationStatus === "pending_parent_authorization" ? (
+              <p style={{ marginTop: "0.6rem" }}>
+                <strong>Email autorizzazione inviata al genitore.</strong> Se non la trovate
+                in arrivo entro qualche minuto, controllate la <strong>cartella spam</strong>
+                {" "}o <strong>posta indesiderata</strong>. Per iCloud/Outlook puo' capitare
+                che venga filtrata: contrassegnatela come "non spam" per vederla. Mittente:
+                {" "}<code>noreply@gugditalia.it</code>.
+              </p>
+            ) : null}
           </div>
           <StatusBadge
             label={getRegistrationStatusLabel(data.registration.registrationStatus)}
