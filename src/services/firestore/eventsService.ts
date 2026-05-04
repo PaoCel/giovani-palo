@@ -88,8 +88,6 @@ function mapEvent(
     allergiesInfo: typeof data.allergiesInfo === "string" ? data.allergiesInfo : "",
     roomsInfo: overnight && typeof data.roomsInfo === "string" ? data.roomsInfo : "",
     whatToBring: typeof data.whatToBring === "string" ? data.whatToBring : "",
-    galleryAccessCode:
-      typeof data.galleryAccessCode === "string" ? data.galleryAccessCode : "",
     heroImageUrl: typeof data.heroImageUrl === "string" ? data.heroImageUrl : "",
     heroImagePath: typeof data.heroImagePath === "string" ? data.heroImagePath : "",
     coverImageUrl:
@@ -197,7 +195,6 @@ function normalizeEventInput(input: EventWriteInput) {
     allergiesInfo: (input.allergiesInfo ?? "").trim(),
     roomsInfo: overnight ? (input.roomsInfo ?? "").trim() : "",
     whatToBring: (input.whatToBring ?? "").trim(),
-    galleryAccessCode: (input.galleryAccessCode ?? "").trim(),
     heroImageUrl: input.heroImageUrl.trim(),
     heroImagePath: (input.heroImagePath ?? "").trim(),
     coverImageUrl: (input.coverImageUrl ?? input.heroImageUrl).trim(),

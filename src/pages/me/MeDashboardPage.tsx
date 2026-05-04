@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
+import { HomeFeed } from "@/components/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +19,7 @@ import {
 export function MeDashboardPage() {
   const { session } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "none";
+  const stakeId = session?.profile.stakeId ?? "roma-est";
 
   const { data: feed, loading, error } = useAsyncData(
     () => userActivitiesService.listStakeActivityFeed(session),
@@ -114,6 +116,16 @@ export function MeDashboardPage() {
         )}
       </section>
 
+      <section className="card">
+        <div className="user-section-heading">
+          <h2>Dalle attività</h2>
+          <p className="subtle-text">
+            Ultime novità e gallerie dello stake.
+          </p>
+        </div>
+        <HomeFeed stakeId={stakeId} signedIn={Boolean(session?.isAuthenticated)} />
+      </section>
+
       {surveyCandidates.length > 0 ? (
         <section className="card">
           <div className="user-section-heading">
@@ -134,14 +146,12 @@ export function MeDashboardPage() {
                   >
                     Sondaggio
                   </Link>
-                  {event.galleryAccessCode ? (
-                    <Link
-                      className="button button--ghost button--small"
-                      to={`/me/galleria/${event.id}`}
-                    >
-                      Galleria
-                    </Link>
-                  ) : null}
+                  <Link
+                    className="button button--ghost button--small"
+                    to={`/me/galleria/per-attivita/${event.id}`}
+                  >
+                    Galleria
+                  </Link>
                 </div>
               </article>
             ))}

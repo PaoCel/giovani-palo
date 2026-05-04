@@ -87,7 +87,6 @@ interface EventEditorValues {
   allergiesInfo: string;
   roomsInfo: string;
   whatToBring: string;
-  galleryAccessCode: string;
   allowGuestRegistration: boolean;
   requireLoginForEdit: boolean;
   questionsEnabled: boolean;
@@ -159,7 +158,6 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     allergiesInfo: event?.allergiesInfo ?? "",
     roomsInfo: event?.roomsInfo ?? "",
     whatToBring: event?.whatToBring ?? "",
-    galleryAccessCode: event?.galleryAccessCode ?? "",
     allowGuestRegistration: event?.allowGuestRegistration ?? true,
     requireLoginForEdit: event?.requireLoginForEdit ?? true,
     questionsEnabled: event?.questionsEnabled ?? false,
@@ -436,7 +434,6 @@ export function EventEditorForm({
       allergiesInfo: values.allergiesInfo.trim(),
       roomsInfo: effectiveOvernight ? values.roomsInfo.trim() : "",
       whatToBring: values.whatToBring.trim(),
-      galleryAccessCode: values.galleryAccessCode.trim(),
       heroImageUrl: values.heroImageUrl.trim(),
       heroImagePath: values.heroImagePath.trim(),
       status: nextStatus,
@@ -817,22 +814,6 @@ export function EventEditorForm({
                 <small>Mostrato in evidenza ai partecipanti nella scheda dell'attività.</small>
               </label>
 
-              <label className="field">
-                {renderFieldLabel("Codice galleria foto", "galleryAccessCode")}
-                <input
-                  className={getInputClass("galleryAccessCode")}
-                  type="text"
-                  value={values.galleryAccessCode}
-                  placeholder="Es. ROMA-EST-2026"
-                  onChange={(event) =>
-                    updateValue("galleryAccessCode", event.target.value)
-                  }
-                />
-                <small>
-                  Codice da condividere ai partecipanti per accedere alla galleria. Lascia
-                  vuoto per disabilitare la galleria.
-                </small>
-              </label>
 
               <label className="field">
                 {renderFieldLabel("Note organizzative", "organizerNotes")}
