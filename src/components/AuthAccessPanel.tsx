@@ -63,19 +63,36 @@ function needsProfileCompletion(session: ReturnType<typeof useAuth>["session"]) 
   );
 }
 
+function getRoleHome(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
+  return session.isAdmin ? "/admin" : session.isUnitLeader ? "/unit" : "/me";
+}
+
+function isCompatibleRedirect(
+  session: NonNullable<ReturnType<typeof useAuth>["session"]>,
+  redirect: string,
+) {
+  // Aree role-specific: redirect verso un'area altrui (residuo del logout
+  // di un utente con ruolo diverso) viene ignorato. Path neutri pubblici
+  // o legati a /activities restano onorati.
+  if (redirect.startsWith("/admin")) return session.isAdmin;
+  if (redirect.startsWith("/unit")) return session.isUnitLeader;
+  if (redirect.startsWith("/me")) return !session.isAdmin && !session.isUnitLeader;
+  return true;
+}
+
 function getPostLoginPath(
   session: NonNullable<ReturnType<typeof useAuth>["session"]>,
   redirect: string | null | undefined,
 ) {
-  if (redirect) {
-    return redirect;
-  }
-
   if (session.isAdmin && session.profile.mustChangePassword) {
     return "/password-reset";
   }
 
-  return session.isAdmin ? "/admin" : session.isUnitLeader ? "/unit" : "/me";
+  if (redirect && isCompatibleRedirect(session, redirect)) {
+    return redirect;
+  }
+
+  return getRoleHome(session);
 }
 
 function splitFullName(value: string | null | undefined) {
