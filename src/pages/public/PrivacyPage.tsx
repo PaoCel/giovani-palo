@@ -48,7 +48,7 @@ export function PrivacyPage() {
         className="hero--compact"
         eyebrow="Privacy"
         title="Informativa privacy e cookie"
-        description="Come GUGD Italia tratta i dati personali raccolti per gestire attivita, iscrizioni e supporto organizzativo, in conformita al GDPR e al Codice Privacy italiano."
+        description="Come vengono trattati i dati personali raccolti per gestire attivita, iscrizioni e supporto organizzativo, in conformita al GDPR e al Codice Privacy italiano."
         actions={
           <Link className="button button--soft" to="/privacy/photos">
             Informativa fotografie
@@ -57,12 +57,31 @@ export function PrivacyPage() {
       />
 
       <SectionCard
+        title="Disclaimer importante"
+        description="Cos'e' davvero questa piattaforma."
+      >
+        <div className="surface-panel surface-panel--subtle">
+          <p>
+            <strong>Questa NON e' una piattaforma ufficiale</strong> della Chiesa di Gesu'
+            Cristo dei Santi degli Ultimi Giorni ne' di altra organizzazione religiosa, ente
+            o societa'. E' uno strumento sviluppato e gestito a titolo personale dal titolare
+            individuale per supportare l'organizzazione delle attivita'.
+          </p>
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title="Titolare del trattamento"
         description="Chi gestisce i tuoi dati e come contattarlo."
       >
         <div className="surface-panel surface-panel--subtle">
           <p>
-            Titolare del trattamento e l&apos;organizzazione non-profit GUGD Italia.
+            Titolare del trattamento e' <strong>Paolo Celestini</strong>, persona fisica
+            proprietaria della piattaforma. Non si tratta di una societa' ne' di un ente:
+            il trattamento e' gestito direttamente dal titolare individuale che ha sviluppato
+            e mantiene questa piattaforma.
+          </p>
+          <p>
             Per esercitare i tuoi diritti o per qualsiasi richiesta privacy puoi scrivere a
             {" "}<strong>{PRIVACY_EMAIL}</strong>. Per supporto operativo (problemi di iscrizione,
             informazioni sull&apos;attivita) usa {supportContact}.
@@ -174,20 +193,23 @@ export function PrivacyPage() {
       >
         <div className="surface-panel surface-panel--subtle">
           <p>
-            GUGD Italia usa Google come unico sub-fornitore, attraverso i seguenti servizi Firebase:
+            La piattaforma usa i seguenti sub-fornitori:
           </p>
           <ul>
-            <li>Firebase Authentication — gestione delle credenziali di accesso.</li>
-            <li>Cloud Firestore — archiviazione dei dati strutturati, regione UE
-              <code> eur3 </code> (Belgio + Paesi Bassi).</li>
-            <li>Firebase Storage — immagini di consenso e materiali pubblici, regione UE.</li>
-            <li>Firebase Hosting — assets statici, edge globale (no PII).</li>
-            <li>Firebase Cloud Messaging — notifiche push agli admin (no PII nel payload).</li>
+            <li><strong>Google Firebase</strong> (Google LLC):
+              Firebase Authentication (credenziali di accesso),
+              Cloud Firestore (archiviazione dati, regione UE <code>eur3</code> Belgio + Paesi Bassi),
+              Firebase Storage (immagini consenso e materiali, regione UE),
+              Firebase Hosting (assets statici, edge globale - no PII),
+              Cloud Functions (logica server-side, regione <code>europe-west1</code>),
+              Firebase Cloud Messaging (notifiche push agli admin, no PII nel payload).</li>
+            <li><strong>Brevo (Sendinblue SAS, Francia)</strong>:
+              servizio email transazionale per l'invio del link di autorizzazione al genitore.
+              Riceve solo email genitore, nome attivita', nome partecipante e link unico.</li>
           </ul>
           <p>
-            Nessun altro sub-fornitore e attivo. Nessun servizio di analytics, advertising,
-            tracciamento o profilazione e integrato. Eventuali nuovi sub-fornitori verranno aggiunti
-            qui prima dell&apos;attivazione.
+            Nessun servizio di analytics, advertising, tracciamento o profilazione e' integrato.
+            Eventuali nuovi sub-fornitori verranno aggiunti qui prima dell&apos;attivazione.
           </p>
         </div>
       </SectionCard>
@@ -233,7 +255,7 @@ export function PrivacyPage() {
             titolare dell&apos;iscrizione.
           </p>
           <p>
-            In caso di violazione confermata che riguardi dati personali, GUGD Italia notifica
+            In caso di violazione confermata che riguardi dati personali, il titolare notifica
             agli interessati e al Garante entro 72 ore, in conformita all&apos;Art. 33 GDPR.
           </p>
         </div>

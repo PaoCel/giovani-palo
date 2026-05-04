@@ -140,8 +140,13 @@ function buildAuthorizationEmailHtml({
           </tr>
           <tr>
             <td style="padding:18px 32px 28px 32px;border-top:1px solid rgba(20,39,70,0.08);">
-              <p style="margin:0;font-size:13px;line-height:1.5;color:#6b7894;">
+              <p style="margin:0 0 10px 0;font-size:13px;line-height:1.5;color:#6b7894;">
                 ${escapeHtml(SUPPORT_CONTACT_TEXT)}
+              </p>
+              <p style="margin:0;font-size:11px;line-height:1.45;color:#8b95a8;">
+                Piattaforma sviluppata e gestita a titolo personale dal titolare individuale.
+                Non e' una piattaforma ufficiale della Chiesa di Gesu' Cristo dei Santi degli
+                Ultimi Giorni ne' di altra organizzazione religiosa.
               </p>
             </td>
           </tr>
@@ -177,6 +182,10 @@ function buildAuthorizationEmailText({
     `Il link e' personale, non condividerlo. Scade il ${expirationFormatted}.`,
     "",
     SUPPORT_CONTACT_TEXT,
+    "",
+    "---",
+    "Piattaforma sviluppata e gestita a titolo personale dal titolare individuale.",
+    "Non e' una piattaforma ufficiale della Chiesa di Gesu' Cristo dei Santi degli Ultimi Giorni ne' di altra organizzazione religiosa.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -239,6 +248,15 @@ async function sendParentAuthorizationEmail({
     htmlContent,
     textContent,
     tags: ["parent-authorization"],
+    // Disabilita open + click tracking per migliorare deliverability:
+    // il pixel tracking 1x1 senza alt costa -0.5 sul mail-tester e per
+    // l'autorizzazione genitore non serve la metrica "email aperta".
+    headers: {
+      "X-Mailin-Track-Opens": "0",
+      "X-Mailin-Track-Clicks": "0",
+      "X-Track-Opens": "0",
+      "X-Track-Clicks": "0",
+    },
   };
 
   const response = await fetch(BREVO_API_URL, {

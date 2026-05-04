@@ -138,12 +138,29 @@ export function getRegistrationHighlights(
   }
 
   if (isMinorBirthDate(registration.birthDate)) {
-    highlights.push({
-      label: registration.parentConsentDocumentUrl
-        ? "Consenso genitore caricato"
-        : "Consenso genitore mancante",
-      tone: registration.parentConsentDocumentUrl ? "info" : "warning",
-    });
+    // Nuovo flusso magic-link via email: priorita' a parentAuthorization.status.
+    const parentAuthStatus = registration.parentAuthorization?.status;
+    if (parentAuthStatus === "authorized") {
+      highlights.push({ label: "Autorizzazione genitore confermata", tone: "info" });
+    } else if (parentAuthStatus === "rejected_by_parent") {
+      highlights.push({ label: "Genitore ha rifiutato", tone: "danger" });
+    } else if (
+      parentAuthStatus === "pending_parent_authorization" ||
+      parentAuthStatus === "email_sent" ||
+      parentAuthStatus === "pending_request"
+    ) {
+      highlights.push({ label: "In attesa autorizzazione genitore", tone: "warning" });
+    } else if (parentAuthStatus === "email_error") {
+      highlights.push({ label: "Errore invio email genitore", tone: "danger" });
+    } else if (parentAuthStatus === "expired") {
+      highlights.push({ label: "Link autorizzazione scaduto", tone: "warning" });
+    } else if (registration.parentConsentDocumentUrl) {
+      // Fallback flusso legacy upload PDF.
+      highlights.push({ label: "Consenso genitore caricato", tone: "info" });
+    } else {
+      // Nessuno dei due flussi attivo per questa iscrizione.
+      highlights.push({ label: "Consenso genitore mancante", tone: "warning" });
+    }
   }
 
   return highlights;

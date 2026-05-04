@@ -26,10 +26,13 @@ const LEGAL_DOCS = {
     version: LEGAL_DOC_VERSIONS.privacy,
     title: "Informativa privacy (GDPR)",
     summary:
-      "I dati personali sono trattati per la gestione amministrativa dell'iscrizione, " +
-      "la tutela della sicurezza del partecipante e le comunicazioni operative ai genitori. " +
-      "Base giuridica: consenso, esecuzione contrattuale, interesse vitale del minore. " +
-      "L'invio dell'email avviene tramite Brevo (Sendinblue SAS).",
+      "Titolare del trattamento: Paolo Celestini, persona fisica (NON una societa' " +
+      "ne' un ente religioso ufficiale). Contatto: supporto@gugditalia.it. " +
+      "I dati sono trattati per gestione iscrizione, sicurezza del partecipante e " +
+      "comunicazioni operative ai genitori. Base giuridica: consenso, esecuzione " +
+      "contrattuale, interesse vitale del minore. Email via Brevo (Sendinblue SAS, Francia). " +
+      "Questa NON e' una piattaforma ufficiale della Chiesa: e' uno strumento sviluppato " +
+      "a titolo personale dal titolare per supportare l'organizzazione delle attivita'.",
   },
   photo: {
     version: LEGAL_DOC_VERSIONS.photo,

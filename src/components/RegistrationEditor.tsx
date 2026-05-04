@@ -324,6 +324,14 @@ export function RegistrationEditor({
   const eventRequiresEmergencyContacts = Boolean(event.requiresEmergencyContacts);
   const eventRequiresMedicalNotes = Boolean(event.requiresMedicalNotes);
   const showParentStep = eventRequiresParentAuthorization;
+
+  // Foto/video consent per MAGGIORENNI: per i minori il consenso lo da' il
+  // genitore via magic-link (parentAuthorization.photoConsent). Per gli
+  // adulti serve una checkbox semplice qui nel form, se l'evento richiede
+  // image consent.
+  const showAdultPhotoConsent = Boolean(
+    event.requiresImageConsent && !isMinorParticipant && values.birthDate,
+  );
   const [openConsentModal, setOpenConsentModal] = useState<ConsentKind | null>(null);
   const isAuthenticatedAccount = Boolean(session?.isAuthenticated && !session.isAnonymous);
   const shouldAskNameFields = !(
@@ -400,7 +408,10 @@ export function RegistrationEditor({
     visibleIdentityFields.length > 0;
   const profileStepHasContent = stepProfileFields.length > 0;
   const detailStepHasContent =
-    stepDetailFields.length > 0 || formConfig.customFields.length > 0 || useNewConsentFlow;
+    stepDetailFields.length > 0 ||
+    formConfig.customFields.length > 0 ||
+    useNewConsentFlow ||
+    showAdultPhotoConsent;
   const hasVisibleQuestions =
     identityStepHasContent || profileStepHasContent || detailStepHasContent;
   const registrationSteps = useMemo<StepDefinition[]>(() => {
@@ -1235,6 +1246,58 @@ export function RegistrationEditor({
                 </div>
               ) : null}
               {stepDetailFields.map((field) => renderStandardField(field))}
+
+              {showAdultPhotoConsent ? (
+                <div className="surface-panel surface-panel--subtle form-subsection">
+                  <h3>Foto e video (consensi facoltativi)</h3>
+                  <p className="subtle-text">
+                    Sei maggiorenne, quindi i consensi li esprimi tu direttamente.
+                    Sono <strong>facoltativi</strong>: il rifiuto non impedisce la
+                    partecipazione all&apos;attivita&apos;. Maggiori dettagli nella{" "}
+                    <Link to="/privacy/photos">informativa fotografie</Link>.
+                  </p>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.answers.adultPhotoConsent === true}
+                      onChange={(eventInput) =>
+                        updateAnswer("adultPhotoConsent", eventInput.target.checked)
+                      }
+                    />
+                    <span>
+                      <strong>Acconsento alla realizzazione di foto e video</strong>
+                      <small>
+                        Foto e video realizzati durante l&apos;attivita&apos; per uso interno
+                        e documentazione (album dell&apos;attivita, materiale per le famiglie
+                        partecipanti).
+                      </small>
+                    </span>
+                  </label>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.answers.adultSocialPublicationConsent === true}
+                      onChange={(eventInput) =>
+                        updateAnswer(
+                          "adultSocialPublicationConsent",
+                          eventInput.target.checked,
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>Acconsento alla pubblicazione su canali pubblici</strong>
+                      <small>
+                        Pubblicazione delle immagini su sito web, social media e materiale
+                        promozionale dell&apos;Organizzazione. Consenso separato e
+                        facoltativo.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              ) : null}
+
               {formConfig.customFields.length > 0 ? (
                 <div className="surface-panel surface-panel--subtle form-subsection">
                   <h3>Domande aggiuntive</h3>

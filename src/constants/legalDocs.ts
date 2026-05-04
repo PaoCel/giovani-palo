@@ -49,12 +49,12 @@ Il presente consenso e' raccolto tramite procedura elettronica con link inviato 
     title: "Informativa privacy (Reg. UE 2016/679 - GDPR)",
     reviewedByLegal: false,
     reviewNotes:
-      "[DA REVISIONARE LEGALMENTE] Sostituire titolare, finalita', basi giuridiche, periodi di conservazione e diritti dell'interessato con testo definitivo del DPO.",
-    body: `Ai sensi degli artt. 13 e 14 del Reg. UE 2016/679 (GDPR), l'Organizzazione informa che i dati personali del minore e del genitore/tutore raccolti tramite questo modulo saranno trattati per le seguenti finalita':
+      "[DA REVISIONARE LEGALMENTE] Testo predisposto da titolare individuale, far validare a consulente.",
+    body: `Ai sensi degli artt. 13 e 14 del Reg. UE 2016/679 (GDPR), il titolare del trattamento informa che i dati personali del minore e del genitore o tutore raccolti tramite questo modulo saranno trattati per le seguenti finalita':
 
 1. Gestione amministrativa dell'iscrizione e della partecipazione all'attivita';
 2. Tutela della sicurezza e della salute del partecipante (anche tramite condivisione di informazioni mediche dichiarate con personale sanitario in caso di emergenza);
-3. Comunicazioni operative ai genitori/tutori e ai partecipanti relative all'attivita';
+3. Comunicazioni operative ai genitori o tutori e ai partecipanti relative all'attivita';
 4. Adempimenti di obblighi di legge.
 
 Base giuridica: consenso, esecuzione di obblighi precontrattuali e contrattuali, interesse vitale del minore, obbligo legale.
@@ -63,9 +63,11 @@ Conservazione: i dati saranno conservati per il tempo strettamente necessario al
 
 Diritti dell'interessato: accesso, rettifica, cancellazione, limitazione, portabilita', opposizione, reclamo al Garante Privacy.
 
-Titolare del trattamento: [DA COMPLETARE - inserire ragione sociale, indirizzo, contatti DPO].
+Titolare del trattamento: Paolo Celestini, persona fisica proprietaria della piattaforma. Contatto: supporto@gugditalia.it. Non e' una societa' ne' un ente: il trattamento e' gestito direttamente dal titolare individuale che ha sviluppato e mantiene questa piattaforma a supporto delle attivita'.
 
-L'invio dell'email di autorizzazione tramite il provider Brevo (Sendinblue SAS) comporta il trasferimento dei dati strettamente necessari (indirizzo email genitore, nome attivita', nome partecipante, link di conferma) al fornitore del servizio email transazionale.`,
+DISCLAIMER: questa NON e' una piattaforma ufficiale della Chiesa di Gesu' Cristo dei Santi degli Ultimi Giorni ne' di altra organizzazione religiosa. E' uno strumento sviluppato e gestito a titolo personale dal titolare per supportare l'organizzazione delle attivita'.
+
+L'invio dell'email di autorizzazione tramite il provider Brevo (Sendinblue SAS, Francia) comporta il trasferimento dei dati strettamente necessari (indirizzo email genitore, nome attivita', nome partecipante, link di conferma) al fornitore del servizio email transazionale.`,
   },
   photo: {
     version: LEGAL_DOC_VERSIONS.photo,

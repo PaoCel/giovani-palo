@@ -142,18 +142,22 @@ function normalizeFieldOverrides(value: unknown): StandardFieldOverrides {
             .filter((item): item is string => typeof item === "string")
             .map((item) => item.trim())
             .filter(Boolean)
-        : undefined;
+        : null;
 
-      accumulator[key as StandardFieldKey] = {
-        label:
-          typeof data.label === "string" && data.label.trim() ? data.label.trim() : undefined,
-        helpText:
-          typeof data.helpText === "string" && data.helpText.trim()
-            ? data.helpText.trim()
-            : undefined,
-        options,
-      };
+      // Firestore non accetta undefined: ometto le chiavi vuote anziche'
+      // settarle a undefined (causava errore "Unsupported field value: undefined").
+      const override: StandardFieldOverrides[StandardFieldKey] = {};
+      if (typeof data.label === "string" && data.label.trim()) {
+        override.label = data.label.trim();
+      }
+      if (typeof data.helpText === "string" && data.helpText.trim()) {
+        override.helpText = data.helpText.trim();
+      }
+      if (options && options.length > 0) {
+        override.options = options;
+      }
 
+      accumulator[key as StandardFieldKey] = override;
       return accumulator;
     },
     {},

@@ -456,8 +456,13 @@ export function EventEditorForm({
       allowGuestRegistration: values.allowGuestRegistration,
       requireLoginForEdit: values.requireLoginForEdit,
       questionsEnabled: values.questionsEnabled,
-      requiresParentalConsent: values.requiresParentalConsent,
-      requiresPhotoRelease: values.requiresPhotoRelease,
+      // Flag MVP legacy: i toggle sono stati rimossi dall'editor. Sostituiti
+      // dal flusso magic-link Brevo (requiresParentAuthorization) per minori
+      // e da requiresImageConsent + checkbox in form per maggiorenni.
+      // Forzo a false su qualsiasi save: aprire e salvare un evento esistente
+      // ne pulisce automaticamente i flag legacy.
+      requiresParentalConsent: false,
+      requiresPhotoRelease: false,
     };
   }
 
@@ -887,25 +892,6 @@ export function EventEditorForm({
                   <span>Abilita domande dei partecipanti (caminetto)</span>
                 </label>
 
-                <label className="toggle-field">
-                  <input
-                    type="checkbox"
-                    checked={values.requiresParentalConsent}
-                    onChange={(event) => updateValue("requiresParentalConsent", event.target.checked)}
-                  />
-                  <span>
-                    Richiedi consenso genitore via upload PDF (modalita' classica)
-                  </span>
-                </label>
-
-                <label className="toggle-field">
-                  <input
-                    type="checkbox"
-                    checked={values.requiresPhotoRelease}
-                    onChange={(event) => updateValue("requiresPhotoRelease", event.target.checked)}
-                  />
-                  <span>Richiedi liberatoria immagini (modalita' classica)</span>
-                </label>
               </div>
 
               {isStrongAuthActivityValue ? (
