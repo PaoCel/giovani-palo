@@ -145,7 +145,16 @@ service cloud.firestore {
     }
 
     function validRegistrationStatus(value) {
-      return value in ['draft', 'submitted', 'confirmed', 'waitlist', 'active', 'cancelled'];
+      return value in [
+        'draft',
+        'submitted',
+        'confirmed',
+        'waitlist',
+        'active',
+        'cancelled',
+        'pending_parent_authorization',
+        'rejected_by_parent'
+      ];
     }
 
     function validRegistrationPayload(data) {
@@ -178,6 +187,7 @@ service cloud.firestore {
           'parentIdDocumentUrl',
           'parentIdDocumentPath',
           'parentIdUploadedAt',
+          'parentAuthorization',
           'linkedLaterToUserId',
           'registrationStatus',
           'submittedByMode',
@@ -215,6 +225,7 @@ service cloud.firestore {
         && (data.parentIdDocumentUrl == null || data.parentIdDocumentUrl is string)
         && (data.parentIdDocumentPath == null || data.parentIdDocumentPath is string)
         && (data.parentIdUploadedAt == null || data.parentIdUploadedAt is string)
+        && (!('parentAuthorization' in data) || data.parentAuthorization == null || data.parentAuthorization is map)
         && (data.linkedLaterToUserId == null || data.linkedLaterToUserId is string)
         && validRegistrationStatus(data.registrationStatus)
         && data.submittedByMode in ['authenticated', 'anonymous']
@@ -250,6 +261,7 @@ service cloud.firestore {
         && request.resource.data.parentIdDocumentUrl == null
         && request.resource.data.parentIdDocumentPath == null
         && request.resource.data.parentIdUploadedAt == null
+        && (!('parentAuthorization' in request.resource.data) || request.resource.data.parentAuthorization == null)
         && request.resource.data.assignedRoomId == null
         && request.resource.data.assignedTempleShiftId == null
         && request.resource.data.assignedServiceTeamIds.size() == 0
@@ -309,6 +321,14 @@ service cloud.firestore {
         && (
           request.resource.data.registrationStatus == resource.data.registrationStatus
           || request.resource.data.registrationStatus == 'cancelled'
+        )
+        && (
+          (!('parentAuthorization' in request.resource.data) && !('parentAuthorization' in resource.data))
+          || (
+            'parentAuthorization' in request.resource.data
+            && 'parentAuthorization' in resource.data
+            && request.resource.data.parentAuthorization == resource.data.parentAuthorization
+          )
         );
     }
 
@@ -839,6 +859,11 @@ service cloud.firestore {
           }
         }
 
+        match /consentAuditLogs/{auditId} {
+          allow get, list: if isStakeAdmin(stakeId);
+          allow create, update, delete: if false;
+        }
+
         match /transportNotes/{noteId} {
           allow get, list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
           allow create, update: if isUnitLeaderOfStake(stakeId)
@@ -868,6 +893,15 @@ service cloud.firestore {
         && request.resource.data.anonymousUid == resource.data.anonymousUid
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if false;
+    }
+
+    // Token magic-link autorizzazione genitoriale.
+    // Tutti gli accessi (lookup tramite hash, creazione, invalidazione)
+    // passano da Cloud Functions con Admin SDK che bypassa queste rules.
+    // Da client: nessun accesso, nemmeno per admin (i dati sensibili non
+    // devono mai essere letti dal browser).
+    match /parentAuthorizationTokens/{tokenId} {
+      allow get, list, create, update, delete: if false;
     }
 
     match /settings/{settingId} {
