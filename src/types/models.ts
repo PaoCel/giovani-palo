@@ -16,7 +16,39 @@ export type RegistrationStatus =
   | "confirmed"
   | "waitlist"
   | "active"
-  | "cancelled";
+  | "cancelled"
+  | "pending_parent_authorization"
+  | "rejected_by_parent";
+
+export type ActivityType =
+  | "standard"
+  | "overnight"
+  | "trip"
+  | "camp"
+  | "multi_day";
+
+export type ParentAuthorizationStatus =
+  | "not_required"
+  | "pending_request"
+  | "pending_parent_authorization"
+  | "email_sent"
+  | "authorized"
+  | "rejected_by_parent"
+  | "expired"
+  | "revoked"
+  | "email_error";
+
+export type PhotoConsentDecision =
+  | "not_answered"
+  | "accepted"
+  | "refused"
+  | "revoked";
+
+export type ParentAuthorizationTokenStatus =
+  | "pending"
+  | "used"
+  | "invalidated"
+  | "expired";
 export type RegistrationAttemptStatus = "started" | "succeeded" | "failed";
 export type RegistrationAttemptStep =
   | "submit_started"
@@ -194,6 +226,16 @@ export interface Event {
   registrationCloseAt?: string;
   maxParticipants: number | null;
   overnight: boolean;
+  activityType?: ActivityType;
+  requiresAccount?: boolean;
+  requiresParentAuthorization?: boolean;
+  requiresEmergencyContacts?: boolean;
+  requiresMedicalNotes?: boolean;
+  requiresImageConsent?: boolean;
+  requiresDocumentUpload?: boolean;
+  consentVersionId?: string;
+  privacyNoticeVersionId?: string;
+  imageConsentVersionId?: string;
   templateId: string | null;
   questionsEnabled: boolean;
   requiresParentalConsent: boolean;
@@ -261,6 +303,7 @@ export interface Registration {
   parentIdDocumentUrl: string | null;
   parentIdDocumentPath: string | null;
   parentIdUploadedAt: string | null;
+  parentAuthorization?: ParentAuthorizationState | null;
   linkedLaterToUserId: string | null;
   status?: "active" | "cancelled";
   registrationStatus: RegistrationStatus;
@@ -340,6 +383,16 @@ export interface EventWriteInput {
   registrationCloseAt?: string;
   maxParticipants: number | null;
   overnight: boolean;
+  activityType?: ActivityType;
+  requiresAccount?: boolean;
+  requiresParentAuthorization?: boolean;
+  requiresEmergencyContacts?: boolean;
+  requiresMedicalNotes?: boolean;
+  requiresImageConsent?: boolean;
+  requiresDocumentUpload?: boolean;
+  consentVersionId?: string;
+  privacyNoticeVersionId?: string;
+  imageConsentVersionId?: string;
   templateId?: string | null;
   allowGuestRegistration?: boolean;
   requireLoginForEdit?: boolean;
@@ -497,5 +550,113 @@ export interface SupportEvent {
   registrationStatus: RegistrationStatus | "";
   isStandalone: boolean;
   isOnline: boolean;
+  createdAt: string;
+}
+
+export interface ParentAuthorizationConsents {
+  isParentOrGuardian: boolean;
+  authorizesParticipation: boolean;
+  confirmsDataAccuracy: boolean;
+  authorizesEmergencyContact: boolean;
+  readPrivacyNotice: boolean;
+}
+
+export interface ParentAuthorizationLegalVersions {
+  participation: string;
+  privacy: string;
+  photo: string;
+}
+
+export interface ParentAuthorizationState {
+  status: ParentAuthorizationStatus;
+  tokenId: string | null;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelation: string;
+  allergies: string;
+  medications: string;
+  medicalNotes: string;
+  dietaryNotes: string;
+  emailSentAt: string | null;
+  emailLastError: string | null;
+  emailRetryCount: number;
+  emailProvider: "brevo" | null;
+  brevoMessageId: string | null;
+  authorizedAt: string | null;
+  rejectedAt: string | null;
+  expiresAt: string | null;
+  legalVersions: ParentAuthorizationLegalVersions | null;
+  consents: ParentAuthorizationConsents | null;
+  photoConsent: PhotoConsentDecision;
+  socialPublicationConsent: PhotoConsentDecision;
+  signatureUrl: string | null;
+  signaturePath: string | null;
+  pdfUrl: string | null;
+  pdfPath: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ParentAuthorizationToken {
+  id: string;
+  tokenHash: string;
+  stakeId: string;
+  activityId: string;
+  registrationId: string;
+  parentEmail: string;
+  participantName: string;
+  activityTitle: string;
+  activityStartDate: string;
+  activityEndDate: string;
+  status: ParentAuthorizationTokenStatus;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  invalidatedAt: string | null;
+  createdByUserId: string | null;
+  createdByMode: "admin" | "system" | "self";
+}
+
+export type ConsentAuditEvent =
+  | "authorization_requested"
+  | "email_sent"
+  | "email_failed"
+  | "email_resent"
+  | "token_invalidated"
+  | "parent_opened_link"
+  | "parent_authorized"
+  | "parent_rejected"
+  | "token_expired"
+  | "consent_revoked";
+
+export interface ConsentAuditLog {
+  id: string;
+  stakeId: string;
+  activityId: string;
+  registrationId: string;
+  tokenId: string | null;
+  event: ConsentAuditEvent;
+  parentEmail: string | null;
+  parentName: string | null;
+  parentPhone: string | null;
+  legalVersions: ParentAuthorizationLegalVersions | null;
+  consents: ParentAuthorizationConsents | null;
+  photoConsent: PhotoConsentDecision | null;
+  socialPublicationConsent: PhotoConsentDecision | null;
+  signaturePath: string | null;
+  pdfPath: string | null;
+  emailProvider: "brevo" | null;
+  brevoMessageId: string | null;
+  emailErrorCode: string | null;
+  emailErrorMessage: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  actorUserId: string | null;
   createdAt: string;
 }

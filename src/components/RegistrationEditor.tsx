@@ -55,10 +55,21 @@ interface RegistrationEditorValues {
   consentSignerName: string;
   parentalConsentAccepted: boolean;
   photoReleaseAccepted: boolean;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelation: string;
+  allergies: string;
+  medications: string;
+  medicalNotes: string;
+  dietaryNotes: string;
 }
 
 interface StepDefinition {
-  id: "identity" | "profile" | "details";
+  id: "identity" | "profile" | "details" | "parent";
   title: string;
   description: string;
   icon: AppIconName;
@@ -178,8 +189,46 @@ function getInitialValues(
           : "",
     parentalConsentAccepted: registration?.answers.parentalConsentAccepted === true,
     photoReleaseAccepted: registration?.answers.photoReleaseAccepted === true,
+    parentFirstName: getStoredParentField(registration, "parentFirstName"),
+    parentLastName: getStoredParentField(registration, "parentLastName"),
+    parentEmail: getStoredParentField(registration, "parentEmail"),
+    parentPhone: getStoredParentField(registration, "parentPhone"),
+    emergencyContactName: getStoredParentField(registration, "emergencyContactName"),
+    emergencyContactPhone: getStoredParentField(registration, "emergencyContactPhone"),
+    emergencyContactRelation: getStoredParentField(registration, "emergencyContactRelation"),
+    allergies: getStoredParentField(registration, "allergies"),
+    medications: getStoredParentField(registration, "medications"),
+    medicalNotes: getStoredParentField(registration, "medicalNotes"),
+    dietaryNotes: getStoredParentField(registration, "dietaryNotes"),
   };
 }
+
+function getStoredParentField(
+  registration: Registration | null | undefined,
+  key: string,
+): string {
+  if (!registration) return "";
+
+  // 1. Cerco nel sub-object parentAuthorization (popolato dopo conferma genitore)
+  const parentAuth = registration.parentAuthorization;
+  if (parentAuth && typeof parentAuth === "object") {
+    const value = (parentAuth as unknown as Record<string, unknown>)[key];
+    if (typeof value === "string") return value;
+  }
+
+  // 2. Cerco nei dati raw raccolti al submit (answers.parentAuthorizationRequest)
+  const request = (registration.answers as Record<string, unknown>)[
+    "parentAuthorizationRequest"
+  ];
+  if (request && typeof request === "object") {
+    const value = (request as Record<string, unknown>)[key];
+    if (typeof value === "string") return value;
+  }
+
+  return "";
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normalizeUnitName(value: string) {
   return value.trim().toLocaleLowerCase("it-IT");
@@ -267,6 +316,14 @@ export function RegistrationEditor({
     !eventRequiresParental &&
     enabledStandardFields.includes("parentConfirmed") &&
     isMinorParticipant;
+
+  // Nuovo flusso magic-link: scatta solo per minori in attivita' rafforzate.
+  const eventRequiresParentAuthorization = Boolean(
+    event.requiresParentAuthorization && isMinorParticipant,
+  );
+  const eventRequiresEmergencyContacts = Boolean(event.requiresEmergencyContacts);
+  const eventRequiresMedicalNotes = Boolean(event.requiresMedicalNotes);
+  const showParentStep = eventRequiresParentAuthorization;
   const [openConsentModal, setOpenConsentModal] = useState<ConsentKind | null>(null);
   const isAuthenticatedAccount = Boolean(session?.isAuthenticated && !session.isAnonymous);
   const shouldAskNameFields = !(
@@ -379,6 +436,15 @@ export function RegistrationEditor({
       });
     }
 
+    if (showParentStep) {
+      nextSteps.push({
+        id: "parent",
+        title: "Genitore e sicurezza",
+        description: "Contatti del genitore, emergenze e note sanitarie.",
+        icon: "user",
+      });
+    }
+
     if (nextSteps.length === 0) {
       nextSteps.push({
         id: "details",
@@ -397,6 +463,7 @@ export function RegistrationEditor({
     shouldAskEmailField,
     shouldAskNameFields,
     shouldAskPhoneField,
+    showParentStep,
   ]);
 
   useEffect(() => {
@@ -531,13 +598,45 @@ export function RegistrationEditor({
     return errors;
   }
 
+  function validateParentStep() {
+    const errors: FieldErrors = {};
+
+    if (!values.parentFirstName.trim()) {
+      errors.parentFirstName = "Campo obbligatorio.";
+    }
+    if (!values.parentLastName.trim()) {
+      errors.parentLastName = "Campo obbligatorio.";
+    }
+    if (!values.parentEmail.trim()) {
+      errors.parentEmail = "Campo obbligatorio.";
+    } else if (!EMAIL_PATTERN.test(values.parentEmail.trim())) {
+      errors.parentEmail = "Inserisci un'email valida.";
+    }
+    if (!values.parentPhone.trim()) {
+      errors.parentPhone = "Campo obbligatorio.";
+    }
+
+    if (eventRequiresEmergencyContacts) {
+      if (!values.emergencyContactName.trim()) {
+        errors.emergencyContactName = "Campo obbligatorio.";
+      }
+      if (!values.emergencyContactPhone.trim()) {
+        errors.emergencyContactPhone = "Campo obbligatorio.";
+      }
+    }
+
+    return errors;
+  }
+
   function validateCurrentStep() {
     const nextErrors =
       currentStep.id === "identity"
         ? validateIdentityStep()
         : currentStep.id === "profile"
           ? validateProfileStep()
-          : validateDetailsStep();
+          : currentStep.id === "parent"
+            ? validateParentStep()
+            : validateDetailsStep();
 
     setFieldErrors(nextErrors);
     return !hasValidationErrors(nextErrors);
@@ -897,6 +996,40 @@ export function RegistrationEditor({
     const consentAcceptedAt = new Date().toISOString();
     const trimmedSignerName = values.consentSignerName.trim();
 
+    // Quando l'attivita' richiede autorizzazione magic-link al genitore e il
+    // partecipante e' minorenne, raccogliamo i dati del genitore qui e settiamo
+    // lo status di registrazione a "in attesa autorizzazione". La Cloud Function
+    // di richiesta autorizzazione (lato server) sposta questi dati nel
+    // sub-object `parentAuthorization`, crea il token e invia la mail Brevo.
+    const parentAuthRequestPayload = eventRequiresParentAuthorization
+      ? {
+          parentFirstName: values.parentFirstName.trim(),
+          parentLastName: values.parentLastName.trim(),
+          parentEmail: values.parentEmail.trim().toLowerCase(),
+          parentPhone: values.parentPhone.trim(),
+          emergencyContactName: values.emergencyContactName.trim(),
+          emergencyContactPhone: values.emergencyContactPhone.trim(),
+          emergencyContactRelation: values.emergencyContactRelation.trim(),
+          allergies: values.allergies.trim(),
+          medications: values.medications.trim(),
+          medicalNotes: values.medicalNotes.trim(),
+          dietaryNotes: values.dietaryNotes.trim(),
+          submittedAt: consentAcceptedAt,
+        }
+      : null;
+
+    const nextRegistrationStatus = (() => {
+      if (initialRegistration?.registrationStatus) {
+        // Update di iscrizione esistente: preservo lo stato (la Cloud Function
+        // lo cambia solo dopo conferma/rifiuto del genitore).
+        return initialRegistration.registrationStatus;
+      }
+      if (eventRequiresParentAuthorization) {
+        return "pending_parent_authorization" as const;
+      }
+      return "active" as const;
+    })();
+
     await onSubmit({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
@@ -942,8 +1075,14 @@ export function RegistrationEditor({
               photoReleaseSignerName: trimmedSignerName,
             }
           : {}),
+        ...(parentAuthRequestPayload
+          ? {
+              parentAuthorizationRequest:
+                parentAuthRequestPayload as unknown as RegistrationAnswerValue,
+            }
+          : {}),
       },
-      registrationStatus: initialRegistration?.registrationStatus ?? "active",
+      registrationStatus: nextRegistrationStatus,
       status: initialRegistration?.status === "cancelled" ? "cancelled" : "active",
     });
   }
@@ -1197,6 +1336,227 @@ export function RegistrationEditor({
                       caricano dopo l&apos;iscrizione, dalla scheda dell&apos;attivita.
                     </small>
                   </label>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {currentStep.id === "parent" ? (
+            <div className="form-stack">
+              <div className="form-info-banner">
+                <strong>Dati genitore o tutore richiesti</strong>
+                <span>
+                  Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
+                  per autorizzare la partecipazione. L&apos;iscrizione sara&apos; in stato
+                  <em> &quot;in attesa autorizzazione&quot; </em>
+                  finche&apos; il genitore non conferma. Il link scade dopo 14 giorni.
+                </span>
+              </div>
+
+              <div className="surface-panel surface-panel--subtle form-subsection">
+                <h3>Contatti del genitore o tutore</h3>
+                <div className="card-grid card-grid--two">
+                  <label className="field">
+                    {renderFieldLabel("Nome genitore", "parentFirstName", true)}
+                    <input
+                      className={getInputClass("parentFirstName")}
+                      value={values.parentFirstName}
+                      onChange={(eventInput) => {
+                        clearFieldError("parentFirstName");
+                        setValues((current) => ({
+                          ...current,
+                          parentFirstName: eventInput.target.value,
+                        }));
+                      }}
+                    />
+                    {renderFieldHint("parentFirstName")}
+                  </label>
+
+                  <label className="field">
+                    {renderFieldLabel("Cognome genitore", "parentLastName", true)}
+                    <input
+                      className={getInputClass("parentLastName")}
+                      value={values.parentLastName}
+                      onChange={(eventInput) => {
+                        clearFieldError("parentLastName");
+                        setValues((current) => ({
+                          ...current,
+                          parentLastName: eventInput.target.value,
+                        }));
+                      }}
+                    />
+                    {renderFieldHint("parentLastName")}
+                  </label>
+
+                  <label className="field">
+                    {renderFieldLabel("Email genitore", "parentEmail", true)}
+                    <input
+                      className={getInputClass("parentEmail")}
+                      type="email"
+                      value={values.parentEmail}
+                      onChange={(eventInput) => {
+                        clearFieldError("parentEmail");
+                        setValues((current) => ({
+                          ...current,
+                          parentEmail: eventInput.target.value,
+                        }));
+                      }}
+                    />
+                    {renderFieldHint(
+                      "parentEmail",
+                      "Riceveremo qui il link unico di autorizzazione. Verifica con cura l'indirizzo.",
+                    )}
+                  </label>
+
+                  <label className="field">
+                    {renderFieldLabel("Telefono genitore", "parentPhone", true)}
+                    <input
+                      className={getInputClass("parentPhone")}
+                      type="tel"
+                      value={values.parentPhone}
+                      onChange={(eventInput) => {
+                        clearFieldError("parentPhone");
+                        setValues((current) => ({
+                          ...current,
+                          parentPhone: eventInput.target.value,
+                        }));
+                      }}
+                    />
+                    {renderFieldHint("parentPhone")}
+                  </label>
+                </div>
+              </div>
+
+              {eventRequiresEmergencyContacts ? (
+                <div className="surface-panel surface-panel--subtle form-subsection">
+                  <h3>Contatto di emergenza</h3>
+                  <p className="subtle-text">
+                    Persona da contattare in caso di urgenza durante l&apos;attivita&apos;
+                    (puo&apos; coincidere con il genitore se preferisci).
+                  </p>
+                  <div className="card-grid card-grid--two">
+                    <label className="field">
+                      {renderFieldLabel("Nome e cognome", "emergencyContactName", true)}
+                      <input
+                        className={getInputClass("emergencyContactName")}
+                        value={values.emergencyContactName}
+                        onChange={(eventInput) => {
+                          clearFieldError("emergencyContactName");
+                          setValues((current) => ({
+                            ...current,
+                            emergencyContactName: eventInput.target.value,
+                          }));
+                        }}
+                      />
+                      {renderFieldHint("emergencyContactName")}
+                    </label>
+
+                    <label className="field">
+                      {renderFieldLabel("Telefono", "emergencyContactPhone", true)}
+                      <input
+                        className={getInputClass("emergencyContactPhone")}
+                        type="tel"
+                        value={values.emergencyContactPhone}
+                        onChange={(eventInput) => {
+                          clearFieldError("emergencyContactPhone");
+                          setValues((current) => ({
+                            ...current,
+                            emergencyContactPhone: eventInput.target.value,
+                          }));
+                        }}
+                      />
+                      {renderFieldHint("emergencyContactPhone")}
+                    </label>
+
+                    <label className="field">
+                      {renderFieldLabel("Relazione (es. zio, nonna)", "emergencyContactRelation")}
+                      <input
+                        className={getInputClass("emergencyContactRelation")}
+                        value={values.emergencyContactRelation}
+                        onChange={(eventInput) =>
+                          setValues((current) => ({
+                            ...current,
+                            emergencyContactRelation: eventInput.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+
+              {eventRequiresMedicalNotes ? (
+                <div className="surface-panel surface-panel--subtle form-subsection">
+                  <h3>Note mediche e alimentari</h3>
+                  <p className="subtle-text">
+                    Tutto facoltativo. Dichiara solo cio&apos; che ritieni utile per la
+                    sicurezza del minore. Le informazioni sono visibili solo agli admin.
+                  </p>
+                  <div className="form-stack">
+                    <label className="field">
+                      {renderFieldLabel("Allergie", "allergies")}
+                      <textarea
+                        className="input input--textarea"
+                        rows={2}
+                        value={values.allergies}
+                        onChange={(eventInput) =>
+                          setValues((current) => ({
+                            ...current,
+                            allergies: eventInput.target.value,
+                          }))
+                        }
+                        placeholder="Es. arachidi, polline. Lascia vuoto se non rilevanti."
+                      />
+                    </label>
+
+                    <label className="field">
+                      {renderFieldLabel("Farmaci assunti", "medications")}
+                      <textarea
+                        className="input input--textarea"
+                        rows={2}
+                        value={values.medications}
+                        onChange={(eventInput) =>
+                          setValues((current) => ({
+                            ...current,
+                            medications: eventInput.target.value,
+                          }))
+                        }
+                        placeholder="Nome e dosaggio dei farmaci che il minore deve assumere."
+                      />
+                    </label>
+
+                    <label className="field">
+                      {renderFieldLabel("Note mediche o logistiche", "medicalNotes")}
+                      <textarea
+                        className="input input--textarea"
+                        rows={2}
+                        value={values.medicalNotes}
+                        onChange={(eventInput) =>
+                          setValues((current) => ({
+                            ...current,
+                            medicalNotes: eventInput.target.value,
+                          }))
+                        }
+                        placeholder="Patologie, supporti necessari, intolleranze gravi."
+                      />
+                    </label>
+
+                    <label className="field">
+                      {renderFieldLabel("Note alimentari", "dietaryNotes")}
+                      <textarea
+                        className="input input--textarea"
+                        rows={2}
+                        value={values.dietaryNotes}
+                        onChange={(eventInput) =>
+                          setValues((current) => ({
+                            ...current,
+                            dietaryNotes: eventInput.target.value,
+                          }))
+                        }
+                        placeholder="Es. vegetariano, intolleranza lattosio, dieta specifica."
+                      />
+                    </label>
+                  </div>
                 </div>
               ) : null}
             </div>

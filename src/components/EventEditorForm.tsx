@@ -1,9 +1,53 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
-import type { Event, EventAudience, EventStatus, EventWriteInput } from "@/types";
+import type {
+  ActivityType,
+  Event,
+  EventAudience,
+  EventStatus,
+  EventWriteInput,
+} from "@/types";
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from "@/utils/formatters";
 import { eventSpansMultipleCalendarDays, getEventAudienceLabel } from "@/utils/events";
+import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
+
+const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; description: string }[] = [
+  {
+    value: "standard",
+    label: "Standard",
+    description:
+      "Attivita' semplice in giornata. Iscrizione leggera, senza autorizzazione genitoriale via email.",
+  },
+  {
+    value: "overnight",
+    label: "Con pernottamento",
+    description:
+      "Attivita' che include almeno una notte fuori casa. Richiede autorizzazione genitore via email.",
+  },
+  {
+    value: "trip",
+    label: "Viaggio / trasferta",
+    description:
+      "Spostamento del gruppo fuori sede. Richiede autorizzazione genitore via email.",
+  },
+  {
+    value: "camp",
+    label: "Campeggio",
+    description:
+      "Campeggio o ritiro residenziale. Richiede autorizzazione genitore via email.",
+  },
+  {
+    value: "multi_day",
+    label: "Su piu' giorni",
+    description:
+      "Attivita' che si svolge in piu' giornate. Richiede autorizzazione genitore via email.",
+  },
+];
+
+function isStrongAuthActivity(value: ActivityType) {
+  return value !== "standard";
+}
 
 interface EventEditorFormProps {
   initialEvent?: Event | null;
@@ -37,7 +81,7 @@ interface EventEditorValues {
   registrationOpen: string;
   registrationClose: string;
   maxParticipants: string;
-  overnight: boolean;
+  activityType: ActivityType;
   organizerNotes: string;
   menuInfo: string;
   allergiesInfo: string;
@@ -45,6 +89,12 @@ interface EventEditorValues {
   allowGuestRegistration: boolean;
   requireLoginForEdit: boolean;
   questionsEnabled: boolean;
+  requiresAccount: boolean;
+  requiresParentAuthorization: boolean;
+  requiresEmergencyContacts: boolean;
+  requiresMedicalNotes: boolean;
+  requiresImageConsent: boolean;
+  requiresDocumentUpload: boolean;
   requiresParentalConsent: boolean;
   requiresPhotoRelease: boolean;
 }
@@ -80,6 +130,10 @@ const eventEditorSteps: EventEditorStep[] = [
 ];
 
 function getInitialValues(event?: Event | null): EventEditorValues {
+  const initialActivityType: ActivityType =
+    event?.activityType ?? (event?.overnight ? "overnight" : "standard");
+  const initialIsStrong = isStrongAuthActivity(initialActivityType);
+
   return {
     title: event?.title ?? "",
     description: event?.description ?? "",
@@ -97,7 +151,7 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     registrationClose: toDatetimeLocalValue(event?.registrationClose),
     maxParticipants:
       typeof event?.maxParticipants === "number" ? String(event.maxParticipants) : "",
-    overnight: event?.overnight ?? false,
+    activityType: initialActivityType,
     organizerNotes: event?.organizerNotes ?? "",
     menuInfo: event?.menuInfo ?? "",
     allergiesInfo: event?.allergiesInfo ?? "",
@@ -105,6 +159,15 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     allowGuestRegistration: event?.allowGuestRegistration ?? true,
     requireLoginForEdit: event?.requireLoginForEdit ?? true,
     questionsEnabled: event?.questionsEnabled ?? false,
+    requiresAccount: event?.requiresAccount ?? initialIsStrong,
+    requiresParentAuthorization:
+      event?.requiresParentAuthorization ?? initialIsStrong,
+    requiresEmergencyContacts:
+      event?.requiresEmergencyContacts ?? initialIsStrong,
+    requiresMedicalNotes: event?.requiresMedicalNotes ?? initialIsStrong,
+    requiresImageConsent:
+      event?.requiresImageConsent ?? (event?.requiresPhotoRelease ?? false),
+    requiresDocumentUpload: event?.requiresDocumentUpload ?? false,
     requiresParentalConsent: event?.requiresParentalConsent ?? false,
     requiresPhotoRelease: event?.requiresPhotoRelease ?? false,
   };
@@ -127,7 +190,8 @@ export function EventEditorForm({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const canHaveOvernight = eventSpansMultipleCalendarDays(values.startDate, values.endDate);
-  const effectiveOvernight = canHaveOvernight && values.overnight;
+  const isStrongAuthActivityValue = isStrongAuthActivity(values.activityType);
+  const effectiveOvernight = canHaveOvernight && isStrongAuthActivityValue;
   const currentStep = eventEditorSteps[currentStepIndex];
   const isLastStep = currentStepIndex === eventEditorSteps.length - 1;
   const progress = ((currentStepIndex + 1) / eventEditorSteps.length) * 100;
@@ -141,14 +205,13 @@ export function EventEditorForm({
   }, [initialEvent]);
 
   useEffect(() => {
-    if (!canHaveOvernight && (values.overnight || values.roomsInfo)) {
+    if (!canHaveOvernight && values.roomsInfo) {
       setValues((current) => ({
         ...current,
-        overnight: false,
         roomsInfo: "",
       }));
     }
-  }, [canHaveOvernight, values.overnight, values.roomsInfo]);
+  }, [canHaveOvernight, values.roomsInfo]);
 
   function clearFieldError(key: string) {
     setFieldErrors((current) => {
@@ -171,6 +234,43 @@ export function EventEditorForm({
       ...current,
       [key]: value,
     }));
+  }
+
+  function handleActivityTypeChange(nextType: ActivityType) {
+    clearFieldError("activityType");
+    setValues((current) => {
+      const wasStrong = isStrongAuthActivity(current.activityType);
+      const isStrong = isStrongAuthActivity(nextType);
+
+      if (!wasStrong && isStrong) {
+        // Passaggio standard -> non-standard: attivo flag rafforzati di default.
+        // Admin puo' poi disattivarli singolarmente.
+        return {
+          ...current,
+          activityType: nextType,
+          requiresAccount: true,
+          requiresParentAuthorization: true,
+          requiresEmergencyContacts: true,
+          requiresMedicalNotes: true,
+        };
+      }
+
+      if (wasStrong && !isStrong) {
+        // Ritorno a standard: spengo flag rafforzati e svuoto roomsInfo.
+        return {
+          ...current,
+          activityType: nextType,
+          requiresAccount: false,
+          requiresParentAuthorization: false,
+          requiresEmergencyContacts: false,
+          requiresMedicalNotes: false,
+          requiresDocumentUpload: false,
+          roomsInfo: "",
+        };
+      }
+
+      return { ...current, activityType: nextType };
+    });
   }
 
   function getInputClass(key: string) {
@@ -339,6 +439,19 @@ export function EventEditorForm({
       registrationClose: fromDatetimeLocalValue(values.registrationClose),
       maxParticipants: values.maxParticipants ? Number(values.maxParticipants) : null,
       overnight: effectiveOvernight,
+      activityType: values.activityType,
+      requiresAccount: values.requiresAccount,
+      requiresParentAuthorization: values.requiresParentAuthorization,
+      requiresEmergencyContacts: values.requiresEmergencyContacts,
+      requiresMedicalNotes: values.requiresMedicalNotes,
+      requiresImageConsent: values.requiresImageConsent,
+      requiresDocumentUpload: values.requiresDocumentUpload,
+      consentVersionId:
+        initialEvent?.consentVersionId ?? LEGAL_DOC_VERSIONS.participation,
+      privacyNoticeVersionId:
+        initialEvent?.privacyNoticeVersionId ?? LEGAL_DOC_VERSIONS.privacy,
+      imageConsentVersionId:
+        initialEvent?.imageConsentVersionId ?? LEGAL_DOC_VERSIONS.photo,
       templateId: initialEvent?.templateId ?? null,
       allowGuestRegistration: values.allowGuestRegistration,
       requireLoginForEdit: values.requireLoginForEdit,
@@ -691,6 +804,44 @@ export function EventEditorForm({
                 />
               </label>
 
+              <label className="field">
+                {renderFieldLabel("Tipo di attivita'", "activityType")}
+                <select
+                  className={getInputClass("activityType")}
+                  value={values.activityType}
+                  onChange={(event) =>
+                    handleActivityTypeChange(event.target.value as ActivityType)
+                  }
+                >
+                  {ACTIVITY_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  {ACTIVITY_TYPE_OPTIONS.find((option) => option.value === values.activityType)
+                    ?.description ?? ""}
+                </small>
+              </label>
+
+              {isStrongAuthActivityValue ? (
+                <div className="form-info-banner">
+                  <strong>Autorizzazione genitoriale rafforzata attiva.</strong>
+                  <span>
+                    Per i partecipanti minorenni il sistema chiedera' i contatti del genitore
+                    e inviera' un'email con un link unico di conferma. Senza autorizzazione
+                    genitoriale l'iscrizione restera' in stato "in attesa autorizzazione".
+                  </span>
+                  {!canHaveOvernight ? (
+                    <span className="form-info-banner__warning">
+                      Attenzione: hai selezionato un tipo che prevede pernottamento ma le date
+                      coprono un solo giorno. Verifica le date di inizio e fine.
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="checkbox-grid">
                 {!isSimplifiedStatusMode ? (
                   <label className="toggle-field">
@@ -703,24 +854,19 @@ export function EventEditorForm({
                   </label>
                 ) : null}
 
-                {canHaveOvernight ? (
-                  <label className="toggle-field">
-                    <input
-                      type="checkbox"
-                      checked={values.overnight}
-                      onChange={(event) => updateValue("overnight", event.target.checked)}
-                    />
-                    <span>Evento con pernottamento</span>
-                  </label>
-                ) : null}
-
                 <label className="toggle-field">
                   <input
                     type="checkbox"
-                    checked={values.allowGuestRegistration}
+                    checked={values.allowGuestRegistration && !values.requiresAccount}
+                    disabled={values.requiresAccount}
                     onChange={(event) => updateValue("allowGuestRegistration", event.target.checked)}
                   />
-                  <span>Consenti iscrizione senza account</span>
+                  <span>
+                    Consenti iscrizione senza account
+                    {values.requiresAccount ? (
+                      <small> (disattivato perche' l'account e' obbligatorio)</small>
+                    ) : null}
+                  </span>
                 </label>
 
                 <label className="toggle-field">
@@ -747,7 +893,9 @@ export function EventEditorForm({
                     checked={values.requiresParentalConsent}
                     onChange={(event) => updateValue("requiresParentalConsent", event.target.checked)}
                   />
-                  <span>Richiedi consenso genitore (per minorenni)</span>
+                  <span>
+                    Richiedi consenso genitore via upload PDF (modalita' classica)
+                  </span>
                 </label>
 
                 <label className="toggle-field">
@@ -756,9 +904,98 @@ export function EventEditorForm({
                     checked={values.requiresPhotoRelease}
                     onChange={(event) => updateValue("requiresPhotoRelease", event.target.checked)}
                   />
-                  <span>Richiedi liberatoria immagini</span>
+                  <span>Richiedi liberatoria immagini (modalita' classica)</span>
                 </label>
               </div>
+
+              {isStrongAuthActivityValue ? (
+                <div className="checkbox-grid checkbox-grid--bordered">
+                  <h4 className="checkbox-grid__heading">Requisiti rafforzati</h4>
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.requiresAccount}
+                      onChange={(event) => {
+                        const next = event.target.checked;
+                        updateValue("requiresAccount", next);
+                        if (next) {
+                          updateValue("allowGuestRegistration", false);
+                        }
+                      }}
+                    />
+                    <span>
+                      Richiedi account utente (no iscrizione anonima)
+                      <small> Consigliato per attivita' con pernottamento.</small>
+                    </span>
+                  </label>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.requiresParentAuthorization}
+                      onChange={(event) =>
+                        updateValue("requiresParentAuthorization", event.target.checked)
+                      }
+                    />
+                    <span>
+                      Invia email di autorizzazione al genitore (magic link)
+                      <small> Per minorenni, con scadenza link 14 giorni.</small>
+                    </span>
+                  </label>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.requiresEmergencyContacts}
+                      onChange={(event) =>
+                        updateValue("requiresEmergencyContacts", event.target.checked)
+                      }
+                    />
+                    <span>Richiedi contatti di emergenza</span>
+                  </label>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.requiresMedicalNotes}
+                      onChange={(event) =>
+                        updateValue("requiresMedicalNotes", event.target.checked)
+                      }
+                    />
+                    <span>
+                      Richiedi note mediche (allergie, farmaci, intolleranze)
+                    </span>
+                  </label>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.requiresImageConsent}
+                      onChange={(event) =>
+                        updateValue("requiresImageConsent", event.target.checked)
+                      }
+                    />
+                    <span>
+                      Includi consenso foto/video nell'autorizzazione
+                      <small> Sempre facoltativo per il genitore, non blocca l'iscrizione.</small>
+                    </span>
+                  </label>
+
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={values.requiresDocumentUpload}
+                      onChange={(event) =>
+                        updateValue("requiresDocumentUpload", event.target.checked)
+                      }
+                    />
+                    <span>
+                      Richiedi upload documento del genitore (opzionale, sconsigliato)
+                      <small> Attivare solo se necessario per motivi specifici.</small>
+                    </span>
+                  </label>
+                </div>
+              ) : null}
             </>
           ) : null}
         </div>
