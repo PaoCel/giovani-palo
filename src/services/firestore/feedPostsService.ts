@@ -1,10 +1,13 @@
 import {
+  addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -45,6 +48,36 @@ function getCollection(stakeId: string) {
 
 function getRef(stakeId: string, postId: string) {
   return doc(db, "stakes", stakeId, "feedPosts", postId);
+}
+
+function getPostLikeRef(stakeId: string, postId: string, uid: string) {
+  return doc(db, "stakes", stakeId, "feedPosts", postId, "likes", uid);
+}
+
+function getPostCommentsCollection(stakeId: string, postId: string) {
+  return collection(db, "stakes", stakeId, "feedPosts", postId, "comments");
+}
+
+function getPostCommentRef(stakeId: string, postId: string, commentId: string) {
+  return doc(db, "stakes", stakeId, "feedPosts", postId, "comments", commentId);
+}
+
+export interface FeedComment {
+  id: string;
+  uid: string;
+  displayName: string;
+  body: string;
+  createdAt: string;
+}
+
+function mapComment(id: string, data: Record<string, unknown>): FeedComment {
+  return {
+    id,
+    uid: typeof data.uid === "string" ? data.uid : "",
+    displayName: typeof data.displayName === "string" ? data.displayName : "Utente",
+    body: typeof data.body === "string" ? data.body : "",
+    createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
+  };
 }
 
 function sanitizeType(value: unknown): FeedPostType {
@@ -111,6 +144,65 @@ export const feedPostsService = {
       publishedAt: published ? nowIso() : null,
       updatedAt: nowIso(),
     });
+  },
+
+  async hasUserLikedPost(stakeId: string, postId: string, uid: string) {
+    const snapshot = await getDoc(getPostLikeRef(stakeId, postId, uid));
+    return snapshot.exists();
+  },
+
+  async togglePostLike(stakeId: string, postId: string, uid: string) {
+    const postRef = getRef(stakeId, postId);
+    const likeRef = getPostLikeRef(stakeId, postId, uid);
+    return runTransaction(db, async (transaction) => {
+      const [postSnap, likeSnap] = await Promise.all([
+        transaction.get(postRef),
+        transaction.get(likeRef),
+      ]);
+      if (!postSnap.exists()) throw new Error("Post non trovato.");
+      const current = (postSnap.data().likeCount as number) ?? 0;
+      const liked = likeSnap.exists();
+      const nextCount = Math.max(0, liked ? current - 1 : current + 1);
+      transaction.update(postRef, {
+        likeCount: nextCount,
+        updatedAt: nowIso(),
+      });
+      if (liked) {
+        transaction.delete(likeRef);
+      } else {
+        transaction.set(likeRef, { createdAt: nowIso() });
+      }
+      return { liked: !liked, likeCount: nextCount };
+    });
+  },
+
+  async listComments(stakeId: string, postId: string): Promise<FeedComment[]> {
+    const snapshot = await getDocs(
+      query(getPostCommentsCollection(stakeId, postId), orderBy("createdAt", "desc")),
+    );
+    return snapshot.docs.map((document) => mapComment(document.id, document.data()));
+  },
+
+  async addComment(
+    stakeId: string,
+    postId: string,
+    input: { uid: string; displayName: string; body: string },
+  ): Promise<FeedComment> {
+    const trimmed = input.body.trim();
+    if (!trimmed) throw new Error("Commento vuoto.");
+    if (trimmed.length > 1000) throw new Error("Commento troppo lungo (max 1000).");
+    const data = {
+      uid: input.uid,
+      displayName: input.displayName.trim() || "Utente",
+      body: trimmed,
+      createdAt: nowIso(),
+    };
+    const reference = await addDoc(getPostCommentsCollection(stakeId, postId), data);
+    return { id: reference.id, ...data };
+  },
+
+  async deleteComment(stakeId: string, postId: string, commentId: string) {
+    await deleteDoc(getPostCommentRef(stakeId, postId, commentId));
   },
 
   async upsertAnnouncement(

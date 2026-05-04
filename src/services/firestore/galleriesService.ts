@@ -5,6 +5,7 @@ import {
   getDocs,
   orderBy,
   query,
+  runTransaction,
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -43,6 +44,7 @@ export interface GalleryMedia {
   thumbnailUrl: string | null;
   posterUrl: string | null;
   originalUrl: string | null;
+  likeCount: number;
 }
 
 function nowIso() {
@@ -108,7 +110,31 @@ function mapMedia(
     thumbnailUrl: typeof data.thumbnailUrl === "string" ? data.thumbnailUrl : null,
     posterUrl: typeof data.posterUrl === "string" ? data.posterUrl : null,
     originalUrl: typeof data.originalUrl === "string" ? data.originalUrl : null,
+    likeCount: typeof data.likeCount === "number" ? data.likeCount : 0,
   };
+}
+
+function getMediaRef(stakeId: string, galleryId: string, mediaId: string) {
+  return doc(db, "stakes", stakeId, "galleries", galleryId, "media", mediaId);
+}
+
+function getMediaLikeRef(
+  stakeId: string,
+  galleryId: string,
+  mediaId: string,
+  uid: string,
+) {
+  return doc(
+    db,
+    "stakes",
+    stakeId,
+    "galleries",
+    galleryId,
+    "media",
+    mediaId,
+    "likes",
+    uid,
+  );
 }
 
 const unlockGalleryWithCodeFn = httpsCallable<
@@ -193,6 +219,63 @@ export const galleriesService = {
       code: code.trim(),
     });
     return result.data;
+  },
+
+  async hasUserLikedMedia(
+    stakeId: string,
+    galleryId: string,
+    mediaId: string,
+    uid: string,
+  ): Promise<boolean> {
+    const snapshot = await getDoc(getMediaLikeRef(stakeId, galleryId, mediaId, uid));
+    return snapshot.exists();
+  },
+
+  async listLikedMediaIds(
+    stakeId: string,
+    galleryId: string,
+    mediaIds: string[],
+    uid: string,
+  ): Promise<Set<string>> {
+    if (mediaIds.length === 0) return new Set();
+    const snapshots = await Promise.all(
+      mediaIds.map((mediaId) => getDoc(getMediaLikeRef(stakeId, galleryId, mediaId, uid))),
+    );
+    const liked = new Set<string>();
+    snapshots.forEach((snapshot, index) => {
+      if (snapshot.exists()) liked.add(mediaIds[index]);
+    });
+    return liked;
+  },
+
+  async toggleMediaLike(
+    stakeId: string,
+    galleryId: string,
+    mediaId: string,
+    uid: string,
+  ) {
+    const mediaRef = getMediaRef(stakeId, galleryId, mediaId);
+    const likeRef = getMediaLikeRef(stakeId, galleryId, mediaId, uid);
+    return runTransaction(db, async (transaction) => {
+      const [mediaSnap, likeSnap] = await Promise.all([
+        transaction.get(mediaRef),
+        transaction.get(likeRef),
+      ]);
+      if (!mediaSnap.exists()) throw new Error("Media non trovato.");
+      const current = (mediaSnap.data().likeCount as number) ?? 0;
+      const liked = likeSnap.exists();
+      const nextCount = Math.max(0, liked ? current - 1 : current + 1);
+      transaction.update(mediaRef, {
+        likeCount: nextCount,
+        updatedAt: nowIso(),
+      });
+      if (liked) {
+        transaction.delete(likeRef);
+      } else {
+        transaction.set(likeRef, { createdAt: nowIso() });
+      }
+      return { liked: !liked, likeCount: nextCount };
+    });
   },
 
   async setSecretCode(stakeId: string, galleryId: string, code: string) {
