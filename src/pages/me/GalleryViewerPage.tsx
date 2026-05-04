@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { LikeButton } from "@/components/LikeButton";
 import { PageHero } from "@/components/PageHero";
+import { PolaroidLightbox } from "@/components/PolaroidLightbox";
 import { SectionCard } from "@/components/SectionCard";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -18,11 +20,13 @@ export function GalleryViewerPage() {
   const [gallery, setGallery] = useState<GalleryDoc | null>(null);
   const [hasMembership, setHasMembership] = useState(false);
   const [media, setMedia] = useState<GalleryMedia[]>([]);
+  const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [active, setActive] = useState<GalleryMedia | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [busyMediaId, setBusyMediaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!galleryId || !session) return;
@@ -39,7 +43,15 @@ export function GalleryViewerPage() {
         setHasMembership(membership);
         if (membership) {
           const list = await galleriesService.listMedia(STAKE_ID, galleryId);
-          if (!cancelled) setMedia(list);
+          if (cancelled) return;
+          setMedia(list);
+          const liked = await galleriesService.listLikedMediaIds(
+            STAKE_ID,
+            galleryId,
+            list.map((item) => item.id),
+            session.firebaseUser.uid,
+          );
+          if (!cancelled) setLikedSet(liked);
         }
       })
       .catch((err: unknown) => {
@@ -68,10 +80,45 @@ export function GalleryViewerPage() {
       setHasMembership(true);
       const list = await galleriesService.listMedia(STAKE_ID, galleryId);
       setMedia(list);
+      const liked = await galleriesService.listLikedMediaIds(
+        STAKE_ID,
+        galleryId,
+        list.map((item) => item.id),
+        session.firebaseUser.uid,
+      );
+      setLikedSet(liked);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Codice non valido.");
     } finally {
       setUnlocking(false);
+    }
+  }
+
+  async function toggleMediaLike(item: GalleryMedia) {
+    if (!session || !galleryId) return;
+    setBusyMediaId(item.id);
+    try {
+      const result = await galleriesService.toggleMediaLike(
+        STAKE_ID,
+        galleryId,
+        item.id,
+        session.firebaseUser.uid,
+      );
+      setMedia((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? { ...entry, likeCount: result.likeCount } : entry,
+        ),
+      );
+      setLikedSet((current) => {
+        const next = new Set(current);
+        if (result.liked) next.add(item.id);
+        else next.delete(item.id);
+        return next;
+      });
+    } catch {
+      // silent
+    } finally {
+      setBusyMediaId(null);
     }
   }
 
@@ -133,21 +180,32 @@ export function GalleryViewerPage() {
             <p className="subtle-text">Galleria vuota.</p>
           ) : (
             <div className="gallery-grid">
-              {sortedMedia.map((item) => {
+              {sortedMedia.map((item, index) => {
                 const thumb =
                   item.thumbnailUrl ?? item.optimizedUrl ?? item.posterUrl ?? item.storageUrl ?? "";
+                const liked = likedSet.has(item.id);
                 return (
-                  <button
-                    key={item.id}
-                    className="gallery-tile gallery-tile--button"
-                    type="button"
-                    onClick={() => setActive(item)}
-                  >
-                    {thumb ? <img src={thumb} alt={item.filename} loading="lazy" /> : null}
-                    {item.type === "video" ? (
-                      <span className="home-feed__video-badge">▶</span>
-                    ) : null}
-                  </button>
+                  <div key={item.id} className="gallery-tile-wrapper">
+                    <button
+                      type="button"
+                      className="gallery-tile gallery-tile--button"
+                      onClick={() => setActiveIndex(index)}
+                    >
+                      {thumb ? <img src={thumb} alt={item.filename} loading="lazy" /> : null}
+                      {item.type === "video" ? (
+                        <span className="post-carousel__video-badge">▶</span>
+                      ) : null}
+                    </button>
+                    <div className="gallery-tile__like">
+                      <LikeButton
+                        liked={liked}
+                        count={item.likeCount}
+                        busy={busyMediaId === item.id}
+                        size="small"
+                        onToggle={() => toggleMediaLike(item)}
+                      />
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -155,39 +213,27 @@ export function GalleryViewerPage() {
         </SectionCard>
       ) : null}
 
-      {active ? (
-        <div
-          className="gallery-lightbox"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setActive(null)}
-        >
-          <button
-            className="gallery-lightbox__close"
-            type="button"
-            aria-label="Chiudi"
-            onClick={(event) => {
-              event.stopPropagation();
-              setActive(null);
-            }}
-          >
-            ×
-          </button>
-          {active.type === "video" ? (
-            <video
-              src={active.originalUrl ?? active.storageUrl ?? active.optimizedUrl ?? ""}
-              controls
-              autoPlay
-              onClick={(event) => event.stopPropagation()}
-            />
-          ) : (
-            <img
-              src={active.originalUrl ?? active.optimizedUrl ?? active.storageUrl ?? ""}
-              alt={active.filename}
-              onClick={(event) => event.stopPropagation()}
-            />
-          )}
-        </div>
+      {activeIndex !== null && galleryId ? (
+        <PolaroidLightbox
+          stakeId={STAKE_ID}
+          galleryId={galleryId}
+          media={sortedMedia}
+          initialIndex={activeIndex}
+          onClose={() => setActiveIndex(null)}
+          onLikeChange={(mediaId, liked, count) => {
+            setMedia((current) =>
+              current.map((entry) =>
+                entry.id === mediaId ? { ...entry, likeCount: count } : entry,
+              ),
+            );
+            setLikedSet((current) => {
+              const next = new Set(current);
+              if (liked) next.add(mediaId);
+              else next.delete(mediaId);
+              return next;
+            });
+          }}
+        />
       ) : null}
     </div>
   );

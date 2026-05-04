@@ -773,7 +773,37 @@ service cloud.firestore {
       // non loggati). Scrittura solo admin (di solito creato da Cloud Functions).
       match /feedPosts/{postId} {
         allow get, list: if (resource == null || resource.data.published == true) || isStakeAdmin(stakeId);
-        allow create, update, delete: if isStakeAdmin(stakeId);
+        // Permettiamo update solo per likeCount (incremento) da utenti loggati,
+        // resto solo admin.
+        allow update: if isStakeAdmin(stakeId)
+          || (
+            isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
+          );
+        allow create, delete: if isStakeAdmin(stakeId);
+
+        match /likes/{uid} {
+          allow get: if isStakeAdmin(stakeId)
+            || (isSignedIn() && request.auth.uid == uid);
+          allow list: if isStakeAdmin(stakeId);
+          allow create, delete: if isSignedIn() && request.auth.uid == uid;
+          allow update: if false;
+        }
+
+        match /comments/{commentId} {
+          allow get, list: if isSignedIn();
+          allow create: if isSignedIn()
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.body is string
+            && request.resource.data.body.size() > 0
+            && request.resource.data.body.size() <= 1000;
+          allow update: if isSignedIn()
+            && resource.data.uid == request.auth.uid
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.createdAt == resource.data.createdAt;
+          allow delete: if isStakeAdmin(stakeId)
+            || (isSignedIn() && resource.data.uid == request.auth.uid);
+        }
       }
 
       // Galleria foto/video legacy: doc galleria visibile a tutti (info base + cover),
@@ -785,7 +815,23 @@ service cloud.firestore {
         match /media/{mediaId} {
           allow get, list: if isStakeAdmin(stakeId)
             || (isSignedIn() && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid)));
-          allow create, update, delete: if isStakeAdmin(stakeId);
+          allow update: if isStakeAdmin(stakeId)
+            || (
+              isSignedIn()
+              && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid))
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
+            );
+          allow create, delete: if isStakeAdmin(stakeId);
+
+          match /likes/{uid} {
+            allow get: if isStakeAdmin(stakeId)
+              || (isSignedIn() && request.auth.uid == uid);
+            allow list: if isStakeAdmin(stakeId);
+            allow create, delete: if isSignedIn()
+              && request.auth.uid == uid
+              && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid));
+            allow update: if false;
+          }
         }
 
         match /members/{uid} {
