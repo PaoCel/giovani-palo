@@ -30,6 +30,9 @@ export function MeDashboardPage() {
       registration?.registrationStatus !== "cancelled" &&
       !isPastEvent(event),
   );
+  const surveyCandidates = feed
+    .filter(({ event }) => isPastEvent(event))
+    .slice(0, 6);
 
   return (
     <div className="page page--user-dashboard">
@@ -110,6 +113,41 @@ export function MeDashboardPage() {
           </div>
         )}
       </section>
+
+      {surveyCandidates.length > 0 ? (
+        <section className="card">
+          <div className="user-section-heading">
+            <h2>Sondaggi e galleria</h2>
+            <p className="subtle-text">
+              Lasciaci un feedback (anonimo) o sblocca le foto delle attività passate.
+            </p>
+          </div>
+          <div className="stack">
+            {surveyCandidates.map(({ event }) => (
+              <article key={event.id} className="surface-panel surface-panel--subtle">
+                <strong>{event.title}</strong>
+                <p className="subtle-text">{formatEventWindow(event)}</p>
+                <div className="chip-row">
+                  <Link
+                    className="button button--ghost button--small"
+                    to={`/me/sondaggi/${event.id}`}
+                  >
+                    Sondaggio
+                  </Link>
+                  {event.galleryAccessCode ? (
+                    <Link
+                      className="button button--ghost button--small"
+                      to={`/me/galleria/${event.id}`}
+                    >
+                      Galleria
+                    </Link>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

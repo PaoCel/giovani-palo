@@ -277,6 +277,50 @@ export function ActivityDetailPage() {
         </SectionCard>
       ) : null}
 
+      {event ? (
+        <SectionCard
+          title="Sondaggio post-evento"
+          description="Hai partecipato? Lasciaci un feedback (anonimo)."
+        >
+          <Link className="button button--ghost" to={`/me/sondaggi/${event.id}`}>
+            Apri il sondaggio
+          </Link>
+        </SectionCard>
+      ) : null}
+
+      {event?.galleryAccessCode ? (
+        <SectionCard
+          title="Galleria foto e video"
+          description="Inserisci il codice ricevuto per accedere ai contenuti."
+        >
+          <Link className="button button--ghost" to={`/me/galleria/${event.id}`}>
+            Apri galleria
+          </Link>
+        </SectionCard>
+      ) : null}
+
+      {event?.whatToBring?.trim() ? (
+        <SectionCard
+          title="Cosa portare"
+          description={
+            event.activityType === "camp" ||
+            event.activityType === "overnight" ||
+            event.overnight
+              ? "Importante: leggi prima di partire."
+              : "Materiale consigliato per partecipare."
+          }
+        >
+          <div className="what-to-bring-card">
+            {event.activityType === "camp" ||
+            event.activityType === "overnight" ||
+            event.overnight ? (
+              <span className="what-to-bring-badge">⚠️ Consigliato leggere</span>
+            ) : null}
+            <p className="what-to-bring-text">{event.whatToBring}</p>
+          </div>
+        </SectionCard>
+      ) : null}
+
       {event &&
       [
         event.menuInfo,

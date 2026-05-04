@@ -1,6 +1,14 @@
 export type UserRole = "admin" | "participant" | "super_admin" | "unit_leader";
-export type GenderRoleCategory = "giovane_uomo" | "giovane_donna" | "dirigente";
-export type YouthGroup = "Giovani Uomini" | "Giovani Donne" | "Dirigente";
+export type GenderRoleCategory =
+  | "giovane_uomo"
+  | "giovane_donna"
+  | "dirigente"
+  | "accompagnatore";
+export type YouthGroup =
+  | "Giovani Uomini"
+  | "Giovani Donne"
+  | "Dirigente"
+  | "Accompagnatore";
 export type EventAudience = "congiunta" | "giovane_uomo" | "giovane_donna";
 export type EventStatus =
   | "draft"
@@ -211,6 +219,8 @@ export interface Event {
   menuInfo: string;
   allergiesInfo: string;
   roomsInfo: string;
+  whatToBring: string;
+  galleryAccessCode?: string;
   heroImageUrl: string;
   heroImagePath: string;
   coverImageUrl?: string;
@@ -291,6 +301,7 @@ export interface Registration {
   roomPreferenceMatches: RoomPreferenceMatches;
   accessCode: string | null;
   recoveryCode: string | null;
+  participatingDays?: string[];
   recoveryPdfGenerated: boolean;
   parentConsentDocumentName: string | null;
   parentConsentDocumentUrl: string | null;
@@ -370,6 +381,8 @@ export interface EventWriteInput {
   menuInfo?: string;
   allergiesInfo?: string;
   roomsInfo?: string;
+  whatToBring?: string;
+  galleryAccessCode?: string;
   heroImageUrl: string;
   heroImagePath?: string;
   coverImageUrl?: string;
@@ -423,6 +436,48 @@ export interface QuestionWriteInput {
   isAnonymous: boolean;
 }
 
+export type SurveyQuestionType = "rating" | "open" | "fields";
+
+export interface SurveyQuestion {
+  id: string;
+  eventId: string;
+  stakeId: string;
+  text: string;
+  type: SurveyQuestionType;
+  fieldCount: number;
+  order: number;
+  status: "active" | "hidden";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SurveyQuestionWriteInput {
+  text: string;
+  type: SurveyQuestionType;
+  fieldCount?: number;
+  order?: number;
+  status?: "active" | "hidden";
+}
+
+export type SurveyAnswerValue = number | string | string[];
+
+export interface SurveyAnswerEntry {
+  type: SurveyQuestionType;
+  value: SurveyAnswerValue;
+}
+
+export interface SurveyResponse {
+  id: string;
+  eventId: string;
+  stakeId: string;
+  isDraft: boolean;
+  category: GenderRoleCategory | "";
+  answers: Record<string, SurveyAnswerEntry>;
+  submittedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RegistrationWriteInput {
   firstName?: string;
   lastName?: string;
@@ -437,6 +492,7 @@ export interface RegistrationWriteInput {
   accessCode?: string | null;
   status?: "active" | "cancelled";
   registrationStatus: RegistrationStatus;
+  participatingDays?: string[];
 }
 
 export interface Room {

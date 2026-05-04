@@ -4,7 +4,11 @@ import { getRegistrationStatusLabel } from "@/utils/registrations";
 import { formatRoomPreferenceValue, getRegistrationTextAnswer } from "@/utils/roomPreferences";
 import { slugify } from "@/utils/slugify";
 
-export type ExportCategory = "giovane_uomo" | "giovane_donna" | "dirigente";
+export type ExportCategory =
+  | "giovane_uomo"
+  | "giovane_donna"
+  | "dirigente"
+  | "accompagnatore";
 
 export type ExportFieldKey =
   | "categoria"
@@ -27,6 +31,7 @@ export type ExportFieldKey =
   | "parentConfirmed"
   | "photoInternalConsent"
   | "photoPublicConsent"
+  | "participatingDays"
   | "registrationStatus"
   | "submittedByMode"
   | "createdAt";
@@ -58,6 +63,7 @@ export const EXCEL_EXPORT_FIELDS: ExportFieldOption[] = [
   { key: "parentConfirmed", label: "Consenso genitore", group: "consensi" },
   { key: "photoInternalConsent", label: "Foto uso interno", group: "consensi" },
   { key: "photoPublicConsent", label: "Foto uso pubblico", group: "consensi" },
+  { key: "participatingDays", label: "Giorni di partecipazione", group: "logistica" },
   { key: "registrationStatus", label: "Stato iscrizione", group: "meta" },
   { key: "submittedByMode", label: "Modalità invio", group: "meta" },
   { key: "createdAt", label: "Data iscrizione", group: "meta" },
@@ -77,6 +83,7 @@ export const DEFAULT_EXPORT_CATEGORIES: ExportCategory[] = [
   "giovane_uomo",
   "giovane_donna",
   "dirigente",
+  "accompagnatore",
 ];
 
 export interface ExportOptions {
@@ -106,6 +113,7 @@ const fieldHeaderLabels: Record<ExportFieldKey, string> = {
   parentConfirmed: "Consenso genitore",
   photoInternalConsent: "Foto uso interno",
   photoPublicConsent: "Foto uso pubblico",
+  participatingDays: "Giorni di partecipazione",
   registrationStatus: "Stato iscrizione",
   submittedByMode: "Modalità invio",
   createdAt: "Data iscrizione",
@@ -115,13 +123,27 @@ const categorySheetMeta: Record<ExportCategory, { sheetName: string; shortLabel:
   giovane_uomo: { sheetName: "GU", shortLabel: "GU" },
   giovane_donna: { sheetName: "GD", shortLabel: "GD" },
   dirigente: { sheetName: "Dirigenti", shortLabel: "DIR" },
+  accompagnatore: { sheetName: "Accompagnatori", shortLabel: "ACC" },
 };
 
 function getCategoryShortLabel(category: GenderRoleCategory | "") {
-  if (category === "giovane_uomo" || category === "giovane_donna" || category === "dirigente") {
+  if (
+    category === "giovane_uomo" ||
+    category === "giovane_donna" ||
+    category === "dirigente" ||
+    category === "accompagnatore"
+  ) {
     return categorySheetMeta[category].shortLabel;
   }
   return "";
+}
+
+function formatParticipatingDays(days: string[] | undefined) {
+  if (!Array.isArray(days) || days.length === 0) return "";
+  return days
+    .filter((day) => typeof day === "string" && day)
+    .map((day) => safeFormatDate(day, "date"))
+    .join(", ");
 }
 
 function getUnitLabel(registration: Registration) {
@@ -184,6 +206,8 @@ function getFieldValue(registration: Registration, field: ExportFieldKey): strin
     case "photoInternalConsent":
     case "photoPublicConsent":
       return formatBoolean(registration.answers[field]);
+    case "participatingDays":
+      return formatParticipatingDays(registration.participatingDays);
     case "registrationStatus":
       return getRegistrationStatusLabel(registration.registrationStatus);
     case "submittedByMode":

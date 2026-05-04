@@ -110,6 +110,9 @@ function mapRegistration(
           ? data.recoveryCode
           : null,
     recoveryCode: typeof data.recoveryCode === "string" ? data.recoveryCode : null,
+    participatingDays: Array.isArray(data.participatingDays)
+      ? data.participatingDays.filter((value): value is string => typeof value === "string")
+      : [],
     recoveryPdfGenerated: Boolean(data.recoveryPdfGenerated),
     parentConsentDocumentName:
       typeof data.parentConsentDocumentName === "string"
@@ -399,6 +402,9 @@ export const registrationsService = {
       roomPreferenceMatches,
       accessCode: existing?.accessCode ?? recoveryCode,
       recoveryCode,
+      participatingDays: Array.isArray(input.participatingDays)
+        ? input.participatingDays.filter((value): value is string => typeof value === "string")
+        : (existing?.participatingDays ?? []),
       recoveryPdfGenerated: existing?.recoveryPdfGenerated ?? false,
       parentConsentDocumentName: existing?.parentConsentDocumentName ?? null,
       parentConsentDocumentUrl: existing?.parentConsentDocumentUrl ?? null,

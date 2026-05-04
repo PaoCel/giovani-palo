@@ -8,6 +8,9 @@ import { AppModal } from "@/components/AppModal";
 import { EmptyState } from "@/components/EmptyState";
 import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExportModal";
 import { StatusBadge } from "@/components/StatusBadge";
+import { SurveyEditor } from "@/components/SurveyEditor";
+import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
+import { AdminGalleryEditor } from "@/components/AdminGalleryEditor";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
@@ -47,9 +50,15 @@ type AdminEventTab =
   | "consents"
   | "overnight"
   | "questions"
+  | "surveys"
+  | "gallery"
   | "stats";
 type RegistrationModalMode = "registration" | "overnight";
-type RegistrationCategoryFilter = "giovane_uomo" | "giovane_donna" | "dirigente";
+type RegistrationCategoryFilter =
+  | "giovane_uomo"
+  | "giovane_donna"
+  | "dirigente"
+  | "accompagnatore";
 
 interface DistributionItem {
   label: string;
@@ -77,6 +86,7 @@ const registrationCategoryFilterOptions: Array<{
   { value: "giovane_uomo", label: "GU" },
   { value: "giovane_donna", label: "GD" },
   { value: "dirigente", label: "Dirigenti" },
+  { value: "accompagnatore", label: "Accompagnatori" },
 ];
 
 function buildDistribution<T>(
@@ -165,7 +175,12 @@ function isMinorRegistration(registration: Registration) {
 function isRegistrationCategoryFilter(
   value: Registration["genderRoleCategory"],
 ): value is RegistrationCategoryFilter {
-  return value === "giovane_uomo" || value === "giovane_donna" || value === "dirigente";
+  return (
+    value === "giovane_uomo" ||
+    value === "giovane_donna" ||
+    value === "dirigente" ||
+    value === "accompagnatore"
+  );
 }
 
 function getUnitLabel(registration: Registration) {
@@ -193,6 +208,14 @@ function getAdminEventTabFromPath(pathname: string): AdminEventTab {
     return "questions";
   }
 
+  if (pathname.endsWith("/surveys")) {
+    return "surveys";
+  }
+
+  if (pathname.endsWith("/gallery")) {
+    return "gallery";
+  }
+
   if (pathname.endsWith("/stats")) {
     return "stats";
   }
@@ -210,6 +233,10 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
       return `/admin/events/${eventId}/rooms`;
     case "questions":
       return `/admin/events/${eventId}/questions`;
+    case "surveys":
+      return `/admin/events/${eventId}/surveys`;
+    case "gallery":
+      return `/admin/events/${eventId}/gallery`;
     case "stats":
       return `/admin/events/${eventId}/stats`;
     default:
@@ -239,7 +266,7 @@ export function AdminEventDetailPage() {
   const [normalizingRoomPreferences, setNormalizingRoomPreferences] = useState(false);
   const [activeRegistrationFilters, setActiveRegistrationFilters] = useState<
     RegistrationCategoryFilter[]
-  >(["giovane_uomo", "giovane_donna", "dirigente"]);
+  >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState("all");
 
   const { data, loading, error } = useAsyncData(
@@ -368,6 +395,7 @@ export function AdminEventDetailPage() {
           giovane_uomo: 0,
           giovane_donna: 0,
           dirigente: 0,
+          accompagnatore: 0,
         },
       ),
     [selectedUnitFilter, sortedRegistrations],
@@ -978,6 +1006,32 @@ export function AdminEventDetailPage() {
           </button>
         ) : null}
         <button
+          aria-pressed={activeTab === "surveys"}
+          className={
+            activeTab === "surveys"
+              ? "admin-subtabs__item admin-subtabs__item--active"
+              : "admin-subtabs__item"
+          }
+          onClick={() => openTab("surveys")}
+          type="button"
+        >
+          <AppIcon name="ticket" />
+          <span>Sondaggi</span>
+        </button>
+        <button
+          aria-pressed={activeTab === "gallery"}
+          className={
+            activeTab === "gallery"
+              ? "admin-subtabs__item admin-subtabs__item--active"
+              : "admin-subtabs__item"
+          }
+          onClick={() => openTab("gallery")}
+          type="button"
+        >
+          <AppIcon name="eye" />
+          <span>Galleria</span>
+        </button>
+        <button
           aria-pressed={activeTab === "stats"}
           className={
             activeTab === "stats"
@@ -1076,6 +1130,13 @@ export function AdminEventDetailPage() {
             <article className="surface-panel surface-panel--subtle">
               <h3>Stanze e logistica</h3>
               <p>{resolvedEvent.roomsInfo}</p>
+            </article>
+          ) : null}
+
+          {resolvedEvent.whatToBring ? (
+            <article className="surface-panel surface-panel--subtle">
+              <h3>Cosa portare</h3>
+              <p>{resolvedEvent.whatToBring}</p>
             </article>
           ) : null}
 
@@ -1183,19 +1244,41 @@ export function AdminEventDetailPage() {
                 />
               ) : (
                 <div className="admin-roster__list" role="list">
-                  {filteredRegistrations.map((registration) => (
-                    <button
-                      key={registration.id}
-                      className="admin-roster-row"
-                      onClick={() => openRegistrationModal(registration.id, "registration")}
-                      type="button"
-                    >
-                      <strong>{getRegistrationDisplayName(registration)}</strong>
-                      <span className="admin-roster-row__type">
-                        {getCategoryShortLabel(registration)}
-                      </span>
-                    </button>
-                  ))}
+                  {filteredRegistrations.map((registration) => {
+                    const days = registration.participatingDays ?? [];
+                    const supportsDays =
+                      resolvedEvent.activityType === "overnight" ||
+                      resolvedEvent.activityType === "camp" ||
+                      resolvedEvent.activityType === "multi_day" ||
+                      resolvedEvent.activityType === "trip";
+                    const showDays = supportsDays && days.length > 0;
+                    return (
+                      <button
+                        key={registration.id}
+                        className="admin-roster-row"
+                        onClick={() => openRegistrationModal(registration.id, "registration")}
+                        type="button"
+                      >
+                        <strong>{getRegistrationDisplayName(registration)}</strong>
+                        <span className="admin-roster-row__type">
+                          {getCategoryShortLabel(registration)}
+                        </span>
+                        {showDays ? (
+                          <small className="admin-roster-row__days">
+                            Giorni:{" "}
+                            {days
+                              .map((day) =>
+                                new Date(day).toLocaleDateString("it-IT", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                }),
+                              )
+                              .join(", ")}
+                          </small>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </article>
@@ -1804,6 +1887,41 @@ export function AdminEventDetailPage() {
               </ul>
             </article>
           )}
+        </section>
+      ) : null}
+
+      {activeTab === "surveys" ? (
+        <section className="admin-detail-stack">
+          <article className="surface-panel surface-panel--subtle">
+            <h3>Domande del sondaggio</h3>
+            <p className="subtle-text">
+              Crea/modifica domande di feedback per questa attività. Le risposte
+              degli utenti sono anonime: si vede solo la categoria.
+            </p>
+            <SurveyEditor stakeId={stakeId} eventId={resolvedEventId} />
+          </article>
+          <article className="surface-panel surface-panel--subtle">
+            <h3>Risultati</h3>
+            <SurveyResultsPanel stakeId={stakeId} eventId={resolvedEventId} />
+          </article>
+        </section>
+      ) : null}
+
+      {activeTab === "gallery" ? (
+        <section className="admin-detail-stack">
+          <article className="surface-panel surface-panel--subtle">
+            <h3>Galleria foto e video</h3>
+            <p className="subtle-text">
+              Carica foto e video dell'attività. I partecipanti potranno vederli
+              dopo aver inserito il codice galleria.
+            </p>
+            <AdminGalleryEditor
+              stakeId={stakeId}
+              eventId={resolvedEventId}
+              uploadedBy={session?.firebaseUser.uid ?? ""}
+              galleryAccessCode={resolvedEvent.galleryAccessCode ?? ""}
+            />
+          </article>
         </section>
       ) : null}
 

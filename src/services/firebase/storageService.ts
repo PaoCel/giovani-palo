@@ -289,4 +289,27 @@ export const storageService = {
 
     await deleteObject(ref(storage, path));
   },
+
+  async uploadGalleryFile(args: {
+    file: File;
+    stakeId: string;
+    eventId: string;
+    uploadedBy: string;
+  }) {
+    const extension = getFileExtension(args.file.name);
+    const fileStem = slugify(args.file.name.replace(/\.[^.]+$/, "")) || "media";
+    const path = `protected/stakes/${args.stakeId}/activities/${args.eventId}/gallery/${Date.now()}-${fileStem}.${extension}`;
+    const fileReference = ref(storage, path);
+    await uploadBytes(fileReference, args.file, {
+      contentType: args.file.type || "application/octet-stream",
+      customMetadata: { uploadedBy: args.uploadedBy },
+    });
+    return {
+      path,
+      url: await getDownloadURL(fileReference),
+      name: args.file.name,
+      contentType: args.file.type || "application/octet-stream",
+      size: args.file.size,
+    };
+  },
 };

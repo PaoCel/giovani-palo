@@ -532,6 +532,7 @@ export function AuthAccessPanel({
                       <option value="giovane_uomo">Giovane uomo</option>
                       <option value="giovane_donna">Giovane donna</option>
                       <option value="dirigente">Dirigente</option>
+                      <option value="accompagnatore">Accompagnatore</option>
                     </select>
                   </label>
 

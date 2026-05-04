@@ -21,7 +21,8 @@ interface RegistrationExcelExportModalProps {
 const categoryOptions: Array<{ key: ExportCategory; label: string; helper: string }> = [
   { key: "giovane_uomo", label: "Giovani Uomini (GU)", helper: "Iscritti maschi" },
   { key: "giovane_donna", label: "Giovani Donne (GD)", helper: "Iscritte femmine" },
-  { key: "dirigente", label: "Dirigenti", helper: "Adulti accompagnatori" },
+  { key: "dirigente", label: "Dirigenti", helper: "Dirigenti delle unità" },
+  { key: "accompagnatore", label: "Accompagnatori", helper: "Genitori / adulti di supporto" },
 ];
 
 const groupLabels: Record<ExportFieldOption["group"], string> = {

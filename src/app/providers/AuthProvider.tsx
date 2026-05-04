@@ -7,7 +7,7 @@ import {
 
 import { authService } from "@/services/auth/authService";
 import { adminPushService } from "@/services/push/adminPushService";
-import type { AuthContextValue, AuthSession } from "@/types";
+import type { AuthContextValue, AuthSession, GenderRoleCategory } from "@/types";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     firstName: string;
     lastName: string;
     birthDate: string;
-    genderRoleCategory: "giovane_uomo" | "giovane_donna" | "dirigente";
+    genderRoleCategory: GenderRoleCategory;
     unitName: string;
     stakeId: string;
   }) {
