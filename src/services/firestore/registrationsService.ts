@@ -148,9 +148,15 @@ function mapRegistration(
       data.registrationStatus === "confirmed" ||
       data.registrationStatus === "waitlist" ||
       data.registrationStatus === "cancelled" ||
-      data.registrationStatus === "active"
+      data.registrationStatus === "active" ||
+      data.registrationStatus === "pending_parent_authorization" ||
+      data.registrationStatus === "rejected_by_parent"
         ? data.registrationStatus
         : "active",
+    parentAuthorization:
+      data.parentAuthorization && typeof data.parentAuthorization === "object"
+        ? (data.parentAuthorization as Registration["parentAuthorization"])
+        : null,
     submittedByMode: data.submittedByMode === "anonymous" ? "anonymous" : "authenticated",
     assignedRoomId:
       typeof data.assignedRoomId === "string" ? data.assignedRoomId : null,
@@ -356,10 +362,21 @@ export const registrationsService = {
     const genderRoleCategory = getGenderFromAnswers(input.answers);
     const recoveryCode =
       existing?.recoveryCode ?? (lookup.anonymousUid ? createRecoveryCode() : null);
-    const registrationStatus: RegistrationStatus =
-      input.registrationStatus === "cancelled"
-        ? "cancelled"
-        : existing?.registrationStatus ?? "active";
+    const registrationStatus: RegistrationStatus = (() => {
+      if (input.registrationStatus === "cancelled") {
+        return "cancelled";
+      }
+
+      if (existing) {
+        return existing.registrationStatus;
+      }
+
+      if (input.registrationStatus === "pending_parent_authorization") {
+        return "pending_parent_authorization";
+      }
+
+      return "active";
+    })();
     const roomPreferenceMatches = preserveRoomPreferenceMatchesOnSave(
       existing?.roomPreferenceMatches ?? {},
       input.answers,
@@ -394,6 +411,7 @@ export const registrationsService = {
       parentIdDocumentUrl: existing?.parentIdDocumentUrl ?? null,
       parentIdDocumentPath: existing?.parentIdDocumentPath ?? null,
       parentIdUploadedAt: existing?.parentIdUploadedAt ?? null,
+      parentAuthorization: existing?.parentAuthorization ?? null,
       linkedLaterToUserId: existing?.linkedLaterToUserId ?? null,
       registrationStatus,
       submittedByMode: lookup.userId ? "authenticated" : "anonymous",

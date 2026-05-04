@@ -16,7 +16,8 @@ import {
   getDefaultEventFormConfig,
 } from "@/services/firestore/eventFormsService";
 import { organizationService } from "@/services/firestore/organizationService";
-import type { Event, EventStatus, EventWriteInput } from "@/types";
+import type { ActivityType, Event, EventStatus, EventWriteInput } from "@/types";
+import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys } from "@/utils/formFields";
 import { eventSpansMultipleCalendarDays, sanitizeEventAudience } from "@/utils/events";
 import { slugify } from "@/utils/slugify";
@@ -37,6 +38,23 @@ function sanitizeStatus(value: unknown): EventStatus {
     default:
       return "draft";
   }
+}
+
+function sanitizeActivityType(value: unknown, fallbackOvernight: boolean): ActivityType {
+  switch (value) {
+    case "overnight":
+    case "trip":
+    case "camp":
+    case "multi_day":
+    case "standard":
+      return value;
+    default:
+      return fallbackOvernight ? "overnight" : "standard";
+  }
+}
+
+function isStrongAuthorizationActivity(activityType: ActivityType) {
+  return activityType !== "standard";
 }
 
 function mapEvent(
@@ -101,6 +119,41 @@ function mapEvent(
     maxParticipants:
       typeof data.maxParticipants === "number" ? data.maxParticipants : null,
     overnight,
+    activityType: sanitizeActivityType(data.activityType, overnight),
+    requiresAccount:
+      typeof data.requiresAccount === "boolean"
+        ? data.requiresAccount
+        : isStrongAuthorizationActivity(sanitizeActivityType(data.activityType, overnight)),
+    requiresParentAuthorization:
+      typeof data.requiresParentAuthorization === "boolean"
+        ? data.requiresParentAuthorization
+        : isStrongAuthorizationActivity(sanitizeActivityType(data.activityType, overnight)),
+    requiresEmergencyContacts:
+      typeof data.requiresEmergencyContacts === "boolean"
+        ? data.requiresEmergencyContacts
+        : isStrongAuthorizationActivity(sanitizeActivityType(data.activityType, overnight)),
+    requiresMedicalNotes:
+      typeof data.requiresMedicalNotes === "boolean"
+        ? data.requiresMedicalNotes
+        : isStrongAuthorizationActivity(sanitizeActivityType(data.activityType, overnight)),
+    requiresImageConsent:
+      typeof data.requiresImageConsent === "boolean"
+        ? data.requiresImageConsent
+        : data.requiresPhotoRelease === true,
+    requiresDocumentUpload:
+      typeof data.requiresDocumentUpload === "boolean" ? data.requiresDocumentUpload : false,
+    consentVersionId:
+      typeof data.consentVersionId === "string"
+        ? data.consentVersionId
+        : LEGAL_DOC_VERSIONS.participation,
+    privacyNoticeVersionId:
+      typeof data.privacyNoticeVersionId === "string"
+        ? data.privacyNoticeVersionId
+        : LEGAL_DOC_VERSIONS.privacy,
+    imageConsentVersionId:
+      typeof data.imageConsentVersionId === "string"
+        ? data.imageConsentVersionId
+        : LEGAL_DOC_VERSIONS.photo,
     templateId: typeof data.templateId === "string" ? data.templateId : null,
     questionsEnabled: data.questionsEnabled === true,
     requiresParentalConsent: data.requiresParentalConsent === true,
@@ -117,8 +170,13 @@ function mapEvent(
 
 function normalizeEventInput(input: EventWriteInput) {
   const title = input.title.trim();
+  const activityType = sanitizeActivityType(
+    input.activityType,
+    input.overnight ?? false,
+  );
+  const isStrong = isStrongAuthorizationActivity(activityType);
   const overnight =
-    input.overnight && eventSpansMultipleCalendarDays(input.startDate, input.endDate);
+    isStrong && eventSpansMultipleCalendarDays(input.startDate, input.endDate);
 
   return {
     title,
@@ -148,6 +206,18 @@ function normalizeEventInput(input: EventWriteInput) {
     registrationClose: input.registrationClose,
     maxParticipants: input.maxParticipants,
     overnight,
+    activityType,
+    requiresAccount: input.requiresAccount ?? isStrong,
+    requiresParentAuthorization: input.requiresParentAuthorization ?? isStrong,
+    requiresEmergencyContacts: input.requiresEmergencyContacts ?? isStrong,
+    requiresMedicalNotes: input.requiresMedicalNotes ?? isStrong,
+    requiresImageConsent:
+      input.requiresImageConsent ?? (input.requiresPhotoRelease ?? false),
+    requiresDocumentUpload: input.requiresDocumentUpload ?? false,
+    consentVersionId: input.consentVersionId ?? LEGAL_DOC_VERSIONS.participation,
+    privacyNoticeVersionId:
+      input.privacyNoticeVersionId ?? LEGAL_DOC_VERSIONS.privacy,
+    imageConsentVersionId: input.imageConsentVersionId ?? LEGAL_DOC_VERSIONS.photo,
     templateId: (input.templateId ?? "").trim() || null,
     questionsEnabled: input.questionsEnabled ?? false,
     requiresParentalConsent: input.requiresParentalConsent ?? false,
