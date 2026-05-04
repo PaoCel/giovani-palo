@@ -370,7 +370,9 @@ function SurveyQuestionField({ question, entry, onChange }: SurveyQuestionFieldP
   return (
     <div className="surface-panel surface-panel--subtle form-subsection">
       <h4>{question.text}</h4>
-      <p className="subtle-text">Compila tutti i {question.fieldCount} campi.</p>
+      <p className="subtle-text">
+        Compila almeno una risposta — puoi lasciare gli altri campi vuoti se non ti vengono in mente.
+      </p>
       <div className="form-stack form-stack--compact">
         {values.map((value, index) => (
           <input

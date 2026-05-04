@@ -763,6 +763,14 @@ service cloud.firestore {
       allow create: if canCreateOwnUser(uid);
       allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole();
       allow delete: if false;
+
+      // Specchio delle gallerie sbloccate dall'utente. La scrittura avviene
+      // solo via Cloud Function (admin SDK) dopo verifica del codice galleria.
+      // Il client deve poterlo leggere per sapere quali gallerie sono già aperte.
+      match /unlockedGalleries/{galleryId} {
+        allow get, list: if isSelf(uid);
+        allow create, update, delete: if false;
+      }
     }
 
     match /stakes/{stakeId} {
@@ -960,7 +968,11 @@ service cloud.firestore {
         }
 
         match /surveyResponses/{responseId} {
-          allow get, list: if isStakeAdmin(stakeId);
+          // get aperto ai signed-in: serve a riprendere/aggiornare la propria
+          // bozza sondaggio (id casuale memorizzato in localStorage). Le risposte
+          // sono anonime (no userId/anonymousUid). list resta solo admin.
+          allow get: if isStakeAdmin(stakeId) || isSignedIn();
+          allow list: if isStakeAdmin(stakeId);
           allow create, update: if isSignedIn()
             && request.resource.data.eventId == activityId
             && request.resource.data.stakeId == stakeId

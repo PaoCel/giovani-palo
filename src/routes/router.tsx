@@ -8,6 +8,9 @@ import { AdminCalendarPage } from "@/pages/admin/AdminCalendarPage";
 import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
 import { AdminEventDetailPage } from "@/pages/admin/AdminEventDetailPage";
 import { AdminEventsPage } from "@/pages/admin/AdminEventsPage";
+import { AdminFeedPage } from "@/pages/admin/AdminFeedPage";
+import { AdminGalleriesPage } from "@/pages/admin/AdminGalleriesPage";
+import { AdminGalleryDetailPage } from "@/pages/admin/AdminGalleryDetailPage";
 import { AdminSettingsPage } from "@/pages/admin/AdminSettingsPage";
 import { AdminStatsPage } from "@/pages/admin/AdminStatsPage";
 import { LoginPage } from "@/pages/auth/LoginPage";
@@ -21,9 +24,6 @@ import { MyCalendarPage } from "@/pages/me/MyCalendarPage";
 import { MyProfilePage } from "@/pages/me/MyProfilePage";
 import { SurveyAnswerPage } from "@/pages/me/SurveyAnswerPage";
 import { SurveyHubPage } from "@/pages/me/SurveyHubPage";
-import { GalleryHubPage } from "@/pages/me/GalleryHubPage";
-import { GalleryViewerPage } from "@/pages/me/GalleryViewerPage";
-import { GalleryByActivityPage } from "@/pages/me/GalleryByActivityPage";
 import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { ActivityRegisterPage } from "@/pages/public/ActivityRegisterPage";
@@ -52,8 +52,8 @@ export const router = createBrowserRouter([
       { path: "/password-reset", element: <PasswordResetPage /> },
       { path: "/sondaggi", element: <Navigate replace to="/me/sondaggi" /> },
       { path: "/sondaggi/:eventId", element: <Navigate replace to="/me/sondaggi" /> },
-      { path: "/galleria", element: <Navigate replace to="/me/galleria" /> },
-      { path: "/galleria/:galleryId", element: <Navigate replace to="/me/galleria" /> },
+      { path: "/galleria", element: <Navigate replace to="/me" /> },
+      { path: "/galleria/:galleryId", element: <Navigate replace to="/me" /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
@@ -71,9 +71,6 @@ export const router = createBrowserRouter([
           { path: "activities/:eventId/edit", element: <MyActivityEditPage /> },
           { path: "sondaggi", element: <SurveyHubPage /> },
           { path: "sondaggi/:eventId", element: <SurveyAnswerPage /> },
-          { path: "galleria", element: <GalleryHubPage /> },
-          { path: "galleria/per-attivita/:eventId", element: <GalleryByActivityPage /> },
-          { path: "galleria/:galleryId", element: <GalleryViewerPage /> },
           { path: "profile", element: <MyProfilePage /> },
         ],
       },
@@ -110,8 +107,15 @@ export const router = createBrowserRouter([
           { path: "events/:eventId/rooms", element: <AdminEventDetailPage /> },
           { path: "events/:eventId/questions", element: <AdminEventDetailPage /> },
           { path: "events/:eventId/stats", element: <AdminEventDetailPage /> },
+          { path: "events/:eventId/surveys", element: <AdminEventDetailPage /> },
+          { path: "events/:eventId/sondaggi", element: <AdminEventDetailPage /> },
+          { path: "events/:eventId/gallery", element: <AdminEventDetailPage /> },
+          { path: "events/:eventId/galleria", element: <AdminEventDetailPage /> },
           { path: "registrations", element: <AdminStatsPage /> },
           { path: "stats", element: <AdminStatsPage /> },
+          { path: "feed", element: <AdminFeedPage /> },
+          { path: "galleries", element: <AdminGalleriesPage /> },
+          { path: "galleries/:galleryId", element: <AdminGalleryDetailPage /> },
           { path: "settings", element: <AdminSettingsPage /> },
         ],
       },

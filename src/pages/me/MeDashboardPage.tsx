@@ -2,11 +2,12 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
-import { HomeFeed } from "@/components/HomeFeed";
+import { HomeFeed } from "@/components/feed/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { surveysService } from "@/services/firestore/surveysService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import { formatEventWindow } from "@/utils/formatters";
 import {
@@ -19,7 +20,6 @@ import {
 export function MeDashboardPage() {
   const { session } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "none";
-  const stakeId = session?.profile.stakeId ?? "roma-est";
 
   const { data: feed, loading, error } = useAsyncData(
     () => userActivitiesService.listStakeActivityFeed(session),
@@ -32,9 +32,30 @@ export function MeDashboardPage() {
       registration?.registrationStatus !== "cancelled" &&
       !isPastEvent(event),
   );
-  const surveyCandidates = feed
-    .filter(({ event }) => isPastEvent(event))
-    .slice(0, 6);
+  const pastEvents = feed.filter(({ event }) => isPastEvent(event)).slice(0, 6);
+  const pastIdsKey = pastEvents.map(({ event }) => event.id).join(",");
+  const stakeIdKey = session?.profile.stakeId ?? "";
+
+  // Per ogni attività passata, controlla se ha almeno una domanda attiva.
+  // Solo quelle col sondaggio compilato dall'admin compaiono in home.
+  const { data: surveyableIds } = useAsyncData<Set<string>>(
+    async () => {
+      if (!stakeIdKey || pastEvents.length === 0) return new Set();
+      const results = await Promise.all(
+        pastEvents.map(({ event }) =>
+          surveysService
+            .listActiveQuestions(stakeIdKey, event.id)
+            .then((questions) => ({ id: event.id, has: questions.length > 0 }))
+            .catch(() => ({ id: event.id, has: false })),
+        ),
+      );
+      return new Set(results.filter((entry) => entry.has).map((entry) => entry.id));
+    },
+    [pastIdsKey, stakeIdKey],
+    new Set<string>(),
+  );
+
+  const surveyCandidates = pastEvents.filter(({ event }) => surveyableIds.has(event.id));
 
   return (
     <div className="page page--user-dashboard">
@@ -123,15 +144,15 @@ export function MeDashboardPage() {
             Ultime novità e gallerie dello stake.
           </p>
         </div>
-        <HomeFeed stakeId={stakeId} signedIn={Boolean(session?.isAuthenticated)} />
+        <HomeFeed />
       </section>
 
       {surveyCandidates.length > 0 ? (
         <section className="card">
           <div className="user-section-heading">
-            <h2>Sondaggi e galleria</h2>
+            <h2>Sondaggi delle attività passate</h2>
             <p className="subtle-text">
-              Lasciaci un feedback (anonimo) o sblocca le foto delle attività passate.
+              Lasciaci un feedback anonimo: ci aiuta a migliorare le prossime attività.
             </p>
           </div>
           <div className="stack">
@@ -141,16 +162,10 @@ export function MeDashboardPage() {
                 <p className="subtle-text">{formatEventWindow(event)}</p>
                 <div className="chip-row">
                   <Link
-                    className="button button--ghost button--small"
+                    className="button button--primary button--small"
                     to={`/me/sondaggi/${event.id}`}
                   >
-                    Sondaggio
-                  </Link>
-                  <Link
-                    className="button button--ghost button--small"
-                    to={`/me/galleria/per-attivita/${event.id}`}
-                  >
-                    Galleria
+                    Compila sondaggio
                   </Link>
                 </div>
               </article>

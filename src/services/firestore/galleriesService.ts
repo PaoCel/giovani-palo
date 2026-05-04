@@ -1,194 +1,290 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
+  increment,
   orderBy,
   query,
-  runTransaction,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 
-import { db, functions } from "@/services/firebase/app";
+import { db } from "@/services/firebase/app";
+import type {
+  Gallery,
+  GalleryMedia,
+  GalleryMediaType,
+  GalleryMember,
+  GalleryWriteInput,
+} from "@/types";
 
-export interface GalleryDoc {
-  id: string;
-  title: string;
-  description: string;
-  activityId: string | null;
-  coverImageUrl: string | null;
-  coverMediaId: string | null;
-  mediaCount: number;
-  accessMode: string;
-  codeStatus: string;
-  published: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface GalleryMedia {
-  id: string;
-  galleryId: string;
-  type: "image" | "video";
-  filename: string;
-  contentType: string;
-  width: number | null;
-  height: number | null;
-  duration: number | null;
-  order: number;
-  caption: string;
-  storageUrl: string | null;
-  optimizedUrl: string | null;
-  thumbnailUrl: string | null;
-  posterUrl: string | null;
-  originalUrl: string | null;
-  likeCount: number;
-}
+const GALLERY_BATCH_SIZE = 30;
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function getCollection(stakeId: string) {
+function galleriesCollection(stakeId: string) {
   return collection(db, "stakes", stakeId, "galleries");
 }
 
-function getDocRef(stakeId: string, galleryId: string) {
+function galleryDoc(stakeId: string, galleryId: string) {
   return doc(db, "stakes", stakeId, "galleries", galleryId);
 }
 
-function getMediaCollection(stakeId: string, galleryId: string) {
-  return collection(db, "stakes", stakeId, "galleries", galleryId, "media");
+function mediaCollection(stakeId: string, galleryId: string) {
+  return collection(galleryDoc(stakeId, galleryId), "media");
 }
 
-function getMemberRef(stakeId: string, galleryId: string, uid: string) {
-  return doc(db, "stakes", stakeId, "galleries", galleryId, "members", uid);
+function mediaDoc(stakeId: string, galleryId: string, mediaId: string) {
+  return doc(mediaCollection(stakeId, galleryId), mediaId);
 }
 
-function mapGallery(id: string, data: Record<string, unknown>): GalleryDoc {
+function membersCollection(stakeId: string, galleryId: string) {
+  return collection(galleryDoc(stakeId, galleryId), "members");
+}
+
+function memberDoc(stakeId: string, galleryId: string, uid: string) {
+  return doc(membersCollection(stakeId, galleryId), uid);
+}
+
+function mapGallery(stakeId: string, id: string, data: Record<string, unknown>): Gallery {
   return {
     id,
+    stakeId,
     title: typeof data.title === "string" ? data.title : "Galleria",
     description: typeof data.description === "string" ? data.description : "",
     activityId: typeof data.activityId === "string" ? data.activityId : null,
-    coverImageUrl:
-      typeof data.coverImageUrl === "string" ? data.coverImageUrl : null,
-    coverMediaId:
-      typeof data.coverMediaId === "string" ? data.coverMediaId : null,
-    mediaCount: typeof data.mediaCount === "number" ? data.mediaCount : 0,
-    accessMode: typeof data.accessMode === "string" ? data.accessMode : "open",
-    codeStatus: typeof data.codeStatus === "string" ? data.codeStatus : "none",
-    published: data.published === true,
-    publishedAt: typeof data.publishedAt === "string" ? data.publishedAt : null,
+    createdBy: typeof data.createdBy === "string" ? data.createdBy : "",
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
+    published: data.published === true,
+    publishedAt: typeof data.publishedAt === "string" ? data.publishedAt : null,
+    coverMediaId: typeof data.coverMediaId === "string" ? data.coverMediaId : null,
+    coverImageUrl: typeof data.coverImageUrl === "string" ? data.coverImageUrl : null,
+    mediaCount: typeof data.mediaCount === "number" ? data.mediaCount : 0,
+    batchSize: typeof data.batchSize === "number" ? data.batchSize : GALLERY_BATCH_SIZE,
+    accessMode: "code_required",
+    likeCount: typeof data.likeCount === "number" ? data.likeCount : 0,
+    commentsEnabled: false,
+    postsCreated: data.postsCreated === true,
+    codeStatus: data.codeStatus === "set" ? "set" : "missing",
   };
 }
 
 function mapMedia(
+  stakeId: string,
   galleryId: string,
   id: string,
   data: Record<string, unknown>,
 ): GalleryMedia {
-  const type = data.type === "video" ? "video" : "image";
+  const type: GalleryMediaType = data.type === "video" ? "video" : "image";
+  const status =
+    data.status === "processing" || data.status === "error"
+      ? data.status
+      : "uploaded";
   return {
     id,
     galleryId,
+    stakeId,
+    activityId: typeof data.activityId === "string" ? data.activityId : null,
     type,
-    filename: typeof data.filename === "string" ? data.filename : "",
-    contentType:
-      typeof data.contentType === "string" ? data.contentType : "image/jpeg",
+    storagePath: typeof data.storagePath === "string" ? data.storagePath : "",
+    storageUrl: typeof data.storageUrl === "string" ? data.storageUrl : null,
+    originalPath: typeof data.originalPath === "string" ? data.originalPath : null,
+    originalUrl: typeof data.originalUrl === "string" ? data.originalUrl : null,
+    thumbnailPath: typeof data.thumbnailPath === "string" ? data.thumbnailPath : null,
+    thumbnailUrl: typeof data.thumbnailUrl === "string" ? data.thumbnailUrl : null,
+    optimizedPath: typeof data.optimizedPath === "string" ? data.optimizedPath : null,
+    optimizedUrl: typeof data.optimizedUrl === "string" ? data.optimizedUrl : null,
+    posterPath: typeof data.posterPath === "string" ? data.posterPath : null,
+    posterUrl: typeof data.posterUrl === "string" ? data.posterUrl : null,
     width: typeof data.width === "number" ? data.width : null,
     height: typeof data.height === "number" ? data.height : null,
     duration: typeof data.duration === "number" ? data.duration : null,
     order: typeof data.order === "number" ? data.order : 0,
     caption: typeof data.caption === "string" ? data.caption : "",
-    storageUrl: typeof data.storageUrl === "string" ? data.storageUrl : null,
-    optimizedUrl: typeof data.optimizedUrl === "string" ? data.optimizedUrl : null,
-    thumbnailUrl: typeof data.thumbnailUrl === "string" ? data.thumbnailUrl : null,
-    posterUrl: typeof data.posterUrl === "string" ? data.posterUrl : null,
-    originalUrl: typeof data.originalUrl === "string" ? data.originalUrl : null,
+    filename: typeof data.filename === "string" ? data.filename : "",
+    contentType: typeof data.contentType === "string" ? data.contentType : "",
+    sizeBytes: typeof data.sizeBytes === "number" ? data.sizeBytes : 0,
+    uploadedBy: typeof data.uploadedBy === "string" ? data.uploadedBy : "",
+    createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
+    updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
+    status,
     likeCount: typeof data.likeCount === "number" ? data.likeCount : 0,
   };
 }
 
-function getMediaRef(stakeId: string, galleryId: string, mediaId: string) {
-  return doc(db, "stakes", stakeId, "galleries", galleryId, "media", mediaId);
-}
-
-function getMediaLikeRef(
-  stakeId: string,
-  galleryId: string,
-  mediaId: string,
-  uid: string,
-) {
-  return doc(
-    db,
-    "stakes",
-    stakeId,
-    "galleries",
-    galleryId,
-    "media",
-    mediaId,
-    "likes",
+function mapMember(uid: string, data: Record<string, unknown>): GalleryMember {
+  return {
     uid,
-  );
+    email: typeof data.email === "string" ? data.email : null,
+    displayName: typeof data.displayName === "string" ? data.displayName : null,
+    unlockedAt: typeof data.unlockedAt === "string" ? data.unlockedAt : nowIso(),
+    unlockedBy: data.unlockedBy === "admin" ? "admin" : "code",
+    source: data.source === "admin_manual" ? "admin_manual" : "home_code_prompt",
+  };
 }
-
-const unlockGalleryWithCodeFn = httpsCallable<
-  { stakeId: string; galleryId: string; code: string },
-  { success?: boolean; ok?: boolean; error?: string; message?: string }
->(functions, "unlockGalleryWithCode");
-
-const setGallerySecretCodeFn = httpsCallable<
-  { stakeId: string; galleryId: string; code: string },
-  { success?: boolean; ok?: boolean; error?: string; message?: string }
->(functions, "setGallerySecretCode");
 
 export const galleriesService = {
-  async listPublishedGalleries(stakeId: string): Promise<GalleryDoc[]> {
+  GALLERY_BATCH_SIZE,
+
+  async listGalleries(stakeId: string): Promise<Gallery[]> {
+    if (!stakeId) return [];
+    const snapshot = await getDocs(galleriesCollection(stakeId));
+    return snapshot.docs
+      .map((d) => mapGallery(stakeId, d.id, d.data()))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  async listPublishedGalleries(stakeId: string): Promise<Gallery[]> {
+    if (!stakeId) return [];
     const snapshot = await getDocs(
-      query(getCollection(stakeId), where("published", "==", true)),
+      query(galleriesCollection(stakeId), where("published", "==", true)),
     );
     return snapshot.docs
-      .map((document) => mapGallery(document.id, document.data()))
-      .sort((left, right) => {
-        const leftDate = left.publishedAt || left.createdAt;
-        const rightDate = right.publishedAt || right.createdAt;
-        return rightDate.localeCompare(leftDate);
-      });
+      .map((d) => mapGallery(stakeId, d.id, d.data()))
+      .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""));
   },
 
-  async listGalleriesForActivity(
+  async getGallery(stakeId: string, galleryId: string): Promise<Gallery | null> {
+    if (!stakeId || !galleryId) return null;
+    const snap = await getDoc(galleryDoc(stakeId, galleryId));
+    if (!snap.exists()) return null;
+    return mapGallery(stakeId, snap.id, snap.data());
+  },
+
+  async createGallery(
+    stakeId: string,
+    createdBy: string,
+    input: GalleryWriteInput,
+  ): Promise<Gallery> {
+    if (!stakeId) throw new Error("stakeId mancante.");
+    const ref = doc(galleriesCollection(stakeId));
+    const ts = nowIso();
+    const payload = {
+      title: input.title,
+      description: input.description ?? "",
+      activityId: input.activityId ?? null,
+      createdBy,
+      createdAt: ts,
+      updatedAt: ts,
+      published: false,
+      publishedAt: null,
+      coverMediaId: input.coverMediaId ?? null,
+      coverImageUrl: input.coverImageUrl ?? null,
+      mediaCount: 0,
+      batchSize: GALLERY_BATCH_SIZE,
+      accessMode: "code_required",
+      likeCount: 0,
+      commentsEnabled: false,
+      postsCreated: false,
+      codeStatus: "missing" as const,
+    };
+    await setDoc(ref, payload);
+    return mapGallery(stakeId, ref.id, payload);
+  },
+
+  async updateGallery(
+    stakeId: string,
+    galleryId: string,
+    patch: Partial<Gallery>,
+  ): Promise<void> {
+    const allowed: Record<string, unknown> = {};
+    for (const key of [
+      "title",
+      "description",
+      "activityId",
+      "coverMediaId",
+      "coverImageUrl",
+      "published",
+      "publishedAt",
+      "postsCreated",
+      "codeStatus",
+    ] as const) {
+      if (key in patch) allowed[key] = (patch as Record<string, unknown>)[key];
+    }
+    allowed.updatedAt = nowIso();
+    await updateDoc(galleryDoc(stakeId, galleryId), allowed);
+  },
+
+  async getGalleryByActivity(
     stakeId: string,
     activityId: string,
-  ): Promise<GalleryDoc[]> {
+  ): Promise<Gallery | null> {
+    if (!stakeId || !activityId) return null;
     const snapshot = await getDocs(
-      query(getCollection(stakeId), where("activityId", "==", activityId)),
+      query(galleriesCollection(stakeId), where("activityId", "==", activityId)),
     );
-    return snapshot.docs.map((document) => mapGallery(document.id, document.data()));
+    if (snapshot.empty) return null;
+    const sorted = snapshot.docs
+      .map((d) => mapGallery(stakeId, d.id, d.data()))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return sorted[0] ?? null;
   },
 
-  async listAllGalleriesForAdmin(stakeId: string): Promise<GalleryDoc[]> {
-    const snapshot = await getDocs(
-      query(getCollection(stakeId), orderBy("createdAt", "desc")),
-    );
-    return snapshot.docs.map((document) => mapGallery(document.id, document.data()));
+  async markCodeStatus(
+    stakeId: string,
+    galleryId: string,
+    status: "set" | "missing",
+  ): Promise<void> {
+    await updateDoc(galleryDoc(stakeId, galleryId), {
+      codeStatus: status,
+      updatedAt: nowIso(),
+    });
   },
 
-  async getGallery(stakeId: string, galleryId: string): Promise<GalleryDoc | null> {
-    const snapshot = await getDoc(getDocRef(stakeId, galleryId));
-    if (!snapshot.exists()) return null;
-    return mapGallery(snapshot.id, snapshot.data());
+  async setCover(
+    stakeId: string,
+    galleryId: string,
+    coverMediaId: string,
+    coverImageUrl: string | null,
+  ): Promise<void> {
+    await updateDoc(galleryDoc(stakeId, galleryId), {
+      coverMediaId,
+      coverImageUrl,
+      updatedAt: nowIso(),
+    });
+  },
+
+  async markPostsCreated(
+    stakeId: string,
+    galleryId: string,
+    value: boolean,
+  ): Promise<void> {
+    await updateDoc(galleryDoc(stakeId, galleryId), {
+      postsCreated: value,
+      updatedAt: nowIso(),
+    });
+  },
+
+  async setPublished(
+    stakeId: string,
+    galleryId: string,
+    published: boolean,
+  ): Promise<void> {
+    const ts = nowIso();
+    await updateDoc(galleryDoc(stakeId, galleryId), {
+      published,
+      publishedAt: published ? ts : null,
+      updatedAt: ts,
+    });
+  },
+
+  async deleteGallery(stakeId: string, galleryId: string): Promise<void> {
+    await deleteDoc(galleryDoc(stakeId, galleryId));
   },
 
   async listMedia(stakeId: string, galleryId: string): Promise<GalleryMedia[]> {
-    const snapshot = await getDocs(getMediaCollection(stakeId, galleryId));
-    return snapshot.docs
-      .map((document) => mapMedia(galleryId, document.id, document.data()))
-      .sort((left, right) => left.order - right.order);
+    const snapshot = await getDocs(
+      query(mediaCollection(stakeId, galleryId), orderBy("order", "asc")),
+    );
+    return snapshot.docs.map((d) => mapMedia(stakeId, galleryId, d.id, d.data()));
   },
 
   async listMediaByIds(
@@ -197,93 +293,209 @@ export const galleriesService = {
     mediaIds: string[],
   ): Promise<GalleryMedia[]> {
     if (mediaIds.length === 0) return [];
-    const snapshots = await Promise.all(
-      mediaIds.map((mediaId) =>
-        getDoc(doc(db, "stakes", stakeId, "galleries", galleryId, "media", mediaId)),
-      ),
+    const fetched = await Promise.all(
+      mediaIds.map(async (mediaId) => {
+        const snap = await getDoc(mediaDoc(stakeId, galleryId, mediaId));
+        if (!snap.exists()) return null;
+        return mapMedia(stakeId, galleryId, snap.id, snap.data());
+      }),
     );
-    return snapshots
-      .filter((snapshot) => snapshot.exists())
-      .map((snapshot) => mapMedia(galleryId, snapshot.id, snapshot.data() ?? {}));
+    return fetched.filter((value): value is GalleryMedia => Boolean(value));
   },
 
-  async hasMembership(stakeId: string, galleryId: string, uid: string): Promise<boolean> {
-    const snapshot = await getDoc(getMemberRef(stakeId, galleryId, uid));
-    return snapshot.exists();
+  reserveMediaId(stakeId: string, galleryId: string): string {
+    return doc(mediaCollection(stakeId, galleryId)).id;
   },
 
-  async unlockWithCode(stakeId: string, galleryId: string, code: string) {
-    const result = await unlockGalleryWithCodeFn({
-      stakeId,
-      galleryId,
-      code: code.trim(),
-    });
-    return result.data;
-  },
-
-  async hasUserLikedMedia(
+  async createMediaDoc(
     stakeId: string,
     galleryId: string,
     mediaId: string,
-    uid: string,
-  ): Promise<boolean> {
-    const snapshot = await getDoc(getMediaLikeRef(stakeId, galleryId, mediaId, uid));
-    return snapshot.exists();
+    payload: Omit<GalleryMedia, "id" | "galleryId" | "stakeId" | "createdAt" | "updatedAt" | "likeCount">,
+  ): Promise<GalleryMedia> {
+    const ts = nowIso();
+    const data = {
+      ...payload,
+      createdAt: ts,
+      updatedAt: ts,
+      likeCount: 0,
+    };
+    const batch = writeBatch(db);
+    batch.set(mediaDoc(stakeId, galleryId, mediaId), data);
+    batch.update(galleryDoc(stakeId, galleryId), {
+      mediaCount: increment(1),
+      updatedAt: ts,
+    });
+    await batch.commit();
+    return mapMedia(stakeId, galleryId, mediaId, data);
   },
 
-  async listLikedMediaIds(
+  async addMedia(
     stakeId: string,
     galleryId: string,
-    mediaIds: string[],
-    uid: string,
-  ): Promise<Set<string>> {
-    if (mediaIds.length === 0) return new Set();
-    const snapshots = await Promise.all(
-      mediaIds.map((mediaId) => getDoc(getMediaLikeRef(stakeId, galleryId, mediaId, uid))),
-    );
-    const liked = new Set<string>();
-    snapshots.forEach((snapshot, index) => {
-      if (snapshot.exists()) liked.add(mediaIds[index]);
+    uploadedBy: string,
+    payload: Partial<Omit<GalleryMedia, "id" | "galleryId" | "stakeId" | "createdAt" | "likeCount">> & {
+      type: GalleryMediaType;
+    },
+  ): Promise<GalleryMedia> {
+    const ref = doc(mediaCollection(stakeId, galleryId));
+    const ts = nowIso();
+    const data = {
+      type: payload.type,
+      activityId: payload.activityId ?? null,
+      storagePath: payload.storagePath ?? "",
+      storageUrl: payload.storageUrl ?? null,
+      originalPath: payload.originalPath ?? null,
+      originalUrl: payload.originalUrl ?? null,
+      thumbnailPath: payload.thumbnailPath ?? null,
+      thumbnailUrl: payload.thumbnailUrl ?? null,
+      optimizedPath: payload.optimizedPath ?? null,
+      optimizedUrl: payload.optimizedUrl ?? null,
+      posterPath: payload.posterPath ?? null,
+      posterUrl: payload.posterUrl ?? null,
+      width: payload.width ?? null,
+      height: payload.height ?? null,
+      duration: payload.duration ?? null,
+      order: payload.order ?? 0,
+      caption: payload.caption ?? "",
+      filename: payload.filename ?? "",
+      contentType: payload.contentType ?? "",
+      sizeBytes: payload.sizeBytes ?? 0,
+      status: payload.status ?? ("processing" as const),
+      uploadedBy: payload.uploadedBy ?? uploadedBy,
+      createdAt: ts,
+      updatedAt: ts,
+      likeCount: 0,
+    };
+    const batch = writeBatch(db);
+    batch.set(ref, data);
+    batch.update(galleryDoc(stakeId, galleryId), {
+      mediaCount: increment(1),
+      updatedAt: ts,
     });
-    return liked;
+    await batch.commit();
+    return mapMedia(stakeId, galleryId, ref.id, data);
   },
 
-  async toggleMediaLike(
+  async updateMedia(
     stakeId: string,
     galleryId: string,
     mediaId: string,
-    uid: string,
-  ) {
-    const mediaRef = getMediaRef(stakeId, galleryId, mediaId);
-    const likeRef = getMediaLikeRef(stakeId, galleryId, mediaId, uid);
-    return runTransaction(db, async (transaction) => {
-      const [mediaSnap, likeSnap] = await Promise.all([
-        transaction.get(mediaRef),
-        transaction.get(likeRef),
-      ]);
-      if (!mediaSnap.exists()) throw new Error("Media non trovato.");
-      const current = (mediaSnap.data().likeCount as number) ?? 0;
-      const liked = likeSnap.exists();
-      const nextCount = Math.max(0, liked ? current - 1 : current + 1);
-      transaction.update(mediaRef, {
-        likeCount: nextCount,
-        updatedAt: nowIso(),
-      });
-      if (liked) {
-        transaction.delete(likeRef);
-      } else {
-        transaction.set(likeRef, { createdAt: nowIso() });
-      }
-      return { liked: !liked, likeCount: nextCount };
-    });
+    patch: Partial<GalleryMedia>,
+  ): Promise<void> {
+    const allowed: Record<string, unknown> = {};
+    for (const key of [
+      "type",
+      "storagePath",
+      "storageUrl",
+      "originalPath",
+      "originalUrl",
+      "thumbnailPath",
+      "thumbnailUrl",
+      "optimizedPath",
+      "optimizedUrl",
+      "posterPath",
+      "posterUrl",
+      "width",
+      "height",
+      "duration",
+      "order",
+      "caption",
+      "filename",
+      "contentType",
+      "sizeBytes",
+      "status",
+      "activityId",
+    ] as const) {
+      if (key in patch) allowed[key] = (patch as Record<string, unknown>)[key];
+    }
+    if (Object.keys(allowed).length === 0) return;
+    allowed.updatedAt = nowIso();
+    await updateDoc(mediaDoc(stakeId, galleryId, mediaId), allowed);
   },
 
-  async setSecretCode(stakeId: string, galleryId: string, code: string) {
-    const result = await setGallerySecretCodeFn({
-      stakeId,
-      galleryId,
-      code: code.trim(),
+  async deleteMedia(
+    stakeId: string,
+    galleryId: string,
+    mediaId: string,
+  ): Promise<void> {
+    const batch = writeBatch(db);
+    batch.delete(mediaDoc(stakeId, galleryId, mediaId));
+    batch.update(galleryDoc(stakeId, galleryId), {
+      mediaCount: increment(-1),
+      updatedAt: nowIso(),
     });
-    return result.data;
+    await batch.commit();
   },
+
+  async getMember(
+    stakeId: string,
+    galleryId: string,
+    uid: string,
+  ): Promise<GalleryMember | null> {
+    if (!uid) return null;
+    const snap = await getDoc(memberDoc(stakeId, galleryId, uid));
+    if (!snap.exists()) return null;
+    return mapMember(snap.id, snap.data());
+  },
+
+  async listMembers(stakeId: string, galleryId: string): Promise<GalleryMember[]> {
+    const snapshot = await getDocs(membersCollection(stakeId, galleryId));
+    return snapshot.docs.map((d) => mapMember(d.id, d.data()));
+  },
+
+  async addMemberAsAdmin(
+    stakeId: string,
+    galleryId: string,
+    uid: string,
+    profile: { email?: string | null; displayName?: string | null },
+  ): Promise<void> {
+    const ts = nowIso();
+    await setDoc(
+      memberDoc(stakeId, galleryId, uid),
+      {
+        uid,
+        email: profile.email ?? null,
+        displayName: profile.displayName ?? null,
+        unlockedAt: ts,
+        unlockedBy: "admin",
+        source: "admin_manual",
+      },
+      { merge: true },
+    );
+    await setDoc(
+      doc(db, "users", uid, "unlockedGalleries", galleryId),
+      { galleryId, stakeId, unlockedAt: ts },
+      { merge: true },
+    );
+  },
+
+  async removeMember(
+    stakeId: string,
+    galleryId: string,
+    uid: string,
+  ): Promise<void> {
+    await deleteDoc(memberDoc(stakeId, galleryId, uid));
+    await deleteDoc(doc(db, "users", uid, "unlockedGalleries", galleryId)).catch(
+      () => undefined,
+    );
+  },
+
+  // Used by client touch when admin-only is not available; mirrors function logic.
+  // Server-authoritative path is unlockGalleryWithCode callable.
+  async listUnlockedForUser(uid: string): Promise<{ galleryId: string; stakeId: string }[]> {
+    if (!uid) return [];
+    const snap = await getDocs(collection(db, "users", uid, "unlockedGalleries"));
+    return snap.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          galleryId: d.id,
+          stakeId: typeof data.stakeId === "string" ? data.stakeId : "",
+        };
+      })
+      .filter((entry) => Boolean(entry.stakeId));
+  },
+
+  serverTimestampToken: serverTimestamp,
 };

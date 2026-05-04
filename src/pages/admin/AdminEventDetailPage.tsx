@@ -10,7 +10,7 @@ import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExpo
 import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
-import { AdminGalleryPanel } from "@/components/AdminGalleryPanel";
+import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
@@ -208,7 +208,7 @@ function getAdminEventTabFromPath(pathname: string): AdminEventTab {
     return "questions";
   }
 
-  if (pathname.endsWith("/surveys")) {
+  if (pathname.endsWith("/surveys") || pathname.endsWith("/sondaggi")) {
     return "surveys";
   }
 
@@ -268,6 +268,7 @@ export function AdminEventDetailPage() {
     RegistrationCategoryFilter[]
   >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState("all");
+  const [nameSearch, setNameSearch] = useState("");
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -416,16 +417,29 @@ export function AdminEventDetailPage() {
       return accumulator;
     }, []);
   }, [sortedRegistrations]);
-  const filteredRegistrations = useMemo(
-    () =>
-      sortedRegistrations.filter(
-        (registration) =>
-          isRegistrationCategoryFilter(registration.genderRoleCategory) &&
-          activeRegistrationFilters.includes(registration.genderRoleCategory) &&
-          (selectedUnitFilter === "all" || getUnitLabel(registration) === selectedUnitFilter),
-      ),
-    [activeRegistrationFilters, selectedUnitFilter, sortedRegistrations],
-  );
+  const filteredRegistrations = useMemo(() => {
+    const needle = nameSearch.trim().toLocaleLowerCase("it-IT");
+    return sortedRegistrations.filter((registration) => {
+      if (!isRegistrationCategoryFilter(registration.genderRoleCategory)) return false;
+      if (!activeRegistrationFilters.includes(registration.genderRoleCategory)) return false;
+      if (selectedUnitFilter !== "all" && getUnitLabel(registration) !== selectedUnitFilter) {
+        return false;
+      }
+      if (needle) {
+        const haystack = [
+          registration.fullName,
+          registration.firstName,
+          registration.lastName,
+          registration.email,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase("it-IT");
+        if (!haystack.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [activeRegistrationFilters, nameSearch, selectedUnitFilter, sortedRegistrations]);
   const registrationLookupById = useMemo(() => {
     const map = new Map<string, Registration>();
     for (const registration of registrations) {
@@ -1235,6 +1249,17 @@ export function AdminEventDetailPage() {
                     ))}
                   </select>
                 </label>
+
+                <label className="admin-filter-select admin-filter-select--search">
+                  <span>Cerca</span>
+                  <input
+                    className="input"
+                    type="search"
+                    placeholder="Nome, cognome o email"
+                    value={nameSearch}
+                    onChange={(eventInput) => setNameSearch(eventInput.target.value)}
+                  />
+                </label>
               </div>
 
               {filteredRegistrations.length === 0 ? (
@@ -1909,7 +1934,7 @@ export function AdminEventDetailPage() {
 
       {activeTab === "gallery" ? (
         <section className="admin-detail-stack">
-          <AdminGalleryPanel stakeId={stakeId} eventId={resolvedEventId} />
+          <GalleryAdminTab event={resolvedEvent} />
         </section>
       ) : null}
 
