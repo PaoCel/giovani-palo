@@ -220,7 +220,6 @@ export interface Event {
   allergiesInfo: string;
   roomsInfo: string;
   whatToBring: string;
-  galleryAccessCode?: string;
   heroImageUrl: string;
   heroImagePath: string;
   coverImageUrl?: string;
@@ -382,7 +381,6 @@ export interface EventWriteInput {
   allergiesInfo?: string;
   roomsInfo?: string;
   whatToBring?: string;
-  galleryAccessCode?: string;
   heroImageUrl: string;
   heroImagePath?: string;
   coverImageUrl?: string;

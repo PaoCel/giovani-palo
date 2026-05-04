@@ -288,13 +288,13 @@ export function ActivityDetailPage() {
         </SectionCard>
       ) : null}
 
-      {event?.galleryAccessCode ? (
+      {event ? (
         <SectionCard
           title="Galleria foto e video"
           description="Inserisci il codice ricevuto per accedere ai contenuti."
         >
-          <Link className="button button--ghost" to={`/me/galleria/${event.id}`}>
-            Apri galleria
+          <Link className="button button--ghost" to={`/me/galleria/per-attivita/${event.id}`}>
+            Apri galleria attività
           </Link>
         </SectionCard>
       ) : null}

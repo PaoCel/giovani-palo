@@ -247,13 +247,13 @@ export function MyActivityDetailPage() {
 
           <SectionCard
             title="Galleria foto e video"
-            description="Inserisci il codice ricevuto per accedere alla galleria."
+            description="Vedi le gallerie associate a questa attività."
           >
             <Link
               className="button button--ghost"
-              to={`/me/galleria/${data.event.id}`}
+              to={`/me/galleria/per-attivita/${data.event.id}`}
             >
-              Apri galleria
+              Apri galleria attività
             </Link>
           </SectionCard>
 

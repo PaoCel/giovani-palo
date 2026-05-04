@@ -769,6 +769,40 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isStakeAdmin(stakeId);
 
+      // Feed pubblico nell'home dell'app: post pubblicati visibili a chiunque (anche
+      // non loggati). Scrittura solo admin (di solito creato da Cloud Functions).
+      match /feedPosts/{postId} {
+        allow get, list: if (resource == null || resource.data.published == true) || isStakeAdmin(stakeId);
+        allow create, update, delete: if isStakeAdmin(stakeId);
+      }
+
+      // Galleria foto/video legacy: doc galleria visibile a tutti (info base + cover),
+      // media solo a member della galleria. Scritture solo admin/CF.
+      match /galleries/{galleryId} {
+        allow get, list: if true;
+        allow create, update, delete: if isStakeAdmin(stakeId);
+
+        match /media/{mediaId} {
+          allow get, list: if isStakeAdmin(stakeId)
+            || (isSignedIn() && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid)));
+          allow create, update, delete: if isStakeAdmin(stakeId);
+        }
+
+        match /members/{uid} {
+          allow get: if isStakeAdmin(stakeId)
+            || (isSignedIn() && request.auth.uid == uid);
+          allow list: if isStakeAdmin(stakeId);
+          // La creazione del member doc avviene via Cloud Function callable
+          // unlockGalleryWithCode (admin SDK bypassa rules). Niente write client.
+          allow create, update, delete: if isStakeAdmin(stakeId);
+        }
+      }
+
+      // Codici segreti gallerie: SOLO Cloud Functions admin SDK. Nessun accesso client.
+      match /gallerySecrets/{secretId} {
+        allow read, write: if false;
+      }
+
       match /units/{unitId} {
         allow get, list: if isStakeAdmin(stakeId) || resource.data.isActive == true;
         allow create, update, delete: if isStakeAdmin(stakeId);
@@ -876,28 +910,6 @@ service cloud.firestore {
 
         match /surveyQuestions/{questionId} {
           allow get, list: if isStakeAdmin(stakeId) || isSignedIn();
-          allow create, update, delete: if isStakeAdmin(stakeId);
-        }
-
-        match /galleryAccess/{uid} {
-          allow get: if isStakeAdmin(stakeId)
-            || (isSignedIn() && request.auth.uid == uid);
-          allow list: if isStakeAdmin(stakeId);
-          allow create: if isSignedIn()
-            && request.auth.uid == uid
-            && exists(activityDocPath(stakeId, activityId))
-            && get(activityDocPath(stakeId, activityId)).data.galleryAccessCode is string
-            && get(activityDocPath(stakeId, activityId)).data.galleryAccessCode != ''
-            && request.resource.data.code is string
-            && request.resource.data.code.lower() == get(activityDocPath(stakeId, activityId)).data.galleryAccessCode.lower();
-          allow update: if isStakeAdmin(stakeId);
-          allow delete: if isStakeAdmin(stakeId)
-            || (isSignedIn() && request.auth.uid == uid);
-        }
-
-        match /galleryItems/{itemId} {
-          allow get, list: if isStakeAdmin(stakeId)
-            || (isSignedIn() && exists(/databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/galleryAccess/$(request.auth.uid)));
           allow create, update, delete: if isStakeAdmin(stakeId);
         }
 

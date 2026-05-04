@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AdminLayout } from "@/layouts/AdminLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
@@ -20,7 +20,10 @@ import { MyActivityEditPage } from "@/pages/me/MyActivityEditPage";
 import { MyCalendarPage } from "@/pages/me/MyCalendarPage";
 import { MyProfilePage } from "@/pages/me/MyProfilePage";
 import { SurveyAnswerPage } from "@/pages/me/SurveyAnswerPage";
-import { GalleryPage } from "@/pages/me/GalleryPage";
+import { SurveyHubPage } from "@/pages/me/SurveyHubPage";
+import { GalleryHubPage } from "@/pages/me/GalleryHubPage";
+import { GalleryViewerPage } from "@/pages/me/GalleryViewerPage";
+import { GalleryByActivityPage } from "@/pages/me/GalleryByActivityPage";
 import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { ActivityRegisterPage } from "@/pages/public/ActivityRegisterPage";
@@ -47,6 +50,10 @@ export const router = createBrowserRouter([
       { path: "/privacy/photos", element: <PhotoConsentPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/password-reset", element: <PasswordResetPage /> },
+      { path: "/sondaggi", element: <Navigate replace to="/me/sondaggi" /> },
+      { path: "/sondaggi/:eventId", element: <Navigate replace to="/me/sondaggi" /> },
+      { path: "/galleria", element: <Navigate replace to="/me/galleria" /> },
+      { path: "/galleria/:galleryId", element: <Navigate replace to="/me/galleria" /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
@@ -62,8 +69,11 @@ export const router = createBrowserRouter([
           { path: "activities", element: <MyActivitiesPage /> },
           { path: "activities/:eventId", element: <MyActivityDetailPage /> },
           { path: "activities/:eventId/edit", element: <MyActivityEditPage /> },
+          { path: "sondaggi", element: <SurveyHubPage /> },
           { path: "sondaggi/:eventId", element: <SurveyAnswerPage /> },
-          { path: "galleria/:eventId", element: <GalleryPage /> },
+          { path: "galleria", element: <GalleryHubPage /> },
+          { path: "galleria/per-attivita/:eventId", element: <GalleryByActivityPage /> },
+          { path: "galleria/:galleryId", element: <GalleryViewerPage /> },
           { path: "profile", element: <MyProfilePage /> },
         ],
       },

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { HomeFeed } from "@/components/HomeFeed";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { stakesService } from "@/services/firestore/stakesService";
@@ -77,6 +78,13 @@ export function HomePage() {
           </span>
         </p>
       </section>
+
+      {selectedStakeId ? (
+        <section className="card">
+          <h2>Dalle attività</h2>
+          <HomeFeed stakeId={selectedStakeId} signedIn={false} />
+        </section>
+      ) : null}
     </div>
   );
 }

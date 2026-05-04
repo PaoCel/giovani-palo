@@ -10,7 +10,7 @@ import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExpo
 import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
-import { AdminGalleryEditor } from "@/components/AdminGalleryEditor";
+import { AdminGalleryPanel } from "@/components/AdminGalleryPanel";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
@@ -1909,19 +1909,7 @@ export function AdminEventDetailPage() {
 
       {activeTab === "gallery" ? (
         <section className="admin-detail-stack">
-          <article className="surface-panel surface-panel--subtle">
-            <h3>Galleria foto e video</h3>
-            <p className="subtle-text">
-              Carica foto e video dell'attività. I partecipanti potranno vederli
-              dopo aver inserito il codice galleria.
-            </p>
-            <AdminGalleryEditor
-              stakeId={stakeId}
-              eventId={resolvedEventId}
-              uploadedBy={session?.firebaseUser.uid ?? ""}
-              galleryAccessCode={resolvedEvent.galleryAccessCode ?? ""}
-            />
-          </article>
+          <AdminGalleryPanel stakeId={stakeId} eventId={resolvedEventId} />
         </section>
       ) : null}
 
