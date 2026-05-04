@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { StarDisplay } from "@/components/StarDisplay";
 import { surveysService } from "@/services/firestore/surveysService";
 import type {
   GenderRoleCategory,
@@ -8,6 +9,7 @@ import type {
   SurveyResponse,
 } from "@/types";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
+import { clusterSurveyAnswers } from "@/utils/surveyClustering";
 
 interface SurveyResultsPanelProps {
   stakeId: string;
@@ -25,6 +27,21 @@ const CATEGORIES: Array<GenderRoleCategory | ""> = [
 function getCategoryLabel(category: GenderRoleCategory | "") {
   if (!category) return "Non specificato";
   return getGenderRoleCategoryLabel(category);
+}
+
+function getCategoryShort(category: GenderRoleCategory | "") {
+  switch (category) {
+    case "giovane_uomo":
+      return "GU";
+    case "giovane_donna":
+      return "GD";
+    case "dirigente":
+      return "Dir";
+    case "accompagnatore":
+      return "Acc";
+    default:
+      return "—";
+  }
 }
 
 export function SurveyResultsPanel({ stakeId, eventId }: SurveyResultsPanelProps) {
@@ -81,30 +98,40 @@ export function SurveyResultsPanel({ stakeId, eventId }: SurveyResultsPanelProps
   }
 
   return (
-    <div className="stack">
-      <article className="surface-panel surface-panel--subtle">
-        <h3>Riepilogo</h3>
-        <p>
-          <strong>{responses.length}</strong> risposte definitive ricevute.
-        </p>
-        <div className="chip-row">
-          {CATEGORIES.map((category) =>
-            categoryCounts[category] ? (
-              <span key={category} className="chip">
-                {getCategoryLabel(category)}: <strong>{categoryCounts[category]}</strong>
+    <div className="survey-results">
+      <article className="survey-results__summary">
+        <div className="survey-results__total">
+          <strong className="survey-results__total-number">{responses.length}</strong>
+          <span className="survey-results__total-label">
+            risposte definitive
+          </span>
+        </div>
+        <div className="survey-results__categories">
+          {CATEGORIES.filter((category) => categoryCounts[category]).map((category) => (
+            <div key={category || "none"} className="survey-results__cat-chip">
+              <span className="survey-results__cat-name">
+                {getCategoryLabel(category)}
               </span>
-            ) : null,
-          )}
+              <strong className="survey-results__cat-count">
+                {categoryCounts[category]}
+              </strong>
+            </div>
+          ))}
+          {Object.keys(categoryCounts).length === 0 ? (
+            <span className="subtle-text">Nessuna risposta ancora.</span>
+          ) : null}
         </div>
       </article>
 
-      {questions.map((question) => (
-        <QuestionResults
-          key={question.id}
-          question={question}
-          responses={responses}
-        />
-      ))}
+      <div className="survey-results__questions">
+        {questions.map((question) => (
+          <QuestionResults
+            key={question.id}
+            question={question}
+            responses={responses}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -115,6 +142,7 @@ interface QuestionResultsProps {
 }
 
 function QuestionResults({ question, responses }: QuestionResultsProps) {
+  const [showRaw, setShowRaw] = useState(false);
   const entries = responses
     .map((response) => ({
       response,
@@ -142,73 +170,192 @@ function QuestionResults({ question, responses }: QuestionResultsProps) {
     }
 
     return (
-      <article className="surface-panel surface-panel--subtle">
-        <h4>{question.text}</h4>
-        <p className="subtle-text">Stelline · {values.length} risposte</p>
-        <p>
-          Media:{" "}
-          <strong>{average !== null ? average.toFixed(2) : "—"}</strong> / 5
-        </p>
-        <ul className="plain-list">
-          {Object.entries(byCategory).map(([key, list]) => {
-            const avg = list.reduce((acc, value) => acc + value, 0) / list.length;
-            return (
-              <li key={key}>
-                {getCategoryLabel(key as GenderRoleCategory | "")}: {list.length} risposte —
-                media <strong>{avg.toFixed(2)}</strong>
-              </li>
-            );
-          })}
-        </ul>
+      <article className="survey-question-card survey-question-card--rating">
+        <header className="survey-question-card__head">
+          <span className="survey-question-card__type">Stelline</span>
+          <span className="survey-question-card__count">
+            {values.length} {values.length === 1 ? "risposta" : "risposte"}
+          </span>
+        </header>
+        <h4 className="survey-question-card__title">{question.text}</h4>
+
+        {average !== null ? (
+          <div className="survey-question-card__average">
+            <StarDisplay value={average} size="lg" />
+            <div className="survey-question-card__average-text">
+              <strong>{average.toFixed(2)}</strong>
+              <span> / 5 — media</span>
+            </div>
+          </div>
+        ) : (
+          <p className="subtle-text">Nessuna risposta ancora.</p>
+        )}
+
+        {Object.keys(byCategory).length > 0 ? (
+          <ul className="survey-rating-breakdown">
+            {Object.entries(byCategory)
+              .sort((a, b) => b[1].length - a[1].length)
+              .map(([key, list]) => {
+                const avg = list.reduce((acc, value) => acc + value, 0) / list.length;
+                return (
+                  <li key={key} className="survey-rating-breakdown__row">
+                    <div className="survey-rating-breakdown__label">
+                      <span className="survey-rating-breakdown__short">
+                        {getCategoryShort(key as GenderRoleCategory | "")}
+                      </span>
+                      <span className="survey-rating-breakdown__name">
+                        {getCategoryLabel(key as GenderRoleCategory | "")}
+                      </span>
+                    </div>
+                    <div className="survey-rating-breakdown__stars">
+                      <StarDisplay value={avg} size="sm" />
+                      <span className="survey-rating-breakdown__num">
+                        {avg.toFixed(1)}
+                      </span>
+                    </div>
+                    <span className="survey-rating-breakdown__count">
+                      {list.length}
+                    </span>
+                  </li>
+                );
+              })}
+          </ul>
+        ) : null}
       </article>
     );
   }
 
   if (question.type === "open") {
+    const openTexts = entries
+      .map((item) =>
+        typeof item.entry.value === "string" ? item.entry.value.trim() : "",
+      )
+      .filter((text) => text.length > 0);
+    const clusters = clusterSurveyAnswers(openTexts);
+
     return (
-      <article className="surface-panel surface-panel--subtle">
-        <h4>{question.text}</h4>
-        <p className="subtle-text">
-          Risposte aperte · {entries.length} risposte
-        </p>
+      <article className="survey-question-card">
+        <header className="survey-question-card__head">
+          <span className="survey-question-card__type">Aperta</span>
+          <span className="survey-question-card__count">
+            {entries.length} {entries.length === 1 ? "risposta" : "risposte"}
+          </span>
+        </header>
+        <h4 className="survey-question-card__title">{question.text}</h4>
+
         {entries.length === 0 ? (
-          <p className="subtle-text">Nessuna risposta.</p>
+          <p className="subtle-text">Nessuna risposta ancora.</p>
         ) : (
-          <ul className="plain-list">
-            {entries.map((item, index) => (
-              <li key={`${item.response.id}-${index}`}>
-                <strong>
-                  {getCategoryLabel(item.response.category)}
-                </strong>{" "}
-                — {typeof item.entry.value === "string" ? item.entry.value : ""}
-              </li>
-            ))}
-          </ul>
+          <>
+            {clusters.length > 0 ? (
+              <div className="survey-clusters">
+                {clusters.map((cluster) => (
+                  <div
+                    key={cluster.label}
+                    className={`survey-cluster survey-cluster--rank-${Math.min(cluster.count, 3)}`}
+                  >
+                    <span className="survey-cluster__label">{cluster.label}</span>
+                    <span className="survey-cluster__count">×{cluster.count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              className="survey-results__toggle"
+              onClick={() => setShowRaw((value) => !value)}
+            >
+              {showRaw ? "Nascondi risposte complete" : "Mostra risposte complete"}
+            </button>
+
+            {showRaw ? (
+              <ul className="survey-raw-list">
+                {entries.map((item, index) => (
+                  <li key={`${item.response.id}-${index}`} className="survey-raw-list__item">
+                    <span className="survey-raw-list__cat">
+                      {getCategoryShort(item.response.category)}
+                    </span>
+                    <span className="survey-raw-list__text">
+                      {typeof item.entry.value === "string" ? item.entry.value : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
         )}
       </article>
     );
   }
 
+  // type === "fields" (multi-input)
+  const fieldTexts: string[] = [];
+  for (const item of entries) {
+    if (Array.isArray(item.entry.value)) {
+      for (const value of item.entry.value) {
+        if (typeof value === "string" && value.trim()) {
+          fieldTexts.push(value.trim());
+        }
+      }
+    }
+  }
+  const fieldClusters = clusterSurveyAnswers(fieldTexts);
+
   return (
-    <article className="surface-panel surface-panel--subtle">
-      <h4>{question.text}</h4>
-      <p className="subtle-text">
-        {question.fieldCount} campi · {entries.length} risposte
-      </p>
+    <article className="survey-question-card">
+      <header className="survey-question-card__head">
+        <span className="survey-question-card__type">Più campi</span>
+        <span className="survey-question-card__count">
+          {entries.length} {entries.length === 1 ? "risposta" : "risposte"}
+        </span>
+      </header>
+      <h4 className="survey-question-card__title">{question.text}</h4>
+
       {entries.length === 0 ? (
-        <p className="subtle-text">Nessuna risposta.</p>
+        <p className="subtle-text">Nessuna risposta ancora.</p>
       ) : (
-        <ul className="plain-list">
-          {entries.map((item, index) => {
-            const list = Array.isArray(item.entry.value) ? item.entry.value : [];
-            return (
-              <li key={`${item.response.id}-${index}`}>
-                <strong>{getCategoryLabel(item.response.category)}</strong>:{" "}
-                {list.filter(Boolean).join(" · ") || "(vuoto)"}
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          {fieldClusters.length > 0 ? (
+            <div className="survey-clusters">
+              {fieldClusters.map((cluster) => (
+                <div
+                  key={cluster.label}
+                  className={`survey-cluster survey-cluster--rank-${Math.min(cluster.count, 3)}`}
+                >
+                  <span className="survey-cluster__label">{cluster.label}</span>
+                  <span className="survey-cluster__count">×{cluster.count}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            className="survey-results__toggle"
+            onClick={() => setShowRaw((value) => !value)}
+          >
+            {showRaw ? "Nascondi risposte per partecipante" : "Mostra risposte per partecipante"}
+          </button>
+
+          {showRaw ? (
+            <ul className="survey-raw-list">
+              {entries.map((item, index) => {
+                const list = Array.isArray(item.entry.value) ? item.entry.value : [];
+                return (
+                  <li key={`${item.response.id}-${index}`} className="survey-raw-list__item">
+                    <span className="survey-raw-list__cat">
+                      {getCategoryShort(item.response.category)}
+                    </span>
+                    <span className="survey-raw-list__text">
+                      {list.filter(Boolean).join(" · ") || "(vuoto)"}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </>
       )}
     </article>
   );
