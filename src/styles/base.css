@@ -1564,6 +1564,11 @@ button {
   line-height: 1.45;
 }
 
+.user-dashboard-section {
+  display: grid;
+  gap: 0.95rem;
+}
+
 .user-spotlight {
   display: grid;
   gap: 0.95rem;
