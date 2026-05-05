@@ -248,46 +248,36 @@ export function HomeFeed(_: HomeFeedProps) {
 
   if (loading) {
     return (
-      <section className="card feed-section">
-        <div className="user-section-heading">
-          <h2>Novità</h2>
-        </div>
+      <div className="feed-section">
         <p className="subtle-text">Carico il feed…</p>
-      </section>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <section className="card feed-section">
+      <div className="feed-section">
         <div className="notice notice--warning">
           <h3>Impossibile caricare il feed</h3>
           <p>{error}</p>
         </div>
-      </section>
+      </div>
     );
   }
 
   if (sortedPosts.length === 0) {
     return (
-      <section className="card feed-section">
-        <div className="user-section-heading">
-          <h2>Novità</h2>
-        </div>
+      <div className="feed-section">
         <p className="subtle-text">
           Quando i responsabili pubblicheranno annunci o gallerie li troverai qui.
         </p>
-      </section>
+      </div>
     );
   }
 
   return (
     <>
-      <section className="feed-section">
-        <div className="user-section-heading">
-          <h2>Novità</h2>
-        </div>
-
+      <div className="feed-section">
         <div className="feed-stack">
           {sortedPosts.map((post) => {
             const liked = likes.posts[post.id] === true;
@@ -345,7 +335,7 @@ export function HomeFeed(_: HomeFeedProps) {
             return null;
           })}
         </div>
-      </section>
+      </div>
 
       {lightbox ? (
         <MediaLightbox

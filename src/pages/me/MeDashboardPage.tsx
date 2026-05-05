@@ -70,24 +70,55 @@ export function MeDashboardPage() {
         </div>
       ) : null}
 
-      <section className="card user-spotlight">
-        <div className="user-section-heading">
-          <h2>La prossima attività programmata a cui parteciperai</h2>
-        </div>
+      {surveyCandidates.length > 0 ? (
+        <section className="user-dashboard-section user-dashboard-section--priority">
+          <div className="user-section-heading">
+            <h2>Sondaggi delle attività passate</h2>
+            <p className="subtle-text">
+              Lasciaci un feedback anonimo: ci aiuta a migliorare le prossime attività.
+            </p>
+          </div>
+          <div className="stack">
+            {surveyCandidates.map(({ event }) => (
+              <article key={event.id} className="surface-panel surface-panel--subtle">
+                <strong>{event.title}</strong>
+                <p className="subtle-text">{formatEventWindow(event)}</p>
+                <div className="chip-row">
+                  <Link
+                    className="button button--primary button--small"
+                    to={`/me/sondaggi/${event.id}`}
+                  >
+                    Compila sondaggio
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-        {loading ? (
+      {loading ? (
+        <section className="user-dashboard-section">
+          <div className="user-section-heading">
+            <h2>La prossima attività programmata a cui parteciperai</h2>
+          </div>
           <p className="subtle-text">Sto caricando le prossime attività...</p>
-        ) : featuredActivities.length === 0 ? (
-          <EmptyState
-            title="Nessuna attività in evidenza"
-            description="Quando avrai una prossima attività programmata la troverai qui."
-            action={
-              <Link className="button button--primary" to="/me/activities">
-                Apri attività
-              </Link>
-            }
-          />
-        ) : (
+        </section>
+      ) : featuredActivities.length === 0 ? (
+        <EmptyState
+          title="Nessuna attività in evidenza"
+          description="Quando avrai una prossima attività programmata la troverai qui."
+          action={
+            <Link className="button button--primary" to="/me/activities">
+              Apri attività
+            </Link>
+          }
+        />
+      ) : (
+        <section className="user-dashboard-section">
+          <div className="user-section-heading">
+            <h2>La prossima attività programmata a cui parteciperai</h2>
+          </div>
           <div className="stack">
             {featuredActivities.slice(0, 2).map(({ event }) => (
               <article key={event.id} className="user-event-feature">
@@ -134,10 +165,10 @@ export function MeDashboardPage() {
               </article>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="card">
+      <section className="user-dashboard-section">
         <div className="user-section-heading">
           <h2>Dalle attività</h2>
           <p className="subtle-text">
@@ -146,33 +177,6 @@ export function MeDashboardPage() {
         </div>
         <HomeFeed />
       </section>
-
-      {surveyCandidates.length > 0 ? (
-        <section className="card">
-          <div className="user-section-heading">
-            <h2>Sondaggi delle attività passate</h2>
-            <p className="subtle-text">
-              Lasciaci un feedback anonimo: ci aiuta a migliorare le prossime attività.
-            </p>
-          </div>
-          <div className="stack">
-            {surveyCandidates.map(({ event }) => (
-              <article key={event.id} className="surface-panel surface-panel--subtle">
-                <strong>{event.title}</strong>
-                <p className="subtle-text">{formatEventWindow(event)}</p>
-                <div className="chip-row">
-                  <Link
-                    className="button button--primary button--small"
-                    to={`/me/sondaggi/${event.id}`}
-                  >
-                    Compila sondaggio
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }
