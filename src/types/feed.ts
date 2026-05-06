@@ -76,6 +76,7 @@ export interface GalleryMedia {
 }
 
 export type GalleryCodeStatus = "set" | "missing";
+export type GalleryAccessMode = "code_required" | "open";
 
 export interface Gallery {
   id: string;
@@ -92,7 +93,7 @@ export interface Gallery {
   coverImageUrl: string | null;
   mediaCount: number;
   batchSize: number;
-  accessMode: "code_required";
+  accessMode: GalleryAccessMode;
   likeCount: number;
   commentsEnabled: false;
   postsCreated: boolean;

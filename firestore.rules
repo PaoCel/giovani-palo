@@ -814,19 +814,29 @@ service cloud.firestore {
         }
       }
 
-      // Galleria foto/video legacy: doc galleria visibile a tutti (info base + cover),
-      // media solo a member della galleria. Scritture solo admin/CF.
+      // Galleria foto/video: doc galleria visibile a tutti (info base + cover),
+      // media accessibili a tutti i loggati per gallerie "open" oppure ai
+      // member per gallerie legacy "code_required". Scritture solo admin/CF.
       match /galleries/{galleryId} {
         allow get, list: if true;
         allow create, update, delete: if isStakeAdmin(stakeId);
 
         match /media/{mediaId} {
           allow get, list: if isStakeAdmin(stakeId)
-            || (isSignedIn() && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid)));
+            || (
+              isSignedIn()
+              && (
+                get(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)).data.accessMode == 'open'
+                || exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid))
+              )
+            );
           allow update: if isStakeAdmin(stakeId)
             || (
               isSignedIn()
-              && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid))
+              && (
+                get(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)).data.accessMode == 'open'
+                || exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid))
+              )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
             );
           allow create, delete: if isStakeAdmin(stakeId);
@@ -837,7 +847,10 @@ service cloud.firestore {
             allow list: if isStakeAdmin(stakeId);
             allow create, delete: if isSignedIn()
               && request.auth.uid == uid
-              && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid));
+              && (
+                get(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)).data.accessMode == 'open'
+                || exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid))
+              );
             allow update: if false;
           }
         }

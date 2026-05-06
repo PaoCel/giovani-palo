@@ -90,7 +90,12 @@ export function HomeFeed(_: HomeFeedProps) {
 
       const galleryMap: Record<string, Gallery> = {};
       galleryDocs.forEach((gallery) => {
-        if (gallery) galleryMap[gallery.id] = gallery;
+        if (gallery) {
+          galleryMap[gallery.id] = gallery;
+          if (gallery.accessMode === "open") {
+            unlockedMap[gallery.id] = true;
+          }
+        }
       });
 
       const activityMap: ActivityRefMap = {};
