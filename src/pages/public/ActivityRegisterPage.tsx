@@ -222,17 +222,34 @@ export function ActivityRegisterPage() {
         );
       }
     } catch (caughtError) {
+      // Log dettagliato per diagnostica: senza questo l'admin vede solo
+      // il messaggio generico in UI e in registrationAttempts.
+      console.error("[registration submit] failed", {
+        code:
+          caughtError && typeof caughtError === "object" && "code" in caughtError
+            ? (caughtError as { code?: unknown }).code
+            : null,
+        message:
+          caughtError instanceof Error ? caughtError.message : String(caughtError),
+        stakeId: data.stakeId,
+        eventId: data.event.id,
+        lookup,
+      });
       await registrationAttemptsService.markFailed(
         data.stakeId,
         attemptLogId,
         "submit_failed",
         caughtError,
       );
-      setActionError(
+      const code =
+        caughtError && typeof caughtError === "object" && "code" in caughtError
+          ? String((caughtError as { code?: unknown }).code ?? "")
+          : "";
+      const baseMessage =
         caughtError instanceof Error
           ? caughtError.message
-          : "Impossibile salvare la registrazione.",
-      );
+          : "Impossibile salvare la registrazione.";
+      setActionError(code ? `${baseMessage} (codice: ${code})` : baseMessage);
     } finally {
       setBusy(null);
     }
