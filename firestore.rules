@@ -173,6 +173,7 @@ service cloud.firestore {
           'unitNameSnapshot',
           'answers',
           'roomPreferenceMatches',
+          'participatingDays',
           'accessCode',
           'recoveryCode',
           'recoveryPdfGenerated',
@@ -210,6 +211,9 @@ service cloud.firestore {
         && (!('roomPreferenceMatches' in data)
           || data.roomPreferenceMatches == null
           || data.roomPreferenceMatches is map)
+        && (!('participatingDays' in data)
+          || data.participatingDays == null
+          || data.participatingDays is list)
         && (data.accessCode == null || data.accessCode is string)
         && (data.recoveryCode == null || data.recoveryCode is string)
         && (data.anonymousTokenId == null || data.anonymousTokenId is string)
