@@ -284,8 +284,17 @@ export function RegistrationEditor({
     [session?.profile.fullName],
   );
   const enabledStandardFields = useMemo(
-    () => normalizeStandardFieldKeys(formConfig.enabledStandardFields),
-    [formConfig.enabledStandardFields],
+    () => {
+      // Caminetti (event.questionsEnabled): l'organizzazione vuole sempre
+      // sapere come arriverà il partecipante per coordinare passaggi/auto.
+      // Forzo transportMode anche se l'admin non l'ha toggleato nel form.
+      const base = normalizeStandardFieldKeys(formConfig.enabledStandardFields);
+      if (event.questionsEnabled && !base.includes("transportMode")) {
+        return [...base, "transportMode"];
+      }
+      return base;
+    },
+    [formConfig.enabledStandardFields, event.questionsEnabled],
   );
   const activeStandardFields = useMemo(
     () =>

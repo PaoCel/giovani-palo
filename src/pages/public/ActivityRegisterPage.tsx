@@ -60,9 +60,9 @@ function createAnonymousTokenId() {
 export function ActivityRegisterPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { session, signInAnonymously } = useAuth();
+  const { session, signInAnonymously, signOut } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "public";
-  const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf">(null);
+  const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset">(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [anonymousCompletion, setAnonymousCompletion] = useState<Registration | null>(null);
   const [latestAttemptLogId, setLatestAttemptLogId] = useState<string | null>(null);
@@ -110,6 +110,41 @@ export function ActivityRegisterPage() {
 
     try {
       await signInAnonymously();
+    } catch (caughtError) {
+      setActionError(toUserFacingAuthError(caughtError));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Caso uso: genitore che iscrive piu' figli dallo stesso device senza
+  // creare un account. La sessione anonima e' legata al primo figlio quindi
+  // riapre l'iscrizione esistente; con questo bottone scolleghiamo e
+  // apriamo una nuova sessione anonima per ripartire da zero.
+  async function handleResetAnonymousSession() {
+    if (!session?.isAnonymous) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Stai per avviare una nuova iscrizione per un'altra persona. " +
+        "Conferma di aver gia' salvato il codice di recupero o il PDF " +
+        "dell'iscrizione precedente: senza quelli non potrai piu' modificarla.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusy("reset");
+    setActionError(null);
+
+    try {
+      await signOut();
+      await signInAnonymously();
+      setAnonymousCompletion(null);
+      setLatestAttemptLogId(null);
+      setData((current) => ({ ...current, registration: null }));
     } catch (caughtError) {
       setActionError(toUserFacingAuthError(caughtError));
     } finally {
@@ -450,12 +485,36 @@ export function ActivityRegisterPage() {
                 <AppIcon name="download" />
                 <span>{busy === "pdf" ? "Generazione PDF..." : "PDF riepilogo"}</span>
               </button>
+              {session?.isAnonymous ? (
+                <button
+                  className="button button--soft"
+                  disabled={busy !== null}
+                  onClick={() => void handleResetAnonymousSession()}
+                  type="button"
+                >
+                  <AppIcon name="plus" />
+                  <span>
+                    {busy === "reset"
+                      ? "Apertura sessione..."
+                      : "Iscrivi un'altra persona"}
+                  </span>
+                </button>
+              ) : null}
             </div>
 
             <p className="subtle-text">
               {organization?.codeRecoveryHelpText ||
                 "Se preferisci continuare senza account, conserva il PDF e il codice di recupero."}
             </p>
+
+            {session?.isAnonymous ? (
+              <p className="subtle-text">
+                Stai per iscrivere un'altra persona (es. un secondo figlio) dallo stesso
+                dispositivo? Usa "Iscrivi un'altra persona": chiude questa sessione anonima
+                e ne apre una nuova. <strong>Salva prima codice e PDF</strong>: senza non
+                potrai piu' modificare l'iscrizione attuale.
+              </p>
+            ) : null}
 
             {formConfig?.enabledStandardFields.includes("parentConfirmed") &&
             isMinorBirthDate(anonymousCompletion.birthDate) &&
@@ -489,6 +548,27 @@ export function ActivityRegisterPage() {
                 {" "}o <strong>posta indesiderata</strong>. Per iCloud/Outlook puo' capitare
                 che venga filtrata: contrassegnatela come "non spam" per vederla. Mittente:
                 {" "}<code>noreply@gugditalia.it</code>.
+              </p>
+            ) : null}
+            {session?.isAnonymous ? (
+              <p style={{ marginTop: "0.6rem" }}>
+                Vuoi iscrivere un'altra persona dallo stesso dispositivo (es. un secondo
+                figlio)?{" "}
+                <button
+                  className="button button--soft button--small"
+                  disabled={busy !== null}
+                  onClick={() => void handleResetAnonymousSession()}
+                  type="button"
+                >
+                  <AppIcon name="plus" />
+                  <span>
+                    {busy === "reset"
+                      ? "Apertura sessione..."
+                      : "Iscrivi un'altra persona"}
+                  </span>
+                </button>{" "}
+                Salva prima codice di recupero e PDF dell'iscrizione attuale: una volta
+                aperta la nuova sessione non potrai piu' modificarla da qui senza il codice.
               </p>
             ) : null}
           </div>

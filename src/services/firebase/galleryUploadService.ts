@@ -31,7 +31,6 @@ export const MEDIA_LIMITS = {
   imagePerBatch: 30,
   videoPerBatch: 1,
   imageMaxBytes: 25 * 1024 * 1024,
-  videoMaxBytes: 150 * 1024 * 1024,
 };
 
 function getExtension(filename: string, contentType: string) {

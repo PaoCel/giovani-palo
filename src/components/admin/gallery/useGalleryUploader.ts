@@ -391,12 +391,6 @@ export function useGalleryUploader({
         setPickerError(`Formato video non supportato.`);
         return;
       }
-      if (file.size > MEDIA_LIMITS.videoMaxBytes) {
-        setPickerError(
-          `Video oltre ${Math.round(MEDIA_LIMITS.videoMaxBytes / (1024 * 1024))} MB. Comprimi prima.`,
-        );
-        return;
-      }
       const mediaId = galleriesService.reserveMediaId(gallery.stakeId, gallery.id);
       const item: UploadQueueItem = {
         id: newItemId(),
