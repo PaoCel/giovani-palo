@@ -58,6 +58,7 @@ export function GalleryGrid({
         ref={videoInputRef}
         type="file"
         accept="video/*"
+        multiple
         hidden
         onChange={handleVideoChange}
       />

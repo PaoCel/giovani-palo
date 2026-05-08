@@ -89,16 +89,11 @@ service firebase.storage {
       allow write: if false;
     }
 
-    // Galleria foto/video LEGACY: read se signed-in member della galleria
-    // (doc stakes/{sid}/galleries/{gid}/members/{uid}). Scrittura solo admin/CF.
+    // Galleria foto/video: accesso aperto a chiunque sia loggato. Niente
+    // piu' codice galleria richiesto (vedi firestore.rules /galleries/...
+    // per il commento di contesto).
     match /protected/stakes/{stakeId}/galleries/{galleryId}/media/{mediaId}/{fileName=**} {
-      allow read: if isStakeAdmin(stakeId)
-        || (
-          isSignedIn()
-          && firestore.exists(
-            /databases/(default)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid)
-          )
-        );
+      allow read: if isSignedIn();
       allow write: if isStakeAdmin(stakeId);
     }
 

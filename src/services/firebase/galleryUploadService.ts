@@ -29,9 +29,10 @@ interface BuildPathArgs {
 
 export const MEDIA_LIMITS = {
   imagePerBatch: 30,
-  videoPerBatch: 1,
+  // Nessun limite pratico al numero di video per batch: l'admin ne carica
+  // quanti gliene servono. Lo Storage tiene la coda con resumable upload.
+  videoPerBatch: 100,
   imageMaxBytes: 25 * 1024 * 1024,
-  videoMaxBytes: 150 * 1024 * 1024,
 };
 
 function getExtension(filename: string, contentType: string) {
