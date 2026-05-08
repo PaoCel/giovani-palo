@@ -72,6 +72,7 @@ function mapUserProfile(uid: string, data: Record<string, unknown>): UserProfile
         : names.lastName,
     fullName,
     email: typeof data.email === "string" ? data.email : null,
+    phone: typeof data.phone === "string" ? data.phone : "",
     role: sanitizeRole(data.role),
     birthDate: typeof data.birthDate === "string" ? data.birthDate : "",
     genderRoleCategory,
@@ -113,6 +114,7 @@ export const usersService = {
         lastName: "",
         fullName: "",
         email: null,
+        phone: "",
         role: "participant",
         birthDate: "",
         genderRoleCategory: "",
@@ -142,6 +144,7 @@ export const usersService = {
         lastName: names.lastName,
         fullName: displayName,
         email: user.email,
+        phone: "",
         role: "participant" as const,
         birthDate: "",
         genderRoleCategory: "",
@@ -193,6 +196,7 @@ export const usersService = {
         lastName: profile.lastName || names.lastName,
         fullName,
         email: user.email ?? profile.email,
+        phone: profile.phone,
         role: profile.role,
         birthDate: profile.birthDate,
         genderRoleCategory: profile.genderRoleCategory,
@@ -289,6 +293,7 @@ export const usersService = {
     input: {
       fullName: string;
       email: string;
+      phone?: string;
       stakeId: string;
       unitName?: string;
       unitId?: string;
@@ -318,6 +323,10 @@ export const usersService = {
       lastName: names.lastName,
       fullName: input.fullName.trim(),
       email: input.email.trim(),
+      phone:
+        typeof input.phone === "string" && input.phone.trim()
+          ? input.phone.trim()
+          : currentProfile.phone,
       birthDate: input.birthDate ?? "",
       genderRoleCategory: input.genderRoleCategory ?? "",
       unitId: input.unitId ?? resolvedUnit?.id ?? currentProfile.unitId ?? "",

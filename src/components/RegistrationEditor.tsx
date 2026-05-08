@@ -67,10 +67,11 @@ interface RegistrationEditorValues {
   medicalNotes: string;
   dietaryNotes: string;
   participatingDays: string[];
+  pendingQuestions: { text: string; isAnonymous: boolean }[];
 }
 
 interface StepDefinition {
-  id: "identity" | "profile" | "details" | "parent";
+  id: "identity" | "profile" | "details" | "parent" | "questions";
   title: string;
   description: string;
   icon: AppIconName;
@@ -174,7 +175,7 @@ function getInitialValues(
       session?.profile.email ??
       session?.firebaseUser.email ??
       "",
-    phone: registration?.phone ?? "",
+    phone: registration?.phone ?? session?.profile.phone ?? "",
     birthDate: registration?.birthDate || session?.profile.birthDate || "",
     category:
       registration?.genderRoleCategory ||
@@ -204,6 +205,7 @@ function getInitialValues(
     participatingDays: Array.isArray(registration?.participatingDays)
       ? [...registration.participatingDays]
       : [],
+    pendingQuestions: [],
   };
 }
 
@@ -390,7 +392,12 @@ export function RegistrationEditor({
   const shouldHideCategoryField =
     isAuthenticatedAccount && hasFilledText(session?.profile.genderRoleCategory);
   const shouldHideUnitField = isAuthenticatedAccount && hasFilledText(session?.profile.unitName);
-  const shouldAskPhoneField = activeStandardFields.some((field) => field.key === "phone");
+  // Se l'utente ha un account e il telefono e' gia' nel profilo, non lo
+  // ri-chiediamo: il dato e' gia' nostro, vogliamo solo le info specifiche
+  // dell'attivita'.
+  const shouldHidePhoneField = isAuthenticatedAccount && hasFilledText(session?.profile.phone);
+  const shouldAskPhoneField =
+    activeStandardFields.some((field) => field.key === "phone") && !shouldHidePhoneField;
   const visibleIdentityFields = useMemo(
     () =>
       activeStandardFields.filter(
@@ -500,6 +507,17 @@ export function RegistrationEditor({
       });
     }
 
+    // Caminetto: domande per il Settanta. Step facoltativo ma elevato a
+    // pari livello degli altri per non finire nascosto sotto la submit.
+    if (event.questionsEnabled) {
+      nextSteps.push({
+        id: "questions",
+        title: "Domande caminetto",
+        description: "Facoltative. Anonime o con nome.",
+        icon: "sparkles",
+      });
+    }
+
     if (nextSteps.length === 0) {
       nextSteps.push({
         id: "details",
@@ -512,6 +530,7 @@ export function RegistrationEditor({
     return nextSteps;
   }, [
     detailStepHasContent,
+    event.questionsEnabled,
     formConfig.customFields.length,
     identityStepHasContent,
     profileStepHasContent,
@@ -1159,6 +1178,14 @@ export function RegistrationEditor({
       participatingDays: supportsParticipatingDays
         ? values.participatingDays.filter((day) => availableEventDays.includes(day))
         : undefined,
+      pendingQuestions: event.questionsEnabled
+        ? values.pendingQuestions
+            .map((draft) => ({
+              text: draft.text.trim(),
+              isAnonymous: Boolean(draft.isAnonymous),
+            }))
+            .filter((draft) => draft.text.length > 0)
+        : undefined,
     });
   }
 
@@ -1724,6 +1751,110 @@ export function RegistrationEditor({
                     </label>
                   </div>
                 </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {currentStep.id === "questions" ? (
+            <div className="form-stack">
+              <div className="form-info-banner">
+                <strong>Domande facoltative per il caminetto</strong>
+                <span>
+                  Scrivi una o piu&apos; domande per il Settanta. Puoi inviarle in forma
+                  anonima. Salta lo step se non vuoi farne nessuna: l&apos;iscrizione si
+                  conclude lo stesso al passo successivo.
+                </span>
+              </div>
+
+              {values.pendingQuestions.length === 0 ? (
+                <p className="subtle-text">
+                  Nessuna domanda inserita. Aggiungi sotto se vuoi farne una.
+                </p>
+              ) : (
+                <ul className="plain-list">
+                  {values.pendingQuestions.map((draft, index) => (
+                    <li key={`pending-question-${index}`} className="form-subsection">
+                      <label className="field">
+                        <span className="field__label">Domanda {index + 1}</span>
+                        <textarea
+                          className="input input--textarea"
+                          maxLength={2000}
+                          rows={3}
+                          value={draft.text}
+                          onChange={(eventInput) => {
+                            const nextText = eventInput.target.value;
+                            setValues((current) => ({
+                              ...current,
+                              pendingQuestions: current.pendingQuestions.map((entry, i) =>
+                                i === index ? { ...entry, text: nextText } : entry,
+                              ),
+                            }));
+                          }}
+                        />
+                      </label>
+                      <label className="toggle-field">
+                        <input
+                          checked={draft.isAnonymous}
+                          onChange={(eventInput) => {
+                            const nextAnon = eventInput.target.checked;
+                            setValues((current) => ({
+                              ...current,
+                              pendingQuestions: current.pendingQuestions.map((entry, i) =>
+                                i === index ? { ...entry, isAnonymous: nextAnon } : entry,
+                              ),
+                            }));
+                          }}
+                          type="checkbox"
+                        />
+                        <span>Invia in forma anonima (senza nome)</span>
+                      </label>
+                      <div className="inline-actions">
+                        <button
+                          className="button button--ghost button--small"
+                          onClick={() =>
+                            setValues((current) => ({
+                              ...current,
+                              pendingQuestions: current.pendingQuestions.filter(
+                                (_, i) => i !== index,
+                              ),
+                            }))
+                          }
+                          type="button"
+                        >
+                          <AppIcon name="trash" />
+                          <span>Rimuovi</span>
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="inline-actions">
+                <button
+                  className="button button--soft"
+                  onClick={() =>
+                    setValues((current) => ({
+                      ...current,
+                      pendingQuestions: [
+                        ...current.pendingQuestions,
+                        { text: "", isAnonymous: false },
+                      ],
+                    }))
+                  }
+                  type="button"
+                >
+                  <AppIcon name="plus" />
+                  <span>Aggiungi domanda</span>
+                </button>
+              </div>
+
+              {initialRegistration ? (
+                <p className="subtle-text">
+                  Hai gia&apos; inviato l&apos;iscrizione: le domande gia&apos; salvate
+                  in precedenza puoi gestirle dalla pagina dell&apos;attivita&apos; nella
+                  sezione &quot;Domande per il caminetto&quot;.
+                </p>
               ) : null}
             </div>
           ) : null}

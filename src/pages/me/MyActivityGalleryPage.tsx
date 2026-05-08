@@ -3,12 +3,10 @@ import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
 import { PageHero } from "@/components/PageHero";
-import { GalleryUnlockForm } from "@/components/feed/GalleryUnlockForm";
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
 import { useAuth } from "@/hooks/useAuth";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
-import { galleryUnlockService } from "@/services/firestore/galleryUnlockService";
 import type { Gallery, GalleryMedia } from "@/types";
 
 export function MyActivityGalleryPage() {
@@ -19,14 +17,13 @@ export function MyActivityGalleryPage() {
 
   const [gallery, setGallery] = useState<Gallery | null>(null);
   const [media, setMedia] = useState<GalleryMedia[]>([]);
-  const [unlocked, setUnlocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mediaLikes, setMediaLikes] = useState<Record<string, boolean>>({});
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!stakeId || !uid || !eventId) {
+    if (!stakeId || !eventId) {
       setLoading(false);
       return;
     }
@@ -36,22 +33,13 @@ export function MyActivityGalleryPage() {
       const found = await galleriesService.getGalleryByActivity(stakeId, eventId);
       if (!found) {
         setGallery(null);
-        setUnlocked(false);
         setMedia([]);
         return;
       }
       setGallery(found);
-      const unlockedRefs = await galleriesService.listUnlockedForUser(uid);
-      const isUnlocked = unlockedRefs.some(
-        (entry) => entry.stakeId === stakeId && entry.galleryId === found.id,
-      );
-      setUnlocked(isUnlocked);
-      if (isUnlocked) {
-        const list = await galleriesService.listMedia(stakeId, found.id);
-        setMedia(list);
-      } else {
-        setMedia([]);
-      }
+      // Galleria sempre accessibile per chi e' loggato (no codice).
+      const list = await galleriesService.listMedia(stakeId, found.id);
+      setMedia(list);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -61,32 +49,11 @@ export function MyActivityGalleryPage() {
     } finally {
       setLoading(false);
     }
-  }, [stakeId, uid, eventId]);
+  }, [stakeId, eventId]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const handleUnlock = useCallback(
-    async (code: string) => {
-      if (!stakeId || !gallery) {
-        return { success: false, message: "Galleria non disponibile." };
-      }
-      const result = await galleryUnlockService.unlock({
-        stakeId,
-        galleryId: gallery.id,
-        code,
-      });
-      if (!result.success) {
-        return { success: false, message: result.message ?? "Codice non valido." };
-      }
-      setUnlocked(true);
-      const list = await galleriesService.listMedia(stakeId, gallery.id).catch(() => []);
-      setMedia(list);
-      return { success: true };
-    },
-    [stakeId, gallery],
-  );
 
   const isMediaLiked = useCallback(
     (mediaId: string) => mediaLikes[mediaId] === true,
@@ -179,16 +146,9 @@ export function MyActivityGalleryPage() {
         }
       />
 
-      {!unlocked ? (
-        <div className="card">
-          <p className="subtle-text">
-            Inserisci il codice ricevuto dai responsabili per vedere foto e video.
-          </p>
-          <GalleryUnlockForm onUnlock={handleUnlock} />
-        </div>
-      ) : media.length === 0 ? (
+      {media.length === 0 ? (
         <p className="subtle-text">
-          La galleria è stata sbloccata, ma non ci sono ancora media pubblicati.
+          La galleria non ha ancora media pubblicati.
         </p>
       ) : (
         <div className="gallery-carousel" role="list">

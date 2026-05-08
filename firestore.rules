@@ -678,6 +678,7 @@ service cloud.firestore {
           'lastName',
           'fullName',
           'email',
+          'phone',
           'role',
           'birthDate',
           'genderRoleCategory',
@@ -695,6 +696,7 @@ service cloud.firestore {
         && data.lastName is string
         && data.fullName is string
         && (data.email == null || data.email is string)
+        && (!('phone' in data) || data.phone == null || data.phone is string)
         && data.role in ['participant', 'admin', 'super_admin', 'unit_leader']
         && data.birthDate is string
         && validGenderRoleCategory(data.genderRoleCategory)
@@ -818,19 +820,18 @@ service cloud.firestore {
         }
       }
 
-      // Galleria foto/video legacy: doc galleria visibile a tutti (info base + cover),
-      // media solo a member della galleria. Scritture solo admin/CF.
+      // Galleria foto/video: accesso aperto a chiunque sia loggato (anche
+      // ospite anon). Il flusso a codice via Cloud Function rimane disponibile
+      // per gallerie storiche ma non e' piu' richiesto per leggere i media.
       match /galleries/{galleryId} {
         allow get, list: if true;
         allow create, update, delete: if isStakeAdmin(stakeId);
 
         match /media/{mediaId} {
-          allow get, list: if isStakeAdmin(stakeId)
-            || (isSignedIn() && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid)));
+          allow get, list: if isSignedIn();
           allow update: if isStakeAdmin(stakeId)
             || (
               isSignedIn()
-              && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid))
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
             );
           allow create, delete: if isStakeAdmin(stakeId);
@@ -839,10 +840,23 @@ service cloud.firestore {
             allow get: if isStakeAdmin(stakeId)
               || (isSignedIn() && request.auth.uid == uid);
             allow list: if isStakeAdmin(stakeId);
-            allow create, delete: if isSignedIn()
-              && request.auth.uid == uid
-              && exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/members/$(request.auth.uid));
+            allow create, delete: if isSignedIn() && request.auth.uid == uid;
             allow update: if false;
+          }
+
+          match /comments/{commentId} {
+            allow get, list: if isSignedIn();
+            allow create: if isSignedIn()
+              && request.resource.data.uid == request.auth.uid
+              && request.resource.data.body is string
+              && request.resource.data.body.size() > 0
+              && request.resource.data.body.size() <= 2000;
+            allow update: if isSignedIn()
+              && resource.data.uid == request.auth.uid
+              && request.resource.data.uid == resource.data.uid
+              && request.resource.data.createdAt == resource.data.createdAt;
+            allow delete: if isStakeAdmin(stakeId)
+              || (isSignedIn() && resource.data.uid == request.auth.uid);
           }
         }
 
@@ -850,8 +864,6 @@ service cloud.firestore {
           allow get: if isStakeAdmin(stakeId)
             || (isSignedIn() && request.auth.uid == uid);
           allow list: if isStakeAdmin(stakeId);
-          // La creazione del member doc avviene via Cloud Function callable
-          // unlockGalleryWithCode (admin SDK bypassa rules). Niente write client.
           allow create, update, delete: if isStakeAdmin(stakeId);
         }
       }

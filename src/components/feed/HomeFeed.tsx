@@ -58,15 +58,7 @@ export function HomeFeed(_: HomeFeedProps) {
     setLoading(true);
     setError(null);
     try {
-      const [feedPosts, unlockedRefs] = await Promise.all([
-        feedService.listPublishedPosts(stakeId),
-        galleriesService.listUnlockedForUser(uid),
-      ]);
-
-      const unlockedMap: UnlockedSet = {};
-      for (const ref of unlockedRefs) {
-        if (ref.stakeId === stakeId) unlockedMap[ref.galleryId] = true;
-      }
+      const feedPosts = await feedService.listPublishedPosts(stakeId);
 
       const galleryIds = Array.from(
         new Set(
@@ -75,6 +67,13 @@ export function HomeFeed(_: HomeFeedProps) {
             .filter((value): value is string => Boolean(value)),
         ),
       );
+
+      // Niente piu' codice galleria: tutte le gallerie del feed sono
+      // automaticamente accessibili a chi e' loggato.
+      const unlockedMap: UnlockedSet = {};
+      for (const id of galleryIds) {
+        unlockedMap[id] = true;
+      }
       const activityIds = Array.from(
         new Set(
           feedPosts

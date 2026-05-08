@@ -16,6 +16,7 @@ import { toUserFacingAuthError } from "@/services/firebase/debug";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
+import { questionsService } from "@/services/firestore/questionsService";
 import { registrationAttemptsService } from "@/services/firestore/registrationAttemptsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import type { OrganizationProfile, Registration, RegistrationWriteInput } from "@/types";
@@ -195,6 +196,29 @@ export function ActivityRegisterPage() {
         registrationId: savedRegistration.id,
         registrationStatus: savedRegistration.registrationStatus,
       });
+
+      // Domande caminetto raccolte inline nel form: ora che la registrazione
+      // esiste possiamo creare i doc /questions. Errori non bloccano (le
+      // domande sono facoltative): logghiamo soltanto.
+      if (input.pendingQuestions && input.pendingQuestions.length > 0) {
+        const authorName =
+          session.isAnonymous
+            ? savedRegistration.fullName
+            : session.profile.fullName || savedRegistration.fullName;
+        for (const draft of input.pendingQuestions) {
+          try {
+            await questionsService.create(
+              data.stakeId,
+              data.event.id,
+              lookup,
+              authorName,
+              { text: draft.text, isAnonymous: draft.isAnonymous },
+            );
+          } catch (questionError) {
+            console.error("Creazione domanda caminetto fallita", questionError);
+          }
+        }
+      }
 
       let nextRegistration = savedRegistration;
 

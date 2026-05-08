@@ -436,6 +436,7 @@ export const registrationsService = {
       await usersService.syncProfileFromRegistration(lookup.userId, {
         fullName,
         email: input.email.trim(),
+        phone: input.phone.trim(),
         stakeId,
         birthDate: getBirthDate(input.answers),
         genderRoleCategory,
@@ -465,6 +466,22 @@ export const registrationsService = {
   // se l'utente e' admin di stake (firestore.rules:820).
   async adminDeleteRegistration(stakeId: string, eventId: string, registrationId: string) {
     await deleteDoc(getRegistrationReference(stakeId, eventId, registrationId));
+  },
+
+  // Admin cambia stato iscrizione (active/cancelled). Rules consentono
+  // qualunque update se isStakeAdmin.
+  async adminSetRegistrationStatus(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    nextStatus: RegistrationStatus,
+  ) {
+    const reference = getRegistrationReference(stakeId, eventId, registrationId);
+    await updateDoc(reference, {
+      registrationStatus: nextStatus,
+      updatedAt: nowIso(),
+    });
+    return this.getRegistrationById(stakeId, eventId, registrationId);
   },
 
   async saveAnonymousRecovery(
