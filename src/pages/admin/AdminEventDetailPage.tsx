@@ -253,7 +253,13 @@ export function AdminEventDetailPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [busy, setBusy] = useState<
-    null | "publish" | "delete" | "resendParentAuth" | "deleteRegistration"
+    | null
+    | "publish"
+    | "delete"
+    | "resendParentAuth"
+    | "deleteRegistration"
+    | "cancelRegistration"
+    | "reactivateRegistration"
   >(null);
   const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -782,12 +788,71 @@ export function AdminEventDetailPage() {
         registration.id,
       );
       setActionInfo(`Iscrizione di ${registration.fullName} eliminata.`);
+      closeRegistrationModal();
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
       setActionError(
         caughtError instanceof Error
           ? caughtError.message
           : "Impossibile eliminare l'iscrizione.",
+      );
+    } finally {
+      setBusy(null);
+      setBusyRegistrationId(null);
+    }
+  }
+
+  async function handleAdminCancelRegistration(registration: Registration) {
+    const confirmed = window.confirm(
+      `Annullare l'iscrizione di ${registration.fullName}?\n\n` +
+        "L'iscrizione resta nel database con stato 'cancelled'. Puoi riattivarla " +
+        "in qualsiasi momento dalla stessa scheda.",
+    );
+    if (!confirmed) return;
+    setBusy("cancelRegistration");
+    setBusyRegistrationId(registration.id);
+    setActionError(null);
+    setActionInfo(null);
+    try {
+      await registrationsService.adminSetRegistrationStatus(
+        stakeId,
+        resolvedEventId,
+        registration.id,
+        "cancelled",
+      );
+      setActionInfo(`Iscrizione di ${registration.fullName} annullata.`);
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile annullare l'iscrizione.",
+      );
+    } finally {
+      setBusy(null);
+      setBusyRegistrationId(null);
+    }
+  }
+
+  async function handleAdminReactivateRegistration(registration: Registration) {
+    setBusy("reactivateRegistration");
+    setBusyRegistrationId(registration.id);
+    setActionError(null);
+    setActionInfo(null);
+    try {
+      await registrationsService.adminSetRegistrationStatus(
+        stakeId,
+        resolvedEventId,
+        registration.id,
+        "active",
+      );
+      setActionInfo(`Iscrizione di ${registration.fullName} riattivata.`);
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile riattivare l'iscrizione.",
       );
     } finally {
       setBusy(null);
@@ -2149,6 +2214,58 @@ export function AdminEventDetailPage() {
             ) : (
               <p className="subtle-text">Nessun dettaglio aggiuntivo oltre ai dati principali.</p>
             )}
+
+            <div className="inline-actions" style={{ flexWrap: "wrap" }}>
+              {registrationModal.registrationStatus === "cancelled" ? (
+                <button
+                  className="button button--soft button--small"
+                  disabled={busy !== null}
+                  onClick={() => void handleAdminReactivateRegistration(registrationModal)}
+                  type="button"
+                >
+                  <AppIcon name="check" />
+                  <span>
+                    {busyRegistrationId === registrationModal.id &&
+                    busy === "reactivateRegistration"
+                      ? "Riattivazione..."
+                      : "Riattiva iscrizione"}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  className="button button--soft button--small"
+                  disabled={busy !== null}
+                  onClick={() => void handleAdminCancelRegistration(registrationModal)}
+                  type="button"
+                >
+                  <AppIcon name="x" />
+                  <span>
+                    {busyRegistrationId === registrationModal.id &&
+                    busy === "cancelRegistration"
+                      ? "Annullamento..."
+                      : "Annulla iscrizione"}
+                  </span>
+                </button>
+              )}
+              <button
+                className="button button--ghost button--small"
+                disabled={busy !== null}
+                onClick={() => void handleAdminDeleteRegistration(registrationModal)}
+                type="button"
+              >
+                <AppIcon name="trash" />
+                <span>
+                  {busyRegistrationId === registrationModal.id &&
+                  busy === "deleteRegistration"
+                    ? "Eliminazione..."
+                    : "Elimina iscrizione"}
+                </span>
+              </button>
+            </div>
+            <p className="subtle-text">
+              "Annulla" sposta l'iscrizione tra le cancellate (reversibile). "Elimina"
+              rimuove definitivamente il documento (irreversibile).
+            </p>
           </div>
         </AppModal>
       ) : null}

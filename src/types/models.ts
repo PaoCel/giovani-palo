@@ -141,6 +141,7 @@ export interface UserProfile {
   lastName: string;
   fullName: string;
   email: string | null;
+  phone: string;
   role: UserRole;
   birthDate: string;
   genderRoleCategory: GenderRoleCategory | "";
@@ -491,6 +492,14 @@ export interface RegistrationWriteInput {
   status?: "active" | "cancelled";
   registrationStatus: RegistrationStatus;
   participatingDays?: string[];
+  // Bozze di domande caminetto raccolte inline prima del submit. La parent
+  // page le crea via questionsService dopo aver salvato la registrazione.
+  pendingQuestions?: PendingQuestionDraft[];
+}
+
+export interface PendingQuestionDraft {
+  text: string;
+  isAnonymous: boolean;
 }
 
 export interface Room {

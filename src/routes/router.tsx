@@ -20,6 +20,7 @@ import { MeDashboardPage } from "@/pages/me/MeDashboardPage";
 import { MyActivitiesPage } from "@/pages/me/MyActivitiesPage";
 import { MyActivityDetailPage } from "@/pages/me/MyActivityDetailPage";
 import { MyActivityEditPage } from "@/pages/me/MyActivityEditPage";
+import { MyActivityGalleryPage } from "@/pages/me/MyActivityGalleryPage";
 import { MyCalendarPage } from "@/pages/me/MyCalendarPage";
 import { MyProfilePage } from "@/pages/me/MyProfilePage";
 import { SurveyAnswerPage } from "@/pages/me/SurveyAnswerPage";
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
           { path: "activities", element: <MyActivitiesPage /> },
           { path: "activities/:eventId", element: <MyActivityDetailPage /> },
           { path: "activities/:eventId/edit", element: <MyActivityEditPage /> },
+          { path: "galleria/per-attivita/:eventId", element: <MyActivityGalleryPage /> },
           { path: "sondaggi", element: <SurveyHubPage /> },
           { path: "sondaggi/:eventId", element: <SurveyAnswerPage /> },
           { path: "profile", element: <MyProfilePage /> },

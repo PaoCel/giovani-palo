@@ -9,7 +9,6 @@ import { storage } from "@/services/firebase/app";
 import { slugify } from "@/utils/slugify";
 
 const MAX_GALLERY_IMAGE_BYTES = 12 * 1024 * 1024;
-const MAX_GALLERY_VIDEO_BYTES = 256 * 1024 * 1024;
 
 interface UploadGalleryMediaArgs {
   file: File;
@@ -33,9 +32,7 @@ function buildPath(args: UploadGalleryMediaArgs, mediaIdLike: string) {
 
 function validateMediaFile(file: File) {
   if (file.type.startsWith("video/")) {
-    if (file.size > MAX_GALLERY_VIDEO_BYTES) {
-      throw new Error("Il video supera 256 MB.");
-    }
+    // Nessun cap: i video grandi possono andare oltre i 256 MB.
     return;
   }
   if (file.type.startsWith("image/")) {

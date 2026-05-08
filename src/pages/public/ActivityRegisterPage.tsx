@@ -16,6 +16,7 @@ import { toUserFacingAuthError } from "@/services/firebase/debug";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
+import { questionsService } from "@/services/firestore/questionsService";
 import { registrationAttemptsService } from "@/services/firestore/registrationAttemptsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import type { OrganizationProfile, Registration, RegistrationWriteInput } from "@/types";
@@ -60,9 +61,9 @@ function createAnonymousTokenId() {
 export function ActivityRegisterPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { session, signInAnonymously } = useAuth();
+  const { session, signInAnonymously, signOut } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "public";
-  const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf">(null);
+  const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset">(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [anonymousCompletion, setAnonymousCompletion] = useState<Registration | null>(null);
   const [latestAttemptLogId, setLatestAttemptLogId] = useState<string | null>(null);
@@ -117,6 +118,41 @@ export function ActivityRegisterPage() {
     }
   }
 
+  // Caso uso: genitore che iscrive piu' figli dallo stesso device senza
+  // creare un account. La sessione anonima e' legata al primo figlio quindi
+  // riapre l'iscrizione esistente; con questo bottone scolleghiamo e
+  // apriamo una nuova sessione anonima per ripartire da zero.
+  async function handleResetAnonymousSession() {
+    if (!session?.isAnonymous) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Stai per avviare una nuova iscrizione per un'altra persona. " +
+        "Conferma di aver gia' salvato il codice di recupero o il PDF " +
+        "dell'iscrizione precedente: senza quelli non potrai piu' modificarla.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusy("reset");
+    setActionError(null);
+
+    try {
+      await signOut();
+      await signInAnonymously();
+      setAnonymousCompletion(null);
+      setLatestAttemptLogId(null);
+      setData((current) => ({ ...current, registration: null }));
+    } catch (caughtError) {
+      setActionError(toUserFacingAuthError(caughtError));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleSubmit(input: RegistrationWriteInput) {
     if (!data.event || !data.stakeId || !session) {
       setActionError("Serve una sessione valida per salvare la registrazione.");
@@ -160,6 +196,29 @@ export function ActivityRegisterPage() {
         registrationId: savedRegistration.id,
         registrationStatus: savedRegistration.registrationStatus,
       });
+
+      // Domande caminetto raccolte inline nel form: ora che la registrazione
+      // esiste possiamo creare i doc /questions. Errori non bloccano (le
+      // domande sono facoltative): logghiamo soltanto.
+      if (input.pendingQuestions && input.pendingQuestions.length > 0) {
+        const authorName =
+          session.isAnonymous
+            ? savedRegistration.fullName
+            : session.profile.fullName || savedRegistration.fullName;
+        for (const draft of input.pendingQuestions) {
+          try {
+            await questionsService.create(
+              data.stakeId,
+              data.event.id,
+              lookup,
+              authorName,
+              { text: draft.text, isAnonymous: draft.isAnonymous },
+            );
+          } catch (questionError) {
+            console.error("Creazione domanda caminetto fallita", questionError);
+          }
+        }
+      }
 
       let nextRegistration = savedRegistration;
 
@@ -222,17 +281,34 @@ export function ActivityRegisterPage() {
         );
       }
     } catch (caughtError) {
+      // Log dettagliato per diagnostica: senza questo l'admin vede solo
+      // il messaggio generico in UI e in registrationAttempts.
+      console.error("[registration submit] failed", {
+        code:
+          caughtError && typeof caughtError === "object" && "code" in caughtError
+            ? (caughtError as { code?: unknown }).code
+            : null,
+        message:
+          caughtError instanceof Error ? caughtError.message : String(caughtError),
+        stakeId: data.stakeId,
+        eventId: data.event.id,
+        lookup,
+      });
       await registrationAttemptsService.markFailed(
         data.stakeId,
         attemptLogId,
         "submit_failed",
         caughtError,
       );
-      setActionError(
+      const code =
+        caughtError && typeof caughtError === "object" && "code" in caughtError
+          ? String((caughtError as { code?: unknown }).code ?? "")
+          : "";
+      const baseMessage =
         caughtError instanceof Error
           ? caughtError.message
-          : "Impossibile salvare la registrazione.",
-      );
+          : "Impossibile salvare la registrazione.";
+      setActionError(code ? `${baseMessage} (codice: ${code})` : baseMessage);
     } finally {
       setBusy(null);
     }
@@ -433,12 +509,36 @@ export function ActivityRegisterPage() {
                 <AppIcon name="download" />
                 <span>{busy === "pdf" ? "Generazione PDF..." : "PDF riepilogo"}</span>
               </button>
+              {session?.isAnonymous ? (
+                <button
+                  className="button button--soft"
+                  disabled={busy !== null}
+                  onClick={() => void handleResetAnonymousSession()}
+                  type="button"
+                >
+                  <AppIcon name="plus" />
+                  <span>
+                    {busy === "reset"
+                      ? "Apertura sessione..."
+                      : "Iscrivi un'altra persona"}
+                  </span>
+                </button>
+              ) : null}
             </div>
 
             <p className="subtle-text">
               {organization?.codeRecoveryHelpText ||
                 "Se preferisci continuare senza account, conserva il PDF e il codice di recupero."}
             </p>
+
+            {session?.isAnonymous ? (
+              <p className="subtle-text">
+                Stai per iscrivere un'altra persona (es. un secondo figlio) dallo stesso
+                dispositivo? Usa "Iscrivi un'altra persona": chiude questa sessione anonima
+                e ne apre una nuova. <strong>Salva prima codice e PDF</strong>: senza non
+                potrai piu' modificare l'iscrizione attuale.
+              </p>
+            ) : null}
 
             {formConfig?.enabledStandardFields.includes("parentConfirmed") &&
             isMinorBirthDate(anonymousCompletion.birthDate) &&
@@ -472,6 +572,27 @@ export function ActivityRegisterPage() {
                 {" "}o <strong>posta indesiderata</strong>. Per iCloud/Outlook puo' capitare
                 che venga filtrata: contrassegnatela come "non spam" per vederla. Mittente:
                 {" "}<code>noreply@gugditalia.it</code>.
+              </p>
+            ) : null}
+            {session?.isAnonymous ? (
+              <p style={{ marginTop: "0.6rem" }}>
+                Vuoi iscrivere un'altra persona dallo stesso dispositivo (es. un secondo
+                figlio)?{" "}
+                <button
+                  className="button button--soft button--small"
+                  disabled={busy !== null}
+                  onClick={() => void handleResetAnonymousSession()}
+                  type="button"
+                >
+                  <AppIcon name="plus" />
+                  <span>
+                    {busy === "reset"
+                      ? "Apertura sessione..."
+                      : "Iscrivi un'altra persona"}
+                  </span>
+                </button>{" "}
+                Salva prima codice di recupero e PDF dell'iscrizione attuale: una volta
+                aperta la nuova sessione non potrai piu' modificarla da qui senza il codice.
               </p>
             ) : null}
           </div>
