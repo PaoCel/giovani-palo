@@ -383,29 +383,39 @@ export function useGalleryUploader({
       setPickerError(null);
       if (files.length === 0) return;
       if (files.length > MEDIA_LIMITS.videoPerBatch) {
-        setPickerError("Carica un video alla volta.");
+        setPickerError(
+          `Massimo ${MEDIA_LIMITS.videoPerBatch} video alla volta.`,
+        );
         return;
       }
-      const file = files[0];
-      if (!ACCEPTED_VIDEO_TYPES.has(file.type) && !file.type.startsWith("video/")) {
-        setPickerError(`Formato video non supportato.`);
-        return;
+      const validFiles: File[] = [];
+      for (const file of files) {
+        if (!ACCEPTED_VIDEO_TYPES.has(file.type) && !file.type.startsWith("video/")) {
+          setPickerError(
+            `Formato video non supportato per "${file.name}". Conversione consigliata in MP4.`,
+          );
+          continue;
+        }
+        validFiles.push(file);
       }
-      const mediaId = galleriesService.reserveMediaId(gallery.stakeId, gallery.id);
-      const item: UploadQueueItem = {
+      if (validFiles.length === 0) return;
+      const baseOrder = startOrder + queueRef.current.length;
+      const items: UploadQueueItem[] = validFiles.map((file, index) => ({
         id: newItemId(),
         file,
         mode: "video",
-        mediaId,
+        mediaId: galleriesService.reserveMediaId(gallery.stakeId, gallery.id),
         progress: 0,
         status: "queued",
         error: null,
         handle: null,
-        insertOrder: startOrder + queueRef.current.length,
+        insertOrder: baseOrder + index,
         previewUrl: buildPreviewUrl(file),
-      };
-      setQueue((prev) => [...prev, item]);
-      void startUpload(item);
+      }));
+      setQueue((prev) => [...prev, ...items]);
+      for (const item of items) {
+        void startUpload(item);
+      }
     },
     [gallery, startOrder, startUpload],
   );
