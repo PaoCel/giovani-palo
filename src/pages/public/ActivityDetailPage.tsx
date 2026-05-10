@@ -67,8 +67,17 @@ export function ActivityDetailPage() {
       }
 
       const stakeId = await resolvePublicStakeId(session?.profile.stakeId);
-      const organization = await organizationService.getProfile(stakeId);
-      const event = await eventsService.getPublicEventById(stakeId, eventId);
+      const lookup = getRegistrationLookupFromSession(session);
+      const hasLookup = Boolean(lookup.userId || lookup.anonymousUid);
+
+      const [organization, event, formConfig, registration] = await Promise.all([
+        organizationService.getProfile(stakeId),
+        eventsService.getPublicEventById(stakeId, eventId),
+        eventFormsService.getFormConfig(stakeId, eventId),
+        hasLookup
+          ? registrationsService.getRegistrationByActor(stakeId, eventId, lookup)
+          : Promise.resolve(null),
+      ]);
 
       if (!event) {
         return {
@@ -77,13 +86,6 @@ export function ActivityDetailPage() {
           organization,
         };
       }
-
-      const formConfig = await eventFormsService.getFormConfig(stakeId, eventId);
-      const lookup = getRegistrationLookupFromSession(session);
-      const registration =
-        lookup.userId || lookup.anonymousUid
-          ? await registrationsService.getRegistrationByActor(stakeId, eventId, lookup)
-          : null;
 
       return {
         stakeId,

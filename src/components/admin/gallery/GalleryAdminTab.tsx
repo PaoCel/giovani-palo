@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { GalleryAdminPanel } from "@/components/admin/gallery/GalleryAdminPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { galleriesService } from "@/services/firestore/galleriesService";
-import { gallerySecretsService } from "@/services/firestore/gallerySecretsService";
 import type { Event, Gallery, GalleryMedia } from "@/types";
 
 interface GalleryAdminTabProps {
@@ -24,9 +23,6 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
 
   const [createTitle, setCreateTitle] = useState(event.title);
   const [createDescription, setCreateDescription] = useState(event.description);
-  const [createCode, setCreateCode] = useState(() =>
-    gallerySecretsService.generateReadableCode("ATT"),
-  );
 
   const refresh = useCallback(async () => {
     if (!stakeId || !event.id) return;
@@ -62,25 +58,16 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
       setError("Il titolo è obbligatorio.");
       return;
     }
-    if (createCode.trim().length < 4) {
-      setError("Il codice deve avere almeno 4 caratteri.");
-      return;
-    }
     setWorking(true);
     setError(null);
     setFeedback(null);
     try {
-      const newGallery = await galleriesService.createGallery(stakeId, uid, {
+      await galleriesService.createGallery(stakeId, uid, {
         title: createTitle.trim(),
         description: createDescription.trim(),
         activityId: event.id,
       });
-      await gallerySecretsService.setGalleryCode({
-        stakeId,
-        galleryId: newGallery.id,
-        code: createCode,
-      });
-      setFeedback(`Galleria creata. Codice: ${createCode.trim().toUpperCase()}`);
+      setFeedback("Galleria creata. È accessibile a tutti gli utenti registrati.");
       await refresh();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Errore creazione.");
@@ -109,7 +96,7 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
         <div className="card gallery-create">
           <h3 className="gallery-create__title">Crea galleria</h3>
           <p className="subtle-text">
-            Una galleria protetta da codice per condividere foto e video con i partecipanti.
+            Una galleria visibile a tutti gli utenti registrati per condividere foto e video con i partecipanti.
           </p>
           <form className="stack" onSubmit={handleCreate}>
             <label className="field">
@@ -130,29 +117,6 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
                 rows={2}
                 disabled={working}
               />
-            </label>
-            <label className="field">
-              <span>Codice di accesso</span>
-              <div className="inline-row">
-                <input
-                  type="text"
-                  value={createCode}
-                  onChange={(submitEvent) => setCreateCode(submitEvent.target.value)}
-                  required
-                  minLength={4}
-                  disabled={working}
-                />
-                <button
-                  type="button"
-                  className="button button--ghost button--small"
-                  onClick={() =>
-                    setCreateCode(gallerySecretsService.generateReadableCode("ATT"))
-                  }
-                  disabled={working}
-                >
-                  Genera
-                </button>
-              </div>
             </label>
             <div className="form-actions">
               <button type="submit" className="button button--primary" disabled={working}>
