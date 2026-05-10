@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
+import { HomeFeed } from "@/components/feed/HomeFeed";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { unitLeaderService, type UnitActivitySummary } from "@/services/firestore/unitLeaderService";
@@ -154,6 +155,16 @@ export function UnitDashboardPage() {
           <span className="unit-stat unit-stat--warn"><AppIcon name="eye" /> Consenso foto mancante</span>
           <span className="unit-stat unit-stat--danger"><AppIcon name="badge" /> Modulo genitore mancante</span>
         </div>
+      </section>
+
+      <section className="user-dashboard-section">
+        <div className="user-section-heading">
+          <h2>Dalle attività</h2>
+          <p className="subtle-text">
+            Ultime novità e gallerie dello stake.
+          </p>
+        </div>
+        <HomeFeed />
       </section>
     </div>
   );

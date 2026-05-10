@@ -28,6 +28,10 @@ export function ProtectedRoute() {
     return <Navigate replace to="/unit" />;
   }
 
+  if (session.isAdmin) {
+    return <Navigate replace to="/admin" />;
+  }
+
   return <Outlet />;
 }
 

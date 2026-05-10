@@ -348,6 +348,11 @@ export const feedService = {
       batch.delete(feedPostDoc(stakeId, post.id));
     }
 
+    const isOpen = gallery.accessMode === "open";
+    const defaultBody = isOpen
+      ? `È disponibile la galleria: ${gallery.title}.`
+      : `È disponibile la galleria: ${gallery.title}. Inserisci il codice per guardarla.`;
+
     batches.forEach(({ mediaIds, batchIndex }) => {
       const ref = doc(feedPostsCollection(stakeId));
       const totalBatches = batches.length;
@@ -355,9 +360,7 @@ export const feedService = {
       batch.set(ref, {
         type: "gallery",
         title: `${gallery.title}${batchSuffix}`,
-        body:
-          gallery.description ||
-          `È disponibile la galleria: ${gallery.title}. Inserisci il codice per guardarla.`,
+        body: gallery.description || defaultBody,
         createdBy,
         createdAt: ts,
         updatedAt: ts,
@@ -369,7 +372,7 @@ export const feedService = {
         galleryBatchIndex: batchIndex,
         mediaIds,
         likeCount: 0,
-        visibility: "gallery_members",
+        visibility: isOpen ? "all_authenticated" : "gallery_members",
         ctaLabel: null,
         ctaUrl: null,
       });

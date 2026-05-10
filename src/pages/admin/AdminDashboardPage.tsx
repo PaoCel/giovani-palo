@@ -5,6 +5,7 @@ import { AdminActivityCard } from "@/components/AdminActivityCard";
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
+import { HomeFeed } from "@/components/feed/HomeFeed";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
@@ -133,6 +134,16 @@ export function AdminDashboardPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="user-dashboard-section">
+        <div className="user-section-heading">
+          <h2>Dalle attività</h2>
+          <p className="subtle-text">
+            Ultime novità e gallerie dello stake.
+          </p>
+        </div>
+        <HomeFeed />
       </section>
 
       {createModalOpen && data.organization && session ? (

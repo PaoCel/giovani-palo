@@ -80,6 +80,20 @@ async function resolveStakeId(stakeId?: string) {
   return defaultStake?.id || stakesService.defaultStakeId;
 }
 
+// Cache modulo del legacy profile (settings/organization): doc readonly di
+// fallback storico, invariato per tutta la sessione. Una sola read invece di
+// una per pagina pubblica.
+let legacyProfileCache: Awaited<
+  ReturnType<typeof stakesService.getLegacyProfile>
+> | null | undefined;
+
+async function getCachedLegacyProfile() {
+  if (legacyProfileCache === undefined) {
+    legacyProfileCache = await stakesService.getLegacyProfile();
+  }
+  return legacyProfileCache;
+}
+
 export function getDefaultOrganizationProfile(stakeName?: string) {
   return getDefaultProfile(stakeName);
 }
@@ -87,27 +101,50 @@ export function getDefaultOrganizationProfile(stakeName?: string) {
 export const organizationService = {
   async getProfile(stakeId?: string) {
     const resolvedStakeId = await resolveStakeId(stakeId);
-    const [stake, legacy, units] = await Promise.all([
+    // Carico stake + units in parallelo. Il legacy profile (settings/organization)
+    // serve solo come fallback storico: lo leggo on demand soltanto se lo stake
+    // doc manca o se ha campi vuoti, evitando una read inutile a ogni pagina
+    // pubblica.
+    const [stake, units] = await Promise.all([
       stakesService.getStakeProfileById(resolvedStakeId),
-      stakesService.getLegacyProfile(),
       unitsService.listUnits(resolvedStakeId),
     ]);
 
-    if (!stake && legacy) {
-      return {
-        ...legacy.profile,
-        stakeId: legacy.profile.stakeId || legacy.profile.id,
-        units: legacy.units,
-      };
-    }
-
     if (!stake) {
+      const legacy = await getCachedLegacyProfile();
+
+      if (legacy) {
+        return {
+          ...legacy.profile,
+          stakeId: legacy.profile.stakeId || legacy.profile.id,
+          units: legacy.units,
+        };
+      }
+
       return getDefaultProfile();
     }
 
     const stakeUnits = units.map((unit) => unit.name);
-    const legacyUnits =
-      legacy && legacy.profile.id === stake.id ? legacy.units : [];
+    const fallback = getDefaultProfile(stake.name);
+    // Stringhe del doc stake che, se vuote, devono cadere sul legacy. Se tutte
+    // valorizzate evito del tutto la read di settings/organization.
+    const needsLegacyFallback =
+      !stake.publicHomeTitle ||
+      !stake.publicHomeSubtitle ||
+      !stake.accountHelpText ||
+      !stake.codeRecoveryHelpText ||
+      !stake.guestRegistrationHint ||
+      !stake.youngMenPresident ||
+      !stake.youngWomenPresident ||
+      !stake.supportContact ||
+      !stake.minorConsentExampleImageUrl ||
+      !stake.minorConsentExampleImagePath ||
+      !stake.registrationDefaults ||
+      stakeUnits.length === 0;
+
+    const legacy = needsLegacyFallback ? await getCachedLegacyProfile() : null;
+    const legacyProfile = legacy?.profile;
+    const legacyUnits = legacy && legacy.profile.id === stake.id ? legacy.units : [];
 
     return {
       id: stake.id,
@@ -116,43 +153,41 @@ export const organizationService = {
       stakeSlug: stake.slug,
       isActive: stake.isActive,
       publicHomeTitle:
-        stake.publicHomeTitle || legacy?.profile.publicHomeTitle || "Attività giovanili",
+        stake.publicHomeTitle || legacyProfile?.publicHomeTitle || "Attività giovanili",
       publicHomeSubtitle:
         stake.publicHomeSubtitle ||
-        legacy?.profile.publicHomeSubtitle ||
-        getDefaultProfile(stake.name).publicHomeSubtitle,
+        legacyProfile?.publicHomeSubtitle ||
+        fallback.publicHomeSubtitle,
       accountHelpText:
-        stake.accountHelpText ||
-        legacy?.profile.accountHelpText ||
-        getDefaultProfile(stake.name).accountHelpText,
+        stake.accountHelpText || legacyProfile?.accountHelpText || fallback.accountHelpText,
       codeRecoveryHelpText:
         stake.codeRecoveryHelpText ||
-        legacy?.profile.codeRecoveryHelpText ||
-        getDefaultProfile(stake.name).codeRecoveryHelpText,
+        legacyProfile?.codeRecoveryHelpText ||
+        fallback.codeRecoveryHelpText,
       units: stakeUnits.length > 0 ? stakeUnits : legacyUnits,
-      youngMenPresident: stake.youngMenPresident || legacy?.profile.youngMenPresident || "",
-      youngMenCounselors: stake.youngMenCounselors || legacy?.profile.youngMenCounselors || [],
+      youngMenPresident:
+        stake.youngMenPresident || legacyProfile?.youngMenPresident || "",
+      youngMenCounselors: stake.youngMenCounselors,
       youngWomenPresident:
-        stake.youngWomenPresident || legacy?.profile.youngWomenPresident || "",
-      youngWomenCounselors:
-        stake.youngWomenCounselors || legacy?.profile.youngWomenCounselors || [],
-      supportContact: stake.supportContact || legacy?.profile.supportContact || "",
+        stake.youngWomenPresident || legacyProfile?.youngWomenPresident || "",
+      youngWomenCounselors: stake.youngWomenCounselors,
+      supportContact: stake.supportContact || legacyProfile?.supportContact || "",
       guestRegistrationHint:
         stake.guestRegistrationHint ||
-        legacy?.profile.guestRegistrationHint ||
-        getDefaultProfile(stake.name).guestRegistrationHint,
+        legacyProfile?.guestRegistrationHint ||
+        fallback.guestRegistrationHint,
       minorConsentExampleImageUrl:
         stake.minorConsentExampleImageUrl ||
-        legacy?.profile.minorConsentExampleImageUrl ||
+        legacyProfile?.minorConsentExampleImageUrl ||
         "",
       minorConsentExampleImagePath:
         stake.minorConsentExampleImagePath ||
-        legacy?.profile.minorConsentExampleImagePath ||
+        legacyProfile?.minorConsentExampleImagePath ||
         "",
       registrationDefaults:
         stake.registrationDefaults ||
-        legacy?.profile.registrationDefaults ||
-        getDefaultProfile(stake.name).registrationDefaults,
+        legacyProfile?.registrationDefaults ||
+        fallback.registrationDefaults,
       updatedAt: stake.updatedAt,
     };
   },

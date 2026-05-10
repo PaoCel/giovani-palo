@@ -7,7 +7,6 @@ import { SectionCard } from "@/components/SectionCard";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { galleriesService } from "@/services/firestore/galleriesService";
-import { gallerySecretsService } from "@/services/firestore/gallerySecretsService";
 import type { Gallery } from "@/types";
 
 export function AdminGalleriesPage() {
@@ -24,13 +23,8 @@ export function AdminGalleriesPage() {
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [code, setCode] = useState(() => gallerySecretsService.generateReadableCode());
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-
-  function regenerateCode() {
-    setCode(gallerySecretsService.generateReadableCode());
-  }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,17 +38,11 @@ export function AdminGalleriesPage() {
         session.firebaseUser.uid,
         { title: title.trim(), description: description.trim() },
       );
-      await gallerySecretsService.setGalleryCode({
-        stakeId,
-        galleryId: gallery.id,
-        code: code.trim(),
-      });
       setData((prev) => [gallery, ...prev]);
       setCreating(false);
       setTitle("");
       setDescription("");
-      regenerateCode();
-      setFeedback(`Galleria creata. Codice impostato: ${code.trim().toUpperCase()}`);
+      setFeedback("Galleria creata. È accessibile a tutti gli utenti registrati.");
       navigate(`/admin/galleries/${gallery.id}`);
     } catch (caughtError) {
       setFeedback(
@@ -72,7 +60,7 @@ export function AdminGalleriesPage() {
       <PageHero
         eyebrow="Gallerie"
         title="Gallerie foto e video"
-        description="Crea gallerie protette da codice. Quando le pubblichi appariranno nel feed dei giovani."
+        description="Le foto e i video sono visibili a tutti gli utenti registrati che hanno autorizzato l'uso delle immagini. Quando pubblichi una galleria appare nel feed dei giovani."
         actions={
           <button
             type="button"
@@ -93,7 +81,7 @@ export function AdminGalleriesPage() {
       {creating ? (
         <SectionCard
           title="Nuova galleria"
-          description="Inserisci titolo, descrizione e il codice di accesso. Il codice viene mostrato in chiaro solo ora: salvalo nei tuoi appunti."
+          description="Inserisci titolo e descrizione. La galleria sarà visibile a tutti gli utenti registrati."
         >
           <form className="stack" onSubmit={handleCreate}>
             <label className="field">
@@ -116,30 +104,6 @@ export function AdminGalleriesPage() {
                 rows={3}
                 disabled={submitting}
               />
-            </label>
-            <label className="field">
-              <span>Codice di accesso</span>
-              <div className="inline-row">
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  required
-                  minLength={4}
-                  disabled={submitting}
-                />
-                <button
-                  type="button"
-                  className="button button--ghost button--small"
-                  onClick={regenerateCode}
-                  disabled={submitting}
-                >
-                  Genera nuovo
-                </button>
-              </div>
-              <small className="subtle-text">
-                Salva subito il codice: per sicurezza non sarà più mostrato in chiaro.
-              </small>
             </label>
             <div className="form-actions">
               <button type="submit" className="button button--primary" disabled={submitting}>

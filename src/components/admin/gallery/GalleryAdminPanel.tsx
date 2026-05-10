@@ -202,7 +202,7 @@ export function GalleryAdminPanel({
     setError(null);
     setFeedback(null);
     if (!gallery.published) {
-      if (gallery.codeStatus !== "set") {
+      if (gallery.accessMode === "code_required" && gallery.codeStatus !== "set") {
         setError("Imposta prima il codice di accesso.");
         return;
       }
@@ -281,10 +281,12 @@ export function GalleryAdminPanel({
     ? sortedMedia.findIndex((entry) => entry.id === selected.id)
     : -1;
   const mediaCount = media.length;
+  const requiresCode = gallery.accessMode === "code_required";
   const publishDisabled =
     working ||
     uploader.uploading ||
-    (!gallery.published && (gallery.codeStatus !== "set" || mediaCount === 0));
+    (!gallery.published &&
+      ((requiresCode && gallery.codeStatus !== "set") || mediaCount === 0));
 
   return (
     <div className="gallery-stage">
@@ -303,7 +305,7 @@ export function GalleryAdminPanel({
           <span className="gallery-toolbar__count">
             {mediaCount} elemento{mediaCount === 1 ? "" : "i"}
           </span>
-          {gallery.codeStatus !== "set" ? (
+          {requiresCode && gallery.codeStatus !== "set" ? (
             <span className="gallery-toolbar__warning" title="Imposta il codice">
               codice mancante
             </span>
@@ -319,18 +321,20 @@ export function GalleryAdminPanel({
           >
             ✎
           </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => {
-              setNewCode(gallerySecretsService.generateReadableCode("ATT"));
-              setCodeModalOpen(true);
-            }}
-            aria-label="Codice galleria"
-            title="Codice"
-          >
-            🔑
-          </button>
+          {requiresCode ? (
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => {
+                setNewCode(gallerySecretsService.generateReadableCode("ATT"));
+                setCodeModalOpen(true);
+              }}
+              aria-label="Codice galleria"
+              title="Codice"
+            >
+              🔑
+            </button>
+          ) : null}
           {gallery.published ? (
             <button
               type="button"
