@@ -281,10 +281,17 @@ export const galleriesService = {
   },
 
   async listMedia(stakeId: string, galleryId: string): Promise<GalleryMedia[]> {
-    const snapshot = await getDocs(
-      query(mediaCollection(stakeId, galleryId), orderBy("order", "asc")),
-    );
-    return snapshot.docs.map((d) => mapMedia(stakeId, galleryId, d.id, d.data()));
+    // Niente orderBy in query: Firestore esclude i doc senza il campo, e i
+    // media legacy (gallerie precedenti a questo flow) spesso non hanno
+    // `order`. Risultato: listMedia tornava [] e la galleria appariva vuota.
+    // Sortiamo client-side col fallback a 0 di mapMedia.
+    const snapshot = await getDocs(mediaCollection(stakeId, galleryId));
+    return snapshot.docs
+      .map((d) => mapMedia(stakeId, galleryId, d.id, d.data()))
+      .sort((left, right) => {
+        if (left.order !== right.order) return left.order - right.order;
+        return left.createdAt.localeCompare(right.createdAt);
+      });
   },
 
   async listMediaByIds(
