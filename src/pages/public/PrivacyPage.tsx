@@ -23,6 +23,7 @@ import { Link } from "react-router-dom";
 
 import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
+import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { organizationService } from "@/services/firestore/organizationService";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
@@ -60,14 +61,7 @@ export function PrivacyPage() {
         title="Disclaimer importante"
         description="Cos'e' davvero questa piattaforma."
       >
-        <div className="surface-panel surface-panel--subtle">
-          <p>
-            <strong>Questa NON e' una piattaforma ufficiale</strong> della Chiesa di Gesu'
-            Cristo dei Santi degli Ultimi Giorni ne' di altra organizzazione religiosa, ente
-            o societa'. E' uno strumento sviluppato e gestito a titolo personale dal titolare
-            individuale per supportare l'organizzazione delle attivita'.
-          </p>
-        </div>
+        <UnofficialDisclaimer />
       </SectionCard>
 
       <SectionCard
