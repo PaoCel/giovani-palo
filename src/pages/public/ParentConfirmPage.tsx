@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
+import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import {
   PARENT_CONSENT_CHECKBOXES,
   PHOTO_CONSENT_OPTIONS,
@@ -258,11 +259,7 @@ export function ParentConfirmPage() {
 
         <footer className="parent-confirm-footer">
           <p>{SUPPORT_CONTACT_TEXT}</p>
-          <p style={{ fontSize: "0.78rem", marginTop: "0.6rem", color: "#8b95a8" }}>
-            Piattaforma sviluppata e gestita a titolo personale dal titolare individuale.
-            <strong> Non e' una piattaforma ufficiale</strong> della Chiesa di Gesu' Cristo
-            dei Santi degli Ultimi Giorni ne' di altra organizzazione religiosa.
-          </p>
+          <UnofficialDisclaimer compact />
         </footer>
       </div>
 
