@@ -106,7 +106,7 @@ async function getPreferredStake() {
 export const usersService = {
   async ensureProfileForUser(user: User): Promise<UserProfile> {
     if (user.isAnonymous) {
-      const preferredStake = await getPreferredStake();
+      const storedStakeId = getStoredPublicStakeId();
 
       return {
         id: user.uid,
@@ -121,9 +121,9 @@ export const usersService = {
         youthGroup: "",
         unitId: "",
         unitName: "",
-        stakeId: preferredStake?.id || "",
-        stakeSlug: preferredStake?.slug || "",
-        stakeName: preferredStake?.name || "",
+        stakeId: storedStakeId || stakesService.defaultStakeId,
+        stakeSlug: "",
+        stakeName: "",
         mustChangePassword: false,
         createdAt: nowIso(),
         updatedAt: nowIso(),
