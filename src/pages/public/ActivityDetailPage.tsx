@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
@@ -224,6 +225,8 @@ export function ActivityDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {loading ? <AppLoader label="Sto caricando l'attività..." /> : null}
 
       {event && availability === "restricted-audience" ? (
         <div className="notice notice--warning">
