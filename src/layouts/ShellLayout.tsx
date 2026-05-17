@@ -3,6 +3,7 @@ import { NavLink, Link, Outlet, useLocation, useNavigate } from "react-router-do
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { InstallHint } from "@/components/InstallHint";
+import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { useAuth } from "@/hooks/useAuth";
 import { alertsService } from "@/services/firestore/alertsService";
 import type { Alert } from "@/types";
@@ -384,6 +385,8 @@ export function ShellLayout({
       ) : null}
 
       <InstallHint />
+
+      {area === "public" ? <UnofficialDisclaimer compact className="shell-disclaimer" /> : null}
 
       <main className="shell__main">
         <Outlet />

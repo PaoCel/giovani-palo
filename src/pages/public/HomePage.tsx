@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { stakesService } from "@/services/firestore/stakesService";
@@ -76,6 +77,8 @@ export function HomePage() {
             per gestire iscrizioni, presenze e comunicazioni legate all&apos;attivita scelta.
           </span>
         </p>
+
+        <UnofficialDisclaimer compact />
       </section>
 
     </div>
