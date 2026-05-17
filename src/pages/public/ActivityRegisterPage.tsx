@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { ConsentSection } from "@/components/ConsentSection";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
@@ -445,6 +446,8 @@ export function ActivityRegisterPage() {
           </div>
         </div>
       ) : null}
+
+      {loading ? <AppLoader label="Sto preparando il modulo..." /> : null}
 
       {event && audienceMismatch ? (
         <div className="notice notice--warning">
