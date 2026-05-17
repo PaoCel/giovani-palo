@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
-import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { ConsentSection } from "@/components/ConsentSection";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
@@ -59,6 +58,32 @@ function createAnonymousTokenId() {
   return `anon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function RegistrationLoadingState({ title }: { title?: string }) {
+  return (
+    <section className="registration-loading" role="status" aria-live="polite">
+      <div className="registration-loading__stage" aria-hidden="true">
+        <span className="registration-loading__pulse registration-loading__pulse--one" />
+        <span className="registration-loading__pulse registration-loading__pulse--two" />
+        <div className="registration-loading__ticket">
+          <AppIcon name="ticket" />
+        </div>
+      </div>
+      <div className="registration-loading__copy">
+        <h2>{title ? `Prepariamo ${title}` : "Prepariamo il modulo"}</h2>
+        <p>
+          Stiamo aprendo la sessione e caricando i dati dell'attivita. Resta
+          su questa pagina ancora un momento.
+        </p>
+      </div>
+      <div className="registration-loading__steps" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+    </section>
+  );
+}
+
 export function ActivityRegisterPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -109,6 +134,14 @@ export function ActivityRegisterPage() {
     [eventId, sessionKey],
     initialData,
   );
+
+  if (loading) {
+    return (
+      <div className="page page--register-loading">
+        <RegistrationLoadingState title={data.event?.title} />
+      </div>
+    );
+  }
 
   async function handleAnonymousAccess() {
     setBusy("anonymous");
@@ -373,7 +406,7 @@ export function ActivityRegisterPage() {
     }
   }
 
-  if (!loading && !data.event) {
+  if (!data.event) {
     return (
       <div className="page">
         <EmptyState
@@ -446,8 +479,6 @@ export function ActivityRegisterPage() {
           </div>
         </div>
       ) : null}
-
-      {loading ? <AppLoader label="Sto preparando il modulo..." /> : null}
 
       {event && audienceMismatch ? (
         <div className="notice notice--warning">
