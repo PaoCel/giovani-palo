@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { authService } from "@/services/auth/authService";
+import { usersService } from "@/services/firestore/usersService";
 import { adminPushService } from "@/services/push/adminPushService";
 import type { AuthContextValue, AuthSession, GenderRoleCategory } from "@/types";
 
@@ -16,18 +17,50 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = authService.observeAuthState(async (firebaseUser) => {
-      if (firebaseUser) {
-        setSession(await authService.createSessionFromFirebaseUser(firebaseUser));
+    let unsubscribeProfile: (() => void) | null = null;
+
+    const unsubscribeAuth = authService.observeAuthState(async (firebaseUser) => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = null;
+
+      if (!firebaseUser) {
+        setSession(null);
         setLoading(false);
         return;
       }
 
-      setSession(null);
+      setSession(await authService.createSessionFromFirebaseUser(firebaseUser));
       setLoading(false);
+
+      if (firebaseUser.isAnonymous) {
+        return;
+      }
+
+      // Ascolta il doc utente: cambi di ruolo applicati senza richiedere re-login.
+      unsubscribeProfile = usersService.observeProfile(firebaseUser.uid, (profile) => {
+        if (!profile) {
+          return;
+        }
+
+        setSession((current) => {
+          if (!current || current.firebaseUser.uid !== firebaseUser.uid) {
+            return current;
+          }
+
+          return {
+            ...current,
+            profile,
+            isAdmin: profile.role === "admin" || profile.role === "super_admin",
+            isUnitLeader: profile.role === "unit_leader",
+          };
+        });
+      });
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      unsubscribeProfile?.();
+    };
   }, []);
 
   async function signInWithEmail(email: string, password: string) {

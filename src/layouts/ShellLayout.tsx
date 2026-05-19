@@ -60,6 +60,7 @@ export function ShellLayout({
   const navigate = useNavigate();
   const [adminAlerts, setAdminAlerts] = useState<Alert[]>([]);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const alertDropdownRef = useRef<HTMLDivElement | null>(null);
   const showTopNav = area === "admin" && links.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
@@ -159,6 +160,28 @@ export function ShellLayout({
     session?.profile.stakeId,
     unreadAdminAlerts,
   ]);
+
+  // Svuota service worker + cache e ricarica: scialuppa quando la sessione
+  // mostra dati stale (es. ruolo cambiato lato server mentre l'app era aperta).
+  async function handleForceRefresh() {
+    setRefreshing(true);
+
+    try {
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+    } catch {
+      // Pulizia best-effort: ricarico comunque anche se SW/cache non si svuotano.
+    }
+
+    window.location.reload();
+  }
 
   return (
     <div className={`shell shell--${area}`}>
@@ -302,6 +325,18 @@ export function ShellLayout({
                 <AppIcon name="arrow-right" />
                 {actionLink.label}
               </Link>
+            ) : null}
+            {session?.isAuthenticated ? (
+              <button
+                aria-label="Aggiorna l'app"
+                className="icon-button icon-button--soft"
+                disabled={refreshing}
+                onClick={() => void handleForceRefresh()}
+                title="Aggiorna l'app"
+                type="button"
+              >
+                <AppIcon name="refresh" />
+              </button>
             ) : null}
             {session?.isAuthenticated ? (
               area === "user" || area === "admin" || area === "unit" ? (

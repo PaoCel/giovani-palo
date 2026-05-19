@@ -24,6 +24,7 @@ export type AppIconName =
   | "menu"
   | "pencil"
   | "plus"
+  | "refresh"
   | "sparkles"
   | "ticket"
   | "trash"
@@ -184,6 +185,10 @@ function getIconPaths(name: AppIconName) {
           <path d="M12 20.25s6-5.377 6-10.125a6 6 0 1 0-12 0c0 4.748 6 10.125 6 10.125Z" />
           <path d="M12 12.75a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5Z" />
         </>
+      );
+    case "refresh":
+      return (
+        <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
       );
     case "sparkles":
       return (
