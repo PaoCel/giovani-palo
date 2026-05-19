@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   setDoc,
   updateDoc,
@@ -232,6 +233,18 @@ export const usersService = {
     }
 
     return mapUserProfile(snapshot.id, snapshot.data());
+  },
+
+  observeProfile(uid: string, callback: (profile: UserProfile | null) => void) {
+    return onSnapshot(
+      doc(db, "users", uid),
+      (snapshot) => {
+        callback(snapshot.exists() ? mapUserProfile(snapshot.id, snapshot.data()) : null);
+      },
+      () => {
+        // Listener interrotto (logout / rete): ignoro, la sessione corrente resta valida.
+      },
+    );
   },
 
   async listStakeUsers(stakeId: string) {
