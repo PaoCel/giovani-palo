@@ -484,6 +484,48 @@ export const registrationsService = {
     return this.getRegistrationById(stakeId, eventId, registrationId);
   },
 
+  async adminUpdateParentAuthorizationEmail(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    parentEmail: string,
+  ) {
+    const existingRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
+
+    if (!existingRegistration) {
+      throw new Error("Registrazione non trovata per aggiornare l'email del genitore.");
+    }
+
+    const normalizedEmail = parentEmail.trim().toLowerCase();
+    const nextAnswers = { ...existingRegistration.answers } as Record<string, unknown>;
+    const request = nextAnswers.parentAuthorizationRequest;
+
+    if (request && typeof request === "object" && !Array.isArray(request)) {
+      nextAnswers.parentAuthorizationRequest = {
+        ...request,
+        parentEmail: normalizedEmail,
+      };
+    }
+
+    const timestamp = nowIso();
+    const payload: Record<string, unknown> = {
+      answers: nextAnswers,
+      updatedAt: timestamp,
+    };
+
+    if (existingRegistration.parentAuthorization) {
+      payload.parentAuthorization = {
+        ...existingRegistration.parentAuthorization,
+        parentEmail: normalizedEmail,
+        emailLastError: null,
+        updatedAt: timestamp,
+      };
+    }
+
+    await updateDoc(getRegistrationReference(stakeId, eventId, registrationId), payload);
+    return this.getRegistrationById(stakeId, eventId, registrationId);
+  },
+
   async saveAnonymousRecovery(
     stakeId: string,
     eventId: string,

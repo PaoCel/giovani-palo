@@ -1,10 +1,11 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
+import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -26,6 +27,11 @@ import {
 } from "@/utils/events";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
+import {
+  getAbsoluteUrl,
+  getActivityPath,
+  getActivityRegistrationPath,
+} from "@/utils/activityLinks";
 
 interface ActivityDetailData {
   stakeId: string;
@@ -58,8 +64,10 @@ function renderOptionalInfo(title: string, value: string) {
 
 export function ActivityDetailPage() {
   const { eventId } = useParams();
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "public";
+  const requestedStakeId = searchParams.get("stake") ?? "";
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -67,7 +75,7 @@ export function ActivityDetailPage() {
         return initialData;
       }
 
-      const stakeId = await resolvePublicStakeId(session?.profile.stakeId);
+      const stakeId = await resolvePublicStakeId(requestedStakeId || session?.profile.stakeId);
       const lookup = getRegistrationLookupFromSession(session);
       const hasLookup = Boolean(lookup.userId || lookup.anonymousUid);
 
@@ -96,7 +104,7 @@ export function ActivityDetailPage() {
         registration,
       };
     },
-    [eventId, sessionKey],
+    [eventId, requestedStakeId, sessionKey],
     initialData,
   );
 
@@ -135,9 +143,11 @@ export function ActivityDetailPage() {
       return null;
     }
 
+    const registrationPath = getActivityRegistrationPath(event.id, data.stakeId);
+
     if (data.registration) {
       return (
-        <Link className="button button--primary" to={`/activities/${event.id}/register`}>
+        <Link className="button button--primary" to={registrationPath}>
           <AppIcon name="ticket" />
           <span>Iscrizione</span>
         </Link>
@@ -146,7 +156,7 @@ export function ActivityDetailPage() {
 
     if (availability === "open" || availability === "guest-allowed") {
       return (
-        <Link className="button button--primary" to={`/activities/${event.id}/register`}>
+        <Link className="button button--primary" to={registrationPath}>
           <AppIcon name="ticket" />
           <span>Iscriviti</span>
         </Link>
@@ -157,7 +167,7 @@ export function ActivityDetailPage() {
       return (
         <Link
           className="button button--primary"
-          to={`/login?redirect=${encodeURIComponent(`/activities/${event.id}/register`)}`}
+          to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
         >
           <AppIcon name="user" />
           <span>Accedi</span>
@@ -190,7 +200,20 @@ export function ActivityDetailPage() {
           event?.description ||
           "Leggi data, luogo e dettagli utili prima di aprire il modulo di iscrizione."
         }
-        actions={renderPrimaryAction()}
+        actions={
+          event ? (
+            <>
+              {renderPrimaryAction()}
+              <ShareButton
+                title={event.title}
+                text="Guarda questa attività e apri l'iscrizione."
+                url={getAbsoluteUrl(getActivityPath(event.id, data.stakeId))}
+              />
+            </>
+          ) : (
+            renderPrimaryAction()
+          )
+        }
         aside={
           event ? (
             <div className="info-stack">

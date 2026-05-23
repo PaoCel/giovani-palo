@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import { EmptyState } from "@/components/EmptyState";
 import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExportModal";
+import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
@@ -21,6 +22,7 @@ import { questionsService } from "@/services/firestore/questionsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
 import type { Question, Registration } from "@/types";
+import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { downloadRegistrationsExcel, type ExportOptions } from "@/utils/registrationExcel";
 import {
@@ -78,6 +80,7 @@ const roomRegistrationEntryKeys = new Set([
   "roomPreference2Name",
   "roomNotes",
 ]);
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const registrationCategoryFilterOptions: Array<{
   value: RegistrationCategoryFilter;
@@ -191,6 +194,71 @@ function getUnitLabel(registration: Registration) {
   );
 }
 
+function getParentAuthorizationRequest(registration: Registration) {
+  const request = (registration.answers as Record<string, unknown>).parentAuthorizationRequest;
+
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    return null;
+  }
+
+  return request as Record<string, unknown>;
+}
+
+function getParentEmail(registration: Registration) {
+  const request = getParentAuthorizationRequest(registration);
+  const requestEmail = request?.parentEmail;
+
+  return (
+    registration.parentAuthorization?.parentEmail ||
+    (typeof requestEmail === "string" ? requestEmail : "")
+  );
+}
+
+function getParentName(registration: Registration) {
+  const request = getParentAuthorizationRequest(registration);
+  const firstName =
+    registration.parentAuthorization?.parentFirstName ||
+    (typeof request?.parentFirstName === "string" ? request.parentFirstName : "");
+  const lastName =
+    registration.parentAuthorization?.parentLastName ||
+    (typeof request?.parentLastName === "string" ? request.parentLastName : "");
+
+  return [firstName, lastName].filter(Boolean).join(" ").trim();
+}
+
+function getParentAuthorizationBadge(
+  registration: Registration,
+  required: boolean,
+): { label: string; tone: "neutral" | "info" | "success" | "warning" | "danger" } {
+  if (!required) {
+    return { label: "Email non richiesta", tone: "neutral" };
+  }
+
+  const status = registration.parentAuthorization?.status ?? "missing";
+
+  if (status === "authorized") {
+    return { label: "Email OK", tone: "success" };
+  }
+
+  if (status === "rejected_by_parent") {
+    return { label: "Rifiutata", tone: "danger" };
+  }
+
+  if (status === "email_error") {
+    return { label: "Errore email", tone: "danger" };
+  }
+
+  if (status === "expired") {
+    return { label: "Scaduta", tone: "warning" };
+  }
+
+  if (status === "email_sent" || status === "pending_parent_authorization") {
+    return { label: "In attesa", tone: "warning" };
+  }
+
+  return { label: "Email mancante", tone: "warning" };
+}
+
 function getAdminEventTabFromPath(pathname: string): AdminEventTab {
   if (pathname.endsWith("/registrations")) {
     return "registrations";
@@ -257,6 +325,7 @@ export function AdminEventDetailPage() {
     | "publish"
     | "delete"
     | "resendParentAuth"
+    | "saveParentEmail"
     | "deleteRegistration"
     | "cancelRegistration"
     | "reactivateRegistration"
@@ -267,6 +336,10 @@ export function AdminEventDetailPage() {
   const [registrationModalId, setRegistrationModalId] = useState<string | null>(null);
   const [registrationModalMode, setRegistrationModalMode] =
     useState<RegistrationModalMode>("registration");
+  const [selectedConsentRegistrationId, setSelectedConsentRegistrationId] =
+    useState<string | null>(null);
+  const [parentEmailEditingId, setParentEmailEditingId] = useState<string | null>(null);
+  const [parentEmailDraft, setParentEmailDraft] = useState("");
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [excelExportModalOpen, setExcelExportModalOpen] = useState(false);
   const [normalizingRoomPreferences, setNormalizingRoomPreferences] = useState(false);
@@ -749,7 +822,7 @@ export function AdminEventDetailPage() {
       });
       if (result.sent) {
         setActionInfo(
-          `Email di autorizzazione reinviata a ${registration.parentAuthorization?.parentEmail || "genitore"}.`,
+          `Email di autorizzazione reinviata a ${getParentEmail(registration) || "genitore"}.`,
         );
       } else {
         setActionError(
@@ -762,6 +835,50 @@ export function AdminEventDetailPage() {
         caughtError instanceof Error
           ? caughtError.message
           : "Impossibile reinviare l'email di autorizzazione.",
+      );
+    } finally {
+      setBusy(null);
+      setBusyRegistrationId(null);
+    }
+  }
+
+  function handleStartParentEmailEdit(registration: Registration) {
+    setParentEmailEditingId(registration.id);
+    setParentEmailDraft(getParentEmail(registration));
+    setSelectedConsentRegistrationId(registration.id);
+    setActionError(null);
+    setActionInfo(null);
+  }
+
+  async function handleSaveParentEmail(registration: Registration) {
+    const normalizedEmail = parentEmailDraft.trim().toLowerCase();
+
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      setActionError("Inserisci un'email genitore valida.");
+      return;
+    }
+
+    setBusy("saveParentEmail");
+    setBusyRegistrationId(registration.id);
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      await registrationsService.adminUpdateParentAuthorizationEmail(
+        stakeId,
+        resolvedEventId,
+        registration.id,
+        normalizedEmail,
+      );
+      setActionInfo(`Email genitore aggiornata: ${normalizedEmail}.`);
+      setParentEmailEditingId(null);
+      setParentEmailDraft("");
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile aggiornare l'email del genitore.",
       );
     } finally {
       setBusy(null);
@@ -974,6 +1091,15 @@ export function AdminEventDetailPage() {
           </div>
 
           <div className="admin-detail-hero__actions admin-detail-hero__actions--icons">
+            {resolvedEvent.isPublic ? (
+              <ShareButton
+                className="icon-button icon-button--soft admin-detail-action"
+                iconOnly
+                text="Guarda questa attività e apri l'iscrizione."
+                title={resolvedEvent.title}
+                url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
+              />
+            ) : null}
             <button
               aria-label="Modifica attività"
               className="icon-button icon-button--soft admin-detail-action"
@@ -1378,181 +1504,242 @@ export function AdminEventDetailPage() {
 
       {activeTab === "consents" ? (
         <section className="admin-detail-stack">
-          {resolvedEvent.requiresParentAuthorization ? (
-            <article className="surface-panel surface-panel--subtle">
-              <h3>Autorizzazione genitoriale via email (magic link)</h3>
-              <p className="subtle-text">
-                Stato del flusso email Brevo per ogni iscritto. Il sistema invia
-                automaticamente il link al genitore alla prima iscrizione. Da qui puoi
-                reinviare l&apos;email (invalida il vecchio link e crea uno nuovo) o
-                eliminare un&apos;iscrizione di test.
-              </p>
-              {sortedRegistrations.length === 0 ? (
-                <EmptyState
-                  title="Nessuna iscrizione"
-                  description="Quando arrivano iscrizioni vedrai qui lo stato dell'autorizzazione genitore."
-                />
-              ) : (
-                <div className="stack">
-                  {sortedRegistrations.map((registration) => {
-                    const auth = registration.parentAuthorization;
-                    const status = auth?.status ?? "not_required";
-                    const tone =
-                      status === "authorized"
-                        ? "success"
-                        : status === "rejected_by_parent" || status === "email_error"
-                          ? "danger"
-                          : status === "expired"
-                            ? "warning"
-                            : status === "email_sent" ||
-                                status === "pending_parent_authorization"
-                              ? "warning"
-                              : "info";
-                    const label =
-                      status === "authorized"
-                        ? "Autorizzata dal genitore"
-                        : status === "rejected_by_parent"
-                          ? "Rifiutata dal genitore"
-                          : status === "email_error"
-                            ? "Errore invio email"
-                            : status === "expired"
-                              ? "Link scaduto"
-                              : status === "email_sent"
-                                ? "Email inviata, in attesa"
-                                : status === "pending_parent_authorization"
-                                  ? "In attesa primo invio"
-                                  : "Non richiesta";
-                    const isCurrentBusy = busyRegistrationId === registration.id;
-                    return (
-                      <article
-                        key={`parentauth-${registration.id}`}
-                        className="surface-panel surface-panel--subtle admin-registration-row"
-                      >
-                        <div>
-                          <strong>{getRegistrationDisplayName(registration)}</strong>
-                          <p>{getUnitLabel(registration)}</p>
-                          {auth?.parentEmail ? (
-                            <p>
-                              Email genitore: <code>{auth.parentEmail}</code>
-                            </p>
-                          ) : null}
-                          {auth?.emailSentAt ? (
-                            <p>
-                              Ultimo invio: {formatDateTime(auth.emailSentAt)}
-                            </p>
-                          ) : null}
-                          {auth?.emailLastError ? (
-                            <p style={{ color: "#b14e44" }}>
-                              Errore: {auth.emailLastError}
-                            </p>
-                          ) : null}
-                          <div className="chip-row admin-chip-row" style={{ marginTop: "0.4rem" }}>
-                            <StatusBadge label={label} tone={tone} />
-                          </div>
-                        </div>
-
-                        <div className="admin-registration-row__meta">
-                          {status === "authorized" || status === "rejected_by_parent" ? null : (
-                            <button
-                              className="button button--ghost button--small"
-                              disabled={busy !== null}
-                              onClick={() => void handleResendParentAuthEmail(registration)}
-                              type="button"
-                            >
-                              <AppIcon name="mail" />
-                              <span>
-                                {isCurrentBusy && busy === "resendParentAuth"
-                                  ? "Reinvio..."
-                                  : "Reinvia email"}
-                              </span>
-                            </button>
-                          )}
-                          <button
-                            className="button button--ghost button--small"
-                            disabled={busy !== null}
-                            onClick={() => void handleAdminDeleteRegistration(registration)}
-                            type="button"
-                          >
-                            <AppIcon name="trash" />
-                            <span>
-                              {isCurrentBusy && busy === "deleteRegistration"
-                                ? "Eliminazione..."
-                                : "Elimina iscrizione"}
-                            </span>
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
+          <div className="admin-inline-metrics admin-inline-metrics--four">
+            <article className="admin-inline-metric">
+              <strong>{activeRegistrations.length}</strong>
+              <span>Attivi</span>
             </article>
-          ) : null}
+            <article className="admin-inline-metric">
+              <strong>
+                {
+                  activeRegistrations.filter(
+                    (registration) =>
+                      getParentAuthorizationBadge(
+                        registration,
+                        Boolean(resolvedEvent.requiresParentAuthorization),
+                      ).tone === "success",
+                  ).length
+                }
+              </strong>
+              <span>Email OK</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>{uploadedMinorConsentCount}</strong>
+              <span>Doc. genitore</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>
+                {
+                  activeRegistrations.filter(
+                    (registration) =>
+                      (resolvedEvent.requiresParentAuthorization &&
+                        getParentAuthorizationBadge(registration, true).tone !== "success") ||
+                      (resolvedEvent.requiresParentalConsent &&
+                        registration.answers.parentalConsentAccepted !== true) ||
+                      (resolvedEvent.requiresPhotoRelease &&
+                        registration.answers.photoReleaseAccepted !== true) ||
+                      (isMinorRegistration(registration) && !registration.parentConsentDocumentUrl),
+                  ).length
+                }
+              </strong>
+              <span>Da verificare</span>
+            </article>
+          </div>
 
-          {resolvedEvent.requiresParentalConsent || resolvedEvent.requiresPhotoRelease ? (
-            <article className="surface-panel surface-panel--subtle">
-              <h3>Autorizzazioni digitali</h3>
-              <p className="subtle-text">
-                Stato per ogni iscritto: spunte accettate, firma digitale, documento d&apos;identita
-                del genitore. Scarica il PDF compilato per consegnarlo o archiviarlo.
-              </p>
-              {activeRegistrations.length === 0 ? (
-                <EmptyState
-                  title="Nessuna iscrizione attiva"
-                  description="Quando arrivano le iscrizioni vedrai lo stato dei consensi qui."
-                />
-              ) : (
-                <div className="stack">
-                  {activeRegistrations.map((registration) => {
-                    const parentalAccepted =
-                      registration.answers.parentalConsentAccepted === true;
-                    const photoAccepted =
-                      registration.answers.photoReleaseAccepted === true;
-                    const signerName =
-                      typeof registration.answers.parentalConsentSignerName === "string" &&
-                      registration.answers.parentalConsentSignerName
-                        ? registration.answers.parentalConsentSignerName
-                        : typeof registration.answers.photoReleaseSignerName === "string"
-                          ? registration.answers.photoReleaseSignerName
-                          : "";
-                    return (
-                      <article
-                        key={`consent-new-${registration.id}`}
-                        className="surface-panel surface-panel--subtle admin-registration-row"
-                      >
-                        <div>
-                          <strong>{getRegistrationDisplayName(registration)}</strong>
-                          <p>{getUnitLabel(registration)}</p>
-                          {signerName ? <p>Firmatario: {signerName}</p> : null}
-                          <div className="chip-row admin-chip-row" style={{ marginTop: "0.4rem" }}>
-                            {resolvedEvent.requiresParentalConsent ? (
-                              <StatusBadge
-                                label={parentalAccepted ? "Consenso genitore" : "Consenso mancante"}
-                                tone={parentalAccepted ? "success" : "warning"}
-                              />
-                            ) : null}
-                            {resolvedEvent.requiresPhotoRelease ? (
-                              <StatusBadge
-                                label={photoAccepted ? "Liberatoria foto" : "Liberatoria mancante"}
-                                tone={photoAccepted ? "success" : "warning"}
-                              />
-                            ) : null}
-                            <StatusBadge
-                              label={
-                                registration.consentSignatureUrl ? "Firma digitale" : "Senza firma"
-                              }
-                              tone={registration.consentSignatureUrl ? "success" : "warning"}
-                            />
-                            <StatusBadge
-                              label={
-                                registration.parentIdDocumentUrl ? "ID genitore" : "ID assente"
-                              }
-                              tone={registration.parentIdDocumentUrl ? "success" : "warning"}
-                            />
+          {activeRegistrations.length === 0 ? (
+            <EmptyState
+              title="Nessuna iscrizione attiva"
+              description="Quando arrivano le iscrizioni vedrai qui lo stato dei consensi."
+            />
+          ) : (
+            <article className="surface-panel surface-panel--subtle admin-consent-list">
+              {activeRegistrations.map((registration) => {
+                const authBadge = getParentAuthorizationBadge(
+                  registration,
+                  Boolean(resolvedEvent.requiresParentAuthorization),
+                );
+                const isSelected = selectedConsentRegistrationId === registration.id;
+                const isEmailEditing = parentEmailEditingId === registration.id;
+                const isCurrentBusy = busyRegistrationId === registration.id;
+                const parentEmail = getParentEmail(registration);
+                const parentName = getParentName(registration);
+                const parentalAccepted = registration.answers.parentalConsentAccepted === true;
+                const photoAccepted = registration.answers.photoReleaseAccepted === true;
+                const signerName =
+                  typeof registration.answers.parentalConsentSignerName === "string" &&
+                  registration.answers.parentalConsentSignerName
+                    ? registration.answers.parentalConsentSignerName
+                    : typeof registration.answers.photoReleaseSignerName === "string"
+                      ? registration.answers.photoReleaseSignerName
+                      : "";
+                const parentAuthStatus = registration.parentAuthorization?.status ?? "missing";
+                const canResendParentEmail =
+                  resolvedEvent.requiresParentAuthorization &&
+                  parentAuthStatus !== "authorized" &&
+                  parentAuthStatus !== "rejected_by_parent";
+
+                return (
+                  <article
+                    className={
+                      isSelected
+                        ? "admin-consent-item admin-consent-item--open"
+                        : "admin-consent-item"
+                    }
+                    key={`consent-${registration.id}`}
+                  >
+                    <button
+                      aria-expanded={isSelected}
+                      className="admin-consent-summary"
+                      onClick={() =>
+                        setSelectedConsentRegistrationId(isSelected ? null : registration.id)
+                      }
+                      type="button"
+                    >
+                      <span className="admin-consent-summary__person">
+                        <strong>{getRegistrationDisplayName(registration)}</strong>
+                        <span>
+                          {getUnitLabel(registration)} • {getCategoryShortLabel(registration)}
+                        </span>
+                      </span>
+                      <span className="chip-row admin-chip-row admin-consent-summary__badges">
+                        {resolvedEvent.requiresParentAuthorization ? (
+                          <StatusBadge label={authBadge.label} tone={authBadge.tone} />
+                        ) : null}
+                        {resolvedEvent.requiresParentalConsent ? (
+                          <StatusBadge
+                            label={parentalAccepted ? "Genitore OK" : "Genitore NO"}
+                            tone={parentalAccepted ? "success" : "warning"}
+                          />
+                        ) : null}
+                        {resolvedEvent.requiresPhotoRelease ? (
+                          <StatusBadge
+                            label={photoAccepted ? "Foto OK" : "Foto NO"}
+                            tone={photoAccepted ? "success" : "warning"}
+                          />
+                        ) : null}
+                        <StatusBadge
+                          label={registration.consentSignatureUrl ? "Firma" : "No firma"}
+                          tone={registration.consentSignatureUrl ? "success" : "warning"}
+                        />
+                        <StatusBadge
+                          label={registration.parentIdDocumentUrl ? "ID" : "No ID"}
+                          tone={registration.parentIdDocumentUrl ? "success" : "warning"}
+                        />
+                        {isMinorRegistration(registration) ? (
+                          <StatusBadge
+                            label={registration.parentConsentDocumentUrl ? "Doc" : "No doc"}
+                            tone={registration.parentConsentDocumentUrl ? "success" : "warning"}
+                          />
+                        ) : null}
+                      </span>
+                    </button>
+
+                    {isSelected ? (
+                      <div className="admin-consent-detail">
+                        <dl className="summary-list admin-consent-detail__summary">
+                          <div>
+                            <dt>Email partecipante</dt>
+                            <dd>{registration.email || "-"}</dd>
                           </div>
-                        </div>
+                          <div>
+                            <dt>Genitore</dt>
+                            <dd>{parentName || "-"}</dd>
+                          </div>
+                          <div>
+                            <dt>Email genitore</dt>
+                            <dd>{parentEmail || "-"}</dd>
+                          </div>
+                          <div>
+                            <dt>Firmatario</dt>
+                            <dd>{signerName || "-"}</dd>
+                          </div>
+                          {registration.parentAuthorization?.emailSentAt ? (
+                            <div>
+                              <dt>Ultimo invio</dt>
+                              <dd>{formatDateTime(registration.parentAuthorization.emailSentAt)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
 
-                        <div className="admin-registration-row__meta">
+                        {resolvedEvent.requiresParentAuthorization ? (
+                          <div className="admin-consent-email-editor">
+                            {isEmailEditing ? (
+                              <>
+                                <label className="field admin-consent-email-field">
+                                  <span>Email genitore</span>
+                                  <input
+                                    className="input"
+                                    onChange={(eventInput) =>
+                                      setParentEmailDraft(eventInput.target.value)
+                                    }
+                                    type="email"
+                                    value={parentEmailDraft}
+                                  />
+                                </label>
+                                <div className="inline-actions">
+                                  <button
+                                    className="button button--primary button--small"
+                                    disabled={busy !== null}
+                                    onClick={() => void handleSaveParentEmail(registration)}
+                                    type="button"
+                                  >
+                                    <AppIcon name="check" />
+                                    <span>
+                                      {isCurrentBusy && busy === "saveParentEmail"
+                                        ? "Salvataggio..."
+                                        : "Salva email"}
+                                    </span>
+                                  </button>
+                                  <button
+                                    className="button button--ghost button--small"
+                                    disabled={busy !== null}
+                                    onClick={() => {
+                                      setParentEmailEditingId(null);
+                                      setParentEmailDraft("");
+                                    }}
+                                    type="button"
+                                  >
+                                    Annulla
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="inline-actions">
+                                <button
+                                  className="button button--ghost button--small"
+                                  disabled={busy !== null}
+                                  onClick={() => handleStartParentEmailEdit(registration)}
+                                  type="button"
+                                >
+                                  <AppIcon name="pencil" />
+                                  <span>Modifica email genitore</span>
+                                </button>
+                                {canResendParentEmail ? (
+                                  <button
+                                    className="button button--ghost button--small"
+                                    disabled={busy !== null || !parentEmail}
+                                    onClick={() => void handleResendParentAuthEmail(registration)}
+                                    type="button"
+                                  >
+                                    <AppIcon name="mail" />
+                                    <span>
+                                      {isCurrentBusy && busy === "resendParentAuth"
+                                        ? "Reinvio..."
+                                        : "Reinvia email"}
+                                    </span>
+                                  </button>
+                                ) : null}
+                              </div>
+                            )}
+                            {registration.parentAuthorization?.emailLastError ? (
+                              <p className="admin-consent-error">
+                                {registration.parentAuthorization.emailLastError}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        <div className="admin-consent-actions">
                           {registration.consentSignatureUrl ? (
                             <a
                               className="button button--ghost button--small"
@@ -1561,7 +1748,7 @@ export function AdminEventDetailPage() {
                               target="_blank"
                             >
                               <AppIcon name="eye" />
-                              <span>Vedi firma</span>
+                              <span>Firma</span>
                             </a>
                           ) : null}
                           {registration.parentIdDocumentUrl ? (
@@ -1572,7 +1759,18 @@ export function AdminEventDetailPage() {
                               target="_blank"
                             >
                               <AppIcon name="eye" />
-                              <span>Vedi ID</span>
+                              <span>ID genitore</span>
+                            </a>
+                          ) : null}
+                          {registration.parentConsentDocumentUrl ? (
+                            <a
+                              className="button button--ghost button--small"
+                              href={registration.parentConsentDocumentUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <AppIcon name="eye" />
+                              <span>Doc. genitore</span>
                             </a>
                           ) : null}
                           {resolvedEvent.requiresParentalConsent ? (
@@ -1633,109 +1831,33 @@ export function AdminEventDetailPage() {
                               <span>PDF liberatoria</span>
                             </button>
                           ) : null}
+                          <button
+                            className="button button--ghost button--small"
+                            onClick={() => openRegistrationModal(registration.id, "registration")}
+                            type="button"
+                          >
+                            Apri iscrizione
+                          </button>
+                          <button
+                            className="button button--ghost button--small button--danger"
+                            disabled={busy !== null}
+                            onClick={() => void handleAdminDeleteRegistration(registration)}
+                            type="button"
+                          >
+                            <AppIcon name="trash" />
+                            <span>
+                              {isCurrentBusy && busy === "deleteRegistration"
+                                ? "Eliminazione..."
+                                : "Elimina"}
+                            </span>
+                          </button>
                         </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-          ) : null}
-
-          <div className="admin-inline-metrics admin-inline-metrics--three">
-            <article className="admin-inline-metric">
-              <strong>{minorRegistrations.length}</strong>
-              <span>Minori</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{uploadedMinorConsentCount}</strong>
-              <span>Caricati</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{missingMinorConsentCount}</strong>
-              <span>Da richiedere</span>
-            </article>
-          </div>
-
-          {data?.organization?.minorConsentExampleImageUrl ? (
-            <article className="surface-panel surface-panel--subtle">
-              <h3>Esempio mostrato ai partecipanti</h3>
-              <div
-                className="upload-preview admin-consent-example"
-                style={{
-                  backgroundImage: `url(${data.organization.minorConsentExampleImageUrl})`,
-                }}
-              />
-            </article>
-          ) : null}
-
-          {minorRegistrations.length === 0 ? (
-            <EmptyState
-              title="Nessun minore da verificare"
-              description="I consensi genitori compariranno qui solo per le registrazioni minorenni attive."
-            />
-          ) : (
-            <div className="stack">
-              {minorRegistrations.map((registration) => (
-                <article
-                  key={`consent-${registration.id}`}
-                  className="surface-panel surface-panel--subtle admin-registration-row admin-consent-row"
-                >
-                  <div>
-                    <strong>{getRegistrationDisplayName(registration)}</strong>
-                    <p>{getUnitLabel(registration)}</p>
-                    <p>
-                      {registration.submittedByMode === "anonymous" ? "Ospite" : "Con account"}
-                      {" • "}
-                      {registration.parentConsentDocumentUrl
-                        ? "Documento caricato"
-                        : registration.submittedByMode === "anonymous"
-                          ? "Manca: chiedere creazione account"
-                          : "Manca: da caricare"}
-                    </p>
-                  </div>
-
-                  <div className="admin-registration-row__meta">
-                    <StatusBadge
-                      label={
-                        registration.parentConsentDocumentUrl ? "Documento presente" : "Documento mancante"
-                      }
-                      tone={registration.parentConsentDocumentUrl ? "success" : "warning"}
-                    />
-                    {registration.parentConsentDocumentUrl ? (
-                      <div className="inline-actions inline-actions--compact">
-                        <a
-                          className="button button--ghost button--small"
-                          href={registration.parentConsentDocumentUrl}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          <AppIcon name="eye" />
-                          <span>Vedi</span>
-                        </a>
-                        <a
-                          className="button button--ghost button--small"
-                          download={
-                            registration.parentConsentDocumentName || "consenso-genitore.jpg"
-                          }
-                          href={registration.parentConsentDocumentUrl}
-                        >
-                          <AppIcon name="download" />
-                          <span>Scarica</span>
-                        </a>
                       </div>
                     ) : null}
-                    <button
-                      className="button button--ghost button--small"
-                      onClick={() => openRegistrationModal(registration.id, "registration")}
-                      type="button"
-                    >
-                      Apri iscrizione
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
+                  </article>
+                );
+              })}
+            </article>
           )}
         </section>
       ) : null}

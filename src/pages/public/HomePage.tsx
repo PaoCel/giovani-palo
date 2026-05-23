@@ -2,10 +2,12 @@ import { useMemo } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { ShareButton } from "@/components/ShareButton";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { stakesService } from "@/services/firestore/stakesService";
+import { getAbsoluteUrl, getActivitiesPath } from "@/utils/activityLinks";
 import { getStoredPublicStakeId, storePublicStakeId } from "@/utils/stakeSelection";
 
 export function HomePage() {
@@ -40,7 +42,7 @@ export function HomePage() {
   function handleExploreActivities() {
     if (selectedStakeId) {
       storePublicStakeId(selectedStakeId);
-      navigate(`/activities?stake=${encodeURIComponent(selectedStakeId)}`);
+      navigate(getActivitiesPath(selectedStakeId));
       return;
     }
 
@@ -68,6 +70,14 @@ export function HomePage() {
             <AppIcon name="user" />
             <span>Accedi o crea un&apos;account</span>
           </Link>
+
+          <ShareButton
+            className="button button--soft button--large"
+            label="Condividi sito"
+            text="Apri il sito delle attività giovani."
+            title="Attività giovani"
+            url={getAbsoluteUrl(getActivitiesPath(selectedStakeId))}
+          />
         </div>
 
         <p className="home-screen__privacy">
