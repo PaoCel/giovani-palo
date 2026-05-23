@@ -6,6 +6,7 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { eventsService } from "@/services/firestore/eventsService";
 import { stakesService } from "@/services/firestore/stakesService";
 import type { EventAudience, EventStatus } from "@/types";
+import { getActivityPath, getActivityRegistrationPath } from "@/utils/activityLinks";
 import { getStoredPublicStakeId, storePublicStakeId } from "@/utils/stakeSelection";
 
 type AudienceFilter = "all" | EventAudience;
@@ -218,9 +219,9 @@ export function ActivitiesPage() {
                 key={event.id}
                 event={event}
                 primaryLabel="Dettagli"
-                primaryTo={`/activities/${event.id}`}
+                primaryTo={getActivityPath(event.id, selectedStakeId)}
                 secondaryLabel="Iscriviti"
-                secondaryTo={`/activities/${event.id}/register`}
+                secondaryTo={getActivityRegistrationPath(event.id, selectedStakeId)}
                 variant="poster"
               />
             ))}

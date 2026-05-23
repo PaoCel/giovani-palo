@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
+import { ShareButton } from "@/components/ShareButton";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UserPageIntro } from "@/components/UserPageIntro";
@@ -9,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { surveysService } from "@/services/firestore/surveysService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
+import { getAbsoluteUrl, getActivitiesPath, getActivityPath } from "@/utils/activityLinks";
 import { formatEventWindow } from "@/utils/formatters";
 import {
   getEventAudienceLabel,
@@ -60,6 +62,15 @@ export function MeDashboardPage() {
   return (
     <div className="page page--user-dashboard">
       <UserPageIntro />
+      <div className="chip-row">
+        <ShareButton
+          className="button button--soft button--small"
+          label="Condividi sito"
+          text="Apri il sito delle attività giovani."
+          title="Attività giovani"
+          url={getAbsoluteUrl(getActivitiesPath(session?.profile.stakeId))}
+        />
+      </div>
 
       {error ? (
         <div className="notice notice--warning">
@@ -125,7 +136,7 @@ export function MeDashboardPage() {
                 <Link
                   aria-label={`Apri dettagli attività: ${event.title}`}
                   className="user-event-feature__media"
-                  to={`/activities/${event.id}`}
+                  to={getActivityPath(event.id, session?.profile.stakeId)}
                 >
                   {event.heroImageUrl ? (
                     <div
@@ -149,7 +160,10 @@ export function MeDashboardPage() {
                     <span className="surface-chip">Iscritto</span>
                   </div>
 
-                  <Link className="user-event-feature__title" to={`/activities/${event.id}`}>
+                  <Link
+                    className="user-event-feature__title"
+                    to={getActivityPath(event.id, session?.profile.stakeId)}
+                  >
                     <h3>{event.title}</h3>
                   </Link>
 
@@ -157,7 +171,10 @@ export function MeDashboardPage() {
                   <p className="user-event-feature__meta">{event.location}</p>
 
                   <div className="user-event-feature__actions">
-                    <Link className="button button--primary button--small" to={`/activities/${event.id}`}>
+                    <Link
+                      className="button button--primary button--small"
+                      to={getActivityPath(event.id, session?.profile.stakeId)}
+                    >
                       Dettagli attività
                     </Link>
                   </div>
