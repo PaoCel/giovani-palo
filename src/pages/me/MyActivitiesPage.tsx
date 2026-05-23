@@ -4,6 +4,7 @@ import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
+import { getActivityPath, getActivityRegistrationPath } from "@/utils/activityLinks";
 import { isPastEvent } from "@/utils/events";
 
 export function MyActivitiesPage() {
@@ -55,7 +56,7 @@ export function MyActivitiesPage() {
                   key={event.id}
                   event={event}
                   primaryLabel="Dettagli attività"
-                  primaryTo={`/activities/${event.id}`}
+                  primaryTo={getActivityPath(event.id, session?.profile.stakeId)}
                   secondaryLabel={
                     hasActiveRegistration
                       ? "La tua iscrizione"
@@ -67,7 +68,7 @@ export function MyActivitiesPage() {
                     hasActiveRegistration
                       ? `/me/activities/${event.id}`
                       : canJoin
-                        ? `/activities/${event.id}/register`
+                        ? getActivityRegistrationPath(event.id, session?.profile.stakeId)
                         : undefined
                   }
                   variant="poster"

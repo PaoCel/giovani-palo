@@ -8,6 +8,7 @@ import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { SectionCard } from "@/components/SectionCard";
+import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -16,6 +17,7 @@ import { organizationService } from "@/services/firestore/organizationService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import { isMinorBirthDate } from "@/utils/age";
+import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { getEventAudienceLabel } from "@/utils/events";
 import {
@@ -150,6 +152,11 @@ export function MyActivityDetailPage() {
                   Modifica iscrizione
                 </Link>
               ) : null}
+              <ShareButton
+                title={data.event.title}
+                text="Guarda questa attività e apri l'iscrizione."
+                url={getAbsoluteUrl(getActivityPath(data.event.id, stakeId))}
+              />
               {!isCancelled ? (
                 <button
                   className="button button--ghost"

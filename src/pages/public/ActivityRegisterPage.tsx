@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
@@ -33,6 +33,7 @@ import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/r
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { writePendingAccountProfile } from "@/utils/pendingAccountProfile";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
+import { getActivityRegistrationPath } from "@/utils/activityLinks";
 
 interface RegisterPageData {
   stakeId: string;
@@ -87,8 +88,10 @@ function RegistrationLoadingState({ title }: { title?: string }) {
 export function ActivityRegisterPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session, signInAnonymously, signOut } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "public";
+  const requestedStakeId = searchParams.get("stake") ?? "";
   const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset">(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [anonymousCompletion, setAnonymousCompletion] = useState<Registration | null>(null);
@@ -100,7 +103,7 @@ export function ActivityRegisterPage() {
         return initialData;
       }
 
-      const stakeId = await resolvePublicStakeId(session?.profile.stakeId);
+      const stakeId = await resolvePublicStakeId(requestedStakeId || session?.profile.stakeId);
       const lookup = getRegistrationLookupFromSession(session);
       const hasLookup = Boolean(lookup.userId || lookup.anonymousUid);
 
@@ -131,7 +134,7 @@ export function ActivityRegisterPage() {
         registration,
       };
     },
-    [eventId, sessionKey],
+    [eventId, requestedStakeId, sessionKey],
     initialData,
   );
 
@@ -423,6 +426,7 @@ export function ActivityRegisterPage() {
   }
 
   const event = data.event;
+  const registrationPath = getActivityRegistrationPath(event.id, data.stakeId);
   const formConfig = data.formConfig;
   const organization = data.organization;
   const availability =
@@ -661,7 +665,7 @@ export function ActivityRegisterPage() {
             </button>
             <Link
               className="button button--ghost"
-              to={`/login?redirect=${encodeURIComponent(`/activities/${eventId}/register`)}`}
+              to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
             >
               <AppIcon name="user" />
               <span>Login / Account</span>
@@ -687,7 +691,7 @@ export function ActivityRegisterPage() {
         >
           <Link
             className="button button--primary"
-            to={`/login?redirect=${encodeURIComponent(`/activities/${eventId}/register`)}`}
+            to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
           >
             <AppIcon name="user" />
             <span>Vai al login</span>
@@ -702,7 +706,7 @@ export function ActivityRegisterPage() {
         >
           <Link
             className="button button--primary"
-            to={`/login?redirect=${encodeURIComponent(`/activities/${eventId}/register`)}`}
+            to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
           >
             <AppIcon name="user" />
             <span>Vai al login</span>
