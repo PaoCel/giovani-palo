@@ -1193,6 +1193,11 @@ export function RegistrationEditor({
       ) : null}
       <div className="form-stepper form-stepper--registration">
         <div className="form-stepper__progress">
+          <div className="form-stepper__progress-meta">
+            <span className="form-stepper__progress-count">
+              Passo {currentStepIndex + 1} di {registrationSteps.length}
+            </span>
+          </div>
           <div className="form-stepper__track">
             <span style={{ width: `${progress}%` }} />
           </div>
@@ -1218,6 +1223,10 @@ export function RegistrationEditor({
         </div>
 
         <div key={currentStep.id} className="form-stepper__panel">
+          <div className="form-stepper__panel-head">
+            <h3>{currentStep.title}</h3>
+            <p>{currentStep.description}</p>
+          </div>
           {currentStep.id === "identity" ? (
             <div className="card-grid card-grid--two">
               {shouldAskNameFields ? (

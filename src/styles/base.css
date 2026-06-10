@@ -3245,6 +3245,47 @@ button {
   align-items: center;
 }
 
+.form-stepper__progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.form-stepper__progress-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.form-stepper__panel-head {
+  display: grid;
+  gap: 0.2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px dashed rgba(16, 28, 48, 0.12);
+}
+
+.form-stepper__panel-head h3 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 1.12rem;
+  line-height: 1.25;
+}
+
+.form-stepper__panel-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .form-stepper--registration .form-stepper__steps {
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -3259,6 +3300,25 @@ button {
   gap: 0.45rem;
   min-height: 5rem;
   padding: 0.7rem 0.55rem;
+  transition: opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-stepper--registration .form-stepper__step:not(.form-stepper__step--active):not(.form-stepper__step--done) {
+  opacity: 0.62;
+}
+
+.form-stepper--registration .form-stepper__step--active {
+  border-color: rgba(35, 93, 144, 0.32);
+  box-shadow: 0 14px 32px rgba(16, 28, 48, 0.1);
+}
+
+.form-stepper--registration .form-stepper__step--active .form-stepper__step-label {
+  color: var(--primary);
+}
+
+.form-stepper--registration .form-stepper__step--done .form-stepper__step-icon {
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .form-stepper--registration .form-stepper__step-icon {
