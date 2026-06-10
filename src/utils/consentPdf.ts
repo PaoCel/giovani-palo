@@ -29,12 +29,53 @@ const PHOTO_BODY = [
   "Il concedente non avra diritto, titolo o interesse in alcuna opera o pubblicazione realizzata dall'IRI in virtu di questa liberatoria. Tutte le condizioni complete (incluse le informazioni sulla legge applicabile - Stato dello Utah - e sulle controversie) sono riportate nel testo originale del modulo IRI 37077 160.",
 ];
 
-export function downloadConsentPdf({
+interface SignatureImage {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+async function loadSignatureImage(source: string): Promise<SignatureImage | null> {
+  try {
+    let dataUrl = source;
+
+    if (!source.startsWith("data:")) {
+      const response = await fetch(source, { mode: "cors" });
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error ?? new Error("Lettura firma fallita"));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Immagine firma non valida"));
+      img.src = dataUrl;
+    });
+
+    if (!image.naturalWidth || !image.naturalHeight) return null;
+
+    return { dataUrl, width: image.naturalWidth, height: image.naturalHeight };
+  } catch {
+    return null;
+  }
+}
+
+export async function downloadConsentPdf({
   event,
   registration,
   kind,
   signatureDataUrl,
 }: ConsentPdfArgs) {
+  const signature = signatureDataUrl
+    ? await loadSignatureImage(signatureDataUrl)
+    : null;
+
   const doc = new jsPDF();
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -159,16 +200,21 @@ export function downloadConsentPdf({
   y += 4;
   writeWrapped("Firma del genitore o tutore", "bold", 12);
 
-  if (signatureDataUrl) {
+  if (signature) {
     try {
-      const sigWidth = 70;
-      const sigHeight = 28;
+      const maxWidth = 70;
+      const maxHeight = 28;
+      const scale = Math.min(maxWidth / signature.width, maxHeight / signature.height);
+      const sigWidth = signature.width * scale;
+      const sigHeight = signature.height * scale;
       ensureSpace(sigHeight + 8);
-      doc.addImage(signatureDataUrl, "PNG", marginX, y, sigWidth, sigHeight);
+      doc.addImage(signature.dataUrl, "PNG", marginX, y, sigWidth, sigHeight);
       y += sigHeight + 4;
     } catch {
       writeWrapped("(firma non disponibile)", "italic", 10);
     }
+  } else if (signatureDataUrl) {
+    writeWrapped("(firma non disponibile)", "italic", 10);
   } else {
     doc.setDrawColor(120);
     doc.line(marginX, y + 14, marginX + 90, y + 14);

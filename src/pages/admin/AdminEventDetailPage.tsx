@@ -2000,7 +2000,7 @@ export function AdminEventDetailPage() {
                                   const { downloadConsentPdf } = await import(
                                     "@/utils/consentPdf"
                                   );
-                                  downloadConsentPdf({
+                                  await downloadConsentPdf({
                                     event: resolvedEvent,
                                     registration,
                                     kind: "parental",
@@ -2029,7 +2029,7 @@ export function AdminEventDetailPage() {
                                   const { downloadConsentPdf } = await import(
                                     "@/utils/consentPdf"
                                   );
-                                  downloadConsentPdf({
+                                  await downloadConsentPdf({
                                     event: resolvedEvent,
                                     registration,
                                     kind: "photo",
