@@ -2167,6 +2167,116 @@ button {
   box-shadow: 0 12px 26px rgba(10, 36, 60, 0.28);
 }
 
+/* Dashboard famiglia: card figli con avatar a iniziali e iscrizioni dense */
+.family-child-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.05rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.family-child-card__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.child-avatar {
+  width: 2.9rem;
+  height: 2.9rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.02rem;
+  letter-spacing: 0.03em;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.28),
+    0 8px 18px rgba(16, 28, 48, 0.16);
+}
+
+.family-child-card__identity {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.family-child-card__identity strong {
+  color: var(--heading);
+  font-size: 1.02rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-child-card__identity span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-child-card__registrations {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.family-reg-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.9rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--surface-border);
+}
+
+.family-reg-row__info {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.family-reg-row__info strong {
+  color: var(--heading);
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-reg-row__info span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 540px) {
+  .family-child-card__head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .family-child-card__head .status-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .family-reg-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .family-reg-row .status-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
 .calendar-shell {
   display: grid;
   gap: 1rem;

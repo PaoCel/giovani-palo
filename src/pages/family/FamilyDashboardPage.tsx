@@ -14,8 +14,25 @@ import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
 import type { ChildProfile, Event, Registration, Unit } from "@/types";
 import { getActivitiesPath, getActivityRegistrationPath } from "@/utils/activityLinks";
-import { formatEventWindow } from "@/utils/formatters";
+import { formatDateOnly, formatEventWindow } from "@/utils/formatters";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
+
+const AVATAR_PALETTE = ["#235d90", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
+
+function getChildInitials(child: ChildProfile) {
+  const first = child.firstName?.trim().charAt(0) ?? "";
+  const last = child.lastName?.trim().charAt(0) ?? "";
+  const initials = `${first}${last}` || child.fullName?.trim().charAt(0) || "?";
+  return initials.toUpperCase();
+}
+
+function getAvatarColor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) % 997;
+  }
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
 
 interface FamilyData {
   stakeId: string;
@@ -243,31 +260,53 @@ export function FamilyDashboardPage() {
               );
 
               return (
-                <article key={child.id} className="surface-panel surface-panel--subtle">
-                  <div className="chip-row" style={{ justifyContent: "space-between" }}>
-                    <strong>{child.fullName || child.firstName}</strong>
-                    <span className="surface-chip">{child.unitName || "Unità da definire"}</span>
+                <article key={child.id} className="family-child-card">
+                  <div className="family-child-card__head">
+                    <span
+                      aria-hidden="true"
+                      className="child-avatar"
+                      style={{ background: getAvatarColor(child.fullName || child.firstName) }}
+                    >
+                      {getChildInitials(child)}
+                    </span>
+                    <div className="family-child-card__identity">
+                      <strong>{child.fullName || child.firstName}</strong>
+                      <span>
+                        {child.unitName || "Unità da definire"}
+                        {child.birthDate ? ` · ${formatDateOnly(child.birthDate)}` : ""}
+                      </span>
+                    </div>
+                    <span
+                      className={
+                        childRegistrations.length > 0
+                          ? "status-badge status-badge--success"
+                          : "status-badge status-badge--neutral"
+                      }
+                    >
+                      {childRegistrations.length > 0
+                        ? `${childRegistrations.length} iscrizion${childRegistrations.length === 1 ? "e" : "i"}`
+                        : "Nessuna iscrizione"}
+                    </span>
                   </div>
-                  {child.birthDate ? (
-                    <p className="subtle-text">Data di nascita: {child.birthDate}</p>
-                  ) : null}
 
                   {childRegistrations.length === 0 ? (
-                    <p className="subtle-text">Nessuna iscrizione attiva.</p>
+                    <p className="subtle-text">
+                      Nessuna iscrizione attiva: iscrivilo a una prossima attività.
+                    </p>
                   ) : (
-                    <div className="stack">
+                    <div className="family-child-card__registrations">
                       {childRegistrations.map((registration) => {
                         const event = eventById.get(registration.eventId);
                         return (
-                          <div key={registration.id} className="chip-row">
+                          <div key={registration.id} className="family-reg-row">
                             <StatusBadge
                               label={getRegistrationStatusLabel(registration.registrationStatus)}
                               tone={getRegistrationStatusTone(registration.registrationStatus)}
                             />
-                            <span>{event?.title ?? "Attività"}</span>
-                            {event ? (
-                              <span className="subtle-text">{formatEventWindow(event)}</span>
-                            ) : null}
+                            <div className="family-reg-row__info">
+                              <strong>{event?.title ?? "Attività"}</strong>
+                              {event ? <span>{formatEventWindow(event)}</span> : null}
+                            </div>
                             <Link
                               className="button button--ghost button--small"
                               to={`${getActivityRegistrationPath(registration.eventId, registration.stakeId)}${getActivityRegistrationPath(registration.eventId, registration.stakeId).includes("?") ? "&" : "?"}child=${child.id}`}
