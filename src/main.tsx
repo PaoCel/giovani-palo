@@ -22,6 +22,17 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
+// Riarma l'auto-reload di RouteErrorPanel solo dopo che l'app è rimasta
+// stabile un po': riarmarlo subito al boot ricreerebbe il loop di reload
+// che il flag deve prevenire.
+window.setTimeout(() => {
+  try {
+    sessionStorage.removeItem("gugd-chunk-reload");
+  } catch {
+    // sessionStorage non disponibile (modalità privata restrittiva): pazienza.
+  }
+}, 20000);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

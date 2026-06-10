@@ -1,4 +1,7 @@
+import { useEffect } from "react";
 import { useRouteError } from "react-router-dom";
+
+const RELOAD_FLAG = "gugd-chunk-reload";
 
 // Pannello mostrato quando una route va in errore (render o chunk non
 // caricato, es. nuova release deployata mentre l'app era aperta).
@@ -11,6 +14,23 @@ export function RouteErrorPanel() {
     /dynamically imported module|Loading chunk|Importing a module script failed/i.test(
       message,
     );
+
+  // Chunk vecchio dopo una release: un reload risolve da solo. Lo facciamo
+  // una volta automaticamente (flag in sessionStorage per evitare loop).
+  useEffect(() => {
+    if (!isChunkError) {
+      return;
+    }
+
+    try {
+      if (!sessionStorage.getItem(RELOAD_FLAG)) {
+        sessionStorage.setItem(RELOAD_FLAG, "1");
+        window.location.reload();
+      }
+    } catch {
+      // sessionStorage non disponibile: lasciamo il pannello manuale.
+    }
+  }, [isChunkError]);
 
   return (
     <div className="loader-panel" role="alert">
