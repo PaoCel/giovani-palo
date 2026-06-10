@@ -111,7 +111,7 @@ export function MeDashboardPage() {
       {loading ? (
         <section className="user-dashboard-section">
           <div className="user-section-heading">
-            <h2>La prossima attività programmata a cui parteciperai</h2>
+            <h2>La tua prossima attività</h2>
           </div>
           <p className="subtle-text">Sto caricando le prossime attività...</p>
         </section>
@@ -128,11 +128,18 @@ export function MeDashboardPage() {
       ) : (
         <section className="user-dashboard-section">
           <div className="user-section-heading">
-            <h2>La prossima attività programmata a cui parteciperai</h2>
+            <h2>La tua prossima attività</h2>
           </div>
           <div className="stack">
-            {featuredActivities.slice(0, 2).map(({ event }) => (
-              <article key={event.id} className="user-event-feature">
+            {featuredActivities.slice(0, 2).map(({ event }, index) => (
+              <article
+                key={event.id}
+                className={
+                  index === 0
+                    ? "user-event-feature user-event-feature--hero"
+                    : "user-event-feature"
+                }
+              >
                 <Link
                   aria-label={`Apri dettagli attività: ${event.title}`}
                   className="user-event-feature__media"

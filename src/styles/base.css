@@ -2080,6 +2080,93 @@ button {
   padding-top: 0.15rem;
 }
 
+/* Prima attività in evidenza: card hero immersiva con poster a tutta area */
+.user-event-feature--hero {
+  position: relative;
+  overflow: hidden;
+  grid-template-columns: 1fr;
+  min-height: 16.5rem;
+  padding: 1.1rem;
+  border: 0;
+  border-radius: var(--radius-lg);
+  color: #f6fbff;
+  background:
+    radial-gradient(120% 90% at 85% -10%, rgba(181, 138, 80, 0.32), transparent 55%),
+    linear-gradient(160deg, #2d6ba3 0%, var(--primary) 45%, var(--primary-strong) 100%);
+  box-shadow: 0 22px 48px rgba(15, 56, 94, 0.26);
+}
+
+.user-event-feature--hero .user-event-feature__media {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+}
+
+.user-event-feature--hero .user-event-feature__poster {
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  background-size: cover;
+  background-color: transparent;
+}
+
+.user-event-feature--hero .user-event-feature__poster--fallback {
+  background: transparent;
+  color: rgba(246, 251, 255, 0.4);
+}
+
+.user-event-feature--hero .user-event-feature__media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 40, 65, 0.18) 0%,
+    rgba(16, 40, 65, 0.45) 45%,
+    rgba(11, 30, 51, 0.88) 100%
+  );
+}
+
+.user-event-feature--hero .user-event-feature__body {
+  position: relative;
+  z-index: 1;
+  align-content: end;
+  pointer-events: none;
+}
+
+.user-event-feature--hero .user-event-feature__body a,
+.user-event-feature--hero .user-event-feature__body .button {
+  pointer-events: auto;
+}
+
+.user-event-feature--hero .status-badge,
+.user-event-feature--hero .surface-chip {
+  background: rgba(13, 36, 60, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  backdrop-filter: blur(12px);
+}
+
+.user-event-feature--hero .user-event-feature__title h3 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.35rem, 4.5vw, 1.8rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow: 0 2px 14px rgba(10, 28, 48, 0.45);
+}
+
+.user-event-feature--hero .user-event-feature__meta {
+  color: rgba(246, 251, 255, 0.85);
+}
+
+.user-event-feature--hero .user-event-feature__actions .button--primary {
+  background: #ffffff;
+  color: var(--primary-strong);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 26px rgba(10, 36, 60, 0.28);
+}
+
 .calendar-shell {
   display: grid;
   gap: 1rem;
