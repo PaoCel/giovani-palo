@@ -26,6 +26,7 @@ const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const JSZip = require("jszip");
 
 const {
   REGION,
@@ -33,12 +34,18 @@ const {
   PARENT_AUTHORIZATION_TOKEN_TTL_DAYS,
   STORAGE_PATH_PARENT_AUTH_PDF,
   STORAGE_PATH_PARENT_AUTH_SIGNATURE,
+  STORAGE_PATH_PARENT_AUTH_SIGNATURE_CACHE,
 } = require("./config");
 const {
   LEGAL_DOC_VERSIONS,
   PARENT_CONSENT_CHECKBOXES,
 } = require("./legalDocs");
-const { sendParentAuthorizationEmail, BrevoError } = require("./brevo");
+const {
+  sendParentAuthorizationEmail,
+  sendSignedAuthorizationCopyEmail,
+  BrevoError,
+} = require("./brevo");
+const { sanitizeSignaturePng } = require("./signatureImage");
 // NB: pdfGenerator caricato lazy dentro parentAuthorizationConfirm. pdfkit
 // inizializza font al require, supera il timeout di analisi statica del
 // deploy delle Cloud Functions (10s). Lazy-load -> il bootstrap resta veloce.
@@ -73,6 +80,90 @@ function computeExpiry() {
 
 function asString(value, fallback = "") {
   return typeof value === "string" ? value : fallback;
+}
+
+function sanitizeFilenamePart(value, fallback = "senza-nome") {
+  const cleaned = asString(value)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._ -]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (cleaned || fallback).slice(0, 90);
+}
+
+function getRegistrationFileBaseName(registration) {
+  const fullName =
+    asString(registration.fullName).trim() ||
+    `${asString(registration.firstName).trim()} ${asString(registration.lastName).trim()}`.trim();
+  return sanitizeFilenamePart(fullName, registration.id || "iscritto");
+}
+
+function buildUniqueFilename(baseName, usedNames, extension = ".pdf") {
+  const safeBase = sanitizeFilenamePart(baseName, "iscritto");
+  let candidate = `${safeBase}${extension}`;
+  let counter = 2;
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = `${safeBase} ${counter}${extension}`;
+    counter += 1;
+  }
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function escapeDispositionFilename(filename) {
+  return sanitizeFilenamePart(filename, "download").replace(/["\\]/g, "");
+}
+
+async function assertAdminForStake(db, request, stakeId) {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Login richiesto.");
+  }
+
+  const userDoc = await db.doc(`users/${request.auth.uid}`).get();
+  if (!userDoc.exists) {
+    throw new HttpsError("permission-denied", "Profilo utente non trovato.");
+  }
+
+  const user = userDoc.data() || {};
+  const isAdmin = user.role === "admin" || user.role === "super_admin";
+  const isStakeMatch = user.role === "super_admin" || user.stakeId === stakeId;
+  if (!isAdmin || !isStakeMatch) {
+    throw new HttpsError("permission-denied", "Servono privilegi admin.");
+  }
+
+  return user;
+}
+
+async function getTemporaryDownloadUrl(file, filename, expiresInMinutes = 15) {
+  const expiresAtMs = Date.now() + expiresInMinutes * 60 * 1000;
+  const [exists] = await file.exists();
+  if (!exists) {
+    throw new HttpsError("not-found", "File non trovato in Storage.");
+  }
+
+  const [url] = await file.getSignedUrl({
+    version: "v4",
+    action: "read",
+    expires: expiresAtMs,
+    responseDisposition: `attachment; filename="${escapeDispositionFilename(filename)}"`,
+  });
+
+  return {
+    url,
+    expiresAt: new Date(expiresAtMs).toISOString(),
+  };
+}
+
+function normalizeEmail(value) {
+  return asString(value).trim().toLowerCase();
+}
+
+function hashEmail(value) {
+  const normalized = normalizeEmail(value);
+  return normalized
+    ? crypto.createHash("sha256").update(normalized, "utf8").digest("hex")
+    : "";
 }
 
 function readParentAuthorizationRequest(registrationData) {
@@ -145,6 +236,7 @@ async function writeAuditLog(db, stakeId, activityId, registrationId, payload) {
     socialPublicationConsent: payload.socialPublicationConsent ?? null,
     signaturePath: payload.signaturePath ?? null,
     pdfPath: payload.pdfPath ?? null,
+    auditPdfPath: payload.auditPdfPath ?? null,
     emailProvider: payload.emailProvider ?? null,
     brevoMessageId: payload.brevoMessageId ?? null,
     emailErrorCode: payload.emailErrorCode ?? null,
@@ -165,6 +257,12 @@ async function loadActivity(db, stakeId, activityId) {
   return { id: snapshot.id, ...snapshot.data() };
 }
 
+async function loadStake(db, stakeId) {
+  const snapshot = await db.doc(`stakes/${stakeId}`).get();
+  if (!snapshot.exists) return null;
+  return { id: snapshot.id, ...snapshot.data() };
+}
+
 async function loadRegistration(db, stakeId, activityId, registrationId) {
   const snapshot = await db
     .doc(
@@ -173,6 +271,82 @@ async function loadRegistration(db, stakeId, activityId, registrationId) {
     .get();
   if (!snapshot.exists) return null;
   return { id: snapshot.id, ...snapshot.data() };
+}
+
+function getSignatureCacheRef(db, parentEmail) {
+  const emailHash = hashEmail(parentEmail);
+  if (!emailHash) return null;
+  return db.doc(`parentAuthorizationSignatureCache/${emailHash}`);
+}
+
+async function loadSignatureCache(db, parentEmail) {
+  const ref = getSignatureCacheRef(db, parentEmail);
+  if (!ref) return null;
+  const snapshot = await ref.get();
+  if (!snapshot.exists) return null;
+  const data = snapshot.data() || {};
+  if (data.status === "revoked" || !data.signaturePath) return null;
+  return { id: snapshot.id, ...data };
+}
+
+async function loadSignatureBufferFromCache({ db, storage, parentEmail }) {
+  const cache = await loadSignatureCache(db, parentEmail);
+  if (!cache || typeof cache.signaturePath !== "string") {
+    return null;
+  }
+
+  const [buffer] = await storage.bucket().file(cache.signaturePath).download();
+  return { buffer, cache };
+}
+
+async function saveReusableSignature({
+  db,
+  storage,
+  parentEmail,
+  parentName,
+  signatureBuffer,
+  source,
+}) {
+  const normalizedEmail = normalizeEmail(parentEmail);
+  const emailHash = hashEmail(normalizedEmail);
+  if (!emailHash || !signatureBuffer || !Buffer.isBuffer(signatureBuffer)) {
+    return null;
+  }
+
+  const signaturePath = `${STORAGE_PATH_PARENT_AUTH_SIGNATURE_CACHE(emailHash)}/signature.png`;
+  const savedAt = nowIso();
+  await storage.bucket().file(signaturePath).save(signatureBuffer, {
+    contentType: "image/png",
+    resumable: false,
+    metadata: {
+      metadata: {
+        emailHash,
+        savedAt,
+        sourceRegistrationId: source.registrationId || "",
+        sourceActivityId: source.activityId || "",
+      },
+    },
+  });
+
+  await db.doc(`parentAuthorizationSignatureCache/${emailHash}`).set(
+    {
+      id: emailHash,
+      emailHash,
+      parentEmail: normalizedEmail,
+      parentName: parentName || null,
+      signaturePath,
+      status: "active",
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      lastUsedAt: savedAt,
+      sourceStakeId: source.stakeId || null,
+      sourceActivityId: source.activityId || null,
+      sourceRegistrationId: source.registrationId || null,
+    },
+    { merge: true },
+  );
+
+  return { emailHash, signaturePath };
 }
 
 // Validazione dei consensi obbligatori inviati dal genitore.
@@ -186,6 +360,133 @@ function sanitizePhotoConsent(value) {
     return value;
   }
   return "not_answered";
+}
+
+function getAnswers(registration) {
+  return registration && registration.answers && typeof registration.answers === "object"
+    ? registration.answers
+    : {};
+}
+
+function getLegacyApprovalDate(registration, request, existingState) {
+  const answers = getAnswers(registration);
+  const candidates = [
+    existingState?.authorizedAt,
+    answers.parentAuthorizationAcceptedAt,
+    answers.parentConfirmedAt,
+    answers.parentalConsentAcceptedAt,
+    request?.approvedAt,
+    request?.acceptedAt,
+    request?.submittedAt,
+    registration.updatedAt,
+    registration.createdAt,
+  ];
+
+  for (const candidate of candidates) {
+    const value = asString(candidate).trim();
+    if (!value) continue;
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return nowIso();
+}
+
+function splitName(fullName) {
+  const parts = asString(fullName).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return {
+    firstName: parts.slice(0, -1).join(" "),
+    lastName: parts[parts.length - 1],
+  };
+}
+
+function getLegacyParentDetails(registration) {
+  const answers = getAnswers(registration);
+  const request = readParentAuthorizationRequest(registration) || {};
+  const existingState =
+    registration.parentAuthorization && typeof registration.parentAuthorization === "object"
+      ? registration.parentAuthorization
+      : {};
+
+  const signerName =
+    asString(answers.parentalConsentSignerName).trim() ||
+    asString(answers.photoReleaseSignerName).trim() ||
+    asString(existingState.parentName).trim();
+  const splitSigner = splitName(signerName);
+
+  const firstName =
+    asString(existingState.parentFirstName).trim() ||
+    asString(request.parentFirstName).trim() ||
+    splitSigner.firstName;
+  const lastName =
+    asString(existingState.parentLastName).trim() ||
+    asString(request.parentLastName).trim() ||
+    splitSigner.lastName;
+  const parentName = `${firstName} ${lastName}`.trim() || signerName;
+
+  return {
+    existingState,
+    request,
+    parentFirstName: firstName,
+    parentLastName: lastName,
+    parentName,
+    parentEmail: normalizeEmail(
+      existingState.parentEmail ||
+        request.parentEmail ||
+        answers.parentEmail ||
+        answers.parentGuardianEmail,
+    ),
+    parentPhone: asString(existingState.parentPhone).trim() || asString(request.parentPhone).trim(),
+    emergencyContactName:
+      asString(existingState.emergencyContactName).trim() ||
+      asString(request.emergencyContactName).trim(),
+    emergencyContactPhone:
+      asString(existingState.emergencyContactPhone).trim() ||
+      asString(request.emergencyContactPhone).trim(),
+    emergencyContactRelation:
+      asString(existingState.emergencyContactRelation).trim() ||
+      asString(request.emergencyContactRelation).trim(),
+    allergies: asString(existingState.allergies).trim() || asString(request.allergies).trim(),
+    medications:
+      asString(existingState.medications).trim() || asString(request.medications).trim(),
+    medicalNotes:
+      asString(existingState.medicalNotes).trim() || asString(request.medicalNotes).trim(),
+    dietaryNotes:
+      asString(existingState.dietaryNotes).trim() || asString(request.dietaryNotes).trim(),
+  };
+}
+
+function getLegacyPhotoDecision(registration, existingValue, answerKeys) {
+  const normalized = sanitizePhotoConsent(existingValue);
+  if (normalized !== "not_answered") return normalized;
+
+  const answers = getAnswers(registration);
+  for (const key of answerKeys) {
+    if (answers[key] === true) return "accepted";
+    if (answers[key] === false) return "refused";
+  }
+  return "not_answered";
+}
+
+function isLegacyApprovalCandidate(registration) {
+  if (!registration || registration.status === "cancelled" || registration.registrationStatus === "cancelled") {
+    return false;
+  }
+
+  const existingState =
+    registration.parentAuthorization && typeof registration.parentAuthorization === "object"
+      ? registration.parentAuthorization
+      : {};
+  if (existingState.pdfPath) return false;
+  if (existingState.status === "rejected_by_parent") return false;
+
+  const answers = getAnswers(registration);
+  return (
+    existingState.status === "authorized" ||
+    answers.parentConfirmed === true ||
+    answers.parentalConsentAccepted === true
+  );
 }
 
 function decodeBase64Image(dataUrl) {
@@ -225,7 +526,7 @@ async function sendInitialAuthorizationEmail({
     return { skipped: true, reason: "missing_request_payload" };
   }
 
-  const parentEmail = asString(request.parentEmail).trim().toLowerCase();
+  const parentEmail = normalizeEmail(request.parentEmail);
   if (!parentEmail) {
     logger.warn("Parent email vuota, salto invio.", {
       stakeId,
@@ -550,6 +851,8 @@ const parentAuthorizationGetContext = onCall(
       };
     }
 
+    const reusableSignature = await loadSignatureCache(db, token.parentEmail || "");
+
     return {
       status: "valid",
       activityTitle: token.activityTitle || "",
@@ -557,6 +860,7 @@ const parentAuthorizationGetContext = onCall(
       activityEndDate: token.activityEndDate || "",
       participantName: token.participantName || "",
       parentEmail: token.parentEmail || "",
+      hasReusableSignature: Boolean(reusableSignature),
       expiresAt: token.expiresAt || null,
       legalVersions: LEGAL_DOC_VERSIONS,
     };
@@ -570,6 +874,7 @@ const parentAuthorizationGetContext = onCall(
 const parentAuthorizationConfirm = onCall(
   {
     region: REGION,
+    secrets: [BREVO_API_KEY],
     cors: true,
   },
   async (request) => {
@@ -580,6 +885,7 @@ const parentAuthorizationConfirm = onCall(
       request.data?.socialPublicationConsent,
     );
     const signatureDataUrl = request.data?.signatureDataUrl;
+    const useStoredSignature = request.data?.useStoredSignature === true;
 
     if (typeof rawToken !== "string" || !rawToken.trim()) {
       throw new HttpsError("invalid-argument", "Token mancante.");
@@ -644,14 +950,39 @@ const parentAuthorizationConfirm = onCall(
         ? registration.parentAuthorization
         : {};
 
-    // Salva firma su Storage (se fornita).
+    const parentName = `${existingState.parentFirstName || ""} ${existingState.parentLastName || ""}`.trim();
+    const parentEmail = normalizeEmail(existingState.parentEmail || token.parentEmail);
+
+    // Salva firma su Storage (se fornita), oppure riusa quella associata
+    // alla stessa email genitore.
     let signaturePath = null;
     let signatureUrl = null;
     let signatureBuffer = null;
+    let signatureSource = "new";
 
     const decoded = decodeBase64Image(signatureDataUrl);
     if (decoded && decoded.length > 100) {
-      signatureBuffer = decoded;
+      signatureBuffer = sanitizeSignaturePng(decoded);
+    } else if (useStoredSignature) {
+      const reusable = await loadSignatureBufferFromCache({
+        db,
+        storage,
+        parentEmail,
+      });
+      if (reusable) {
+        signatureBuffer = sanitizeSignaturePng(reusable.buffer);
+        signatureSource = "reused";
+      }
+    }
+
+    if (!signatureBuffer || signatureBuffer.length <= 100) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Serve una firma per confermare l'autorizzazione.",
+      );
+    }
+
+    if (signatureBuffer) {
       signaturePath = `${STORAGE_PATH_PARENT_AUTH_SIGNATURE(
         stakeId,
         activityId,
@@ -662,15 +993,152 @@ const parentAuthorizationConfirm = onCall(
         contentType: "image/png",
         resumable: false,
         metadata: {
-          metadata: { tokenHash, confirmedAt },
+          metadata: { tokenHash, confirmedAt, signatureSource },
         },
       });
       signatureUrl = null; // path interno, niente URL pubblico
+
+      if (signatureSource === "new") {
+        await saveReusableSignature({
+          db,
+          storage,
+          parentEmail,
+          parentName,
+          signatureBuffer,
+          source: { stakeId, activityId, registrationId },
+        });
+      } else {
+        const signatureCacheRef = getSignatureCacheRef(db, parentEmail);
+        if (signatureCacheRef) {
+          await signatureCacheRef.set(
+            {
+              lastUsedAt: confirmedAt,
+              updatedAt: confirmedAt,
+              lastUsedStakeId: stakeId,
+              lastUsedActivityId: activityId,
+              lastUsedRegistrationId: registrationId,
+            },
+            { merge: true },
+          );
+        }
+      }
     }
 
-    // Genera PDF audit (lazy-load pdfkit per non rallentare il bootstrap del deploy).
+    const stake = await loadStake(db, stakeId);
+
+    // Genera PDF ufficiale + PDF audit tecnico.
     let pdfPath = null;
     let pdfUrl = null;
+    let conductPdfPath = null;
+    let conductPdfBuffer = null;
+    let auditPdfPath = null;
+    let officialPdfBuffer = null;
+    try {
+      const {
+        generateOfficialConsentPdf,
+        generateChurchActivityConductPdf,
+      } = require("./officialConsentPdf");
+      officialPdfBuffer = await generateOfficialConsentPdf({
+        activity: {
+          title: activity.title || "",
+          description: activity.description || activity.program || activity.publicNotes || "",
+          publicNotes: activity.publicNotes || "",
+          startDate: activity.startDate || "",
+          endDate: activity.endDate || "",
+          location: activity.location || "",
+          activityType: activity.activityType || (activity.overnight ? "overnight" : "standard"),
+          overnight: Boolean(activity.overnight),
+          stakeName: stake?.name || "",
+        },
+        organization: {
+          stakeName: stake?.name || "",
+          unitName: registration.unitNameSnapshot || "",
+          leaderName: activity.eventLeaderName || "",
+          leaderPhone: activity.eventLeaderPhone || "",
+          leaderEmail: activity.eventLeaderEmail || "",
+        },
+        participant: {
+          fullName: registration.fullName || "",
+          birthDate: registration.birthDate || "",
+          email: registration.email || "",
+          phone: registration.phone || "",
+          unitName: registration.unitNameSnapshot || "",
+          address:
+            typeof registration.answers?.address === "string"
+              ? registration.answers.address
+              : "",
+          city:
+            typeof registration.answers?.city === "string"
+              ? registration.answers.city
+              : "",
+          stateOrProvince:
+            typeof registration.answers?.stateOrProvince === "string"
+              ? registration.answers.stateOrProvince
+              : "",
+        },
+        parent: {
+          firstName: existingState.parentFirstName || "",
+          lastName: existingState.parentLastName || "",
+          email: parentEmail,
+          phone: existingState.parentPhone || "",
+        },
+        emergency: {
+          name: existingState.emergencyContactName || "",
+          phone: existingState.emergencyContactPhone || "",
+          relation: existingState.emergencyContactRelation || "",
+          secondaryPhone:
+            typeof registration.answers?.emergencyContactSecondaryPhone === "string"
+              ? registration.answers.emergencyContactSecondaryPhone
+              : "",
+        },
+        medical: {
+          allergies: existingState.allergies || "",
+          medications: existingState.medications || "",
+          medicalNotes: existingState.medicalNotes || "",
+          dietaryNotes: existingState.dietaryNotes || "",
+        },
+        confirmedAt,
+        signaturePngBuffer: signatureBuffer,
+      });
+
+      pdfPath = `${STORAGE_PATH_PARENT_AUTH_PDF(
+        stakeId,
+        activityId,
+        registrationId,
+      )}/${tokenHash}-official.pdf`;
+      const officialPdfFile = storage.bucket().file(pdfPath);
+      await officialPdfFile.save(officialPdfBuffer, {
+        contentType: "application/pdf",
+        resumable: false,
+        metadata: {
+          metadata: { tokenHash, confirmedAt, documentKind: "official_consent" },
+        },
+      });
+
+      conductPdfBuffer = await generateChurchActivityConductPdf();
+      conductPdfPath = `${STORAGE_PATH_PARENT_AUTH_PDF(
+        stakeId,
+        activityId,
+        registrationId,
+      )}/${tokenHash}-conduct.pdf`;
+      const conductPdfFile = storage.bucket().file(conductPdfPath);
+      await conductPdfFile.save(conductPdfBuffer, {
+        contentType: "application/pdf",
+        resumable: false,
+        metadata: {
+          metadata: { tokenHash, confirmedAt, documentKind: "church_activity_conduct" },
+        },
+      });
+    } catch (error) {
+      logger.error("Official consent PDF generation failed.", {
+        stakeId,
+        activityId,
+        registrationId,
+        tokenId: tokenHash,
+        error: error.message,
+      });
+    }
+
     try {
       const { generateParentAuthorizationPdf } = require("./pdfGenerator");
       const pdfBuffer = await generateParentAuthorizationPdf({
@@ -715,21 +1183,21 @@ const parentAuthorizationConfirm = onCall(
         signaturePngBuffer: signatureBuffer,
       });
 
-      pdfPath = `${STORAGE_PATH_PARENT_AUTH_PDF(
+      auditPdfPath = `${STORAGE_PATH_PARENT_AUTH_PDF(
         stakeId,
         activityId,
         registrationId,
-      )}/${tokenHash}.pdf`;
-      const pdfFile = storage.bucket().file(pdfPath);
+      )}/${tokenHash}-audit.pdf`;
+      const pdfFile = storage.bucket().file(auditPdfPath);
       await pdfFile.save(pdfBuffer, {
         contentType: "application/pdf",
         resumable: false,
         metadata: {
-          metadata: { tokenHash, confirmedAt },
+          metadata: { tokenHash, confirmedAt, documentKind: "authorization_audit" },
         },
       });
     } catch (error) {
-      logger.error("PDF generation failed.", {
+      logger.error("Audit PDF generation failed.", {
         stakeId,
         activityId,
         registrationId,
@@ -737,6 +1205,36 @@ const parentAuthorizationConfirm = onCall(
         error: error.message,
       });
       // Non blocchiamo la conferma se PDF fallisce: l'audit log resta.
+    }
+
+    let copyEmailSentAt = null;
+    let copyEmailMessageId = null;
+    let copyEmailError = null;
+    if (officialPdfBuffer && parentEmail) {
+      try {
+        const result = await sendSignedAuthorizationCopyEmail({
+          apiKey: BREVO_API_KEY.value(),
+          parentEmail,
+          parentName: parentName || parentEmail,
+          participantName: registration.fullName || token.participantName || "",
+          activityTitle: activity.title || token.activityTitle || "",
+          pdfBuffer: officialPdfBuffer,
+          pdfFilename: `modulo-consenso-${registrationId}.pdf`,
+          conductPdfBuffer,
+          conductPdfFilename: `condotta-attivita-chiesa-${registrationId}.pdf`,
+        });
+        copyEmailSentAt = nowIso();
+        copyEmailMessageId = result.messageId || null;
+      } catch (error) {
+        copyEmailError = error.message ? error.message.slice(0, 500) : "unknown";
+        logger.error("Signed authorization copy email failed.", {
+          stakeId,
+          activityId,
+          registrationId,
+          tokenId: tokenHash,
+          error: error.message,
+        });
+      }
     }
 
     // Aggiorna registration: status confirmed + sub-object completo
@@ -757,6 +1255,12 @@ const parentAuthorizationConfirm = onCall(
       signatureUrl,
       pdfPath,
       pdfUrl,
+      conductPdfPath,
+      auditPdfPath,
+      signatureSource,
+      signedCopyEmailSentAt: copyEmailSentAt,
+      signedCopyEmailMessageId: copyEmailMessageId,
+      signedCopyEmailLastError: copyEmailError,
       ipAddress,
       userAgent,
       updatedAt: confirmedAt,
@@ -765,6 +1269,13 @@ const parentAuthorizationConfirm = onCall(
     await registrationRef.set(
       {
         parentAuthorization: newState,
+        parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
+        parentConsentDocumentPath: pdfPath,
+        parentConsentDocumentUrl: null,
+        parentConsentUploadedAt: pdfPath ? confirmedAt : null,
+        consentSignaturePath: signaturePath,
+        consentSignatureUrl: null,
+        consentSignatureSetAt: confirmedAt,
         registrationStatus: "confirmed",
         updatedAt: confirmedAt,
       },
@@ -792,6 +1303,7 @@ const parentAuthorizationConfirm = onCall(
       socialPublicationConsent,
       signaturePath,
       pdfPath,
+      auditPdfPath,
       ipAddress,
       userAgent,
     });
@@ -924,10 +1436,6 @@ const parentAuthorizationResend = onCall(
     cors: true,
   },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Login richiesto.");
-    }
-
     const stakeId = asString(request.data?.stakeId).trim();
     const activityId = asString(request.data?.activityId).trim();
     const registrationId = asString(request.data?.registrationId).trim();
@@ -939,17 +1447,7 @@ const parentAuthorizationResend = onCall(
     const db = getFirestore();
     const storage = getStorage();
 
-    // Verifica permessi admin
-    const userDoc = await db.doc(`users/${request.auth.uid}`).get();
-    if (!userDoc.exists) {
-      throw new HttpsError("permission-denied", "Profilo utente non trovato.");
-    }
-    const user = userDoc.data();
-    const isAdmin = user.role === "admin" || user.role === "super_admin";
-    const isStakeMatch = user.role === "super_admin" || user.stakeId === stakeId;
-    if (!isAdmin || !isStakeMatch) {
-      throw new HttpsError("permission-denied", "Servono privilegi admin.");
-    }
+    await assertAdminForStake(db, request, stakeId);
 
     const registration = await loadRegistration(db, stakeId, activityId, registrationId);
     if (!registration) {
@@ -1028,10 +1526,491 @@ const parentAuthorizationResend = onCall(
   },
 );
 
+// =============================================================================
+// Cloud Function: fallback approvazioni legacy
+// =============================================================================
+
+const parentAuthorizationBackfillLegacyApprovals = onCall(
+  {
+    region: REGION,
+    secrets: [BREVO_API_KEY],
+    timeoutSeconds: 300,
+    memory: "512MiB",
+    cors: true,
+  },
+  async (request) => {
+    const stakeId = asString(request.data?.stakeId).trim();
+    const activityId = asString(request.data?.activityId).trim();
+    const dryRun = request.data?.dryRun === true;
+
+    if (!stakeId || !activityId) {
+      throw new HttpsError("invalid-argument", "Parametri mancanti.");
+    }
+
+    const db = getFirestore();
+    const storage = getStorage();
+    await assertAdminForStake(db, request, stakeId);
+
+    const [activity, stake, registrationsSnapshot] = await Promise.all([
+      loadActivity(db, stakeId, activityId),
+      loadStake(db, stakeId),
+      db.collection(`stakes/${stakeId}/activities/${activityId}/registrations`).get(),
+    ]);
+
+    if (!activity) {
+      throw new HttpsError("not-found", "Attivita non trovata.");
+    }
+
+    const candidates = registrationsSnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter(isLegacyApprovalCandidate);
+
+    if (dryRun) {
+      return {
+        ok: true,
+        dryRun: true,
+        candidates: candidates.length,
+        processed: 0,
+        emailed: 0,
+        skipped: 0,
+        errors: [],
+      };
+    }
+
+    const result = {
+      ok: true,
+      dryRun: false,
+      candidates: candidates.length,
+      processed: 0,
+      emailed: 0,
+      skipped: 0,
+      errors: [],
+    };
+
+    const {
+      generateOfficialConsentPdf,
+      generateChurchActivityConductPdf,
+    } = require("./officialConsentPdf");
+
+    for (const registration of candidates) {
+      const registrationId = registration.id;
+      const parentDetails = getLegacyParentDetails(registration);
+      const acceptedAt = getLegacyApprovalDate(
+        registration,
+        parentDetails.request,
+        parentDetails.existingState,
+      );
+      const parentName =
+        parentDetails.parentName ||
+        `${parentDetails.parentFirstName} ${parentDetails.parentLastName}`.trim();
+
+      if (!parentDetails.parentEmail || !parentName) {
+        result.skipped += 1;
+        result.errors.push({
+          registrationId,
+          reason: "missing_parent_identity",
+        });
+        continue;
+      }
+
+      const legacyTokenId = `legacy-${crypto
+        .createHash("sha256")
+        .update(`${stakeId}/${activityId}/${registrationId}/${acceptedAt}`)
+        .digest("hex")
+        .slice(0, 32)}`;
+      const photoConsent = getLegacyPhotoDecision(
+        registration,
+        parentDetails.existingState.photoConsent,
+        ["photoReleaseAccepted", "photoInternalConsent"],
+      );
+      const socialPublicationConsent = getLegacyPhotoDecision(
+        registration,
+        parentDetails.existingState.socialPublicationConsent,
+        ["photoPublicConsent", "adultSocialPublicationConsent"],
+      );
+      const consents = Object.fromEntries(
+        PARENT_CONSENT_CHECKBOXES.map((item) => [item.key, true]),
+      );
+
+      try {
+        const officialPdfBuffer = await generateOfficialConsentPdf({
+          activity: {
+            title: activity.title || "",
+            description: activity.description || activity.program || activity.publicNotes || "",
+            publicNotes: activity.publicNotes || "",
+            startDate: activity.startDate || "",
+            endDate: activity.endDate || "",
+            location: activity.location || "",
+            activityType: activity.activityType || (activity.overnight ? "overnight" : "standard"),
+            overnight: Boolean(activity.overnight),
+            stakeName: stake?.name || "",
+          },
+          organization: {
+            stakeName: stake?.name || "",
+            unitName: registration.unitNameSnapshot || "",
+            leaderName: activity.eventLeaderName || "",
+            leaderPhone: activity.eventLeaderPhone || "",
+            leaderEmail: activity.eventLeaderEmail || "",
+          },
+          participant: {
+            fullName: registration.fullName || "",
+            birthDate: registration.birthDate || "",
+            email: registration.email || "",
+            phone: registration.phone || "",
+            unitName: registration.unitNameSnapshot || "",
+            address:
+              typeof registration.answers?.address === "string"
+                ? registration.answers.address
+                : "",
+            city:
+              typeof registration.answers?.city === "string"
+                ? registration.answers.city
+                : "",
+            stateOrProvince:
+              typeof registration.answers?.stateOrProvince === "string"
+                ? registration.answers.stateOrProvince
+                : "",
+          },
+          parent: {
+            firstName: parentDetails.parentFirstName,
+            lastName: parentDetails.parentLastName,
+            email: parentDetails.parentEmail,
+            phone: parentDetails.parentPhone,
+          },
+          emergency: {
+            name: parentDetails.emergencyContactName,
+            phone: parentDetails.emergencyContactPhone,
+            relation: parentDetails.emergencyContactRelation,
+            secondaryPhone:
+              typeof registration.answers?.emergencyContactSecondaryPhone === "string"
+                ? registration.answers.emergencyContactSecondaryPhone
+                : "",
+          },
+          medical: {
+            allergies: parentDetails.allergies,
+            medications: parentDetails.medications,
+            medicalNotes: parentDetails.medicalNotes,
+            dietaryNotes: parentDetails.dietaryNotes,
+          },
+          confirmedAt: acceptedAt,
+          signatureText: parentName,
+        });
+
+        const conductPdfBuffer = await generateChurchActivityConductPdf();
+        const pdfPath = `${STORAGE_PATH_PARENT_AUTH_PDF(
+          stakeId,
+          activityId,
+          registrationId,
+        )}/${legacyTokenId}-official.pdf`;
+        const conductPdfPath = `${STORAGE_PATH_PARENT_AUTH_PDF(
+          stakeId,
+          activityId,
+          registrationId,
+        )}/${legacyTokenId}-conduct.pdf`;
+
+        await Promise.all([
+          storage.bucket().file(pdfPath).save(officialPdfBuffer, {
+            contentType: "application/pdf",
+            resumable: false,
+            metadata: {
+              metadata: {
+                tokenHash: legacyTokenId,
+                confirmedAt: acceptedAt,
+                documentKind: "official_consent",
+                signatureSource: "legacy_typed",
+              },
+            },
+          }),
+          storage.bucket().file(conductPdfPath).save(conductPdfBuffer, {
+            contentType: "application/pdf",
+            resumable: false,
+            metadata: {
+              metadata: {
+                tokenHash: legacyTokenId,
+                confirmedAt: acceptedAt,
+                documentKind: "church_activity_conduct",
+                signatureSource: "legacy_typed",
+              },
+            },
+          }),
+        ]);
+
+        let copyEmailSentAt = null;
+        let copyEmailMessageId = null;
+        let copyEmailError = null;
+        try {
+          const emailResult = await sendSignedAuthorizationCopyEmail({
+            apiKey: BREVO_API_KEY.value(),
+            parentEmail: parentDetails.parentEmail,
+            parentName,
+            participantName: registration.fullName || "",
+            activityTitle: activity.title || "",
+            pdfBuffer: officialPdfBuffer,
+            pdfFilename: `modulo-consenso-${registrationId}.pdf`,
+            conductPdfBuffer,
+            conductPdfFilename: `condotta-attivita-chiesa-${registrationId}.pdf`,
+          });
+          copyEmailSentAt = nowIso();
+          copyEmailMessageId = emailResult.messageId || null;
+          result.emailed += 1;
+        } catch (error) {
+          copyEmailError = error.message ? error.message.slice(0, 500) : "unknown";
+          result.errors.push({
+            registrationId,
+            reason: "email_failed",
+            message: copyEmailError,
+          });
+        }
+
+        const newState = {
+          ...(parentDetails.existingState || {}),
+          status: "authorized",
+          tokenId: legacyTokenId,
+          parentFirstName: parentDetails.parentFirstName,
+          parentLastName: parentDetails.parentLastName,
+          parentEmail: parentDetails.parentEmail,
+          parentPhone: parentDetails.parentPhone,
+          emergencyContactName: parentDetails.emergencyContactName,
+          emergencyContactPhone: parentDetails.emergencyContactPhone,
+          emergencyContactRelation: parentDetails.emergencyContactRelation,
+          allergies: parentDetails.allergies,
+          medications: parentDetails.medications,
+          medicalNotes: parentDetails.medicalNotes,
+          dietaryNotes: parentDetails.dietaryNotes,
+          authorizedAt: acceptedAt,
+          legalVersions: LEGAL_DOC_VERSIONS,
+          consents,
+          photoConsent,
+          socialPublicationConsent,
+          signaturePath: null,
+          signatureUrl: null,
+          signatureSource: "legacy_typed",
+          pdfPath,
+          pdfUrl: null,
+          conductPdfPath,
+          auditPdfPath: null,
+          signedCopyEmailSentAt: copyEmailSentAt,
+          signedCopyEmailMessageId: copyEmailMessageId,
+          signedCopyEmailLastError: copyEmailError,
+          ipAddress: null,
+          userAgent: null,
+          updatedAt: nowIso(),
+        };
+
+        await db
+          .doc(`stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`)
+          .set(
+            {
+              parentAuthorization: newState,
+              parentConsentDocumentName: `modulo-consenso-${registrationId}.pdf`,
+              parentConsentDocumentPath: pdfPath,
+              parentConsentDocumentUrl: null,
+              parentConsentUploadedAt: acceptedAt,
+              consentSignaturePath: null,
+              consentSignatureUrl: null,
+              consentSignatureSetAt: acceptedAt,
+              registrationStatus: "confirmed",
+              updatedAt: nowIso(),
+            },
+            { merge: true },
+          );
+
+        await writeAuditLog(db, stakeId, activityId, registrationId, {
+          tokenId: legacyTokenId,
+          event: "parent_authorized",
+          parentEmail: parentDetails.parentEmail,
+          parentName,
+          parentPhone: parentDetails.parentPhone || null,
+          legalVersions: LEGAL_DOC_VERSIONS,
+          consents,
+          photoConsent,
+          socialPublicationConsent,
+          signaturePath: null,
+          pdfPath,
+          auditPdfPath: null,
+          actorUserId: request.auth.uid,
+        });
+
+        result.processed += 1;
+      } catch (error) {
+        result.errors.push({
+          registrationId,
+          reason: "conversion_failed",
+          message: error.message ? error.message.slice(0, 500) : "unknown",
+        });
+      }
+    }
+
+    return result;
+  },
+);
+
+// =============================================================================
+// Cloud Function: download admin modulo firmato
+// =============================================================================
+
+const parentAuthorizationGetSignedConsentUrl = onCall(
+  {
+    region: REGION,
+    cors: true,
+  },
+  async (request) => {
+    const stakeId = asString(request.data?.stakeId).trim();
+    const activityId = asString(request.data?.activityId).trim();
+    const registrationId = asString(request.data?.registrationId).trim();
+    const documentKind = asString(request.data?.documentKind, "official").trim();
+
+    if (!stakeId || !activityId || !registrationId) {
+      throw new HttpsError("invalid-argument", "Parametri mancanti.");
+    }
+
+    const db = getFirestore();
+    const storage = getStorage();
+    await assertAdminForStake(db, request, stakeId);
+
+    const registration = await loadRegistration(db, stakeId, activityId, registrationId);
+    if (!registration) {
+      throw new HttpsError("not-found", "Iscrizione non trovata.");
+    }
+
+    const parentAuthorization =
+      registration.parentAuthorization && typeof registration.parentAuthorization === "object"
+        ? registration.parentAuthorization
+        : {};
+
+    const pathByKind = {
+      official: parentAuthorization.pdfPath,
+      conduct: parentAuthorization.conductPdfPath,
+      audit: parentAuthorization.auditPdfPath,
+    };
+    const storagePath = pathByKind[documentKind] || pathByKind.official;
+
+    if (!storagePath) {
+      throw new HttpsError("failed-precondition", "Modulo firmato non disponibile.");
+    }
+
+    const suffix =
+      documentKind === "conduct"
+        ? "regolamento"
+        : documentKind === "audit"
+          ? "audit"
+          : "modulo-firmato";
+    const filename = `${getRegistrationFileBaseName(registration)} - ${suffix}.pdf`;
+    const file = storage.bucket().file(storagePath);
+    const signed = await getTemporaryDownloadUrl(file, filename, 15);
+
+    return {
+      ok: true,
+      url: signed.url,
+      filename,
+      expiresAt: signed.expiresAt,
+    };
+  },
+);
+
+const parentAuthorizationDownloadSignedConsentsZip = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 300,
+    memory: "512MiB",
+    cors: true,
+  },
+  async (request) => {
+    const stakeId = asString(request.data?.stakeId).trim();
+    const activityId = asString(request.data?.activityId).trim();
+
+    if (!stakeId || !activityId) {
+      throw new HttpsError("invalid-argument", "Parametri mancanti.");
+    }
+
+    const db = getFirestore();
+    const storage = getStorage();
+    await assertAdminForStake(db, request, stakeId);
+
+    const registrationsSnapshot = await db
+      .collection(`stakes/${stakeId}/activities/${activityId}/registrations`)
+      .get();
+
+    const bucket = storage.bucket();
+    const zip = new JSZip();
+    const usedNames = new Set();
+    let addedCount = 0;
+
+    for (const registrationDoc of registrationsSnapshot.docs) {
+      const registration = { id: registrationDoc.id, ...registrationDoc.data() };
+      if (registration.status === "cancelled" || registration.registrationStatus === "cancelled") {
+        continue;
+      }
+
+      const parentAuthorization =
+        registration.parentAuthorization && typeof registration.parentAuthorization === "object"
+          ? registration.parentAuthorization
+          : {};
+      const pdfPath = asString(parentAuthorization.pdfPath).trim();
+
+      if (!pdfPath || parentAuthorization.status !== "authorized") {
+        continue;
+      }
+
+      const file = bucket.file(pdfPath);
+      const [exists] = await file.exists();
+      if (!exists) {
+        logger.warn("Modulo firmato mancante durante ZIP consensi.", {
+          stakeId,
+          activityId,
+          registrationId: registration.id,
+          pdfPath,
+        });
+        continue;
+      }
+
+      const [buffer] = await file.download();
+      const filename = buildUniqueFilename(getRegistrationFileBaseName(registration), usedNames);
+      zip.file(filename, buffer);
+      addedCount += 1;
+    }
+
+    if (addedCount === 0) {
+      throw new HttpsError("failed-precondition", "Nessun modulo firmato disponibile.");
+    }
+
+    const zipBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+    });
+    const createdAt = Date.now();
+    const downloadPath =
+      `protected/stakes/${stakeId}/activities/${activityId}` +
+      `/parent-authorization-downloads/consensi-firmati-${createdAt}-${crypto.randomBytes(4).toString("hex")}.zip`;
+    const zipFile = bucket.file(downloadPath);
+    await zipFile.save(zipBuffer, {
+      contentType: "application/zip",
+      metadata: {
+        cacheControl: "private, no-store, max-age=0",
+      },
+    });
+
+    const filename = `consensi-firmati-${sanitizeFilenamePart(activityId)}.zip`;
+    const signed = await getTemporaryDownloadUrl(zipFile, filename, 15);
+
+    return {
+      ok: true,
+      url: signed.url,
+      filename,
+      count: addedCount,
+      expiresAt: signed.expiresAt,
+    };
+  },
+);
+
 module.exports = {
   onRegistrationPendingParentAuth,
   parentAuthorizationGetContext,
   parentAuthorizationConfirm,
   parentAuthorizationReject,
   parentAuthorizationResend,
+  parentAuthorizationBackfillLegacyApprovals,
+  parentAuthorizationGetSignedConsentUrl,
+  parentAuthorizationDownloadSignedConsentsZip,
 };

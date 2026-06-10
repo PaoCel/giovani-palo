@@ -142,7 +142,11 @@ export function ParentConfirmPage() {
     [consents],
   );
 
-  const canSubmit = allRequiredConsentsChecked && hasSignature;
+  const hasReusableSignature =
+    view.stage === "ready" &&
+    view.status === "valid" &&
+    Boolean(view.context.hasReusableSignature);
+  const canSubmit = allRequiredConsentsChecked && (hasSignature || hasReusableSignature);
 
   function toggleConsent(key: keyof ParentAuthorizationConsents) {
     setConsents((current) => ({ ...current, [key]: !current[key] }));
@@ -154,7 +158,8 @@ export function ParentConfirmPage() {
     setView({ stage: "submitting" });
 
     try {
-      const signatureBlob = await signatureRef.current?.toBlob();
+      const shouldUseStoredSignature = hasReusableSignature && !hasSignature;
+      const signatureBlob = hasSignature ? await signatureRef.current?.toBlob() : null;
       const signatureDataUrl = signatureBlob
         ? await blobToDataUrl(signatureBlob)
         : null;
@@ -165,6 +170,7 @@ export function ParentConfirmPage() {
         photoConsent,
         socialPublicationConsent,
         signatureDataUrl,
+        useStoredSignature: shouldUseStoredSignature,
       });
 
       setView({ stage: "confirmed" });
@@ -172,7 +178,7 @@ export function ParentConfirmPage() {
       const message =
         error instanceof Error
           ? error.message
-          : "Si e' verificato un errore durante la conferma.";
+          : "Si è verificato un errore durante la conferma.";
       setView({ stage: "submit_error", message });
     }
   }
@@ -192,21 +198,17 @@ export function ParentConfirmPage() {
       const message =
         error instanceof Error
           ? error.message
-          : "Si e' verificato un errore durante il rifiuto.";
+          : "Si è verificato un errore durante il rifiuto.";
       setView({ stage: "submit_error", message });
     }
   }
 
+  const headerContext = view.stage === "ready" ? view.context : undefined;
+
   return (
     <div className="parent-confirm-page">
       <div className="parent-confirm-container">
-        <header className="parent-confirm-header">
-          <h1>Autorizzazione genitoriale</h1>
-          <p>
-            Stai gestendo un'autorizzazione per la partecipazione di un minore a
-            un'attivita'. Procedi con calma, ci vorranno circa 2 minuti.
-          </p>
-        </header>
+        <ParentConfirmHeader context={headerContext} />
 
         {view.stage === "loading" ? <LoadingState /> : null}
 
@@ -228,6 +230,7 @@ export function ParentConfirmPage() {
             photoConsent={photoConsent}
             socialPublicationConsent={socialPublicationConsent}
             hasSignature={hasSignature}
+            hasReusableSignature={hasReusableSignature}
             canSubmit={canSubmit}
             signatureRef={signatureRef}
             onToggleConsent={toggleConsent}
@@ -279,6 +282,43 @@ export function ParentConfirmPage() {
 // Sub-components
 // =============================================================================
 
+function ParentConfirmHeader({
+  context,
+}: {
+  context?: ParentAuthorizationContext;
+}) {
+  return (
+    <header className="parent-confirm-header">
+      <div className="parent-confirm-brandline">
+        <span>Piattaforma attività GU e GD</span>
+        <span>Autorizzazione protetta</span>
+      </div>
+      <div className="parent-confirm-header-main">
+        <div>
+          <p className="parent-confirm-kicker">
+            {context?.participantName ? `Per ${context.participantName}` : "Firma genitore o tutore"}
+          </p>
+          <h1>Firma autorizzazione attività</h1>
+          <p>
+            Controlla i dati dell'iscrizione, scegli i consensi foto/video e firma il
+            modulo già preparato. Servono circa 2 minuti.
+          </p>
+        </div>
+        <div className="parent-confirm-hero-card" aria-label="Riepilogo rapido">
+          <AppIcon name="badge" />
+          <strong>{context?.activityTitle || "Attività in chiesa"}</strong>
+          <span>{context?.participantName || "Partecipante"}</span>
+        </div>
+      </div>
+      <div className="parent-confirm-step-strip" aria-label="Passaggi">
+        <span><AppIcon name="eye" /> Controlla</span>
+        <span><AppIcon name="check" /> Consensi</span>
+        <span><AppIcon name="pencil" /> Firma</span>
+      </div>
+    </header>
+  );
+}
+
 function LoadingState({ message = "Verifica del link in corso..." }: { message?: string }) {
   return (
     <div className="parent-confirm-loading">
@@ -322,22 +362,22 @@ function TokenInvalidCard({
     not_found: {
       title: "Link non valido",
       body:
-        "Questo link di autorizzazione non risulta nei nostri sistemi. Verifica di aver aperto l'ultimo link ricevuto via email. Se il problema persiste contatta il dirigente della tua unita'.",
+        "Questo link di autorizzazione non risulta nei nostri sistemi. Verifica di aver aperto l'ultimo link ricevuto via email. Se il problema persiste contatta il dirigente della tua unità.",
     },
     expired: {
       title: "Link scaduto",
       body:
-        "Questo link di autorizzazione e' scaduto. Per ricevere un nuovo link contatta il dirigente della tua unita' che potra' rigenerarne uno valido.",
+        "Questo link di autorizzazione è scaduto. Per ricevere un nuovo link contatta il dirigente della tua unità che potrà rigenerarne uno valido.",
     },
     used: {
-      title: "Autorizzazione gia' confermata",
+      title: "Autorizzazione già confermata",
       body:
-        "Hai gia' completato la procedura di autorizzazione con questo link. Non e' necessario ripeterla. Se ricevi questo messaggio per errore contatta il dirigente.",
+        "Hai già completato la procedura di autorizzazione con questo link. Non è necessario ripeterla. Se ricevi questo messaggio per errore contatta il dirigente.",
     },
     invalidated: {
-      title: "Link non piu' valido",
+      title: "Link non più valido",
       body:
-        "Questo link e' stato sostituito da uno nuovo. Controlla l'email piu' recente che hai ricevuto e usa quel link al posto di questo.",
+        "Questo link è stato sostituito da uno nuovo. Controlla l'email più recente che hai ricevuto e usa quel link al posto di questo.",
     },
   };
 
@@ -370,6 +410,7 @@ interface ConfirmationFormProps {
   photoConsent: PhotoConsentDecision;
   socialPublicationConsent: PhotoConsentDecision;
   hasSignature: boolean;
+  hasReusableSignature: boolean;
   canSubmit: boolean;
   signatureRef: React.RefObject<SignaturePadHandle | null>;
   onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
@@ -386,6 +427,7 @@ function ConfirmationForm({
   photoConsent,
   socialPublicationConsent,
   hasSignature,
+  hasReusableSignature,
   canSubmit,
   signatureRef,
   onToggleConsent,
@@ -398,6 +440,12 @@ function ConfirmationForm({
   return (
     <div className="parent-confirm-flow">
       <ActivitySummaryCard context={context} />
+
+      <div className="parent-confirm-trust-row" aria-label="Informazioni sulla procedura">
+        <span><AppIcon name="lock" /> Link personale</span>
+        <span><AppIcon name="mail" /> Copia PDF via email</span>
+        <span><AppIcon name="download" /> Modulo salvato per gli admin</span>
+      </div>
 
       <LegalSummaryCard />
 
@@ -414,6 +462,7 @@ function ConfirmationForm({
       />
 
       <SignatureSection
+        hasReusableSignature={hasReusableSignature}
         signatureRef={signatureRef}
         onSignatureChange={onSignatureChange}
       />
@@ -421,7 +470,9 @@ function ConfirmationForm({
       <section className="parent-confirm-card parent-confirm-card--actions">
         <p>
           {canSubmit
-            ? "Tutto pronto. Conferma l'autorizzazione cliccando il pulsante qui sotto."
+            ? hasReusableSignature && !hasSignature
+              ? "Tutto pronto. Puoi confermare usando la firma già salvata per questa email."
+              : "Tutto pronto. Conferma l'autorizzazione cliccando il pulsante qui sotto."
             : "Per confermare devi accettare tutti i consensi obbligatori e apporre una firma."}
         </p>
         <div className="parent-confirm-actions">
@@ -432,7 +483,11 @@ function ConfirmationForm({
             type="button"
           >
             <AppIcon name="check" />
-            <span>Confermo l'autorizzazione</span>
+            <span>
+              {hasReusableSignature && !hasSignature
+                ? "Confermo con la firma salvata"
+                : "Confermo l'autorizzazione"}
+            </span>
           </button>
           <button
             className="button button--ghost parent-confirm-reject-button"
@@ -444,7 +499,7 @@ function ConfirmationForm({
         </div>
         <p className="parent-confirm-fineprint">
           Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
-          accetti i consensi sopra. Il consenso e' raccolto tramite procedura elettronica con
+          accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica con
           link unico inviato all'indirizzo email che ci hai fornito.
         </p>
       </section>
@@ -456,7 +511,7 @@ function ActivitySummaryCard({ context }: { context: ParentAuthorizationContext 
   return (
     <section className="parent-confirm-card parent-confirm-card--summary">
       <div className="parent-confirm-summary-header">
-        <h2>Dati dell'attivita'</h2>
+        <h2>Dati dell'attività</h2>
         {context.expiresAt ? (
           <span className="parent-confirm-expiry">
             Scadenza link: {formatExpiry(context.expiresAt)}
@@ -465,7 +520,7 @@ function ActivitySummaryCard({ context }: { context: ParentAuthorizationContext 
       </div>
       <dl className="parent-confirm-summary-grid">
         <div>
-          <dt>Attivita'</dt>
+          <dt>Attività</dt>
           <dd>
             <strong>{context.activityTitle || "-"}</strong>
           </dd>
@@ -507,7 +562,7 @@ function LegalSummaryCard() {
       </details>
       <p className="parent-confirm-fineprint">
         I testi sono in fase di revisione legale. Per chiarimenti contatta il dirigente
-        della tua unita'.
+        della tua unità.
       </p>
     </section>
   );
@@ -561,7 +616,7 @@ function PhotoConsentSection({
       <h2>Foto e video (consensi facoltativi)</h2>
       <p className="parent-confirm-section-hint">
         Questi consensi sono <strong>facoltativi e separati</strong>. Il rifiuto non
-        impedisce la partecipazione del minore all'attivita'.
+        impedisce la partecipazione del minore all'attività.
       </p>
 
       <div className="parent-confirm-photo-block">
@@ -617,20 +672,35 @@ function PhotoChoice({
 }
 
 function SignatureSection({
+  hasReusableSignature,
   signatureRef,
   onSignatureChange,
 }: {
+  hasReusableSignature: boolean;
   signatureRef: React.RefObject<SignaturePadHandle | null>;
   onSignatureChange: (hasSignature: boolean) => void;
 }) {
   return (
     <section className="parent-confirm-card">
       <h2>Firma elettronica</h2>
-      <p className="parent-confirm-section-hint">
-        Disegna qui la tua firma con il dito (su mobile/tablet) o con il mouse. Non e'
-        una firma digitale qualificata: e' una firma elettronica semplice che attesta
-        la tua dichiarazione.
-      </p>
+      {hasReusableSignature ? (
+        <div className="parent-confirm-reusable-signature">
+          <AppIcon name="check" />
+          <div>
+            <strong>Firma già salvata per questa email</strong>
+            <p>
+              Puoi confermare subito. Se vuoi sostituirla, disegna una nuova firma
+              nel riquadro qui sotto.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="parent-confirm-section-hint">
+          Disegna qui la tua firma con il dito (su mobile/tablet) o con il mouse. Non è
+          una firma digitale qualificata: è una firma elettronica semplice che attesta
+          la tua dichiarazione.
+        </p>
+      )}
       <div className="parent-confirm-signature-wrapper">
         <SignaturePad
           ref={signatureRef}
@@ -650,8 +720,8 @@ function ConfirmedCard() {
       <div>
         <h2>Autorizzazione confermata</h2>
         <p>
-          Grazie. L'autorizzazione e' stata registrata correttamente. Gli organizzatori
-          dell'attivita' riceveranno una notifica e l'iscrizione del minore risulta ora
+          Grazie. L'autorizzazione è stata registrata correttamente. Gli organizzatori
+          dell'attività riceveranno una notifica e l'iscrizione del minore risulta ora
           autorizzata. Puoi chiudere questa pagina.
         </p>
         <p className="parent-confirm-fineprint">
@@ -672,12 +742,12 @@ function RejectedCard() {
       <div>
         <h2>Autorizzazione rifiutata</h2>
         <p>
-          Abbiamo registrato il tuo rifiuto. Gli organizzatori dell'attivita' verranno
+          Abbiamo registrato il tuo rifiuto. Gli organizzatori dell'attività verranno
           notificati e l'iscrizione del minore risulta non autorizzata. Puoi chiudere
           questa pagina.
         </p>
         <p className="parent-confirm-fineprint">
-          Se cambi idea, contatta il dirigente della tua unita': potra' inviarti un
+          Se cambi idea, contatta il dirigente della tua unità: potrà inviarti un
           nuovo link di autorizzazione.
         </p>
       </div>
@@ -701,7 +771,7 @@ function RejectModal({
       <div className="parent-confirm-modal">
         <h2>Confermi il rifiuto?</h2>
         <p>
-          L'iscrizione del minore verra' marcata come <strong>non autorizzata</strong>.
+          L'iscrizione del minore verrà marcata come <strong>non autorizzata</strong>.
           Gli organizzatori riceveranno una notifica.
         </p>
         <label className="parent-confirm-modal-field">
@@ -709,7 +779,7 @@ function RejectModal({
           <textarea
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
-            placeholder="Es. ho un conflitto di date, preferisco un'altra attivita', ecc."
+            placeholder="Es. ho un conflitto di date, preferisco un'altra attività, ecc."
             rows={3}
           />
         </label>
