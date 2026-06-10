@@ -429,13 +429,15 @@ export function ShellLayout({
         </nav>
       ) : null}
 
-      <InstallHint />
-
-      {area === "public" ? <UnofficialDisclaimer compact className="shell-disclaimer" /> : null}
-
       <main className="shell__main">
         <Outlet />
       </main>
+
+      {/* Avvisi di servizio dopo il contenuto: prima rubavano la prima
+          schermata al messaggio principale della pagina. */}
+      <InstallHint />
+
+      {area === "public" ? <UnofficialDisclaimer compact className="shell-disclaimer" /> : null}
     </div>
   );
 }

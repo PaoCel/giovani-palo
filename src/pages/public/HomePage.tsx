@@ -3,7 +3,6 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { ShareButton } from "@/components/ShareButton";
-import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { stakesService } from "@/services/firestore/stakesService";
@@ -51,46 +50,51 @@ export function HomePage() {
 
   return (
     <div className="page page--home">
-      <section className="home-screen">
-        <div className="home-screen__copy">
-          <h1 className="home-screen__title">Benvenuto</h1>
-          <p className="home-screen__description">
-            Puoi iscriverti anche senza creare un account, ma avere un profilo ti aiuta a
-            velocizzare il processo e ritrovare più facilmente le attività.
-          </p>
-        </div>
+      <section className="home-hero">
+        <p className="home-hero__eyebrow">Giovani Uomini &amp; Giovani Donne · Italia</p>
+        <h1 className="home-hero__title">Le attività dei giovani, in un unico posto</h1>
+        <p className="home-hero__subtitle">
+          Scopri le prossime attività del tuo palo e iscriviti in pochi minuti.
+          Funziona anche senza account: con un profilo ritrovi tutto più in fretta.
+        </p>
 
-        <div className="home-screen__actions">
-          <button className="button button--primary button--large" onClick={handleExploreActivities} type="button">
+        <div className="home-hero__actions">
+          <button
+            className="button button--inverse button--large"
+            onClick={handleExploreActivities}
+            type="button"
+          >
             <AppIcon name="ticket" />
-            <span>Iscriviti a un&apos;attività</span>
+            <span>Scopri le attività</span>
           </button>
 
-          <Link className="button button--ghost button--large" to="/login">
+          <Link className="button button--outline-light button--large" to="/login">
             <AppIcon name="user" />
-            <span>Accedi o crea un&apos;account</span>
+            <span>Accedi o crea un account</span>
           </Link>
+        </div>
+      </section>
 
+      <section className="home-screen">
+        <div className="home-quicklinks">
           <ShareButton
-            className="button button--soft button--large"
-            label="Condividi sito"
+            className="button button--soft button--small"
+            label="Condividi il sito"
             text="Apri il sito delle attività giovani."
             title="Attività giovani"
             url={getAbsoluteUrl(getActivitiesPath(selectedStakeId))}
           />
+          <Link className="button button--ghost button--small" to="/privacy">
+            <AppIcon name="lock" />
+            <span>Informativa privacy</span>
+          </Link>
         </div>
 
         <p className="home-screen__privacy">
-          <AppIcon name="lock" />
-          <span>
-            <Link to="/privacy">Informativa privacy</Link>: i dati richiesti vengono usati solo
-            per gestire iscrizioni, presenze e comunicazioni legate all&apos;attivita scelta.
-          </span>
+          I dati richiesti vengono usati solo per gestire iscrizioni, presenze e
+          comunicazioni legate all&apos;attività scelta.
         </p>
-
-        <UnofficialDisclaimer compact />
       </section>
-
     </div>
   );
 }
