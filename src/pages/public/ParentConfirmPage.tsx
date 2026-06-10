@@ -155,15 +155,28 @@ export function ParentConfirmPage() {
   async function handleConfirm() {
     if (!token || !canSubmit) return;
 
+    // Esporta la firma PRIMA di cambiare stage: se l'export fallisce (es.
+    // race del resize che svuota il canvas) restiamo sul modulo senza
+    // perdere consensi e firma, invece di finire in submit_error.
+    let signatureDataUrl: string | null = null;
+    if (hasSignature) {
+      const signatureBlob = await signatureRef.current?.toBlob();
+      const exported = signatureBlob ? await blobToDataUrl(signatureBlob) : "";
+      signatureDataUrl = exported || null;
+    }
+
+    const shouldUseStoredSignature = hasReusableSignature && !signatureDataUrl;
+
+    if (!signatureDataUrl && !shouldUseStoredSignature) {
+      window.alert(
+        "Non sono riuscito a leggere la firma disegnata. Ridisegna la firma e riprova.",
+      );
+      return;
+    }
+
     setView({ stage: "submitting" });
 
     try {
-      const shouldUseStoredSignature = hasReusableSignature && !hasSignature;
-      const signatureBlob = hasSignature ? await signatureRef.current?.toBlob() : null;
-      const signatureDataUrl = signatureBlob
-        ? await blobToDataUrl(signatureBlob)
-        : null;
-
       await parentAuthorizationService.confirm({
         token,
         consents,

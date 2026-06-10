@@ -336,6 +336,12 @@ export function AdminEventDetailPage() {
   const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionInfo, setActionInfo] = useState<string | null>(null);
+  // Link di download persistente: window.open dopo un await viene bloccato
+  // dai popup blocker (Safari/iOS), quindi il link resta cliccabile qui.
+  const [actionDownload, setActionDownload] = useState<{
+    url: string;
+    label: string;
+  } | null>(null);
   const [registrationModalId, setRegistrationModalId] = useState<string | null>(null);
   const [registrationModalMode, setRegistrationModalMode] =
     useState<RegistrationModalMode>("registration");
@@ -911,6 +917,7 @@ export function AdminEventDetailPage() {
     setBusyRegistrationId(registration.id);
     setActionError(null);
     setActionInfo(null);
+    setActionDownload(null);
 
     try {
       const result = await parentAuthorizationService.getSignedConsentDownloadUrl({
@@ -921,6 +928,7 @@ export function AdminEventDetailPage() {
       });
       window.open(result.url, "_blank", "noopener,noreferrer");
       setActionInfo(`Download pronto: ${result.filename}.`);
+      setActionDownload({ url: result.url, label: "Scarica il modulo" });
     } catch (caughtError) {
       setActionError(
         caughtError instanceof Error
@@ -937,6 +945,7 @@ export function AdminEventDetailPage() {
     setBusy("downloadSignedConsentsZip");
     setActionError(null);
     setActionInfo(null);
+    setActionDownload(null);
 
     try {
       const result = await parentAuthorizationService.downloadSignedConsentsZip({
@@ -945,6 +954,7 @@ export function AdminEventDetailPage() {
       });
       window.open(result.url, "_blank", "noopener,noreferrer");
       setActionInfo(`ZIP pronto: ${result.count} moduli firmati.`);
+      setActionDownload({ url: result.url, label: "Scarica lo ZIP" });
     } catch (caughtError) {
       setActionError(
         caughtError instanceof Error
@@ -1157,6 +1167,19 @@ export function AdminEventDetailPage() {
           <div>
             <h3>Informazione</h3>
             <p>{actionInfo}</p>
+            {actionDownload ? (
+              <p style={{ marginTop: "0.5rem" }}>
+                <a
+                  className="button button--primary button--small"
+                  href={actionDownload.url}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {actionDownload.label}
+                </a>{" "}
+                <span className="subtle-text">Il link scade tra 15 minuti.</span>
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
