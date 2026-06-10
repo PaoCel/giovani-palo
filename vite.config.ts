@@ -13,4 +13,22 @@ export default defineConfig({
       "@": path.resolve(rootDir, "src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Vendor stabili in chunk separati: cambiano solo quando si
+        // aggiornano le dipendenze, quindi restano in cache tra le release.
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-firebase": [
+            "firebase/app",
+            "firebase/auth",
+            "firebase/firestore",
+            "firebase/storage",
+            "firebase/functions",
+          ],
+        },
+      },
+    },
+  },
 });

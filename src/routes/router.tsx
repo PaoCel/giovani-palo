@@ -1,56 +1,73 @@
+import { Suspense, lazy, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
+import { AppLoader } from "@/components/AppLoader";
+import { RouteErrorPanel } from "@/components/RouteErrorPanel";
 import { AdminLayout } from "@/layouts/AdminLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { UnitLeaderLayout } from "@/layouts/UnitLeaderLayout";
 import { UserLayout } from "@/layouts/UserLayout";
-import { AdminCalendarPage } from "@/pages/admin/AdminCalendarPage";
-import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
-import { AdminEventDetailPage } from "@/pages/admin/AdminEventDetailPage";
-import { AdminEventsPage } from "@/pages/admin/AdminEventsPage";
-import { AdminFeedPage } from "@/pages/admin/AdminFeedPage";
-import { AdminGalleriesPage } from "@/pages/admin/AdminGalleriesPage";
-import { AdminGalleryDetailPage } from "@/pages/admin/AdminGalleryDetailPage";
-import { AdminSettingsPage } from "@/pages/admin/AdminSettingsPage";
-import { AdminStatsPage } from "@/pages/admin/AdminStatsPage";
-import { LoginPage } from "@/pages/auth/LoginPage";
-import { PasswordResetPage } from "@/pages/auth/PasswordResetPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
-import { MeDashboardPage } from "@/pages/me/MeDashboardPage";
-import { MyActivitiesPage } from "@/pages/me/MyActivitiesPage";
-import { MyActivityDetailPage } from "@/pages/me/MyActivityDetailPage";
-import { MyActivityEditPage } from "@/pages/me/MyActivityEditPage";
-import { MyActivityGalleryPage } from "@/pages/me/MyActivityGalleryPage";
-import { MyCalendarPage } from "@/pages/me/MyCalendarPage";
-import { MyProfilePage } from "@/pages/me/MyProfilePage";
-import { SurveyAnswerPage } from "@/pages/me/SurveyAnswerPage";
-import { SurveyHubPage } from "@/pages/me/SurveyHubPage";
 import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
-import { ActivityRegisterPage } from "@/pages/public/ActivityRegisterPage";
 import { HomePage } from "@/pages/public/HomePage";
-import { ParentConfirmPage } from "@/pages/public/ParentConfirmPage";
-import { PhotoConsentPage } from "@/pages/public/PhotoConsentPage";
-import { PrivacyPage } from "@/pages/public/PrivacyPage";
-import { UnitActivityPage } from "@/pages/unit/UnitActivityPage";
-import { UnitDashboardPage } from "@/pages/unit/UnitDashboardPage";
+import { LoginPage } from "@/pages/auth/LoginPage";
 import { AdminRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
+
+// Le pagine pubbliche "calde" (home, lista attività, dettaglio, login)
+// restano nel bundle principale per il primo paint istantaneo. Tutto il
+// resto — aree autenticate e flussi secondari — viene caricato on demand.
+function lazyPage(
+  loader: () => Promise<Record<string, unknown>>,
+  name: string,
+): ReactNode {
+  const Component = lazy(async () => {
+    const module = await loader();
+    return { default: module[name] as ComponentType };
+  });
+
+  return (
+    <Suspense fallback={<AppLoader />}>
+      <Component />
+    </Suspense>
+  );
+}
 
 export const router = createBrowserRouter([
   // Pagina genitore standalone, senza shell pubblico (no nav, no header app).
   // Aperta da magic link Brevo: il genitore non deve essere distratto dal sito.
-  { path: "/parent-confirm/:token", element: <ParentConfirmPage /> },
+  {
+    path: "/parent-confirm/:token",
+    element: lazyPage(() => import("@/pages/public/ParentConfirmPage"), "ParentConfirmPage"),
+    errorElement: <RouteErrorPanel />,
+  },
   {
     element: <PublicLayout />,
+    errorElement: <RouteErrorPanel />,
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/activities", element: <ActivitiesPage /> },
       { path: "/activities/:eventId", element: <ActivityDetailPage /> },
-      { path: "/activities/:eventId/register", element: <ActivityRegisterPage /> },
-      { path: "/privacy", element: <PrivacyPage /> },
-      { path: "/privacy/photos", element: <PhotoConsentPage /> },
+      {
+        path: "/activities/:eventId/register",
+        element: lazyPage(
+          () => import("@/pages/public/ActivityRegisterPage"),
+          "ActivityRegisterPage",
+        ),
+      },
+      {
+        path: "/privacy",
+        element: lazyPage(() => import("@/pages/public/PrivacyPage"), "PrivacyPage"),
+      },
+      {
+        path: "/privacy/photos",
+        element: lazyPage(() => import("@/pages/public/PhotoConsentPage"), "PhotoConsentPage"),
+      },
       { path: "/login", element: <LoginPage /> },
-      { path: "/password-reset", element: <PasswordResetPage /> },
+      {
+        path: "/password-reset",
+        element: lazyPage(() => import("@/pages/auth/PasswordResetPage"), "PasswordResetPage"),
+      },
       { path: "/sondaggi", element: <Navigate replace to="/me/sondaggi" /> },
       { path: "/sondaggi/:eventId", element: <Navigate replace to="/me/sondaggi" /> },
       { path: "/galleria", element: <Navigate replace to="/me" /> },
@@ -60,65 +77,166 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorPanel />,
     children: [
       {
         path: "/me",
         element: <UserLayout />,
         children: [
-          { index: true, element: <MeDashboardPage /> },
-          { path: "calendar", element: <MyCalendarPage /> },
-          { path: "activities", element: <MyActivitiesPage /> },
-          { path: "activities/:eventId", element: <MyActivityDetailPage /> },
-          { path: "activities/:eventId/edit", element: <MyActivityEditPage /> },
-          { path: "galleria/per-attivita/:eventId", element: <MyActivityGalleryPage /> },
-          { path: "sondaggi", element: <SurveyHubPage /> },
-          { path: "sondaggi/:eventId", element: <SurveyAnswerPage /> },
-          { path: "profile", element: <MyProfilePage /> },
+          {
+            index: true,
+            element: lazyPage(() => import("@/pages/me/MeDashboardPage"), "MeDashboardPage"),
+          },
+          {
+            path: "calendar",
+            element: lazyPage(() => import("@/pages/me/MyCalendarPage"), "MyCalendarPage"),
+          },
+          {
+            path: "activities",
+            element: lazyPage(() => import("@/pages/me/MyActivitiesPage"), "MyActivitiesPage"),
+          },
+          {
+            path: "activities/:eventId",
+            element: lazyPage(
+              () => import("@/pages/me/MyActivityDetailPage"),
+              "MyActivityDetailPage",
+            ),
+          },
+          {
+            path: "activities/:eventId/edit",
+            element: lazyPage(
+              () => import("@/pages/me/MyActivityEditPage"),
+              "MyActivityEditPage",
+            ),
+          },
+          {
+            path: "galleria/per-attivita/:eventId",
+            element: lazyPage(
+              () => import("@/pages/me/MyActivityGalleryPage"),
+              "MyActivityGalleryPage",
+            ),
+          },
+          {
+            path: "sondaggi",
+            element: lazyPage(() => import("@/pages/me/SurveyHubPage"), "SurveyHubPage"),
+          },
+          {
+            path: "sondaggi/:eventId",
+            element: lazyPage(() => import("@/pages/me/SurveyAnswerPage"), "SurveyAnswerPage"),
+          },
+          {
+            path: "profile",
+            element: lazyPage(() => import("@/pages/me/MyProfilePage"), "MyProfilePage"),
+          },
         ],
       },
     ],
   },
   {
     element: <UnitLeaderRoute />,
+    errorElement: <RouteErrorPanel />,
     children: [
       {
         path: "/unit",
         element: <UnitLeaderLayout />,
         children: [
-          { index: true, element: <UnitDashboardPage /> },
-          { path: "activities/:eventId", element: <UnitActivityPage /> },
+          {
+            index: true,
+            element: lazyPage(
+              () => import("@/pages/unit/UnitDashboardPage"),
+              "UnitDashboardPage",
+            ),
+          },
+          {
+            path: "activities/:eventId",
+            element: lazyPage(() => import("@/pages/unit/UnitActivityPage"), "UnitActivityPage"),
+          },
         ],
       },
     ],
   },
   {
     element: <AdminRoute />,
+    errorElement: <RouteErrorPanel />,
     children: [
       {
         path: "/admin",
         element: <AdminLayout />,
         children: [
-          { index: true, element: <AdminDashboardPage /> },
-          { path: "calendar", element: <AdminCalendarPage /> },
-          { path: "events", element: <AdminEventsPage /> },
-          { path: "events/new", element: <AdminEventsPage /> },
-          { path: "events/:eventId", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/form-builder", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/registrations", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/consents", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/rooms", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/questions", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/stats", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/surveys", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/sondaggi", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/gallery", element: <AdminEventDetailPage /> },
-          { path: "events/:eventId/galleria", element: <AdminEventDetailPage /> },
-          { path: "registrations", element: <AdminStatsPage /> },
-          { path: "stats", element: <AdminStatsPage /> },
-          { path: "feed", element: <AdminFeedPage /> },
-          { path: "galleries", element: <AdminGalleriesPage /> },
-          { path: "galleries/:galleryId", element: <AdminGalleryDetailPage /> },
-          { path: "settings", element: <AdminSettingsPage /> },
+          {
+            index: true,
+            element: lazyPage(
+              () => import("@/pages/admin/AdminDashboardPage"),
+              "AdminDashboardPage",
+            ),
+          },
+          {
+            path: "calendar",
+            element: lazyPage(
+              () => import("@/pages/admin/AdminCalendarPage"),
+              "AdminCalendarPage",
+            ),
+          },
+          {
+            path: "events",
+            element: lazyPage(() => import("@/pages/admin/AdminEventsPage"), "AdminEventsPage"),
+          },
+          {
+            path: "events/new",
+            element: lazyPage(() => import("@/pages/admin/AdminEventsPage"), "AdminEventsPage"),
+          },
+          ...[
+            "events/:eventId",
+            "events/:eventId/form-builder",
+            "events/:eventId/registrations",
+            "events/:eventId/consents",
+            "events/:eventId/rooms",
+            "events/:eventId/questions",
+            "events/:eventId/stats",
+            "events/:eventId/surveys",
+            "events/:eventId/sondaggi",
+            "events/:eventId/gallery",
+            "events/:eventId/galleria",
+          ].map((path) => ({
+            path,
+            element: lazyPage(
+              () => import("@/pages/admin/AdminEventDetailPage"),
+              "AdminEventDetailPage",
+            ),
+          })),
+          {
+            path: "registrations",
+            element: lazyPage(() => import("@/pages/admin/AdminStatsPage"), "AdminStatsPage"),
+          },
+          {
+            path: "stats",
+            element: lazyPage(() => import("@/pages/admin/AdminStatsPage"), "AdminStatsPage"),
+          },
+          {
+            path: "feed",
+            element: lazyPage(() => import("@/pages/admin/AdminFeedPage"), "AdminFeedPage"),
+          },
+          {
+            path: "galleries",
+            element: lazyPage(
+              () => import("@/pages/admin/AdminGalleriesPage"),
+              "AdminGalleriesPage",
+            ),
+          },
+          {
+            path: "galleries/:galleryId",
+            element: lazyPage(
+              () => import("@/pages/admin/AdminGalleryDetailPage"),
+              "AdminGalleryDetailPage",
+            ),
+          },
+          {
+            path: "settings",
+            element: lazyPage(
+              () => import("@/pages/admin/AdminSettingsPage"),
+              "AdminSettingsPage",
+            ),
+          },
         ],
       },
     ],
