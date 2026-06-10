@@ -43,6 +43,16 @@ assegnata), admin.
 - [ ] Eliminazione evento di prova: spariscono registrazioni, campi form e domande
 - [ ] Export Excel/PDF funzionano (chunk lazy)
 
+## Modulo ufficiale consenso (PDF)
+
+- [ ] Iscrizione minore con autorizzazione → genitore apre magic link, firma, conferma
+- [ ] Email al genitore con allegati: modulo ufficiale compilato + regolamento condotta
+- [ ] PDF ufficiale: dati nei campi giusti (evento, date, partecipante, contatti, mediche), firma sulla riga genitore con data
+- [ ] Seconda autorizzazione con stessa email genitore: proposta "usa firma salvata", conferma senza ridisegnare
+- [ ] Admin → tab consensi: "Modulo firmato" scarica il PDF; su Safari/iOS il link nel banner funziona anche se il popup è bloccato
+- [ ] Admin: "Scarica ZIP" produce archivio con tutti i moduli firmati dell'attività
+- [ ] Admin: "Genera fallback legacy" su attività con vecchie approvazioni → moduli generati + email, già processati saltati
+
 ## Performance/PWA
 
 - [ ] Prima visita pubblica: home interattiva subito, nessun download admin
