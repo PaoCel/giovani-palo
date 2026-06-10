@@ -3807,8 +3807,19 @@ button {
 
 .admin-section__head h2 {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   color: var(--heading);
-  font-size: 1rem;
+  font-size: 1.02rem;
+}
+
+.admin-section__head h2::before {
+  content: "";
+  width: 0.28rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--primary), rgba(181, 138, 80, 0.75));
 }
 
 .admin-activity-grid {
@@ -4040,62 +4051,63 @@ button {
   z-index: 5;
 }
 
+/* Tab evento: riga orizzontale di pill scorrevole, icona accanto al testo */
 .admin-subtabs {
-  display: grid;
-  gap: 0.45rem;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
   padding: 0.35rem;
-  border-radius: 1.15rem;
+  border-radius: 999px;
   background: rgba(244, 247, 251, 0.9);
   border: 1px solid rgba(16, 28, 48, 0.06);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
-.admin-subtabs--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.admin-subtabs--four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.admin-subtabs--five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.admin-subtabs--six {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+.admin-subtabs::-webkit-scrollbar {
+  display: none;
 }
 
 .admin-subtabs__item {
-  min-height: 3.2rem;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 0.24rem;
-  padding: 0.55rem 0.35rem;
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.95rem;
   border: 0;
-  border-radius: 0.92rem;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-weight: 800;
   text-align: center;
+  white-space: nowrap;
+}
+
+.admin-subtabs__item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .admin-subtabs__item svg {
   width: 0.95rem;
   height: 0.95rem;
+  flex-shrink: 0;
 }
 
 .admin-subtabs__item span {
   display: block;
   line-height: 1.08;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
 }
 
 .admin-subtabs__item--active {
   background: rgba(255, 255, 255, 0.98);
-  color: var(--heading);
-  box-shadow: 0 10px 24px rgba(16, 28, 48, 0.06);
+  color: var(--primary);
+  box-shadow: 0 10px 24px rgba(16, 28, 48, 0.08);
 }
 
 .admin-detail-grid,
@@ -4994,21 +5006,13 @@ button {
     padding: 0.28rem;
   }
 
-  .admin-subtabs--five {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .admin-subtabs--six {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .admin-subtabs__item {
-    min-height: 2.95rem;
-    padding: 0.45rem 0.2rem;
+    min-height: 2.45rem;
+    padding: 0.4rem 0.75rem;
   }
 
   .admin-subtabs__item span {
-    font-size: 0.6rem;
+    font-size: 0.72rem;
   }
 
   .admin-inline-metric {
