@@ -83,13 +83,32 @@ export function AdminDashboardPage() {
   );
 
   const stats = [
-    { label: "Attività create", value: data.events.length },
-    { label: "Attività attive", value: openEvents.length },
-    { label: "Partecipanti totali", value: data.totalParticipants },
+    { label: "Attività create", value: data.events.length, icon: "list" as const },
+    { label: "Iscrizioni aperte", value: openEvents.length, icon: "ticket" as const },
+    { label: "Partecipanti totali", value: data.totalParticipants, icon: "users" as const },
   ];
 
   return (
     <div className="page page--admin-dashboard">
+      <header className="admin-page-head">
+        <div>
+          <h1>{data.organization?.stakeName || "Dashboard"}</h1>
+          <p className="subtle-text">
+            Panoramica delle attività e delle iscrizioni del palo.
+          </p>
+        </div>
+        <div className="admin-page-head__actions">
+          <button
+            className="button button--primary"
+            onClick={() => setCreateModalOpen(true)}
+            type="button"
+          >
+            <AppIcon name="plus" />
+            <span>Nuova attività</span>
+          </button>
+        </div>
+      </header>
+
       {error ? (
         <div className="notice notice--warning">
           <div>
@@ -102,7 +121,10 @@ export function AdminDashboardPage() {
       <section className="admin-metrics">
         {stats.map((item) => (
           <article key={item.label} className="admin-metric">
-            <strong>{loading ? "..." : item.value}</strong>
+            <span className="admin-metric__icon" aria-hidden="true">
+              <AppIcon name={item.icon} />
+            </span>
+            <strong>{loading ? "…" : item.value}</strong>
             <span>{item.label}</span>
           </article>
         ))}
