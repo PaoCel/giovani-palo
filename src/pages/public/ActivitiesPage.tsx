@@ -60,13 +60,18 @@ export function ActivitiesPage() {
     [],
   );
   const selectedStakeId = useMemo(() => {
-    if (requestedStakeId && stakes.some((stake) => stake.id === requestedStakeId)) {
+    // Ottimistico: finché la lista pali non è arrivata ci fidiamo del palo
+    // richiesto/memorizzato, così la query attività parte SUBITO in parallelo
+    // invece di aspettare la lista (prima era un waterfall di due query).
+    const stakesReady = stakes.length > 0;
+
+    if (requestedStakeId && (!stakesReady || stakes.some((stake) => stake.id === requestedStakeId))) {
       return requestedStakeId;
     }
 
     const storedStakeId = getStoredPublicStakeId();
 
-    if (storedStakeId && stakes.some((stake) => stake.id === storedStakeId)) {
+    if (storedStakeId && (!stakesReady || stakes.some((stake) => stake.id === storedStakeId))) {
       return storedStakeId;
     }
 
@@ -77,6 +82,11 @@ export function ActivitiesPage() {
     [selectedStakeId],
     [],
   );
+  // Non dichiarare "nessuna attività" finché non abbiamo davvero interrogato
+  // un palo: prima questo stato compariva durante il caricamento e l'utente
+  // pensava che le attività non esistessero.
+  const resolvingStake = stakesLoading && !selectedStakeId;
+  const showSkeleton = loading || resolvingStake;
 
   const filteredEvents = useMemo(() => {
     return [...events]
@@ -204,9 +214,15 @@ export function ActivitiesPage() {
           </div>
         ) : null}
 
-        {loading ? (
-          <div className="activity-grid activity-grid--loading">
-            <p className="subtle-text">Sto caricando le attività...</p>
+        {showSkeleton ? (
+          <div className="activity-grid" aria-busy="true" aria-label="Caricamento attività">
+            {[0, 1, 2].map((index) => (
+              <div key={index} className="skeleton-card" aria-hidden="true">
+                <div className="skeleton-card__media" />
+                <div className="skeleton-card__line skeleton-card__line--wide" />
+                <div className="skeleton-card__line" />
+              </div>
+            ))}
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="activity-grid activity-grid--loading">

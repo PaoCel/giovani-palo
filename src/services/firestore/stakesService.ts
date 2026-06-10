@@ -9,6 +9,7 @@ import type {
   StandardFieldOverrides,
 } from "@/types";
 import { normalizeStandardFieldKeys } from "@/utils/formFields";
+import { cachedFetch } from "@/utils/sessionCache";
 import { slugify } from "@/utils/slugify";
 
 const DEFAULT_STAKE_ID = "roma-est";
@@ -353,6 +354,15 @@ export const stakesService = {
   defaultStakeId: DEFAULT_STAKE_ID,
 
   async listActiveStakes() {
+    // Lista quasi statica letta da ogni pagina pubblica: cache di sessione
+    // per non ripagare la stessa query a ogni navigazione SPA (le getDocs
+    // vanno sempre server-first quando si è online).
+    return cachedFetch("stakes:active", 10 * 60 * 1000, () =>
+      this.listActiveStakesUncached(),
+    );
+  },
+
+  async listActiveStakesUncached() {
     const snapshot = await getDocs(
       query(collection(db, "stakes"), where("isActive", "==", true)),
     );
