@@ -9,6 +9,7 @@ export type AppIconName =
   | "calendar"
   | "chart"
   | "check"
+  | "clock"
   | "download"
   | "ellipsis"
   | "eye"
@@ -91,6 +92,13 @@ function getIconPaths(name: AppIconName) {
     case "check":
       return (
         <path d="m5.25 12.75 4.5 4.5 9-9" />
+      );
+    case "clock":
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.25" />
+          <path d="M12 7.5V12l3 1.75" />
+        </>
       );
     case "download":
       return (

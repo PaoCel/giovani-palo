@@ -3,7 +3,6 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { AppIcon } from "@/components/AppIcon";
 import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
-import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
 import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -48,6 +47,35 @@ const initialData: ActivityDetailData = {
   formConfig: null,
   registration: null,
 };
+
+function getRegistrationCountdown(registrationClose: string): string | null {
+  const closesAt = new Date(registrationClose).getTime();
+  if (Number.isNaN(closesAt)) {
+    return null;
+  }
+
+  const remaining = closesAt - Date.now();
+  if (remaining <= 0) {
+    return null;
+  }
+
+  const days = Math.floor(remaining / 86_400_000);
+  if (days >= 7) {
+    return null;
+  }
+
+  if (days >= 1) {
+    return days === 1 ? "tra 1 giorno" : `tra ${days} giorni`;
+  }
+
+  const hours = Math.floor(remaining / 3_600_000);
+  if (hours >= 1) {
+    return hours === 1 ? "tra 1 ora" : `tra ${hours} ore`;
+  }
+
+  const minutes = Math.max(1, Math.floor(remaining / 60_000));
+  return minutes === 1 ? "tra 1 minuto" : `tra ${minutes} minuti`;
+}
 
 function renderOptionalInfo(title: string, value: string) {
   if (!value.trim()) {
@@ -137,17 +165,28 @@ export function ActivityDetailPage() {
           .map((key) => standardFieldDefinitions.find((field) => field.key === key)?.label)
           .filter((label): label is string => Boolean(label))
       : [];
+  const shareUrl = event ? getAbsoluteUrl(getActivityPath(event.id, data.stakeId)) : "";
+  const registrationCountdown =
+    event &&
+    (availability === "open" ||
+      availability === "guest-allowed" ||
+      availability === "login-required")
+      ? getRegistrationCountdown(event.registrationClose)
+      : null;
 
-  function renderPrimaryAction() {
+  function renderPrimaryAction(variant: "hero" | "bar" = "hero") {
     if (!event || !formConfig) {
       return null;
     }
 
+    const primaryClass = variant === "hero" ? "button button--inverse" : "button button--primary";
+    const disabledClass =
+      variant === "hero" ? "button button--outline-light" : "button button--ghost";
     const registrationPath = getActivityRegistrationPath(event.id, data.stakeId);
 
     if (data.registration) {
       return (
-        <Link className="button button--primary" to={registrationPath}>
+        <Link className={primaryClass} to={registrationPath}>
           <AppIcon name="ticket" />
           <span>Iscrizione</span>
         </Link>
@@ -156,7 +195,7 @@ export function ActivityDetailPage() {
 
     if (availability === "open" || availability === "guest-allowed") {
       return (
-        <Link className="button button--primary" to={registrationPath}>
+        <Link className={primaryClass} to={registrationPath}>
           <AppIcon name="ticket" />
           <span>Iscriviti</span>
         </Link>
@@ -166,7 +205,7 @@ export function ActivityDetailPage() {
     if (availability === "login-required") {
       return (
         <Link
-          className="button button--primary"
+          className={primaryClass}
           to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
         >
           <AppIcon name="user" />
@@ -177,68 +216,76 @@ export function ActivityDetailPage() {
 
     if (availability === "restricted-audience") {
       return (
-        <button className="button button--ghost" disabled type="button">
+        <button className={disabledClass} disabled type="button">
           Iscrizione riservata
         </button>
       );
     }
 
     return (
-      <button className="button button--ghost" disabled type="button">
+      <button className={disabledClass} disabled type="button">
         Iscrizioni non disponibili
       </button>
     );
   }
 
   return (
-    <div className="page">
-      <PageHero
-        className="hero--compact"
-        eyebrow="Dettaglio attività"
-        title={event?.title ?? "Caricamento attività..."}
-        description={
-          event?.description ||
-          "Leggi data, luogo e dettagli utili prima di aprire il modulo di iscrizione."
-        }
-        actions={
-          event ? (
-            <>
-              {renderPrimaryAction()}
+    <div className="page page--activity-detail">
+      <section className="activity-hero">
+        {event?.heroImageUrl ? (
+          <div
+            aria-hidden="true"
+            className="activity-hero__media"
+            style={{ backgroundImage: `url(${event.heroImageUrl})` }}
+          />
+        ) : null}
+        <div className="activity-hero__content">
+          <span className="activity-hero__eyebrow">Dettaglio attività</span>
+          <h1 className="activity-hero__title">{event?.title ?? "Caricamento attività..."}</h1>
+          {event?.description ? (
+            <p className="activity-hero__description">{event.description}</p>
+          ) : null}
+          {event ? (
+            <div className="activity-hero__chips">
+              <span className={`activity-chip activity-chip--${getEventStatusTone(event.status)}`}>
+                <span aria-hidden="true" className="activity-chip__dot" />
+                {getEventStatusLabel(event.status)}
+              </span>
+              <span className="activity-chip">
+                <AppIcon name="calendar" />
+                {formatDateRange(event.startDate, event.endDate)}
+              </span>
+              {event.location.trim() ? (
+                <span className="activity-chip">
+                  <AppIcon name="map-pin" />
+                  {event.location}
+                </span>
+              ) : null}
+              <span className="activity-chip">
+                <AppIcon name="users" />
+                {getEventAudienceLabel(event.audience)}
+              </span>
+            </div>
+          ) : null}
+          {registrationCountdown ? (
+            <p className="activity-hero__countdown">
+              <AppIcon name="clock" />
+              <span>Le iscrizioni chiudono {registrationCountdown}</span>
+            </p>
+          ) : null}
+          {event ? (
+            <div className="activity-hero__actions">
+              {renderPrimaryAction("hero")}
               <ShareButton
+                className="button button--outline-light"
                 title={event.title}
                 text="Guarda questa attività e apri l'iscrizione."
-                url={getAbsoluteUrl(getActivityPath(event.id, data.stakeId))}
+                url={shareUrl}
               />
-            </>
-          ) : (
-            renderPrimaryAction()
-          )
-        }
-        aside={
-          event ? (
-            <div className="info-stack">
-              <div className="chip-row">
-                <StatusBadge
-                  label={getEventStatusLabel(event.status)}
-                  tone={getEventStatusTone(event.status)}
-                />
-                <span className="surface-chip">{getEventAudienceLabel(event.audience)}</span>
-                <span className="surface-chip">
-                  {formatDateRange(event.startDate, event.endDate)}
-                </span>
-              </div>
-              {event.heroImageUrl ? (
-                <div
-                  className="preview-image"
-                  style={{
-                    backgroundImage: `url(${event.heroImageUrl})`,
-                  }}
-                />
-              ) : null}
             </div>
-          ) : null
-        }
-      />
+          ) : null}
+        </div>
+      </section>
 
       {error ? (
         <div className="notice notice--warning">
@@ -267,16 +314,8 @@ export function ActivityDetailPage() {
         >
           <dl className="summary-list">
             <div>
-              <dt>Date</dt>
-              <dd>{formatDateRange(event.startDate, event.endDate)}</dd>
-            </div>
-            <div>
               <dt>Luogo</dt>
               <dd>{event.location || "-"}</dd>
-            </div>
-            <div>
-              <dt>Destinatari</dt>
-              <dd>{getEventAudienceLabel(event.audience)}</dd>
             </div>
             <div>
               <dt>Apertura iscrizioni</dt>
@@ -399,6 +438,21 @@ export function ActivityDetailPage() {
             </div>
           </div>
         </SectionCard>
+      ) : null}
+
+      {event && formConfig ? (
+        <div className="activity-cta-bar">
+          <div className="activity-cta-bar__inner">
+            {renderPrimaryAction("bar")}
+            <ShareButton
+              className="button button--ghost activity-cta-bar__share"
+              iconOnly
+              title={event.title}
+              text="Guarda questa attività e apri l'iscrizione."
+              url={shareUrl}
+            />
+          </div>
+        </div>
       ) : null}
     </div>
   );
