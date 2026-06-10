@@ -1022,6 +1022,12 @@ service cloud.firestore {
         && resource.data.anonymousUid == request.auth.uid;
     }
 
+    // Domande di tutte le iscrizioni di un evento in una sola query
+    // (where stakeId == && eventId ==): solo admin del palo.
+    match /{path=**}/questions/{questionId} {
+      allow list: if isStakeAdmin(resource.data.stakeId);
+    }
+
     match /anonymousRegistrationTokens/{tokenId} {
       allow get: if isSignedIn()
         && (

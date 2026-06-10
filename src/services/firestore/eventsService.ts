@@ -1,5 +1,6 @@
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -8,6 +9,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
@@ -425,13 +427,30 @@ export const eventsService = {
     const registrationsSnapshot = await getDocs(
       collection(db, "stakes", stakeId, "activities", eventId, "registrations"),
     );
+    // Le domande vivono in subcollection sotto le iscrizioni: senza questa
+    // query resterebbero documenti orfani dopo la cancellazione.
+    const questionsSnapshot = await getDocs(
+      query(
+        collectionGroup(db, "questions"),
+        where("stakeId", "==", stakeId),
+        where("eventId", "==", eventId),
+      ),
+    );
 
-    for (const formField of formFieldsSnapshot.docs) {
-      await deleteDoc(formField.ref);
-    }
+    // Cancellazione in batch (max 500 operazioni per batch) invece di una
+    // richiesta sequenziale per documento.
+    const references = [
+      ...questionsSnapshot.docs.map((d) => d.ref),
+      ...formFieldsSnapshot.docs.map((d) => d.ref),
+      ...registrationsSnapshot.docs.map((d) => d.ref),
+    ];
 
-    for (const registration of registrationsSnapshot.docs) {
-      await deleteDoc(registration.ref);
+    for (let start = 0; start < references.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const reference of references.slice(start, start + 450)) {
+        batch.delete(reference);
+      }
+      await batch.commit();
     }
 
     await deleteDoc(formConfigReference).catch(() => undefined);
