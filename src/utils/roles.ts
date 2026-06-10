@@ -4,5 +4,6 @@ export function getRoleLabel(role: UserRole) {
   if (role === "super_admin") return "Super admin";
   if (role === "admin") return "Admin";
   if (role === "unit_leader") return "Dirigente unità";
+  if (role === "parent") return "Genitore";
   return "Partecipante";
 }

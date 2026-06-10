@@ -52,6 +52,7 @@ export const authService = {
       isAuthenticated: !user.isAnonymous,
       isAdmin: profile.role === "admin" || profile.role === "super_admin",
       isUnitLeader: profile.role === "unit_leader",
+      isParent: profile.role === "parent",
       isAnonymous: user.isAnonymous,
       providerLabel: getProviderLabel(user),
     };
@@ -148,6 +149,7 @@ export const authService = {
       isAuthenticated: true,
       isAdmin: profile.role === "admin" || profile.role === "super_admin",
       isUnitLeader: profile.role === "unit_leader",
+      isParent: profile.role === "parent",
     };
   },
 

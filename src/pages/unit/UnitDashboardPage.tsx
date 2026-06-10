@@ -65,8 +65,8 @@ export function UnitDashboardPage() {
   const unitName = session?.profile.unitName || "la tua unità";
 
   const { data: summaries, loading, error } = useAsyncData(
-    () => unitLeaderService.getUnitActivitySummaries(stakeId, unitId, unitName),
-    [stakeId, unitId, unitName],
+    () => unitLeaderService.getUnitActivitySummaries(stakeId, unitId),
+    [stakeId, unitId],
     [],
   );
 
@@ -90,6 +90,18 @@ export function UnitDashboardPage() {
           </div>
         </div>
       </section>
+
+      {!unitId ? (
+        <div className="notice notice--warning">
+          <div>
+            <h3>Nessuna unità collegata al tuo account</h3>
+            <p>
+              Per vedere i giovani e le iscrizioni serve che un admin del palo assegni
+              la tua unità al profilo. Contatta l'amministratore.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {!loading && summaries.length > 0 && (
         <section className="admin-metrics">

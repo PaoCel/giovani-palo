@@ -183,11 +183,10 @@ export function UnitActivityPage() {
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId ?? "roma-est";
   const unitId = session?.profile.unitId ?? "";
-  const unitName = session?.profile.unitName ?? "";
 
   const { data, loading, error } = useAsyncData(
-    () => unitLeaderService.getUnitActivityDetail(stakeId, eventId, unitId, unitName),
-    [stakeId, eventId, unitId, unitName],
+    () => unitLeaderService.getUnitActivityDetail(stakeId, eventId, unitId),
+    [stakeId, eventId, unitId],
     initialData,
   );
 

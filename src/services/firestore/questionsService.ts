@@ -1,14 +1,16 @@
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
-import { registrationsService } from "@/services/firestore/registrationsService";
 import type {
   Question,
   QuestionStatus,
@@ -21,6 +23,10 @@ function nowIso() {
 }
 
 function getRegistrationDocId(lookup: RegistrationLookup) {
+  if (lookup.parentUid && lookup.childId) {
+    return `child_${lookup.parentUid}_${lookup.childId}`;
+  }
+
   if (lookup.userId) {
     return `user_${lookup.userId}`;
   }
@@ -116,23 +122,24 @@ export const questionsService = {
       .sort(sortByCreatedAt);
   },
 
+  // Query collection-group al posto del vecchio N+1 (una lettura per ogni
+  // iscrizione): richiede l'indice composito su stakeId+eventId definito in
+  // firestore.indexes.json e la rule di collection group per gli admin.
   async listAllForEvent(stakeId: string, eventId: string): Promise<Question[]> {
-    const registrations = await registrationsService.listRegistrationsByEvent(
-      stakeId,
-      eventId,
-    );
-    const questionGroups = await Promise.all(
-      registrations.map(async (registration) => {
-        const snapshot = await getDocs(
-          getQuestionsCollection(stakeId, eventId, registration.id),
-        );
-        return snapshot.docs.map((d) =>
-          mapQuestion(stakeId, eventId, registration.id, d.id, d.data()),
-        );
-      }),
+    const snapshot = await getDocs(
+      query(
+        collectionGroup(db, "questions"),
+        where("stakeId", "==", stakeId),
+        where("eventId", "==", eventId),
+      ),
     );
 
-    return questionGroups.flat().sort(sortByCreatedAt);
+    return snapshot.docs
+      .map((d) => {
+        const registrationId = d.ref.parent.parent?.id ?? "";
+        return mapQuestion(stakeId, eventId, registrationId, d.id, d.data());
+      })
+      .sort(sortByCreatedAt);
   },
 
   async create(
@@ -160,8 +167,8 @@ export const questionsService = {
       eventId,
       stakeId,
       registrationId,
-      authorUserId: lookup.userId ?? null,
-      authorAnonymousUid: lookup.userId ? null : lookup.anonymousUid ?? null,
+      authorUserId: lookup.userId ?? lookup.parentUid ?? null,
+      authorAnonymousUid: lookup.userId || lookup.parentUid ? null : lookup.anonymousUid ?? null,
       authorName: input.isAnonymous ? null : trimmedName || null,
       text,
       isAnonymous: input.isAnonymous,
