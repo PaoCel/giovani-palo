@@ -91,6 +91,18 @@ export function UnitDashboardPage() {
         </div>
       </section>
 
+      {!unitId ? (
+        <div className="notice notice--warning">
+          <div>
+            <h3>Nessuna unità collegata al tuo account</h3>
+            <p>
+              Per vedere i giovani e le iscrizioni serve che un admin del palo assegni
+              la tua unità al profilo. Contatta l'amministratore.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {!loading && summaries.length > 0 && (
         <section className="admin-metrics">
           <article className="admin-metric">
