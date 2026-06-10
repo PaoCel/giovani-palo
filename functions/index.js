@@ -17,6 +17,12 @@ exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationG
 exports.parentAuthorizationConfirm = parentAuthorization.parentAuthorizationConfirm;
 exports.parentAuthorizationReject = parentAuthorization.parentAuthorizationReject;
 exports.parentAuthorizationResend = parentAuthorization.parentAuthorizationResend;
+exports.parentAuthorizationBackfillLegacyApprovals =
+  parentAuthorization.parentAuthorizationBackfillLegacyApprovals;
+exports.parentAuthorizationGetSignedConsentUrl =
+  parentAuthorization.parentAuthorizationGetSignedConsentUrl;
+exports.parentAuthorizationDownloadSignedConsentsZip =
+  parentAuthorization.parentAuthorizationDownloadSignedConsentsZip;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";

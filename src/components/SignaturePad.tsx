@@ -74,7 +74,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
               return;
             }
 
-            canvas.toBlob((blob) => resolve(blob), "image/png");
+            resolveSignatureBlob(canvas).then(resolve);
           }),
       }),
       [],
@@ -272,3 +272,83 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
     );
   },
 );
+
+async function resolveSignatureBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  const context = canvas.getContext("2d");
+
+  if (!context || canvas.width <= 0 || canvas.height <= 0) {
+    return null;
+  }
+
+  const source = context.getImageData(0, 0, canvas.width, canvas.height);
+  let minX = canvas.width;
+  let minY = canvas.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let index = 0; index < source.data.length; index += 4) {
+    const red = source.data[index];
+    const green = source.data[index + 1];
+    const blue = source.data[index + 2];
+    const isWhite = red > 242 && green > 242 && blue > 242;
+
+    if (isWhite) {
+      source.data[index + 3] = 0;
+      continue;
+    }
+
+    const pixel = index / 4;
+    const x = pixel % canvas.width;
+    const y = Math.floor(pixel / canvas.width);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+
+  const padding = 18;
+  const left = Math.max(0, minX - padding);
+  const top = Math.max(0, minY - padding);
+  const right = Math.min(canvas.width - 1, maxX + padding);
+  const bottom = Math.min(canvas.height - 1, maxY + padding);
+  const width = right - left + 1;
+  const height = bottom - top + 1;
+  const output = document.createElement("canvas");
+  output.width = width;
+  output.height = height;
+  const outputContext = output.getContext("2d");
+
+  if (!outputContext) {
+    return null;
+  }
+
+  const transparent = document.createElement("canvas");
+  transparent.width = canvas.width;
+  transparent.height = canvas.height;
+  const transparentContext = transparent.getContext("2d");
+
+  if (!transparentContext) {
+    return null;
+  }
+
+  transparentContext.putImageData(source, 0, 0);
+  outputContext.drawImage(
+    transparent,
+    left,
+    top,
+    width,
+    height,
+    0,
+    0,
+    width,
+    height,
+  );
+
+  return new Promise((resolve) => {
+    output.toBlob((blob) => resolve(blob), "image/png");
+  });
+}

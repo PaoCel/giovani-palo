@@ -14,11 +14,13 @@ const APP_PUBLIC_URL = "https://gugditalia.it";
 
 // Sender email transazionale Brevo (deve corrispondere a un sender verificato).
 const BREVO_SENDER_EMAIL = "noreply@gugditalia.it";
-const BREVO_SENDER_NAME = "gugditalia";
+const BREVO_SENDER_NAME =
+  "Piattaforma attività per Giovani Uomini e Giovani Donne in Italia";
 
 // Reply-to: dove vanno le risposte del genitore se preme "rispondi".
 const BREVO_REPLY_TO_EMAIL = "supporto@gugditalia.it";
-const BREVO_REPLY_TO_NAME = "Supporto gugditalia";
+const BREVO_REPLY_TO_NAME =
+  "Supporto Piattaforma attività per Giovani Uomini e Giovani Donne in Italia";
 
 // Testo di supporto mostrato in email + pagina genitore.
 const SUPPORT_CONTACT_TEXT =
@@ -41,6 +43,9 @@ const STORAGE_PATH_PARENT_AUTH_SIGNATURE = (
 ) =>
   `protected/stakes/${stakeId}/activities/${activityId}/parent-authorization-signatures/${registrationId}`;
 
+const STORAGE_PATH_PARENT_AUTH_SIGNATURE_CACHE = (emailHash) =>
+  `protected/parent-authorization-signature-cache/${emailHash}`;
+
 module.exports = {
   REGION,
   APP_PUBLIC_URL,
@@ -53,4 +58,5 @@ module.exports = {
   BREVO_API_URL,
   STORAGE_PATH_PARENT_AUTH_PDF,
   STORAGE_PATH_PARENT_AUTH_SIGNATURE,
+  STORAGE_PATH_PARENT_AUTH_SIGNATURE_CACHE,
 };

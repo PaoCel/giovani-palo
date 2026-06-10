@@ -658,8 +658,14 @@ export interface ParentAuthorizationState {
   socialPublicationConsent: PhotoConsentDecision;
   signatureUrl: string | null;
   signaturePath: string | null;
+  signatureSource?: "new" | "reused" | "legacy_typed";
   pdfUrl: string | null;
   pdfPath: string | null;
+  conductPdfPath?: string | null;
+  auditPdfPath?: string | null;
+  signedCopyEmailSentAt?: string | null;
+  signedCopyEmailMessageId?: string | null;
+  signedCopyEmailLastError?: string | null;
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
@@ -714,6 +720,7 @@ export interface ConsentAuditLog {
   socialPublicationConsent: PhotoConsentDecision | null;
   signaturePath: string | null;
   pdfPath: string | null;
+  auditPdfPath?: string | null;
   emailProvider: "brevo" | null;
   brevoMessageId: string | null;
   emailErrorCode: string | null;
