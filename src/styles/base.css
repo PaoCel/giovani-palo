@@ -547,6 +547,19 @@ button {
   display: grid;
   gap: 1rem;
   padding: 1rem 0 3rem;
+  /* Solo opacity: un transform qui creerebbe un containing block e
+     romperebbe i figli position: fixed (es. barra CTA su mobile). */
+  animation: page-enter 0.24s ease both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .hero,
@@ -1244,6 +1257,16 @@ button {
 
 .button:hover {
   transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.button:focus-visible,
+.button-reset:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .button--small {
@@ -1979,6 +2002,16 @@ button {
   .skeleton-card__line {
     animation: none;
   }
+
+  .page,
+  .notice {
+    animation: none;
+  }
+
+  .button:hover,
+  .button:active {
+    transform: none;
+  }
 }
 
 .user-page-intro {
@@ -2708,6 +2741,19 @@ button {
   background: var(--surface-strong);
   border: 1px solid rgba(20, 39, 70, 0.08);
   box-shadow: var(--shadow-soft);
+  animation: notice-pop 0.22s ease both;
+}
+
+@keyframes notice-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .notice--info {
