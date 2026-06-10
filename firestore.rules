@@ -800,6 +800,16 @@ service cloud.firestore {
           resource.data.role in ['participant', 'parent']
           || resource.data.stakeId == ''
           || request.resource.data.stakeId == resource.data.stakeId
+        )
+        // I ruoli privilegiati non possono spostarsi di unità da soli:
+        // unitId determina il confine di lettura dei dirigenti di unità
+        // (isUnitLeaderOfUnit), quindi lo cambia solo un admin.
+        && (
+          resource.data.role in ['participant', 'parent']
+          || (
+            request.resource.data.unitId == resource.data.get('unitId', '')
+            && request.resource.data.unitName == resource.data.get('unitName', '')
+          )
         );
     }
 
