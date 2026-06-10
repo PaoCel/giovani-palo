@@ -169,7 +169,12 @@ export function ActivityRegisterPage() {
 
       const stakeId = await resolvePublicStakeId(requestedStakeId || session?.profile.stakeId);
       const lookup = getRegistrationLookupFromSession(session, childIdParam || null);
-      const hasLookup = Boolean(lookup.userId || lookup.anonymousUid || lookup.parentUid);
+      // I genitori operano solo su iscrizioni dei figli: senza figlio
+      // selezionato non cerchiamo una (eventuale) vecchia iscrizione personale,
+      // che renderebbe la pagina un vicolo cieco.
+      const hasLookup =
+        Boolean(lookup.userId || lookup.anonymousUid || lookup.parentUid) &&
+        (!isParentSession || Boolean(childIdParam));
 
       // Step 2-5 sono indipendenti tra loro (basta lo stakeId): in parallelo
       // tagliamo ~60% del tempo percepito sulla pagina di iscrizione.
