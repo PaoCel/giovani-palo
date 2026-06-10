@@ -2,6 +2,7 @@ import type { OrganizationProfile, OrganizationRegistrationDefaults } from "@/ty
 
 import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
+import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
 import { slugify } from "@/utils/slugify";
 
 const defaultEnabledStandardFields: OrganizationRegistrationDefaults["enabledStandardFields"] = [
@@ -100,7 +101,16 @@ export function getDefaultOrganizationProfile(stakeName?: string) {
 
 export const organizationService = {
   async getProfile(stakeId?: string) {
+    // Profilo organizzazione richiesto da login, home, iscrizione: cache di
+    // sessione, invalidata da saveProfile.
     const resolvedStakeId = await resolveStakeId(stakeId);
+    return cachedFetch(`org:profile:${resolvedStakeId}`, 5 * 60 * 1000, () =>
+      this.getProfileUncached(resolvedStakeId),
+    );
+  },
+
+  async getProfileUncached(stakeId: string) {
+    const resolvedStakeId = stakeId;
     // Carico stake + units in parallelo. Il legacy profile (settings/organization)
     // serve solo come fallback storico: lo leggo on demand soltanto se lo stake
     // doc manca o se ha campi vuoti, evitando una read inutile a ogni pagina
@@ -263,6 +273,7 @@ export const organizationService = {
       await unitsService.deactivateUnit(resolvedStakeId, existingUnit.id);
     }
 
+    invalidateCache("org:profile");
     return this.getProfile(resolvedStakeId);
   },
 

@@ -3,16 +3,16 @@ import { useSearchParams } from "react-router-dom";
 import { AuthAccessPanel } from "@/components/AuthAccessPanel";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { organizationService } from "@/services/firestore/organizationService";
-import { resolvePublicStakeId } from "@/utils/stakeSelection";
+import { getStoredPublicStakeId } from "@/utils/stakeSelection";
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
   const { data: organization, error } = useAsyncData(
-    async () => {
-      const stakeId = await resolvePublicStakeId();
-      return organizationService.getProfile(stakeId);
-    },
+    // Niente read di validazione del palo prima del profilo: getProfile
+    // gestisce già id mancanti/invalidi cadendo sul default. Era un round
+    // trip in più che teneva nascosto il form di login.
+    () => organizationService.getProfile(getStoredPublicStakeId() || undefined),
     [],
     null,
   );

@@ -1,6 +1,10 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
@@ -12,7 +16,12 @@ export const firebaseApp = getApps().length
   : initializeApp(firebaseConfig);
 
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+// Cache locale persistente (IndexedDB): le visite successive mostrano subito
+// i dati già visti mentre la rete li aggiorna in background. Senza, ogni
+// apertura ripagava per intero handshake del canale + tutte le query.
+export const db = initializeFirestore(firebaseApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 export const storage = getStorage(firebaseApp);
 // Cloud Functions su europe-west1 (stessa region del progetto giovani-palo).
 export const functions = getFunctions(firebaseApp, "europe-west1");

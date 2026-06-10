@@ -22,6 +22,7 @@ import type { ActivityType, Event, EventStatus, EventWriteInput } from "@/types"
 import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys } from "@/utils/formFields";
 import { eventSpansMultipleCalendarDays, sanitizeEventAudience } from "@/utils/events";
+import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
 import { slugify } from "@/utils/slugify";
 
 function nowIso() {
@@ -260,6 +261,15 @@ export const eventsService = {
   },
 
   async listPublicEvents(stakeId: string) {
+    // Cache breve di sessione: la lista pubblica viene richiesta da home,
+    // catalogo e dettaglio nella stessa navigazione. Gli admin invalidano
+    // alla scrittura (vedi createEvent/updateEvent/deleteEvent).
+    return cachedFetch(`events:public:${stakeId}`, 60 * 1000, () =>
+      this.listPublicEventsUncached(stakeId),
+    );
+  },
+
+  async listPublicEventsUncached(stakeId: string) {
     const snapshot = await getDocs(
       query(
         getActivityCollection(stakeId),
@@ -337,6 +347,7 @@ export const eventsService = {
       createdAt: timestamp,
       updatedAt: timestamp,
     });
+    invalidateCache("events:public");
 
     await eventFormsService.saveFormConfig(
       stakeId,
@@ -371,6 +382,7 @@ export const eventsService = {
       ...data,
       updatedAt: nowIso(),
     });
+    invalidateCache("events:public");
 
     const currentFormConfig = await eventFormsService.getFormConfig(stakeId, eventId);
 
@@ -397,6 +409,7 @@ export const eventsService = {
       status,
       updatedAt: nowIso(),
     });
+    invalidateCache("events:public");
 
     return this.getEventById(stakeId, eventId);
   },
@@ -407,6 +420,7 @@ export const eventsService = {
       isPublic: true,
       updatedAt: nowIso(),
     });
+    invalidateCache("events:public");
 
     return this.getEventById(stakeId, eventId);
   },
@@ -455,5 +469,6 @@ export const eventsService = {
 
     await deleteDoc(formConfigReference).catch(() => undefined);
     await deleteDoc(doc(db, "stakes", stakeId, "activities", eventId));
+    invalidateCache("events:public");
   },
 };
