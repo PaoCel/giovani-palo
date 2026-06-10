@@ -144,6 +144,8 @@ function mapRegistration(
       typeof data.parentIdUploadedAt === "string" ? data.parentIdUploadedAt : null,
     linkedLaterToUserId:
       typeof data.linkedLaterToUserId === "string" ? data.linkedLaterToUserId : null,
+    parentUid: typeof data.parentUid === "string" ? data.parentUid : null,
+    childId: typeof data.childId === "string" ? data.childId : null,
     status: data.registrationStatus === "cancelled" ? "cancelled" : "active",
     registrationStatus:
       data.registrationStatus === "draft" ||
@@ -160,7 +162,10 @@ function mapRegistration(
       data.parentAuthorization && typeof data.parentAuthorization === "object"
         ? (data.parentAuthorization as Registration["parentAuthorization"])
         : null,
-    submittedByMode: data.submittedByMode === "anonymous" ? "anonymous" : "authenticated",
+    submittedByMode:
+      data.submittedByMode === "anonymous" || data.submittedByMode === "parent"
+        ? data.submittedByMode
+        : "authenticated",
     assignedRoomId:
       typeof data.assignedRoomId === "string" ? data.assignedRoomId : null,
     assignedTempleShiftId:
@@ -199,6 +204,10 @@ function getStakeAndEventFromRegistrationPath(path: string) {
 }
 
 function getRegistrationDocId(lookup: RegistrationLookup) {
+  if (lookup.parentUid && lookup.childId) {
+    return `child_${lookup.parentUid}_${lookup.childId}`;
+  }
+
   if (lookup.userId) {
     return `user_${lookup.userId}`;
   }
@@ -313,6 +322,10 @@ export const registrationsService = {
     eventId: string,
     lookup: RegistrationLookup,
   ) {
+    if (lookup.parentUid && lookup.childId) {
+      return this.getRegistrationById(stakeId, eventId, getRegistrationDocId(lookup));
+    }
+
     if (!lookup.userId && !lookup.anonymousUid) {
       return null;
     }
@@ -332,6 +345,30 @@ export const registrationsService = {
     }
 
     return this.getRegistrationById(stakeId, eventId, getRegistrationDocId(lookup));
+  },
+
+  // Tutte le iscrizioni gestite da un genitore, su qualunque attività.
+  // Query collection-group autorizzata dalle rules solo con il filtro
+  // parentUid == uid corrente (indice in firestore.indexes.json).
+  async listFamilyRegistrations(parentUid: string): Promise<Registration[]> {
+    if (!parentUid) {
+      return [];
+    }
+
+    const snapshot = await getDocs(
+      query(collectionGroup(db, "registrations"), where("parentUid", "==", parentUid)),
+    );
+
+    return snapshot.docs
+      .map((document) => {
+        const context = getStakeAndEventFromRegistrationPath(document.ref.path);
+        if (!context) {
+          return null;
+        }
+        return mapRegistration(context.eventId, context.stakeId, document.id, document.data());
+      })
+      .filter((registration): registration is Registration => registration !== null)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   },
 
   async getRegistrationById(stakeId: string, eventId: string, registrationId: string) {
@@ -408,8 +445,10 @@ export const registrationsService = {
     );
 
     await setDoc(reference, {
-      userId: lookup.userId,
-      anonymousUid: lookup.userId ? null : lookup.anonymousUid,
+      userId: lookup.userId ?? null,
+      anonymousUid: lookup.userId || lookup.parentUid ? null : (lookup.anonymousUid ?? null),
+      parentUid: lookup.parentUid ?? null,
+      childId: lookup.parentUid ? (lookup.childId ?? null) : null,
       anonymousTokenId: existing?.anonymousTokenId ?? null,
       firstName: names.firstName,
       lastName: names.lastName,
@@ -442,7 +481,11 @@ export const registrationsService = {
       parentAuthorization: existing?.parentAuthorization ?? null,
       linkedLaterToUserId: existing?.linkedLaterToUserId ?? null,
       registrationStatus,
-      submittedByMode: lookup.userId ? "authenticated" : "anonymous",
+      submittedByMode: lookup.parentUid
+        ? "parent"
+        : lookup.userId
+          ? "authenticated"
+          : "anonymous",
       assignedRoomId: existing?.assignedRoomId ?? null,
       assignedTempleShiftId: existing?.assignedTempleShiftId ?? null,
       assignedServiceTeamIds: existing?.assignedServiceTeamIds ?? [],

@@ -23,6 +23,10 @@ function nowIso() {
 }
 
 function getRegistrationDocId(lookup: RegistrationLookup) {
+  if (lookup.parentUid && lookup.childId) {
+    return `child_${lookup.parentUid}_${lookup.childId}`;
+  }
+
   if (lookup.userId) {
     return `user_${lookup.userId}`;
   }
@@ -163,8 +167,8 @@ export const questionsService = {
       eventId,
       stakeId,
       registrationId,
-      authorUserId: lookup.userId ?? null,
-      authorAnonymousUid: lookup.userId ? null : lookup.anonymousUid ?? null,
+      authorUserId: lookup.userId ?? lookup.parentUid ?? null,
+      authorAnonymousUid: lookup.userId || lookup.parentUid ? null : lookup.anonymousUid ?? null,
       authorName: input.isAnonymous ? null : trimmedName || null,
       text,
       isAnonymous: input.isAnonymous,

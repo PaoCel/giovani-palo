@@ -23,7 +23,12 @@ function nowIso() {
 }
 
 function sanitizeRole(value: unknown): UserRole {
-  if (value === "admin" || value === "super_admin" || value === "unit_leader") {
+  if (
+    value === "admin" ||
+    value === "super_admin" ||
+    value === "unit_leader" ||
+    value === "parent"
+  ) {
     return value;
   }
 
@@ -424,5 +429,34 @@ export const usersService = {
       mustChangePassword: false,
       updatedAt: nowIso(),
     });
+  },
+
+  // Scambio self-service participant <-> parent: le rules consentono solo
+  // questa coppia di ruoli, gli altri restano gestiti dagli admin.
+  async setOwnAccountType(uid: string, role: "participant" | "parent") {
+    await updateDoc(doc(db, "users", uid), {
+      role,
+      updatedAt: nowIso(),
+    });
+
+    return this.getProfile(uid);
+  },
+
+  async updateBasicProfile(uid: string, input: { firstName: string; lastName: string }) {
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName.trim();
+
+    if (!firstName) {
+      throw new Error("Il nome è obbligatorio.");
+    }
+
+    await updateDoc(doc(db, "users", uid), {
+      firstName,
+      lastName,
+      fullName: `${firstName} ${lastName}`.trim(),
+      updatedAt: nowIso(),
+    });
+
+    return this.getProfile(uid);
   },
 };

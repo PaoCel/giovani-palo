@@ -13,13 +13,19 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
+import { childrenService } from "@/services/firestore/childrenService";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { questionsService } from "@/services/firestore/questionsService";
 import { registrationAttemptsService } from "@/services/firestore/registrationAttemptsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
-import type { OrganizationProfile, Registration, RegistrationWriteInput } from "@/types";
+import type {
+  ChildProfile,
+  OrganizationProfile,
+  Registration,
+  RegistrationWriteInput,
+} from "@/types";
 import { formatDateTime } from "@/utils/formatters";
 import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
 import { isMinorBirthDate } from "@/utils/age";
@@ -41,6 +47,7 @@ interface RegisterPageData {
   event: Awaited<ReturnType<typeof eventsService.getPublicEventById>>;
   formConfig: Awaited<ReturnType<typeof eventFormsService.getFormConfig>> | null;
   registration: Awaited<ReturnType<typeof registrationsService.getRegistrationById>>;
+  children: ChildProfile[];
 }
 
 const initialData: RegisterPageData = {
@@ -49,7 +56,62 @@ const initialData: RegisterPageData = {
   event: null,
   formConfig: null,
   registration: null,
+  children: [],
 };
+
+// Precompila il modulo con i dati del figlio selezionato: il RegistrationEditor
+// legge i valori iniziali da una Registration, quindi ne costruiamo una vuota
+// con i soli dati anagrafici del figlio.
+function buildChildPrefill(child: ChildProfile): Registration {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: "",
+    eventId: "",
+    activityId: "",
+    stakeId: child.stakeId,
+    userId: null,
+    anonymousUid: null,
+    anonymousTokenId: null,
+    firstName: child.firstName,
+    lastName: child.lastName,
+    fullName: child.fullName,
+    email: "",
+    phone: "",
+    birthDate: child.birthDate,
+    genderRoleCategory: child.genderRoleCategory,
+    youthGroup: "",
+    unitId: child.unitId,
+    unitNameSnapshot: child.unitName,
+    answers: {},
+    roomPreferenceMatches: {},
+    accessCode: null,
+    recoveryCode: null,
+    recoveryPdfGenerated: false,
+    parentConsentDocumentName: null,
+    parentConsentDocumentUrl: null,
+    parentConsentDocumentPath: null,
+    parentConsentUploadedAt: null,
+    consentSignatureUrl: null,
+    consentSignaturePath: null,
+    consentSignatureSetAt: null,
+    parentIdDocumentName: null,
+    parentIdDocumentUrl: null,
+    parentIdDocumentPath: null,
+    parentIdUploadedAt: null,
+    parentAuthorization: null,
+    linkedLaterToUserId: null,
+    parentUid: null,
+    childId: child.id,
+    registrationStatus: "active",
+    submittedByMode: "parent",
+    assignedRoomId: null,
+    assignedTempleShiftId: null,
+    assignedServiceTeamIds: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
 
 function createAnonymousTokenId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -92,6 +154,8 @@ export function ActivityRegisterPage() {
   const { session, signInAnonymously, signOut } = useAuth();
   const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "public";
   const requestedStakeId = searchParams.get("stake") ?? "";
+  const isParentSession = Boolean(session?.isParent);
+  const childIdParam = isParentSession ? (searchParams.get("child") ?? "") : "";
   const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset">(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [anonymousCompletion, setAnonymousCompletion] = useState<Registration | null>(null);
@@ -104,18 +168,21 @@ export function ActivityRegisterPage() {
       }
 
       const stakeId = await resolvePublicStakeId(requestedStakeId || session?.profile.stakeId);
-      const lookup = getRegistrationLookupFromSession(session);
-      const hasLookup = Boolean(lookup.userId || lookup.anonymousUid);
+      const lookup = getRegistrationLookupFromSession(session, childIdParam || null);
+      const hasLookup = Boolean(lookup.userId || lookup.anonymousUid || lookup.parentUid);
 
       // Step 2-5 sono indipendenti tra loro (basta lo stakeId): in parallelo
       // tagliamo ~60% del tempo percepito sulla pagina di iscrizione.
-      const [organization, event, formConfig, registration] = await Promise.all([
+      const [organization, event, formConfig, registration, children] = await Promise.all([
         organizationService.getProfile(stakeId),
         eventsService.getPublicEventById(stakeId, eventId),
         eventFormsService.getFormConfig(stakeId, eventId),
         hasLookup
           ? registrationsService.getRegistrationByActor(stakeId, eventId, lookup)
           : Promise.resolve(null),
+        isParentSession && session
+          ? childrenService.listChildren(session.firebaseUser.uid)
+          : Promise.resolve([]),
       ]);
 
       if (!event) {
@@ -123,6 +190,7 @@ export function ActivityRegisterPage() {
           ...initialData,
           stakeId,
           organization,
+          children,
         };
       }
 
@@ -132,9 +200,10 @@ export function ActivityRegisterPage() {
         event,
         formConfig,
         registration,
+        children,
       };
     },
-    [eventId, requestedStakeId, sessionKey],
+    [eventId, requestedStakeId, sessionKey, childIdParam],
     initialData,
   );
 
@@ -200,9 +269,9 @@ export function ActivityRegisterPage() {
       return;
     }
 
-    const lookup = getRegistrationLookupFromSession(session);
+    const lookup = getRegistrationLookupFromSession(session, childIdParam || null);
 
-    if (!lookup.userId && !lookup.anonymousUid) {
+    if (!lookup.userId && !lookup.anonymousUid && !lookup.parentUid) {
       setActionError("Impossibile determinare il proprietario della registrazione.");
       return;
     }
@@ -305,7 +374,11 @@ export function ActivityRegisterPage() {
           nextRegistration,
           "completed",
         );
-        navigate(`/me/activities/${data.event.id}`, { replace: true });
+        if (lookup.parentUid) {
+          navigate("/family", { replace: true });
+        } else {
+          navigate(`/me/activities/${data.event.id}`, { replace: true });
+        }
       }
 
       setData((current) => ({
@@ -432,9 +505,19 @@ export function ActivityRegisterPage() {
   const availability =
     event && formConfig ? getRegistrationAvailability(event, formConfig, session) : null;
   const canEditExisting = Boolean(data.registration);
+  const selectedChild = isParentSession
+    ? (data.children.find((child) => child.id === childIdParam) ?? null)
+    : null;
   const audienceMismatch =
-    event && session?.isAuthenticated && !session.isAnonymous && !canEditExisting
-      ? !isEventAudienceEligible(event, session.profile.genderRoleCategory)
+    event &&
+    session?.isAuthenticated &&
+    !session.isAnonymous &&
+    !canEditExisting &&
+    (!isParentSession || selectedChild)
+      ? !isEventAudienceEligible(
+          event,
+          selectedChild ? selectedChild.genderRoleCategory : session.profile.genderRoleCategory,
+        )
       : false;
   // Per attivita' rafforzate (overnight/trip/camp/multi_day) con account
   // obbligatorio: blocco i guest. Anche se formConfig.allowGuestRegistration
@@ -449,6 +532,7 @@ export function ActivityRegisterPage() {
     Boolean(event && formConfig && session) &&
     !audienceMismatch &&
     !accountBlockedForGuest &&
+    (!isParentSession || Boolean(selectedChild)) &&
     (canEditExisting || availability === "open" || availability === "guest-allowed");
   const showRegisteredMinorConsentUpload =
     Boolean(
@@ -467,7 +551,7 @@ export function ActivityRegisterPage() {
         title={event?.title ?? "Caricamento iscrizione..."}
         actions={
           session?.isAuthenticated && !session.isAnonymous ? (
-            <Link className="button button--soft" to="/me">
+            <Link className="button button--soft" to={isParentSession ? "/family" : "/me"}>
               <AppIcon name="home" />
               <span>Dashboard</span>
             </Link>
@@ -714,13 +798,68 @@ export function ActivityRegisterPage() {
         </SectionCard>
       ) : null}
 
+      {isParentSession && !selectedChild && event && formConfig && !anonymousCompletion ? (
+        <SectionCard
+          title="Chi vuoi iscrivere?"
+          description="Scegli il ragazzo o la ragazza da iscrivere a questa attività."
+        >
+          {data.children.length === 0 ? (
+            <EmptyState
+              title="Nessun figlio collegato"
+              description="Aggiungi prima i tuoi figli dalla dashboard famiglia: serviranno nome, data di nascita e unità."
+              action={
+                <Link className="button button--primary" to="/family">
+                  Vai alla dashboard famiglia
+                </Link>
+              }
+            />
+          ) : (
+            <div className="inline-actions">
+              {data.children.map((child) => {
+                const params = new URLSearchParams(searchParams);
+                params.set("child", child.id);
+                return (
+                  <Link
+                    key={child.id}
+                    className="button button--primary"
+                    to={{ search: params.toString() }}
+                  >
+                    <AppIcon name="user" />
+                    <span>{child.fullName || child.firstName}</span>
+                  </Link>
+                );
+              })}
+              <Link className="button button--ghost" to="/family">
+                <AppIcon name="plus" />
+                <span>Aggiungi figlio/a</span>
+              </Link>
+            </div>
+          )}
+        </SectionCard>
+      ) : null}
+
+      {selectedChild && !anonymousCompletion ? (
+        <div className="notice notice--info">
+          <div>
+            <h3>Stai iscrivendo {selectedChild.fullName || selectedChild.firstName}</h3>
+            <p>
+              L'iscrizione verrà salvata sul profilo di{" "}
+              {selectedChild.firstName || "tuo figlio/a"} e resterà gestibile dalla tua
+              dashboard famiglia.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {event && formConfig && canSubmit && !anonymousCompletion ? (
         <SectionCard title={data.registration ? "Aggiorna iscrizione" : "Compila il modulo"}>
           <RegistrationEditor
             busy={busy === "save"}
             event={event}
             formConfig={formConfig}
-            initialRegistration={data.registration}
+            initialRegistration={
+              data.registration ?? (selectedChild ? buildChildPrefill(selectedChild) : null)
+            }
             session={session}
             standardFieldDefinitions={getVisibleStandardFieldDefinitions(
               organization?.registrationDefaults.fieldOverrides,

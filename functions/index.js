@@ -34,7 +34,10 @@ function getRegistrationPayload(snapshot) {
 
   return {
     fullName: typeof data.fullName === "string" ? data.fullName : "Nuovo iscritto",
-    submittedByMode: data.submittedByMode === "anonymous" ? "anonymous" : "authenticated",
+    submittedByMode:
+      data.submittedByMode === "anonymous" || data.submittedByMode === "parent"
+        ? data.submittedByMode
+        : "authenticated",
     linkedLaterToUserId:
       typeof data.linkedLaterToUserId === "string" ? data.linkedLaterToUserId : null,
   };

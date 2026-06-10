@@ -54,6 +54,12 @@ function needsProfileCompletion(session: ReturnType<typeof useAuth>["session"]) 
     return false;
   }
 
+  // Per i genitori i dati anagrafici (data di nascita, gruppo, unità) vivono
+  // sui profili figli: per l'account basta il nome.
+  if (session.isParent) {
+    return isPlaceholderName(session.profile.fullName);
+  }
+
   return (
     isPlaceholderName(session.profile.fullName) ||
     !session.profile.birthDate ||
@@ -64,7 +70,13 @@ function needsProfileCompletion(session: ReturnType<typeof useAuth>["session"]) 
 }
 
 function getRoleHome(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
-  return session.isAdmin ? "/admin" : session.isUnitLeader ? "/unit" : "/me";
+  return session.isAdmin
+    ? "/admin"
+    : session.isUnitLeader
+      ? "/unit"
+      : session.isParent
+        ? "/family"
+        : "/me";
 }
 
 function isCompatibleRedirect(
@@ -76,7 +88,9 @@ function isCompatibleRedirect(
   // o legati a /activities restano onorati.
   if (redirect.startsWith("/admin")) return session.isAdmin;
   if (redirect.startsWith("/unit")) return session.isUnitLeader;
-  if (redirect.startsWith("/me")) return !session.isAdmin && !session.isUnitLeader;
+  if (redirect.startsWith("/family")) return session.isParent;
+  if (redirect.startsWith("/me"))
+    return !session.isAdmin && !session.isUnitLeader && !session.isParent;
   return true;
 }
 
