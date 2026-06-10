@@ -1302,15 +1302,6 @@ export function RegistrationEditor({
                 </label>
               ) : null}
 
-              {isAuthenticatedAccount && (!shouldAskNameFields || !shouldAskEmailField) ? (
-                <div className="field field--full">
-                  <div className="surface-panel surface-panel--subtle registration-account-hint">
-                    <strong>Dati account gia riutilizzati</strong>
-                    <p>Nome, email e profilo gia presenti non ti vengono richiesti di nuovo.</p>
-                  </div>
-                </div>
-              ) : null}
-
               {visibleIdentityFields.map((field) => (
                 <div key={field.key} className="field--full">
                   {renderStandardField(field)}
