@@ -913,20 +913,17 @@ export function RegistrationEditor({
             <h3>{field.label}</h3>
             <p>
               {hasUploadedDocument
-                ? "Il documento e gia stato collegato a questa iscrizione."
-                : sessionCanUpload
-                  ? "Non usiamo piu un semplice tick: dopo il primo salvataggio potrai caricare una foto del foglio firmato dalla pagina dell'attivita."
-                  : "Per i minori il consenso si gestisce con una foto del foglio firmato. Se ti iscrivi senza account, potrai caricarlo dopo aver creato il profilo."}
+                ? "Il modulo firmato e gia stato collegato a questa iscrizione."
+                : "Dopo l'invio dell'iscrizione il genitore riceve un'email con il modulo ufficiale da firmare direttamente online. In alternativa potrai scaricare il modulo, farlo firmare e caricarne una foto dalla pagina dell'attivita."}
             </p>
             <p className="subtle-text">
-              Non e obbligatorio per inviare adesso il modulo, ma gli admin vedranno chiaramente
-              se manca.
+              Non blocca l&apos;invio dell&apos;iscrizione: gli admin vedono chiaramente se manca.
             </p>
-            {minorConsentExampleImageUrl ? (
-              <div
-                className="upload-preview"
-                style={{ backgroundImage: `url(${minorConsentExampleImageUrl})` }}
-              />
+            {!sessionCanUpload && !hasUploadedDocument ? (
+              <p className="subtle-text">
+                Ti stai iscrivendo senza account: potrai caricare il modulo dopo aver creato il
+                profilo.
+              </p>
             ) : null}
           </div>
         );
