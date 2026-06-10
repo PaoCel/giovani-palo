@@ -2,7 +2,10 @@ import { useSearchParams } from "react-router-dom";
 
 import { AuthAccessPanel } from "@/components/AuthAccessPanel";
 import { useAsyncData } from "@/hooks/useAsyncData";
-import { organizationService } from "@/services/firestore/organizationService";
+import {
+  getDefaultOrganizationProfile,
+  organizationService,
+} from "@/services/firestore/organizationService";
 import { getStoredPublicStakeId } from "@/utils/stakeSelection";
 
 export function LoginPage() {
@@ -30,17 +33,14 @@ export function LoginPage() {
         </div>
       ) : null}
 
-      {organization ? (
-        <AuthAccessPanel
-          organization={organization}
-          redirect={redirect}
-          description={description}
-        />
-      ) : (
-        <section className="auth-screen">
-          <p className="auth-screen__note">Sto preparando il login...</p>
-        </section>
-      )}
+      {/* Il form non dipende dai dati dell'organizzazione (servono solo per
+          testi di aiuto e completamento profilo): si mostra subito con i
+          default e si aggiorna quando il profilo arriva. */}
+      <AuthAccessPanel
+        organization={organization ?? getDefaultOrganizationProfile()}
+        redirect={redirect}
+        description={description}
+      />
     </div>
   );
 }

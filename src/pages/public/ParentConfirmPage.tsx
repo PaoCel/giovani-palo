@@ -460,27 +460,33 @@ function ConfirmationForm({
         <span><AppIcon name="download" /> Modulo salvato per gli admin</span>
       </div>
 
-      <LegalSummaryCard />
+      {/* Due colonne su desktop (consensi a sinistra, firma+conferma sticky a
+          destra); su mobile resta un'unica colonna nello stesso ordine. */}
+      <div className="parent-confirm-columns">
+        <div className="parent-confirm-column">
+          <LegalSummaryCard />
 
-      <ConsentsSection
-        consents={consents}
-        onToggleConsent={onToggleConsent}
-      />
+          <ConsentsSection
+            consents={consents}
+            onToggleConsent={onToggleConsent}
+          />
 
-      <PhotoConsentSection
-        photoConsent={photoConsent}
-        socialPublicationConsent={socialPublicationConsent}
-        onPhotoConsentChange={onPhotoConsentChange}
-        onSocialConsentChange={onSocialConsentChange}
-      />
+          <PhotoConsentSection
+            photoConsent={photoConsent}
+            socialPublicationConsent={socialPublicationConsent}
+            onPhotoConsentChange={onPhotoConsentChange}
+            onSocialConsentChange={onSocialConsentChange}
+          />
+        </div>
 
-      <SignatureSection
-        hasReusableSignature={hasReusableSignature}
-        signatureRef={signatureRef}
-        onSignatureChange={onSignatureChange}
-      />
+        <div className="parent-confirm-column parent-confirm-column--side">
+          <SignatureSection
+            hasReusableSignature={hasReusableSignature}
+            signatureRef={signatureRef}
+            onSignatureChange={onSignatureChange}
+          />
 
-      <section className="parent-confirm-card parent-confirm-card--actions">
+          <section className="parent-confirm-card parent-confirm-card--actions">
         <p>
           {canSubmit
             ? hasReusableSignature && !hasSignature
@@ -510,12 +516,14 @@ function ConfirmationForm({
             Non autorizzo la partecipazione
           </button>
         </div>
-        <p className="parent-confirm-fineprint">
-          Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
-          accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica con
-          link unico inviato all'indirizzo email che ci hai fornito.
-        </p>
-      </section>
+            <p className="parent-confirm-fineprint">
+              Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
+              accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica con
+              link unico inviato all'indirizzo email che ci hai fornito.
+            </p>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

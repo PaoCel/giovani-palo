@@ -17,20 +17,39 @@ export function RouteErrorPanel() {
 
   // Chunk vecchio dopo una release: un reload risolve da solo. Lo facciamo
   // una volta automaticamente (flag in sessionStorage per evitare loop).
+  const autoReloading =
+    isChunkError &&
+    (() => {
+      try {
+        return !sessionStorage.getItem(RELOAD_FLAG);
+      } catch {
+        return false;
+      }
+    })();
+
   useEffect(() => {
-    if (!isChunkError) {
+    if (!autoReloading) {
       return;
     }
 
     try {
-      if (!sessionStorage.getItem(RELOAD_FLAG)) {
-        sessionStorage.setItem(RELOAD_FLAG, "1");
-        window.location.reload();
-      }
+      sessionStorage.setItem(RELOAD_FLAG, "1");
+      window.location.reload();
     } catch {
       // sessionStorage non disponibile: lasciamo il pannello manuale.
     }
-  }, [isChunkError]);
+  }, [autoReloading]);
+
+  // Durante il reload automatico niente messaggio d'errore: l'utente vede
+  // solo un aggiornamento, non un guasto.
+  if (autoReloading) {
+    return (
+      <div className="loader-panel" role="status" aria-live="polite">
+        <h1>Aggiornamento dell&apos;app…</h1>
+        <p className="subtle-text">Un attimo, sto caricando la versione più recente.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="loader-panel" role="alert">
