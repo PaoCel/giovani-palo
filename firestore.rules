@@ -1160,6 +1160,12 @@ service cloud.firestore {
       allow get, list, create, update, delete: if false;
     }
 
+    // Cache firme genitore (riuso firma tra attività): scrittura e lettura
+    // solo via Cloud Functions con Admin SDK. Nessun accesso client.
+    match /parentAuthorizationSignatureCache/{cacheId} {
+      allow get, list, create, update, delete: if false;
+    }
+
     match /settings/{settingId} {
       allow get: if settingId == 'organization';
       allow list: if false;

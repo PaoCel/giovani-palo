@@ -225,7 +225,7 @@ async function generateOfficialConsentPdf(payload) {
     helvetica,
     activity.description || activity.publicNotes,
     38,
-    632,
+    626,
     { maxChars: 120, maxLines: 2, size: 7 },
   );
   drawText(firstPage, helvetica, participant.unitName || organization.unitName, 38, 604, {

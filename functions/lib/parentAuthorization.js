@@ -989,7 +989,9 @@ const parentAuthorizationConfirm = onCall(
         registrationId,
       )}/${tokenHash}.png`;
       const file = storage.bucket().file(signaturePath);
-      await file.save(decoded, {
+      // signatureBuffer, non decoded: con firma riusata decoded è null e
+      // comunque va salvata la versione sanificata (trim + alpha).
+      await file.save(signatureBuffer, {
         contentType: "image/png",
         resumable: false,
         metadata: {
