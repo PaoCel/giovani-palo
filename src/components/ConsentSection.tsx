@@ -259,7 +259,7 @@ export function ConsentSection({
     setError(null);
     try {
       const { downloadConsentPdf } = await import("@/utils/consentPdf");
-      downloadConsentPdf({
+      await downloadConsentPdf({
         event,
         registration,
         kind,
