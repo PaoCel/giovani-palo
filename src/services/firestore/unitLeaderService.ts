@@ -20,16 +20,6 @@ export interface UnitActivitySummary {
   stats: UnitActivityStats;
 }
 
-function normalizeUnit(name: string) {
-  return name.trim().toLowerCase();
-}
-
-function matchesUnit(r: { unitId: string; unitNameSnapshot: string }, unitId: string, unitName: string) {
-  if (unitId && r.unitId === unitId) return true;
-  if (unitName && normalizeUnit(r.unitNameSnapshot) === normalizeUnit(unitName)) return true;
-  return false;
-}
-
 function computeStats(registrations: Registration[]): UnitActivityStats {
   let needsTransport = 0;
   let missingPhotoConsent = 0;
@@ -53,22 +43,24 @@ function computeStats(registrations: Registration[]): UnitActivityStats {
 }
 
 export const unitLeaderService = {
+  // Le rules autorizzano i dirigenti di unità solo su query filtrate per la
+  // propria unitId: niente più lettura dell'intero evento con filtro client.
   async listUnitRegistrationsForEvent(
     stakeId: string,
     activityId: string,
     unitId: string,
-    unitName: string,
   ): Promise<Registration[]> {
-    const all = await registrationsService.listRegistrationsByEvent(stakeId, activityId);
-    return all.filter(
-      (r) => matchesUnit(r, unitId, unitName) && r.registrationStatus !== "cancelled",
+    const unitRegistrations = await registrationsService.listUnitRegistrationsByEvent(
+      stakeId,
+      activityId,
+      unitId,
     );
+    return unitRegistrations.filter((r) => r.registrationStatus !== "cancelled");
   },
 
   async getUnitActivitySummaries(
     stakeId: string,
     unitId: string,
-    unitName: string,
   ): Promise<UnitActivitySummary[]> {
     const events = await eventsService.listAllEvents(stakeId);
     const relevant = events
@@ -82,7 +74,6 @@ export const unitLeaderService = {
           stakeId,
           event.id,
           unitId,
-          unitName,
         );
         return {
           eventId: event.id,
@@ -102,7 +93,6 @@ export const unitLeaderService = {
     stakeId: string,
     activityId: string,
     unitId: string,
-    unitName: string,
   ): Promise<{
     event: Awaited<ReturnType<typeof eventsService.getEventById>>;
     registrations: Registration[];
@@ -111,8 +101,8 @@ export const unitLeaderService = {
   }> {
     const [event, registrations, unitYouth] = await Promise.all([
       eventsService.getEventById(stakeId, activityId),
-      unitLeaderService.listUnitRegistrationsForEvent(stakeId, activityId, unitId, unitName),
-      usersService.listUnitYouth(stakeId, unitId, unitName),
+      unitLeaderService.listUnitRegistrationsForEvent(stakeId, activityId, unitId),
+      usersService.listUnitYouth(stakeId, unitId),
     ]);
 
     return { event, registrations, unitYouth, stats: computeStats(registrations) };
