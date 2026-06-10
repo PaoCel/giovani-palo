@@ -17,7 +17,7 @@ export interface LayoutLink {
 }
 
 interface ShellLayoutProps {
-  area: "public" | "user" | "admin" | "unit";
+  area: "public" | "user" | "admin" | "unit" | "family";
   eyebrow?: string;
   title?: string;
   links?: LayoutLink[];
@@ -66,21 +66,27 @@ export function ShellLayout({
   const showBottomNav = area !== "public" && links.length > 0;
   const showPublicBack = area === "public" && location.pathname !== "/";
   const showMeta =
-    area !== "user" && Boolean(eyebrow || title || (area !== "public" && session));
+    area !== "user" &&
+    area !== "family" &&
+    Boolean(eyebrow || title || (area !== "public" && session));
   const brandDestination =
     area === "admin"
       ? "/admin"
       : area === "unit"
         ? "/unit"
-        : area === "user"
-          ? "/me"
-          : session?.isAuthenticated && !session.isAnonymous
-            ? session.isAdmin
-              ? "/admin"
-              : session.isUnitLeader
-                ? "/unit"
-                : "/me"
-            : "/";
+        : area === "family"
+          ? "/family"
+          : area === "user"
+            ? "/me"
+            : session?.isAuthenticated && !session.isAnonymous
+              ? session.isAdmin
+                ? "/admin"
+                : session.isUnitLeader
+                  ? "/unit"
+                  : session.isParent
+                    ? "/family"
+                    : "/me"
+              : "/";
   const unreadAdminAlerts = useMemo(() => {
     const currentUserId = session?.firebaseUser.uid;
 
@@ -307,7 +313,11 @@ export function ShellLayout({
                             <strong>{alert.participantName || alert.title}</strong>
                             <span>{alert.eventTitle || alert.message}</span>
                             <small>
-                              {alert.submittedByMode === "anonymous" ? "Ospite" : "Con account"}
+                              {alert.submittedByMode === "anonymous"
+                                ? "Ospite"
+                                : alert.submittedByMode === "parent"
+                                  ? "Iscritto dal genitore"
+                                  : "Con account"}
                             </small>
                           </Link>
                         ))}
@@ -339,7 +349,7 @@ export function ShellLayout({
               </button>
             ) : null}
             {session?.isAuthenticated ? (
-              area === "user" || area === "admin" || area === "unit" ? (
+              area === "user" || area === "admin" || area === "unit" || area === "family" ? (
                 <button
                   aria-label="Esci"
                   className="icon-button icon-button--soft topbar__logout"

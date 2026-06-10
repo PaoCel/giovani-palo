@@ -52,6 +52,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
             profile,
             isAdmin: profile.role === "admin" || profile.role === "super_admin",
             isUnitLeader: profile.role === "unit_leader",
+            isParent: profile.role === "parent",
           };
         });
       });

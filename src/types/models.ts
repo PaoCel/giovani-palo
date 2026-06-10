@@ -1,4 +1,8 @@
-export type UserRole = "admin" | "participant" | "super_admin" | "unit_leader";
+export type UserRole = "admin" | "participant" | "super_admin" | "unit_leader" | "parent";
+
+// Chi ha inviato l'iscrizione: l'interessato autenticato, un ospite anonimo
+// o un genitore per conto di un figlio collegato.
+export type RegistrationSubmittedByMode = "authenticated" | "anonymous" | "parent";
 export type GenderRoleCategory =
   | "giovane_uomo"
   | "giovane_donna"
@@ -316,9 +320,12 @@ export interface Registration {
   parentIdUploadedAt: string | null;
   parentAuthorization?: ParentAuthorizationState | null;
   linkedLaterToUserId: string | null;
+  // Iscrizione gestita da un account genitore per un figlio collegato.
+  parentUid?: string | null;
+  childId?: string | null;
   status?: "active" | "cancelled";
   registrationStatus: RegistrationStatus;
-  submittedByMode: "authenticated" | "anonymous";
+  submittedByMode: RegistrationSubmittedByMode;
   assignedRoomId: string | null;
   assignedTempleShiftId: string | null;
   assignedServiceTeamIds: string[];
@@ -365,6 +372,25 @@ export interface RegistrationLookup {
   userId: string | null;
   anonymousAuthUid?: string | null;
   anonymousUid?: string | null;
+  // Valorizzati quando un genitore iscrive un figlio collegato.
+  parentUid?: string | null;
+  childId?: string | null;
+}
+
+// Profilo figlio gestito da un account genitore.
+// Documenti in users/{parentUid}/children/{childId}.
+export interface ChildProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  birthDate: string;
+  genderRoleCategory: GenderRoleCategory | "";
+  unitId: string;
+  unitName: string;
+  stakeId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface EventWriteInput {
@@ -541,7 +567,7 @@ export interface Alert {
   registrationId?: string | null;
   eventTitle?: string;
   participantName?: string;
-  submittedByMode?: "authenticated" | "anonymous";
+  submittedByMode?: RegistrationSubmittedByMode;
   title: string;
   message: string;
   severity: "info" | "warning" | "critical" | "success";

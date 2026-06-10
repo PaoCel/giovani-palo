@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { organizationService } from "@/services/firestore/organizationService";
+import { usersService } from "@/services/firestore/usersService";
 import type { GenderRoleCategory } from "@/types";
 
 const MANUAL_UNIT_VALUE = "__manual_unit__";
@@ -18,7 +20,39 @@ function isConfiguredUnit(unitOptions: string[], unitName: string) {
 
 export function MyProfilePage() {
   const { session, completeProfile } = useAuth();
+  const navigate = useNavigate();
+  const [switchingRole, setSwitchingRole] = useState(false);
   const stakeId = session?.profile.stakeId ?? "roma-est";
+
+  async function handleBecomeParent() {
+    if (!session) {
+      return;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Passare ad account genitore? Potrai sempre tornare ad account partecipante dal profilo.",
+      )
+    ) {
+      return;
+    }
+
+    setSwitchingRole(true);
+
+    try {
+      await usersService.setOwnAccountType(session.firebaseUser.uid, "parent");
+      navigate("/family", { replace: true });
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile cambiare tipo di account.",
+      );
+    } finally {
+      setSwitchingRole(false);
+    }
+  }
   const { data: organization } = useAsyncData(
     () => organizationService.getProfile(stakeId),
     [stakeId],
@@ -307,6 +341,26 @@ export function MyProfilePage() {
           </div>
         </form>
       </section>
+
+      {session && !session.isAdmin && !session.isUnitLeader ? (
+        <section className="surface-panel">
+          <h2>Sei un genitore?</h2>
+          <p className="subtle-text">
+            Con un account genitore puoi creare i profili dei tuoi figli, iscriverli alle
+            attività e seguire lo stato delle loro iscrizioni da un'unica dashboard.
+          </p>
+          <div className="inline-actions">
+            <button
+              className="button button--soft"
+              disabled={switchingRole}
+              onClick={() => void handleBecomeParent()}
+              type="button"
+            >
+              {switchingRole ? "Attivazione..." : "Passa ad account genitore"}
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLoader } from "@/components/AppLoader";
 import { RouteErrorPanel } from "@/components/RouteErrorPanel";
 import { AdminLayout } from "@/layouts/AdminLayout";
+import { FamilyLayout } from "@/layouts/FamilyLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { UnitLeaderLayout } from "@/layouts/UnitLeaderLayout";
 import { UserLayout } from "@/layouts/UserLayout";
@@ -12,7 +13,7 @@ import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { HomePage } from "@/pages/public/HomePage";
 import { LoginPage } from "@/pages/auth/LoginPage";
-import { AdminRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
+import { AdminRoute, ParentRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
 
 // Le pagine pubbliche "calde" (home, lista attività, dettaglio, login)
 // restano nel bundle principale per il primo paint istantaneo. Tutto il
@@ -127,6 +128,33 @@ export const router = createBrowserRouter([
           {
             path: "profile",
             element: lazyPage(() => import("@/pages/me/MyProfilePage"), "MyProfilePage"),
+          },
+        ],
+      },
+    ],
+  },
+  {
+    element: <ParentRoute />,
+    errorElement: <RouteErrorPanel />,
+    children: [
+      {
+        path: "/family",
+        element: <FamilyLayout />,
+        children: [
+          {
+            index: true,
+            element: lazyPage(
+              () => import("@/pages/family/FamilyDashboardPage"),
+              "FamilyDashboardPage",
+            ),
+          },
+          { path: "activities", element: <Navigate replace to="/activities" /> },
+          {
+            path: "profile",
+            element: lazyPage(
+              () => import("@/pages/family/FamilyProfilePage"),
+              "FamilyProfilePage",
+            ),
           },
         ],
       },

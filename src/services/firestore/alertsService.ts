@@ -32,7 +32,9 @@ function mapAlert(id: string, data: Record<string, unknown>): Alert {
     eventTitle: typeof data.eventTitle === "string" ? data.eventTitle : "",
     participantName: typeof data.participantName === "string" ? data.participantName : "",
     submittedByMode:
-      data.submittedByMode === "anonymous" ? "anonymous" : "authenticated",
+      data.submittedByMode === "anonymous" || data.submittedByMode === "parent"
+        ? data.submittedByMode
+        : "authenticated",
     title: typeof data.title === "string" ? data.title : "Notifica admin",
     message: typeof data.message === "string" ? data.message : "",
     severity:

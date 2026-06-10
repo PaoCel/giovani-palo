@@ -10,6 +10,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(uid);
     }
 
+    function childDocPath(parentUid, childId) {
+      return /databases/$(database)/documents/users/$(parentUid)/children/$(childId);
+    }
+
     function activityDocPath(stakeId, activityId) {
       return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId);
     }
@@ -118,6 +122,7 @@ service cloud.firestore {
         && (
           (data.userId is string && data.userId == request.auth.uid)
           || (data.anonymousUid is string && data.anonymousUid == request.auth.uid)
+          || ('parentUid' in data && data.parentUid is string && data.parentUid == request.auth.uid)
         );
     }
 
@@ -128,21 +133,34 @@ service cloud.firestore {
             data.userId is string
             && data.userId == request.auth.uid
             && (!('anonymousUid' in data) || data.anonymousUid == null)
+            && (!('parentUid' in data) || data.parentUid == null)
           )
           || (
             data.anonymousUid is string
             && data.anonymousUid == request.auth.uid
             && (!('userId' in data) || data.userId == null)
+            && (!('parentUid' in data) || data.parentUid == null)
+          )
+          || (
+            'parentUid' in data
+            && data.parentUid is string
+            && data.parentUid == request.auth.uid
+            && 'childId' in data
+            && data.childId is string
+            && (!('userId' in data) || data.userId == null)
+            && (!('anonymousUid' in data) || data.anonymousUid == null)
           )
         );
     }
 
     function expectedRegistrationId(data) {
-      return data.userId is string
-        ? 'user_' + data.userId
-        : data.anonymousUid is string
-          ? 'guest_' + data.anonymousUid
-          : '__invalid__';
+      return ('parentUid' in data && data.parentUid is string && 'childId' in data && data.childId is string)
+        ? 'child_' + data.parentUid + '_' + data.childId
+        : data.userId is string
+          ? 'user_' + data.userId
+          : data.anonymousUid is string
+            ? 'guest_' + data.anonymousUid
+            : '__invalid__';
     }
 
     function isExpectedOwnRegistrationId(registrationId) {
@@ -150,6 +168,8 @@ service cloud.firestore {
         && (
           registrationId == 'user_' + request.auth.uid
           || registrationId == 'guest_' + request.auth.uid
+          // Iscrizione figlio gestita dal genitore autenticato.
+          || registrationId.matches('child_' + request.auth.uid + '_.+')
         );
     }
 
@@ -199,6 +219,8 @@ service cloud.firestore {
           'parentIdUploadedAt',
           'parentAuthorization',
           'linkedLaterToUserId',
+          'parentUid',
+          'childId',
           'registrationStatus',
           'submittedByMode',
           'assignedRoomId',
@@ -240,8 +262,10 @@ service cloud.firestore {
         && (data.parentIdUploadedAt == null || data.parentIdUploadedAt is string)
         && (!('parentAuthorization' in data) || data.parentAuthorization == null || data.parentAuthorization is map)
         && (data.linkedLaterToUserId == null || data.linkedLaterToUserId is string)
+        && (!('parentUid' in data) || data.parentUid == null || data.parentUid is string)
+        && (!('childId' in data) || data.childId == null || data.childId is string)
         && validRegistrationStatus(data.registrationStatus)
-        && data.submittedByMode in ['authenticated', 'anonymous']
+        && data.submittedByMode in ['authenticated', 'anonymous', 'parent']
         && (data.assignedRoomId == null || data.assignedRoomId is string)
         && (data.assignedTempleShiftId == null || data.assignedTempleShiftId is string)
         && data.assignedServiceTeamIds is list
@@ -260,9 +284,21 @@ service cloud.firestore {
             request.resource.data.anonymousUid == request.auth.uid
             && formAllowsGuestRegistration(stakeId, activityId)
           )
+          || (
+            request.resource.data.parentUid == request.auth.uid
+            && exists(childDocPath(request.auth.uid, request.resource.data.childId))
+          )
         )
         && request.resource.data.submittedByMode
-          == (request.resource.data.userId == request.auth.uid ? 'authenticated' : 'anonymous')
+          == (
+            request.resource.data.userId == request.auth.uid
+              ? 'authenticated'
+              : (
+                ('parentUid' in request.resource.data && request.resource.data.parentUid == request.auth.uid)
+                  ? 'parent'
+                  : 'anonymous'
+              )
+          )
         && request.resource.data.parentConsentDocumentName == null
         && request.resource.data.parentConsentDocumentUrl == null
         && request.resource.data.parentConsentDocumentPath == null
@@ -294,6 +330,16 @@ service cloud.firestore {
         && request.resource.data.assignedTempleShiftId == resource.data.assignedTempleShiftId
         && request.resource.data.assignedServiceTeamIds == resource.data.assignedServiceTeamIds
         && request.resource.data.linkedLaterToUserId == resource.data.linkedLaterToUserId
+        && (
+          ('parentUid' in resource.data && resource.data.parentUid != null)
+            ? ('parentUid' in request.resource.data && request.resource.data.parentUid == resource.data.parentUid)
+            : (!('parentUid' in request.resource.data) || request.resource.data.parentUid == null)
+        )
+        && (
+          ('childId' in resource.data && resource.data.childId != null)
+            ? ('childId' in request.resource.data && request.resource.data.childId == resource.data.childId)
+            : (!('childId' in request.resource.data) || request.resource.data.childId == null)
+        )
         && (
           request.resource.data.anonymousTokenId == resource.data.anonymousTokenId
           || (
@@ -586,7 +632,7 @@ service cloud.firestore {
         && (data.registrationId == null || data.registrationId is string)
         && data.eventTitle is string
         && data.participantName is string
-        && data.submittedByMode in ['authenticated', 'anonymous']
+        && data.submittedByMode in ['authenticated', 'anonymous', 'parent']
         && data.title is string
         && data.message is string
         && validAlertSeverity(data.severity)
@@ -706,7 +752,7 @@ service cloud.firestore {
         && data.fullName is string
         && (data.email == null || data.email is string)
         && (!('phone' in data) || data.phone == null || data.phone is string)
-        && data.role in ['participant', 'admin', 'super_admin', 'unit_leader']
+        && data.role in ['participant', 'admin', 'super_admin', 'unit_leader', 'parent']
         && data.birthDate is string
         && validGenderRoleCategory(data.genderRoleCategory)
         && data.unitId is string
@@ -723,14 +769,22 @@ service cloud.firestore {
     function canCreateOwnUser(uid) {
       return isSelf(uid)
         && validUserPayload(request.resource.data)
-        && request.resource.data.role == 'participant'
+        && request.resource.data.role in ['participant', 'parent']
         && request.resource.data.mustChangePassword == false;
     }
 
     function canUpdateOwnUser(uid) {
       return isSelf(uid)
         && validUserPayload(request.resource.data)
-        && request.resource.data.role == resource.data.role
+        // participant <-> parent: scambio self-service sicuro (nessun
+        // privilegio su dati altrui). Gli altri ruoli restano solo admin.
+        && (
+          request.resource.data.role == resource.data.role
+          || (
+            resource.data.role in ['participant', 'parent']
+            && request.resource.data.role in ['participant', 'parent']
+          )
+        )
         && (
           !('createdAt' in resource.data)
           || request.resource.data.createdAt == resource.data.createdAt
@@ -743,7 +797,7 @@ service cloud.firestore {
           )
         )
         && (
-          resource.data.role == 'participant'
+          resource.data.role in ['participant', 'parent']
           || resource.data.stakeId == ''
           || request.resource.data.stakeId == resource.data.stakeId
         );
@@ -769,7 +823,33 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.lastLoginAt == resource.data.lastLoginAt
         && request.resource.data.updatedAt is string
-        && request.resource.data.role in ['participant', 'admin', 'unit_leader'];
+        && request.resource.data.role in ['participant', 'admin', 'unit_leader', 'parent'];
+    }
+
+    function validChildPayload(data) {
+      return data.keys().hasOnly([
+          'firstName',
+          'lastName',
+          'fullName',
+          'birthDate',
+          'genderRoleCategory',
+          'unitId',
+          'unitName',
+          'stakeId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.firstName is string
+        && data.firstName.size() > 0
+        && data.lastName is string
+        && data.fullName is string
+        && data.birthDate is string
+        && validGenderRoleCategory(data.genderRoleCategory)
+        && data.unitId is string
+        && data.unitName is string
+        && data.stakeId is string
+        && data.createdAt is string
+        && data.updatedAt is string;
     }
 
     match /users/{uid} {
@@ -788,6 +868,17 @@ service cloud.firestore {
       match /unlockedGalleries/{galleryId} {
         allow get, list: if isSelf(uid);
         allow create, update, delete: if false;
+      }
+
+      // Profili figli gestiti da un account genitore. Solo il genitore li
+      // amministra; gli admin del palo possono consultarli per supporto.
+      match /children/{childId} {
+        allow get, list: if isSelf(uid) || isStakeAdmin(resource.data.stakeId);
+        allow create: if isSelf(uid) && validChildPayload(request.resource.data);
+        allow update: if isSelf(uid)
+          && validChildPayload(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isSelf(uid);
       }
     }
 
@@ -1019,7 +1110,10 @@ service cloud.firestore {
     // Richiede l'indice collection-group su anonymousUid (firestore.indexes.json).
     match /{path=**}/registrations/{registrationId} {
       allow list: if isSignedIn()
-        && resource.data.anonymousUid == request.auth.uid;
+        && (
+          resource.data.anonymousUid == request.auth.uid
+          || resource.data.parentUid == request.auth.uid
+        );
     }
 
     // Domande di tutte le iscrizioni di un evento in una sola query
