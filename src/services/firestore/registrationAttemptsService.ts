@@ -35,8 +35,10 @@ function getNullableStringField(data: Record<string, unknown>, key: string) {
   return typeof data[key] === "string" ? data[key] : null;
 }
 
+// I tentativi di un genitore vengono registrati a nome del suo account
+// (userId = parentUid): le rules accettano solo userId/anonymousUid del caller.
 function getSubmittedByMode(lookup: RegistrationLookup) {
-  return lookup.userId ? "authenticated" : "anonymous";
+  return lookup.userId || lookup.parentUid ? "authenticated" : "anonymous";
 }
 
 function getDisplayMode() {
@@ -162,8 +164,11 @@ export const registrationAttemptsService = {
         eventId: args.eventId,
         eventTitle: args.eventTitle,
         registrationId: null,
-        userId: args.lookup.userId ?? null,
-        anonymousUid: args.lookup.userId ? null : args.lookup.anonymousUid ?? null,
+        userId: args.lookup.userId ?? args.lookup.parentUid ?? null,
+        anonymousUid:
+          args.lookup.userId || args.lookup.parentUid
+            ? null
+            : args.lookup.anonymousUid ?? null,
         submittedByMode: getSubmittedByMode(args.lookup),
         fullName: args.input.fullName.trim(),
         email: args.input.email.trim(),

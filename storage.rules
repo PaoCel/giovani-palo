@@ -41,6 +41,8 @@ service firebase.storage {
         && (
           firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.userId == request.auth.uid
           || firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.anonymousUid == request.auth.uid
+          // Iscrizioni create da un account genitore per un figlio collegato.
+          || firestore.get(registrationDocPath(stakeId, activityId, registrationId)).data.get('parentUid', '') == request.auth.uid
         );
     }
 

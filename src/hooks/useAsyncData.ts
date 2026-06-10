@@ -1,4 +1,4 @@
-import { useEffect, useState, type DependencyList } from "react";
+import { useCallback, useEffect, useState, type DependencyList } from "react";
 
 export function useAsyncData<T>(
   loader: () => Promise<T>,
@@ -8,6 +8,7 @@ export function useAsyncData<T>(
   const [data, setData] = useState<T>(initialValue);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -42,7 +43,10 @@ export function useAsyncData<T>(
     return () => {
       active = false;
     };
-  }, dependencies);
+  }, [...dependencies, reloadToken]);
 
-  return { data, loading, error, setData };
+  // Riesegue il loader mantenendo i dati correnti finché non arrivano i nuovi.
+  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  return { data, loading, error, setData, reload };
 }

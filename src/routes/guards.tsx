@@ -28,6 +28,10 @@ export function ProtectedRoute() {
     return <Navigate replace to="/unit" />;
   }
 
+  if (session.isParent) {
+    return <Navigate replace to="/family" />;
+  }
+
   if (session.isAdmin) {
     return <Navigate replace to="/admin" />;
   }
@@ -60,6 +64,10 @@ export function AdminRoute() {
     return <Navigate replace to="/unit" />;
   }
 
+  if (session.isParent) {
+    return <Navigate replace to="/family" />;
+  }
+
   if (!session.isAdmin) {
     return <Navigate replace to="/me" />;
   }
@@ -89,7 +97,45 @@ export function UnitLeaderRoute() {
   }
 
   if (!session.isUnitLeader) {
-    return <Navigate replace to={session.isAdmin ? "/admin" : "/me"} />;
+    return (
+      <Navigate
+        replace
+        to={session.isAdmin ? "/admin" : session.isParent ? "/family" : "/me"}
+      />
+    );
+  }
+
+  return <Outlet />;
+}
+
+export function ParentRoute() {
+  const { loading, session } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <AppLoader label="Verifica accesso..." />;
+  }
+
+  if (!session?.isAuthenticated) {
+    const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate replace to={`/login?redirect=${redirect}`} />;
+  }
+
+  if (session.isAnonymous) {
+    return <Navigate replace to="/activities" />;
+  }
+
+  if (session.profile.mustChangePassword) {
+    return <Navigate replace to="/password-reset" />;
+  }
+
+  if (!session.isParent) {
+    return (
+      <Navigate
+        replace
+        to={session.isAdmin ? "/admin" : session.isUnitLeader ? "/unit" : "/me"}
+      />
+    );
   }
 
   return <Outlet />;

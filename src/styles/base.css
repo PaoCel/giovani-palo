@@ -104,7 +104,8 @@ button {
   margin: 0.85rem auto 0;
 }
 
-.shell--user .shell__main {
+.shell--user .shell__main,
+.shell--family .shell__main {
   padding-bottom: calc(7rem + env(safe-area-inset-bottom));
 }
 
@@ -439,7 +440,8 @@ button {
   box-shadow: 0 12px 24px rgba(15, 77, 128, 0.18);
 }
 
-.shell--user .bottom-nav {
+.shell--user .bottom-nav,
+.shell--family .bottom-nav {
   position: fixed;
   left: 0.75rem;
   right: 0.75rem;
@@ -457,7 +459,8 @@ button {
   backdrop-filter: blur(24px);
 }
 
-.shell--user .bottom-nav__item {
+.shell--user .bottom-nav__item,
+.shell--family .bottom-nav__item {
   min-width: 0;
   width: 100%;
   min-height: 3.1rem;
@@ -465,12 +468,14 @@ button {
   border-radius: 1rem;
 }
 
-.shell--user .bottom-nav__item svg {
+.shell--user .bottom-nav__item svg,
+.shell--family .bottom-nav__item svg {
   width: 1.18rem;
   height: 1.18rem;
 }
 
-[data-display-mode="standalone"] .shell--user .bottom-nav {
+[data-display-mode="standalone"] .shell--user .bottom-nav,
+[data-display-mode="standalone"] .shell--family .bottom-nav {
   left: 50%;
   right: auto;
   width: min(21.5rem, calc(100vw - 1.5rem));

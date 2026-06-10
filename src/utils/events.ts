@@ -158,6 +158,13 @@ export function getRegistrationAvailability(
   }
 
   if (session?.isAuthenticated && !session.isAnonymous) {
+    // I genitori iscrivono i figli: l'idoneità di genere si valuta sul figlio
+    // selezionato (audienceMismatch nella pagina di iscrizione), non
+    // sull'account genitore che non ha una categoria propria.
+    if (session.isParent) {
+      return "open";
+    }
+
     if (!isEventAudienceEligible(event, session.profile.genderRoleCategory)) {
       return "restricted-audience";
     }

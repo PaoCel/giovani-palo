@@ -23,7 +23,12 @@ function nowIso() {
 }
 
 function sanitizeRole(value: unknown): UserRole {
-  if (value === "admin" || value === "super_admin" || value === "unit_leader") {
+  if (
+    value === "admin" ||
+    value === "super_admin" ||
+    value === "unit_leader" ||
+    value === "parent"
+  ) {
     return value;
   }
 
@@ -261,14 +266,27 @@ export const usersService = {
       .sort((left, right) => left.fullName.localeCompare(right.fullName, "it-IT"));
   },
 
-  async listUnitYouth(stakeId: string, unitId: string, unitName = "") {
-    const all = await this.listStakeUsers(stakeId);
-    const normName = unitName.trim().toLowerCase();
-    return all.filter(
-      (u) =>
-        (u.unitId === unitId || (normName && u.unitName.trim().toLowerCase() === normName)) &&
-        (u.genderRoleCategory === "giovane_uomo" || u.genderRoleCategory === "giovane_donna"),
+  // Query vincolata per unità: le rules autorizzano i dirigenti di unità solo
+  // su list filtrate con where('unitId' ==), non sull'intero palo.
+  async listUnitYouth(stakeId: string, unitId: string) {
+    if (!stakeId || !unitId) {
+      return [];
+    }
+
+    const snapshot = await getDocs(
+      query(
+        collection(db, "users"),
+        where("stakeId", "==", stakeId),
+        where("unitId", "==", unitId),
+      ),
     );
+
+    return snapshot.docs
+      .map((item) => mapUserProfile(item.id, item.data()))
+      .filter(
+        (u) => u.genderRoleCategory === "giovane_uomo" || u.genderRoleCategory === "giovane_donna",
+      )
+      .sort((left, right) => left.fullName.localeCompare(right.fullName, "it-IT"));
   },
 
   async assignAdminRole(stakeId: string, uid: string) {
@@ -411,5 +429,34 @@ export const usersService = {
       mustChangePassword: false,
       updatedAt: nowIso(),
     });
+  },
+
+  // Scambio self-service participant <-> parent: le rules consentono solo
+  // questa coppia di ruoli, gli altri restano gestiti dagli admin.
+  async setOwnAccountType(uid: string, role: "participant" | "parent") {
+    await updateDoc(doc(db, "users", uid), {
+      role,
+      updatedAt: nowIso(),
+    });
+
+    return this.getProfile(uid);
+  },
+
+  async updateBasicProfile(uid: string, input: { firstName: string; lastName: string }) {
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName.trim();
+
+    if (!firstName) {
+      throw new Error("Il nome è obbligatorio.");
+    }
+
+    await updateDoc(doc(db, "users", uid), {
+      firstName,
+      lastName,
+      fullName: `${firstName} ${lastName}`.trim(),
+      updatedAt: nowIso(),
+    });
+
+    return this.getProfile(uid);
   },
 };

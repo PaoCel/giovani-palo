@@ -50,7 +50,7 @@ export function QuestionsSection({
       setError(null);
 
       try {
-        const lookup = getRegistrationLookupFromSession(session);
+        const lookup = getRegistrationLookupFromSession(session, registration.childId);
         const list = await questionsService.listOwn(stakeId, eventId, lookup);
 
         if (active) {
@@ -97,7 +97,7 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session);
+      const lookup = getRegistrationLookupFromSession(session, registration.childId);
       const created = await questionsService.create(
         stakeId,
         eventId,
@@ -152,7 +152,7 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session);
+      const lookup = getRegistrationLookupFromSession(session, registration.childId);
       await questionsService.update(
         stakeId,
         eventId,
@@ -204,7 +204,7 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session);
+      const lookup = getRegistrationLookupFromSession(session, registration.childId);
       await questionsService.remove(stakeId, eventId, lookup, questionId);
       setQuestions((current) => current.filter((question) => question.id !== questionId));
 

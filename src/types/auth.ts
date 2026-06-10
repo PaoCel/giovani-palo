@@ -8,6 +8,7 @@ export interface AuthSession {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isUnitLeader: boolean;
+  isParent: boolean;
   isAnonymous: boolean;
   providerLabel: string;
 }
