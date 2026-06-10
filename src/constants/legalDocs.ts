@@ -14,6 +14,7 @@ export const LEGAL_DOC_VERSIONS = {
   participation: "v1-2026-05",
   privacy: "v1-2026-05",
   photo: "v1-2026-05",
+  conduct: "v1-2026-06",
 } as const;
 
 export type LegalDocKey = keyof typeof LEGAL_DOC_VERSIONS;
@@ -86,6 +87,18 @@ I consensi possono essere revocati in qualsiasi momento contattando i responsabi
 L'Organizzazione si impegna a:
 - non pubblicare immagini lesive della dignita' o del decoro del minore;
 - rimuovere tempestivamente, su richiesta, le immagini gia' pubblicate quando tecnicamente possibile.`,
+  },
+  conduct: {
+    version: LEGAL_DOC_VERSIONS.conduct,
+    title: "Regolamento di comportamento",
+    reviewedByLegal: false,
+    reviewNotes:
+      "[DA REVISIONARE LEGALMENTE] Testo ripreso dal modulo 'Consenso e informazioni mediche' (secondo foglio) gia' incluso nel PDF firmato.",
+    body: `Il partecipante e' responsabile della propria condotta e si attiene alle norme della Chiesa, alle regole di sicurezza dell'evento e alle indicazioni dei dirigenti.
+
+La partecipazione e' un privilegio che puo' essere revocato in caso di comportamento inappropriato o di rischio.
+
+Le unita' potrebbero non poter soddisfare ogni esigenza medica, fisica o di altro tipo: i dirigenti si confronteranno con il genitore o tutore se servono accorgimenti specifici.`,
   },
 };
 

@@ -41,6 +41,12 @@ const INITIAL_CONSENTS: ParentAuthorizationConsents = {
   readPrivacyNotice: false,
 };
 
+const WIZARD_STEPS = [
+  { id: "conditions", label: "Condizioni" },
+  { id: "photos", label: "Foto e video" },
+  { id: "signature", label: "Firma" },
+] as const;
+
 function formatDateRange(startIso?: string, endIso?: string) {
   if (!startIso) return "Data da definire";
   const start = new Date(startIso);
@@ -98,6 +104,7 @@ export function ParentConfirmPage() {
 
   const { token } = useParams();
   const [view, setView] = useState<ViewState>({ stage: "loading" });
+  const [stepIndex, setStepIndex] = useState(0);
   const [consents, setConsents] = useState<ParentAuthorizationConsents>(INITIAL_CONSENTS);
   const [photoConsent, setPhotoConsent] = useState<PhotoConsentDecision>("not_answered");
   const [socialPublicationConsent, setSocialPublicationConsent] =
@@ -216,36 +223,44 @@ export function ParentConfirmPage() {
     }
   }
 
-  const headerContext = view.stage === "ready" ? view.context : undefined;
-
   return (
     <div className="parent-confirm-page">
-      <div className="parent-confirm-container">
-        <ParentConfirmHeader context={headerContext} />
+      <div className="pc-dialog">
+        {view.stage === "loading" ? (
+          <StatusPanel tone="neutral" title="Un attimo..." spinner>
+            <p>Verifica del link in corso...</p>
+          </StatusPanel>
+        ) : null}
 
-        {view.stage === "loading" ? <LoadingState /> : null}
+        {view.stage === "submitting" ? (
+          <StatusPanel tone="neutral" title="Salvataggio in corso..." spinner>
+            <p>Non chiudere questa pagina.</p>
+          </StatusPanel>
+        ) : null}
 
         {view.stage === "context_error" ? (
-          <ErrorCard
-            title="Impossibile verificare il link"
-            message={view.message}
-          />
+          <StatusPanel tone="error" title="Impossibile verificare il link" icon="bell">
+            <p>{view.message}</p>
+          </StatusPanel>
         ) : null}
 
         {view.stage === "ready" && view.status !== "valid" ? (
-          <TokenInvalidCard status={view.status} context={view.context} />
+          <TokenInvalidPanel status={view.status} context={view.context} />
         ) : null}
 
         {view.stage === "ready" && view.status === "valid" ? (
-          <ConfirmationForm
+          <ConfirmationWizard
             context={view.context}
+            stepIndex={stepIndex}
             consents={consents}
             photoConsent={photoConsent}
             socialPublicationConsent={socialPublicationConsent}
-            hasSignature={hasSignature}
+            allRequiredConsentsChecked={allRequiredConsentsChecked}
             hasReusableSignature={hasReusableSignature}
+            hasSignature={hasSignature}
             canSubmit={canSubmit}
             signatureRef={signatureRef}
+            onStepChange={setStepIndex}
             onToggleConsent={toggleConsent}
             onPhotoConsentChange={setPhotoConsent}
             onSocialConsentChange={setSocialPublicationConsent}
@@ -255,14 +270,37 @@ export function ParentConfirmPage() {
           />
         ) : null}
 
-        {view.stage === "submitting" ? <LoadingState message="Salvataggio in corso..." /> : null}
+        {view.stage === "confirmed" ? (
+          <StatusPanel tone="success" title="Tutto completato" icon="check">
+            <p>
+              Grazie. L'autorizzazione è stata registrata correttamente. Gli organizzatori
+              dell'attività riceveranno una notifica e l'iscrizione del minore risulta ora
+              autorizzata. Puoi chiudere questa pagina.
+            </p>
+            <p className="parent-confirm-fineprint">
+              Una copia PDF dell'autorizzazione viene conservata in modo sicuro dagli admin.
+              Se vuoi una copia per i tuoi archivi, contatta il dirigente della tua unita'.
+            </p>
+          </StatusPanel>
+        ) : null}
 
-        {view.stage === "confirmed" ? <ConfirmedCard /> : null}
-
-        {view.stage === "rejected" ? <RejectedCard /> : null}
+        {view.stage === "rejected" ? (
+          <StatusPanel tone="info" title="Autorizzazione rifiutata" icon="bell">
+            <p>
+              Abbiamo registrato il tuo rifiuto. Gli organizzatori dell'attività verranno
+              notificati e l'iscrizione del minore risulta non autorizzata. Puoi chiudere
+              questa pagina.
+            </p>
+            <p className="parent-confirm-fineprint">
+              Se cambi idea, contatta il dirigente della tua unità: potrà inviarti un
+              nuovo link di autorizzazione.
+            </p>
+          </StatusPanel>
+        ) : null}
 
         {view.stage === "submit_error" ? (
-          <ErrorCard title="Operazione non riuscita" message={view.message}>
+          <StatusPanel tone="error" title="Operazione non riuscita" icon="bell">
+            <p>{view.message}</p>
             <button
               className="button button--primary"
               onClick={() => window.location.reload()}
@@ -270,14 +308,14 @@ export function ParentConfirmPage() {
             >
               Riprova
             </button>
-          </ErrorCard>
+          </StatusPanel>
         ) : null}
-
-        <footer className="parent-confirm-footer">
-          <p>{SUPPORT_CONTACT_TEXT}</p>
-          <UnofficialDisclaimer compact />
-        </footer>
       </div>
+
+      <footer className="pc-footnote">
+        <p>{SUPPORT_CONTACT_TEXT}</p>
+        <UnofficialDisclaimer compact />
+      </footer>
 
       {showRejectModal ? (
         <RejectModal
@@ -292,79 +330,286 @@ export function ParentConfirmPage() {
 }
 
 // =============================================================================
-// Sub-components
+// Wizard
 // =============================================================================
 
-function ParentConfirmHeader({
+interface ConfirmationWizardProps {
+  context: ParentAuthorizationContext;
+  stepIndex: number;
+  consents: ParentAuthorizationConsents;
+  photoConsent: PhotoConsentDecision;
+  socialPublicationConsent: PhotoConsentDecision;
+  allRequiredConsentsChecked: boolean;
+  hasReusableSignature: boolean;
+  hasSignature: boolean;
+  canSubmit: boolean;
+  signatureRef: React.RefObject<SignaturePadHandle | null>;
+  onStepChange: (index: number) => void;
+  onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
+  onPhotoConsentChange: (value: PhotoConsentDecision) => void;
+  onSocialConsentChange: (value: PhotoConsentDecision) => void;
+  onSignatureChange: (hasSignature: boolean) => void;
+  onConfirm: () => void;
+  onOpenReject: () => void;
+}
+
+function ConfirmationWizard({
   context,
-}: {
-  context?: ParentAuthorizationContext;
-}) {
+  stepIndex,
+  consents,
+  photoConsent,
+  socialPublicationConsent,
+  allRequiredConsentsChecked,
+  hasReusableSignature,
+  hasSignature,
+  canSubmit,
+  signatureRef,
+  onStepChange,
+  onToggleConsent,
+  onPhotoConsentChange,
+  onSocialConsentChange,
+  onSignatureChange,
+  onConfirm,
+  onOpenReject,
+}: ConfirmationWizardProps) {
+  const step = WIZARD_STEPS[stepIndex];
+  const isLastStep = stepIndex === WIZARD_STEPS.length - 1;
+  const nextDisabled = step.id === "conditions" && !allRequiredConsentsChecked;
+
+  function goNext() {
+    onStepChange(Math.min(stepIndex + 1, WIZARD_STEPS.length - 1));
+  }
+
+  function goBack() {
+    onStepChange(Math.max(stepIndex - 1, 0));
+  }
+
   return (
-    <header className="parent-confirm-header">
-      <div className="parent-confirm-brandline">
-        <span>Piattaforma attività GU e GD</span>
-        <span>Autorizzazione protetta</span>
+    <>
+      <header className="pc-dialog__head">
+        <span className="pc-dialog__eyebrow">Autorizzazione genitore o tutore</span>
+        <h1>{context.activityTitle || "Attività in chiesa"}</h1>
+        <p className="pc-dialog__meta">
+          {context.participantName ? `Per ${context.participantName} · ` : ""}
+          {formatDateRange(context.activityStartDate, context.activityEndDate)}
+        </p>
+        <ol className="pc-steps" aria-label="Passaggi">
+          {WIZARD_STEPS.map((item, index) => (
+            <li
+              key={item.id}
+              aria-current={index === stepIndex ? "step" : undefined}
+              className={
+                index === stepIndex
+                  ? "pc-steps__item pc-steps__item--active"
+                  : index < stepIndex
+                    ? "pc-steps__item pc-steps__item--done"
+                    : "pc-steps__item"
+              }
+            >
+              <span aria-hidden="true" className="pc-steps__dot">
+                {index < stepIndex ? <AppIcon name="check" /> : index + 1}
+              </span>
+              <span className="pc-steps__label">{item.label}</span>
+            </li>
+          ))}
+        </ol>
+      </header>
+
+      <div key={step.id} className="pc-dialog__body">
+        {step.id === "conditions" ? (
+          <>
+            <p className="pc-step-intro">
+              Stai accettando queste condizioni per autorizzare la partecipazione
+              {context.participantName ? ` di ${context.participantName}` : " del minore"}.
+              Puoi aprire ogni documento per leggerlo per intero.
+            </p>
+            <div className="pc-doc-list">
+              <details className="parent-confirm-document">
+                <summary>{LEGAL_DOCS.participation.title}</summary>
+                <p>{LEGAL_DOCS.participation.body}</p>
+              </details>
+              <details className="parent-confirm-document">
+                <summary>{LEGAL_DOCS.conduct.title}</summary>
+                <p>{LEGAL_DOCS.conduct.body}</p>
+              </details>
+              <details className="parent-confirm-document">
+                <summary>{LEGAL_DOCS.privacy.title}</summary>
+                <p>{LEGAL_DOCS.privacy.body}</p>
+              </details>
+              <details className="parent-confirm-document">
+                <summary>{LEGAL_DOCS.photo.title}</summary>
+                <p>{LEGAL_DOCS.photo.body}</p>
+              </details>
+            </div>
+            <div className="parent-confirm-checkbox-list">
+              {PARENT_CONSENT_CHECKBOXES.map((item) => (
+                <label
+                  key={item.key}
+                  className={`parent-confirm-checkbox ${consents[item.key] ? "is-checked" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={consents[item.key]}
+                    onChange={() => onToggleConsent(item.key)}
+                  />
+                  <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="parent-confirm-fineprint">
+              Il regolamento di comportamento è parte del modulo firmato: il partecipante si
+              impegna a rispettarlo durante l'attività.
+            </p>
+          </>
+        ) : null}
+
+        {step.id === "photos" ? (
+          <>
+            <p className="pc-step-intro">
+              Dai il consenso per foto e video? Questi consensi sono{" "}
+              <strong>facoltativi e separati</strong>: il rifiuto non impedisce la
+              partecipazione del minore all'attività.
+            </p>
+            <div className="parent-confirm-photo-block">
+              <h3>{PHOTO_CONSENT_OPTIONS[0].label}</h3>
+              <p className="parent-confirm-fineprint">{PHOTO_CONSENT_OPTIONS[0].helpText}</p>
+              <PhotoChoice value={photoConsent} onChange={onPhotoConsentChange} />
+            </div>
+            <div className="parent-confirm-photo-block">
+              <h3>{PHOTO_CONSENT_OPTIONS[1].label}</h3>
+              <p className="parent-confirm-fineprint">{PHOTO_CONSENT_OPTIONS[1].helpText}</p>
+              <PhotoChoice
+                value={socialPublicationConsent}
+                onChange={onSocialConsentChange}
+              />
+            </div>
+          </>
+        ) : null}
+
+        {step.id === "signature" ? (
+          <>
+            {hasReusableSignature ? (
+              <div className="parent-confirm-reusable-signature">
+                <AppIcon name="check" />
+                <div>
+                  <strong>Firma già salvata per questa email</strong>
+                  <p>
+                    Puoi confermare subito. Se vuoi sostituirla, disegna una nuova firma
+                    nel riquadro qui sotto.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="pc-step-intro">
+                Disegna qui la tua firma con il dito (su telefono o tablet) o con il mouse.
+                Non è una firma digitale qualificata: è una firma elettronica semplice che
+                attesta la tua dichiarazione.
+              </p>
+            )}
+            <div className="parent-confirm-signature-wrapper">
+              <SignaturePad
+                ref={signatureRef}
+                onChange={(hasContent) => onSignatureChange(hasContent)}
+              />
+            </div>
+            <p className="parent-confirm-fineprint">
+              Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
+              accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica con
+              link unico inviato all'indirizzo email che ci hai fornito.
+            </p>
+          </>
+        ) : null}
       </div>
-      <div className="parent-confirm-header-main">
-        <div>
-          <p className="parent-confirm-kicker">
-            {context?.participantName ? `Per ${context.participantName}` : "Firma genitore o tutore"}
-          </p>
-          <h1>Firma autorizzazione attività</h1>
-          <p>
-            Controlla i dati dell'iscrizione, scegli i consensi foto/video e firma il
-            modulo già preparato. Servono circa 2 minuti.
-          </p>
+
+      <footer className="pc-dialog__foot">
+        <div className="pc-dialog__foot-buttons">
+          {stepIndex > 0 ? (
+            <button className="button button--ghost" onClick={goBack} type="button">
+              Indietro
+            </button>
+          ) : null}
+          {isLastStep ? (
+            <button
+              className="button button--primary"
+              disabled={!canSubmit}
+              onClick={onConfirm}
+              type="button"
+            >
+              <AppIcon name="check" />
+              <span>
+                {hasReusableSignature && !hasSignature
+                  ? "Confermo con la firma salvata"
+                  : "Confermo l'autorizzazione"}
+              </span>
+            </button>
+          ) : (
+            <button
+              className="button button--primary"
+              disabled={nextDisabled}
+              onClick={goNext}
+              type="button"
+            >
+              <span>Continua</span>
+              <AppIcon name="arrow-right" />
+            </button>
+          )}
         </div>
-        <div className="parent-confirm-hero-card" aria-label="Riepilogo rapido">
-          <AppIcon name="badge" />
-          <strong>{context?.activityTitle || "Attività in chiesa"}</strong>
-          <span>{context?.participantName || "Partecipante"}</span>
-        </div>
-      </div>
-      <div className="parent-confirm-step-strip" aria-label="Passaggi">
-        <span><AppIcon name="eye" /> Controlla</span>
-        <span><AppIcon name="check" /> Consensi</span>
-        <span><AppIcon name="pencil" /> Firma</span>
-      </div>
-    </header>
+        {step.id === "conditions" && !allRequiredConsentsChecked ? (
+          <p className="pc-dialog__foot-hint">
+            Spunta tutte le caselle per continuare.
+          </p>
+        ) : null}
+        {step.id === "signature" && !canSubmit ? (
+          <p className="pc-dialog__foot-hint">
+            Per confermare serve la firma{hasReusableSignature ? " (o quella salvata)" : ""}.
+          </p>
+        ) : null}
+        <button className="pc-reject-link" onClick={onOpenReject} type="button">
+          Non autorizzo la partecipazione
+        </button>
+        {context.expiresAt ? (
+          <p className="pc-dialog__foot-expiry">
+            Link valido fino al {formatExpiry(context.expiresAt)}
+          </p>
+        ) : null}
+      </footer>
+    </>
   );
 }
 
-function LoadingState({ message = "Verifica del link in corso..." }: { message?: string }) {
+// =============================================================================
+// Status panels
+// =============================================================================
+
+function StatusPanel({
+  tone,
+  title,
+  icon,
+  spinner = false,
+  children,
+}: {
+  tone: "neutral" | "info" | "success" | "error";
+  title: string;
+  icon?: "check" | "bell";
+  spinner?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className="parent-confirm-loading">
-      <div className="spinner" aria-hidden="true" />
-      <p>{message}</p>
+    <div className={`pc-status pc-status--${tone}`}>
+      {spinner ? (
+        <div className="spinner" aria-hidden="true" />
+      ) : icon ? (
+        <div className="pc-status__icon" aria-hidden="true">
+          <AppIcon name={icon} />
+        </div>
+      ) : null}
+      <h1>{title}</h1>
+      {children}
     </div>
   );
 }
 
-function ErrorCard({
-  title,
-  message,
-  children,
-}: {
-  title: string;
-  message: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <section className="parent-confirm-card parent-confirm-card--error">
-      <div className="parent-confirm-card__icon" aria-hidden="true">
-        <AppIcon name="bell" />
-      </div>
-      <div>
-        <h2>{title}</h2>
-        <p>{message}</p>
-        {children ? <div className="parent-confirm-card__actions">{children}</div> : null}
-      </div>
-    </section>
-  );
-}
-
-function TokenInvalidCard({
+function TokenInvalidPanel({
   status,
   context,
 }: {
@@ -397,261 +642,16 @@ function TokenInvalidCard({
   const info = messages[status as Exclude<ParentTokenStatus, "valid">];
 
   return (
-    <section className="parent-confirm-card parent-confirm-card--info">
-      <div className="parent-confirm-card__icon" aria-hidden="true">
-        <AppIcon name="bell" />
-      </div>
-      <div>
-        <h2>{info.title}</h2>
-        <p>{info.body}</p>
-        {context.activityTitle || context.participantName ? (
-          <p className="parent-confirm-card__hint">
-            <strong>Riferimento:</strong>{" "}
-            {context.activityTitle || ""}
-            {context.activityTitle && context.participantName ? " - " : ""}
-            {context.participantName || ""}
-          </p>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-interface ConfirmationFormProps {
-  context: ParentAuthorizationContext;
-  consents: ParentAuthorizationConsents;
-  photoConsent: PhotoConsentDecision;
-  socialPublicationConsent: PhotoConsentDecision;
-  hasSignature: boolean;
-  hasReusableSignature: boolean;
-  canSubmit: boolean;
-  signatureRef: React.RefObject<SignaturePadHandle | null>;
-  onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
-  onPhotoConsentChange: (value: PhotoConsentDecision) => void;
-  onSocialConsentChange: (value: PhotoConsentDecision) => void;
-  onSignatureChange: (hasSignature: boolean) => void;
-  onConfirm: () => void;
-  onOpenReject: () => void;
-}
-
-function ConfirmationForm({
-  context,
-  consents,
-  photoConsent,
-  socialPublicationConsent,
-  hasSignature,
-  hasReusableSignature,
-  canSubmit,
-  signatureRef,
-  onToggleConsent,
-  onPhotoConsentChange,
-  onSocialConsentChange,
-  onSignatureChange,
-  onConfirm,
-  onOpenReject,
-}: ConfirmationFormProps) {
-  return (
-    <div className="parent-confirm-flow">
-      <ActivitySummaryCard context={context} />
-
-      <div className="parent-confirm-trust-row" aria-label="Informazioni sulla procedura">
-        <span><AppIcon name="lock" /> Link personale</span>
-        <span><AppIcon name="mail" /> Copia PDF via email</span>
-        <span><AppIcon name="download" /> Modulo salvato per gli admin</span>
-      </div>
-
-      {/* Due colonne su desktop (consensi a sinistra, firma+conferma sticky a
-          destra); su mobile resta un'unica colonna nello stesso ordine. */}
-      <div className="parent-confirm-columns">
-        <div className="parent-confirm-column">
-          <LegalSummaryCard />
-
-          <ConsentsSection
-            consents={consents}
-            onToggleConsent={onToggleConsent}
-          />
-
-          <PhotoConsentSection
-            photoConsent={photoConsent}
-            socialPublicationConsent={socialPublicationConsent}
-            onPhotoConsentChange={onPhotoConsentChange}
-            onSocialConsentChange={onSocialConsentChange}
-          />
-        </div>
-
-        <div className="parent-confirm-column parent-confirm-column--side">
-          <SignatureSection
-            hasReusableSignature={hasReusableSignature}
-            signatureRef={signatureRef}
-            onSignatureChange={onSignatureChange}
-          />
-
-          <section className="parent-confirm-card parent-confirm-card--actions">
-        <p>
-          {canSubmit
-            ? hasReusableSignature && !hasSignature
-              ? "Tutto pronto. Puoi confermare usando la firma già salvata per questa email."
-              : "Tutto pronto. Conferma l'autorizzazione cliccando il pulsante qui sotto."
-            : "Per confermare devi accettare tutti i consensi obbligatori e apporre una firma."}
+    <StatusPanel tone="info" title={info.title} icon="bell">
+      <p>{info.body}</p>
+      {context.activityTitle || context.participantName ? (
+        <p className="parent-confirm-fineprint">
+          <strong>Riferimento:</strong> {context.activityTitle || ""}
+          {context.activityTitle && context.participantName ? " - " : ""}
+          {context.participantName || ""}
         </p>
-        <div className="parent-confirm-actions">
-          <button
-            className="button button--primary parent-confirm-confirm-button"
-            disabled={!canSubmit}
-            onClick={onConfirm}
-            type="button"
-          >
-            <AppIcon name="check" />
-            <span>
-              {hasReusableSignature && !hasSignature
-                ? "Confermo con la firma salvata"
-                : "Confermo l'autorizzazione"}
-            </span>
-          </button>
-          <button
-            className="button button--ghost parent-confirm-reject-button"
-            onClick={onOpenReject}
-            type="button"
-          >
-            Non autorizzo la partecipazione
-          </button>
-        </div>
-            <p className="parent-confirm-fineprint">
-              Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
-              accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica con
-              link unico inviato all'indirizzo email che ci hai fornito.
-            </p>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActivitySummaryCard({ context }: { context: ParentAuthorizationContext }) {
-  return (
-    <section className="parent-confirm-card parent-confirm-card--summary">
-      <div className="parent-confirm-summary-header">
-        <h2>Dati dell'attività</h2>
-        {context.expiresAt ? (
-          <span className="parent-confirm-expiry">
-            Scadenza link: {formatExpiry(context.expiresAt)}
-          </span>
-        ) : null}
-      </div>
-      <dl className="parent-confirm-summary-grid">
-        <div>
-          <dt>Attività</dt>
-          <dd>
-            <strong>{context.activityTitle || "-"}</strong>
-          </dd>
-        </div>
-        <div>
-          <dt>Date</dt>
-          <dd>{formatDateRange(context.activityStartDate, context.activityEndDate)}</dd>
-        </div>
-        <div>
-          <dt>Partecipante</dt>
-          <dd>
-            <strong>{context.participantName || "-"}</strong>
-          </dd>
-        </div>
-        <div>
-          <dt>Email destinataria</dt>
-          <dd>{context.parentEmail || "-"}</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
-function LegalSummaryCard() {
-  return (
-    <section className="parent-confirm-card">
-      <h2>Documenti che stai accettando</h2>
-      <details className="parent-confirm-document">
-        <summary>{LEGAL_DOCS.participation.title}</summary>
-        <p>{LEGAL_DOCS.participation.body}</p>
-      </details>
-      <details className="parent-confirm-document">
-        <summary>{LEGAL_DOCS.privacy.title}</summary>
-        <p>{LEGAL_DOCS.privacy.body}</p>
-      </details>
-      <details className="parent-confirm-document">
-        <summary>{LEGAL_DOCS.photo.title}</summary>
-        <p>{LEGAL_DOCS.photo.body}</p>
-      </details>
-      <p className="parent-confirm-fineprint">
-        I testi sono in fase di revisione legale. Per chiarimenti contatta il dirigente
-        della tua unità.
-      </p>
-    </section>
-  );
-}
-
-function ConsentsSection({
-  consents,
-  onToggleConsent,
-}: {
-  consents: ParentAuthorizationConsents;
-  onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
-}) {
-  return (
-    <section className="parent-confirm-card">
-      <h2>Consensi obbligatori</h2>
-      <p className="parent-confirm-section-hint">
-        Tutti questi consensi sono richiesti per autorizzare la partecipazione.
-      </p>
-      <div className="parent-confirm-checkbox-list">
-        {PARENT_CONSENT_CHECKBOXES.map((item) => (
-          <label
-            key={item.key}
-            className={`parent-confirm-checkbox ${consents[item.key] ? "is-checked" : ""}`}
-          >
-            <input
-              type="checkbox"
-              checked={consents[item.key]}
-              onChange={() => onToggleConsent(item.key)}
-            />
-            <span>{item.label}</span>
-          </label>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PhotoConsentSection({
-  photoConsent,
-  socialPublicationConsent,
-  onPhotoConsentChange,
-  onSocialConsentChange,
-}: {
-  photoConsent: PhotoConsentDecision;
-  socialPublicationConsent: PhotoConsentDecision;
-  onPhotoConsentChange: (value: PhotoConsentDecision) => void;
-  onSocialConsentChange: (value: PhotoConsentDecision) => void;
-}) {
-  return (
-    <section className="parent-confirm-card">
-      <h2>Foto e video (consensi facoltativi)</h2>
-      <p className="parent-confirm-section-hint">
-        Questi consensi sono <strong>facoltativi e separati</strong>. Il rifiuto non
-        impedisce la partecipazione del minore all'attività.
-      </p>
-
-      <div className="parent-confirm-photo-block">
-        <h3>{PHOTO_CONSENT_OPTIONS[0].label}</h3>
-        <p className="parent-confirm-fineprint">{PHOTO_CONSENT_OPTIONS[0].helpText}</p>
-        <PhotoChoice value={photoConsent} onChange={onPhotoConsentChange} />
-      </div>
-
-      <div className="parent-confirm-photo-block">
-        <h3>{PHOTO_CONSENT_OPTIONS[1].label}</h3>
-        <p className="parent-confirm-fineprint">{PHOTO_CONSENT_OPTIONS[1].helpText}</p>
-        <PhotoChoice value={socialPublicationConsent} onChange={onSocialConsentChange} />
-      </div>
-    </section>
+      ) : null}
+    </StatusPanel>
   );
 }
 
@@ -689,90 +689,6 @@ function PhotoChoice({
         <span>Decido dopo</span>
       </label>
     </div>
-  );
-}
-
-function SignatureSection({
-  hasReusableSignature,
-  signatureRef,
-  onSignatureChange,
-}: {
-  hasReusableSignature: boolean;
-  signatureRef: React.RefObject<SignaturePadHandle | null>;
-  onSignatureChange: (hasSignature: boolean) => void;
-}) {
-  return (
-    <section className="parent-confirm-card">
-      <h2>Firma elettronica</h2>
-      {hasReusableSignature ? (
-        <div className="parent-confirm-reusable-signature">
-          <AppIcon name="check" />
-          <div>
-            <strong>Firma già salvata per questa email</strong>
-            <p>
-              Puoi confermare subito. Se vuoi sostituirla, disegna una nuova firma
-              nel riquadro qui sotto.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <p className="parent-confirm-section-hint">
-          Disegna qui la tua firma con il dito (su mobile/tablet) o con il mouse. Non è
-          una firma digitale qualificata: è una firma elettronica semplice che attesta
-          la tua dichiarazione.
-        </p>
-      )}
-      <div className="parent-confirm-signature-wrapper">
-        <SignaturePad
-          ref={signatureRef}
-          onChange={(hasContent) => onSignatureChange(hasContent)}
-        />
-      </div>
-    </section>
-  );
-}
-
-function ConfirmedCard() {
-  return (
-    <section className="parent-confirm-card parent-confirm-card--success">
-      <div className="parent-confirm-card__icon" aria-hidden="true">
-        <AppIcon name="check" />
-      </div>
-      <div>
-        <h2>Autorizzazione confermata</h2>
-        <p>
-          Grazie. L'autorizzazione è stata registrata correttamente. Gli organizzatori
-          dell'attività riceveranno una notifica e l'iscrizione del minore risulta ora
-          autorizzata. Puoi chiudere questa pagina.
-        </p>
-        <p className="parent-confirm-fineprint">
-          Una copia PDF dell'autorizzazione viene conservata in modo sicuro dagli admin.
-          Se vuoi una copia per i tuoi archivi, contatta il dirigente della tua unita'.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function RejectedCard() {
-  return (
-    <section className="parent-confirm-card parent-confirm-card--info">
-      <div className="parent-confirm-card__icon" aria-hidden="true">
-        <AppIcon name="bell" />
-      </div>
-      <div>
-        <h2>Autorizzazione rifiutata</h2>
-        <p>
-          Abbiamo registrato il tuo rifiuto. Gli organizzatori dell'attività verranno
-          notificati e l'iscrizione del minore risulta non autorizzata. Puoi chiudere
-          questa pagina.
-        </p>
-        <p className="parent-confirm-fineprint">
-          Se cambi idea, contatta il dirigente della tua unità: potrà inviarti un
-          nuovo link di autorizzazione.
-        </p>
-      </div>
-    </section>
   );
 }
 
