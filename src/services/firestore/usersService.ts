@@ -261,14 +261,27 @@ export const usersService = {
       .sort((left, right) => left.fullName.localeCompare(right.fullName, "it-IT"));
   },
 
-  async listUnitYouth(stakeId: string, unitId: string, unitName = "") {
-    const all = await this.listStakeUsers(stakeId);
-    const normName = unitName.trim().toLowerCase();
-    return all.filter(
-      (u) =>
-        (u.unitId === unitId || (normName && u.unitName.trim().toLowerCase() === normName)) &&
-        (u.genderRoleCategory === "giovane_uomo" || u.genderRoleCategory === "giovane_donna"),
+  // Query vincolata per unità: le rules autorizzano i dirigenti di unità solo
+  // su list filtrate con where('unitId' ==), non sull'intero palo.
+  async listUnitYouth(stakeId: string, unitId: string) {
+    if (!stakeId || !unitId) {
+      return [];
+    }
+
+    const snapshot = await getDocs(
+      query(
+        collection(db, "users"),
+        where("stakeId", "==", stakeId),
+        where("unitId", "==", unitId),
+      ),
     );
+
+    return snapshot.docs
+      .map((item) => mapUserProfile(item.id, item.data()))
+      .filter(
+        (u) => u.genderRoleCategory === "giovane_uomo" || u.genderRoleCategory === "giovane_donna",
+      )
+      .sort((left, right) => left.fullName.localeCompare(right.fullName, "it-IT"));
   },
 
   async assignAdminRole(stakeId: string, uid: string) {

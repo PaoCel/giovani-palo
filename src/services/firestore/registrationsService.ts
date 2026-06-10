@@ -286,6 +286,28 @@ export const registrationsService = {
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   },
 
+  // Query vincolata per unità: le rules consentono ai dirigenti di unità solo
+  // letture filtrate con where('unitId' ==), mai l'intero palo.
+  async listUnitRegistrationsByEvent(
+    stakeId: string,
+    eventId: string,
+    unitId: string,
+  ): Promise<Registration[]> {
+    if (!unitId) {
+      return [];
+    }
+
+    const snapshot = await getDocs(
+      query(getEventRegistrationsCollection(stakeId, eventId), where("unitId", "==", unitId)),
+    );
+
+    return snapshot.docs
+      .map((document) =>
+        mapRegistration(eventId, stakeId, document.id, document.data()),
+      )
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  },
+
   async getRegistrationByActor(
     stakeId: string,
     eventId: string,

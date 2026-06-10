@@ -56,6 +56,15 @@ service cloud.firestore {
         && currentUser().stakeId == stakeId;
     }
 
+    // Confine per unità: il dirigente vede solo documenti della propria unità.
+    // Le query client devono filtrare con where('unitId', '==', <propria unità>)
+    // perché la rule sia dimostrabile anche in list.
+    function isUnitLeaderOfUnit(stakeId, unitId) {
+      return isUnitLeaderOfStake(stakeId)
+        && unitId != ''
+        && currentUser().unitId == unitId;
+    }
+
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -764,8 +773,11 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow get: if isSelf(uid) || isStakeAdmin(resource.data.stakeId) || isUnitLeaderOfStake(resource.data.stakeId);
-      allow list: if isStakeAdmin(resource.data.stakeId) || isUnitLeaderOfStake(resource.data.stakeId);
+      allow get: if isSelf(uid)
+        || isStakeAdmin(resource.data.stakeId)
+        || isUnitLeaderOfUnit(resource.data.stakeId, resource.data.unitId);
+      allow list: if isStakeAdmin(resource.data.stakeId)
+        || isUnitLeaderOfUnit(resource.data.stakeId, resource.data.unitId);
       allow create: if canCreateOwnUser(uid);
       allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole();
       allow delete: if false;
@@ -936,8 +948,9 @@ service cloud.firestore {
           allow get: if isStakeAdmin(stakeId)
             || isExpectedOwnRegistrationId(registrationId)
             || isOwnRegistration(resource.data)
-            || isUnitLeaderOfStake(stakeId);
-          allow list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
+            || isUnitLeaderOfUnit(stakeId, resource.data.unitId);
+          allow list: if isStakeAdmin(stakeId)
+            || isUnitLeaderOfUnit(stakeId, resource.data.unitId);
           allow create: if isStakeAdmin(stakeId)
             || validRegistrationCreate(stakeId, activityId, registrationId);
           allow update: if isStakeAdmin(stakeId) || validRegistrationUpdate();
@@ -998,6 +1011,15 @@ service cloud.firestore {
           allow delete: if isStakeAdmin(stakeId);
         }
       }
+    }
+
+    // Query collection-group sulle registrazioni: servono al collegamento
+    // guest -> account (where anonymousUid == uid). Le rules sui singoli
+    // path non coprono le query cross-collection, quindi serve questo match.
+    // Richiede l'indice collection-group su anonymousUid (firestore.indexes.json).
+    match /{path=**}/registrations/{registrationId} {
+      allow list: if isSignedIn()
+        && resource.data.anonymousUid == request.auth.uid;
     }
 
     match /anonymousRegistrationTokens/{tokenId} {

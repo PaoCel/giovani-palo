@@ -65,8 +65,8 @@ export function UnitDashboardPage() {
   const unitName = session?.profile.unitName || "la tua unità";
 
   const { data: summaries, loading, error } = useAsyncData(
-    () => unitLeaderService.getUnitActivitySummaries(stakeId, unitId, unitName),
-    [stakeId, unitId, unitName],
+    () => unitLeaderService.getUnitActivitySummaries(stakeId, unitId),
+    [stakeId, unitId],
     [],
   );
 
