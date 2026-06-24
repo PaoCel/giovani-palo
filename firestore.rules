@@ -735,6 +735,7 @@ service cloud.firestore {
           'email',
           'phone',
           'role',
+          'city',
           'birthDate',
           'genderRoleCategory',
           'unitId',
@@ -753,6 +754,7 @@ service cloud.firestore {
         && (data.email == null || data.email is string)
         && (!('phone' in data) || data.phone == null || data.phone is string)
         && data.role in ['participant', 'admin', 'super_admin', 'unit_leader', 'parent']
+        && (!('city' in data) || data.city == null || data.city is string)
         && data.birthDate is string
         && validGenderRoleCategory(data.genderRoleCategory)
         && data.unitId is string
@@ -823,6 +825,7 @@ service cloud.firestore {
         && request.resource.data.firstName == resource.data.firstName
         && request.resource.data.lastName == resource.data.lastName
         && request.resource.data.email == resource.data.email
+        && request.resource.data.get('city', '') == resource.data.get('city', '')
         && request.resource.data.birthDate == resource.data.birthDate
         && request.resource.data.genderRoleCategory == resource.data.genderRoleCategory
         && request.resource.data.unitId == resource.data.unitId

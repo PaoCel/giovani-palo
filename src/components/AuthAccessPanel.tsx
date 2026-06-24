@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { italianMunicipalityOptions } from "@/config/cityOptions";
 import { useAuth } from "@/hooks/useAuth";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
 import type { GenderRoleCategory, OrganizationProfile } from "@/types";
@@ -44,6 +45,18 @@ const profileSteps: ProfileStepItem[] = [
     icon: "users",
   },
 ];
+const parentProfileSteps: ProfileStepItem[] = [
+  {
+    title: "Identità",
+    description: "Nome e cognome del genitore.",
+    icon: "user",
+  },
+  {
+    title: "Appartenenza",
+    description: "Rione o ramo e comune.",
+    icon: "users",
+  },
+];
 
 function isPlaceholderName(value: string | null | undefined) {
   return !value || value === "Partecipante";
@@ -57,7 +70,12 @@ function needsProfileCompletion(session: ReturnType<typeof useAuth>["session"]) 
   // Per i genitori i dati anagrafici (data di nascita, gruppo, unità) vivono
   // sui profili figli: per l'account basta il nome.
   if (session.isParent) {
-    return isPlaceholderName(session.profile.fullName);
+    return (
+      isPlaceholderName(session.profile.fullName) ||
+      !session.profile.unitName ||
+      !session.profile.stakeId ||
+      !session.profile.city
+    );
   }
 
   return (
@@ -167,8 +185,13 @@ export function AuthAccessPanel({
     signUpWithEmail,
     sendPasswordReset,
     completeProfile,
+    completeParentProfile,
   } = useAuth();
+  const cityOptionsListId = useId();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [signupAccountType, setSignupAccountType] = useState<"participant" | "parent">(
+    "participant",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -184,6 +207,7 @@ export function AuthAccessPanel({
     birthDate: "",
     genderRoleCategory: "" as GenderRoleCategory | "",
     unitName: "",
+    city: "",
   });
   const [manualUnitMode, setManualUnitMode] = useState(false);
 
@@ -194,6 +218,8 @@ export function AuthAccessPanel({
   const hasConfiguredUnits = unitOptions.length > 0;
   const canUseManualUnit = Boolean(session?.isAdmin);
   const requiresProfileCompletion = needsProfileCompletion(session);
+  const isParentProfileFlow = Boolean(session?.isParent);
+  const activeProfileSteps = isParentProfileFlow ? parentProfileSteps : profileSteps;
   const effectiveDescription =
     description ||
     organization.accountHelpText ||
@@ -218,6 +244,7 @@ export function AuthAccessPanel({
         "",
       unitName:
         session.profile.unitName || pendingProfile?.unitName || "",
+      city: session.profile.city || "",
     });
     setManualUnitMode(
       Boolean(
@@ -243,6 +270,7 @@ export function AuthAccessPanel({
     setPassword("");
     setConfirmPassword("");
     setShowPasswords(false);
+    setSignupAccountType("participant");
     setFieldErrors({});
     setError(null);
     setFeedback(null);
@@ -314,7 +342,7 @@ export function AuthAccessPanel({
 
     try {
       await (mode === "signup"
-        ? signUpWithEmail(normalizedEmail, password)
+        ? signUpWithEmail(normalizedEmail, password, signupAccountType)
         : signInWithEmail(normalizedEmail, password));
     } catch (caughtError) {
       setError(toUserFacingAuthError(caughtError));
@@ -329,7 +357,7 @@ export function AuthAccessPanel({
     setFeedback(null);
 
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(mode === "signup" ? signupAccountType : undefined);
     } catch (caughtError) {
       setError(toUserFacingAuthError(caughtError));
     } finally {
@@ -369,19 +397,23 @@ export function AuthAccessPanel({
         return "Inserisci nome e cognome.";
       }
 
-      if (!profileState.birthDate) {
+      if (!isParentProfileFlow && !profileState.birthDate) {
         return "Inserisci la data di nascita.";
       }
 
       return null;
     }
 
-    if (!profileState.genderRoleCategory) {
+    if (!isParentProfileFlow && !profileState.genderRoleCategory) {
       return "Seleziona la tua organizzazione.";
     }
 
     if (!normalizedUnitName) {
       return "Indica il tuo rione o ramo.";
+    }
+
+    if (isParentProfileFlow && !profileState.city.trim()) {
+      return "Indica il comune di riferimento.";
     }
 
     if (
@@ -403,7 +435,7 @@ export function AuthAccessPanel({
     }
 
     setError(null);
-    setProfileStep((current) => Math.min(current + 1, profileSteps.length - 1));
+    setProfileStep((current) => Math.min(current + 1, activeProfileSteps.length - 1));
   }
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
@@ -415,7 +447,7 @@ export function AuthAccessPanel({
       return;
     }
 
-    if (profileStep < profileSteps.length - 1) {
+    if (profileStep < activeProfileSteps.length - 1) {
       goToNextProfileStep();
       return;
     }
@@ -424,21 +456,31 @@ export function AuthAccessPanel({
     setError(null);
     const genderRoleCategory = profileState.genderRoleCategory;
 
-    if (!genderRoleCategory) {
+    if (!isParentProfileFlow && !genderRoleCategory) {
       setBusy(null);
       setError("Seleziona la tua organizzazione.");
       return;
     }
 
     try {
-      await completeProfile({
-        firstName: profileState.firstName.trim(),
-        lastName: profileState.lastName.trim(),
-        birthDate: profileState.birthDate,
-        genderRoleCategory,
-        unitName: profileState.unitName.trim(),
-        stakeId: organization.stakeId,
-      });
+      if (isParentProfileFlow) {
+        await completeParentProfile({
+          firstName: profileState.firstName.trim(),
+          lastName: profileState.lastName.trim(),
+          unitName: profileState.unitName.trim(),
+          city: profileState.city.trim(),
+          stakeId: organization.stakeId,
+        });
+      } else if (genderRoleCategory) {
+        await completeProfile({
+          firstName: profileState.firstName.trim(),
+          lastName: profileState.lastName.trim(),
+          birthDate: profileState.birthDate,
+          genderRoleCategory,
+          unitName: profileState.unitName.trim(),
+          stakeId: organization.stakeId,
+        });
+      }
     } catch (caughtError) {
       setError(toUserFacingAuthError(caughtError));
     } finally {
@@ -455,14 +497,18 @@ export function AuthAccessPanel({
   const unitSelectValue = showManualUnitInput ? MANUAL_UNIT_VALUE : profileState.unitName;
 
   if (requiresProfileCompletion) {
-    const progress = ((profileStep + 1) / profileSteps.length) * 100;
+    const progress = ((profileStep + 1) / activeProfileSteps.length) * 100;
 
     return (
       <section className="card auth-flow">
         <div className="section-head">
           <div>
             <h2>Completa il profilo</h2>
-            <p>Ti chiediamo solo ciò che serve per velocizzare le prossime iscrizioni.</p>
+            <p>
+              {isParentProfileFlow
+                ? "Ti chiediamo solo ciò che serve per gestire le iscrizioni dei tuoi figli."
+                : "Ti chiediamo solo ciò che serve per velocizzare le prossime iscrizioni."}
+            </p>
           </div>
           {backAction}
         </div>
@@ -473,7 +519,7 @@ export function AuthAccessPanel({
               <span style={{ width: `${progress}%` }} />
             </div>
             <div className="form-stepper__steps">
-              {profileSteps.map((step, index) => (
+              {activeProfileSteps.map((step, index) => (
                 <div
                   key={step.title}
                   className={
@@ -530,42 +576,46 @@ export function AuthAccessPanel({
                     />
                   </label>
 
-                  <label className="field field--full">
-                    <span>Data di nascita</span>
-                    <input
-                      className="input"
-                      type="date"
-                      value={profileState.birthDate}
-                      onChange={(eventInput) =>
-                        setProfileState((current) => ({
-                          ...current,
-                          birthDate: eventInput.target.value,
-                        }))
-                      }
-                    />
-                  </label>
+                  {!isParentProfileFlow ? (
+                    <label className="field field--full">
+                      <span>Data di nascita</span>
+                      <input
+                        className="input"
+                        type="date"
+                        value={profileState.birthDate}
+                        onChange={(eventInput) =>
+                          setProfileState((current) => ({
+                            ...current,
+                            birthDate: eventInput.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  ) : null}
                 </div>
               ) : (
                 <div className="form-stack">
-                  <label className="field">
-                    <span>Organizzazione</span>
-                    <select
-                      className="input"
-                      value={profileState.genderRoleCategory}
-                      onChange={(eventInput) =>
-                        setProfileState((current) => ({
-                          ...current,
-                          genderRoleCategory: eventInput.target.value as GenderRoleCategory | "",
-                        }))
-                      }
-                    >
-                      <option value="">Seleziona</option>
-                      <option value="giovane_uomo">Giovane uomo</option>
-                      <option value="giovane_donna">Giovane donna</option>
-                      <option value="dirigente">Dirigente</option>
-                      <option value="accompagnatore">Accompagnatore</option>
-                    </select>
-                  </label>
+                  {!isParentProfileFlow ? (
+                    <label className="field">
+                      <span>Organizzazione</span>
+                      <select
+                        className="input"
+                        value={profileState.genderRoleCategory}
+                        onChange={(eventInput) =>
+                          setProfileState((current) => ({
+                            ...current,
+                            genderRoleCategory: eventInput.target.value as GenderRoleCategory | "",
+                          }))
+                        }
+                      >
+                        <option value="">Seleziona</option>
+                        <option value="giovane_uomo">Giovane uomo</option>
+                        <option value="giovane_donna">Giovane donna</option>
+                        <option value="dirigente">Dirigente</option>
+                        <option value="accompagnatore">Accompagnatore</option>
+                      </select>
+                    </label>
+                  ) : null}
 
                   <label className="field">
                     <span>Unità di appartenenza</span>
@@ -632,6 +682,29 @@ export function AuthAccessPanel({
                           : "L'amministratore deve prima configurare almeno un'unità."}
                     </small>
                   </label>
+
+                  {isParentProfileFlow ? (
+                    <label className="field">
+                      <span>Comune</span>
+                      <input
+                        className="input"
+                        list={cityOptionsListId}
+                        value={profileState.city}
+                        onChange={(eventInput) =>
+                          setProfileState((current) => ({
+                            ...current,
+                            city: eventInput.target.value,
+                          }))
+                        }
+                        placeholder="Seleziona o scrivi un comune"
+                      />
+                      <datalist id={cityOptionsListId}>
+                        {italianMunicipalityOptions.map((option) => (
+                          <option key={option} value={option} />
+                        ))}
+                      </datalist>
+                    </label>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -657,7 +730,7 @@ export function AuthAccessPanel({
               <button className="button button--primary" disabled={busy !== null} type="submit">
                 {busy === "profile" ? (
                   "Salvataggio..."
-                ) : profileStep === profileSteps.length - 1 ? (
+                ) : profileStep === activeProfileSteps.length - 1 ? (
                   <>
                     <AppIcon name="check" />
                     <span>Entra nell&apos;app</span>
@@ -694,6 +767,20 @@ export function AuthAccessPanel({
 
       <div className="auth-panel">
         <form className="auth-panel__form" noValidate onSubmit={handleEmailAuth}>
+          {mode === "signup" && signupAccountType === "parent" ? (
+            <div className="auth-parent-mode">
+              <strong>Account genitore</strong>
+              <span>Lo userai per iscrivere i tuoi figli alle attività.</span>
+              <button
+                className="auth-link-button"
+                onClick={() => setSignupAccountType("participant")}
+                type="button"
+              >
+                Torna alla registrazione standard
+              </button>
+            </div>
+          ) : null}
+
           <label className="field">
             <span>Email</span>
             <input
@@ -809,6 +896,20 @@ export function AuthAccessPanel({
           {mode === "login" ? "Crea un account" : "Fai login"}
         </button>
       </p>
+
+      {mode === "signup" && signupAccountType !== "parent" ? (
+        <p className="auth-screen__note">
+          Se sei genitore{" "}
+          <button
+            className="auth-link-button"
+            onClick={() => setSignupAccountType("parent")}
+            type="button"
+          >
+            clicca qui
+          </button>
+          .
+        </p>
+      ) : null}
 
       <p className="auth-screen__note">{effectiveDescription}</p>
     </section>

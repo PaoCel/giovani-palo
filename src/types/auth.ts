@@ -17,9 +17,13 @@ export interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<AuthSession>;
-  signUpWithEmail: (email: string, password: string) => Promise<AuthSession>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    accountType?: "participant" | "parent",
+  ) => Promise<AuthSession>;
   sendPasswordReset: (email: string) => Promise<void>;
-  signInWithGoogle: () => Promise<AuthSession>;
+  signInWithGoogle: (accountType?: "participant" | "parent") => Promise<AuthSession>;
   signInAnonymously: () => Promise<AuthSession>;
   completeProfile: (input: {
     firstName: string;
@@ -27,6 +31,13 @@ export interface AuthContextValue {
     birthDate: string;
     genderRoleCategory: GenderRoleCategory;
     unitName: string;
+    stakeId: string;
+  }) => Promise<AuthSession>;
+  completeParentProfile: (input: {
+    firstName: string;
+    lastName: string;
+    unitName: string;
+    city: string;
     stakeId: string;
   }) => Promise<AuthSession>;
   changePassword: (nextPassword: string) => Promise<void>;

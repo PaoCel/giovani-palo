@@ -80,6 +80,7 @@ function mapUserProfile(uid: string, data: Record<string, unknown>): UserProfile
     email: typeof data.email === "string" ? data.email : null,
     phone: typeof data.phone === "string" ? data.phone : "",
     role: sanitizeRole(data.role),
+    city: typeof data.city === "string" ? data.city : "",
     birthDate: typeof data.birthDate === "string" ? data.birthDate : "",
     genderRoleCategory,
     youthGroup: getYouthGroupLabel(genderRoleCategory),
@@ -122,6 +123,7 @@ export const usersService = {
         email: null,
         phone: "",
         role: "participant",
+        city: "",
         birthDate: "",
         genderRoleCategory: "",
         youthGroup: "",
@@ -152,6 +154,7 @@ export const usersService = {
         email: user.email,
         phone: "",
         role: "participant" as const,
+        city: "",
         birthDate: "",
         genderRoleCategory: "",
         unitId: "",
@@ -183,7 +186,22 @@ export const usersService = {
             void tokenError;
           }
           await new Promise((resolve) => setTimeout(resolve, 600));
-          await setDoc(reference, payload);
+          try {
+            await setDoc(reference, payload);
+          } catch (retryError) {
+            const retryCode =
+              retryError && typeof retryError === "object" && "code" in retryError
+                ? (retryError as { code?: string }).code
+                : null;
+            if (retryCode === "permission-denied") {
+              await new Promise((resolve) => setTimeout(resolve, 800));
+              const recoveredSnapshot = await getDoc(reference);
+              if (recoveredSnapshot.exists()) {
+                return mapUserProfile(user.uid, recoveredSnapshot.data());
+              }
+            }
+            throw retryError;
+          }
         } else {
           throw firstError;
         }
@@ -204,6 +222,7 @@ export const usersService = {
         email: user.email ?? profile.email,
         phone: profile.phone,
         role: profile.role,
+        city: profile.city,
         birthDate: profile.birthDate,
         genderRoleCategory: profile.genderRoleCategory,
         unitId: profile.unitId,
@@ -225,6 +244,7 @@ export const usersService = {
       lastName: profile.lastName || names.lastName,
       fullName,
       email: user.email ?? profile.email,
+      city: profile.city,
       updatedAt: lastLoginAt,
       lastLoginAt,
     };
@@ -358,6 +378,7 @@ export const usersService = {
         typeof input.phone === "string" && input.phone.trim()
           ? input.phone.trim()
           : currentProfile.phone,
+      city: currentProfile.city,
       birthDate: input.birthDate ?? "",
       genderRoleCategory: input.genderRoleCategory ?? "",
       unitId: input.unitId ?? resolvedUnit?.id ?? currentProfile.unitId ?? "",
@@ -417,6 +438,64 @@ export const usersService = {
       genderRoleCategory: input.genderRoleCategory,
       stakeId: input.stakeId,
       stakeSlug: stake?.slug ?? "",
+      updatedAt: nowIso(),
+      lastLoginAt: nowIso(),
+    });
+
+    return this.getProfile(uid);
+  },
+
+  async updateParentProfile(
+    uid: string,
+    input: {
+      firstName: string;
+      lastName: string;
+      stakeId: string;
+      unitName: string;
+      city: string;
+    },
+  ) {
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName.trim();
+    const city = input.city.trim();
+    const unitName = input.unitName.trim();
+
+    if (!firstName || !lastName) {
+      throw new Error("Inserisci nome e cognome.");
+    }
+
+    if (!unitName) {
+      throw new Error("Seleziona il tuo rione o ramo.");
+    }
+
+    if (!city) {
+      throw new Error("Indica il comune di riferimento.");
+    }
+
+    const reference = doc(db, "users", uid);
+    const snapshot = await getDoc(reference);
+
+    if (!snapshot.exists()) {
+      throw new Error("Profilo utente non trovato.");
+    }
+
+    const matchedUnit = await organizationService.assertManagedUnit(input.stakeId, unitName);
+    const stake = await stakesService.getStakeById(input.stakeId);
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    await updateDoc(reference, {
+      firstName,
+      lastName,
+      fullName,
+      role: "parent",
+      city,
+      unitId: matchedUnit?.id ?? "",
+      unitName: matchedUnit?.name ?? unitName,
+      stakeId: input.stakeId,
+      stakeSlug: stake?.slug ?? "",
+      stakeName: stake?.name ?? "",
+      birthDate: "",
+      genderRoleCategory: "",
       updatedAt: nowIso(),
       lastLoginAt: nowIso(),
     });
