@@ -40,6 +40,7 @@ export interface AuthContextValue {
     city: string;
     stakeId: string;
   }) => Promise<AuthSession>;
+  switchToParentAccount: () => Promise<AuthSession>;
   changePassword: (nextPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
