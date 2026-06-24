@@ -1111,6 +1111,25 @@ button {
   gap: 0.95rem;
 }
 
+.auth-parent-mode {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(20, 39, 70, 0.1);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.auth-parent-mode strong {
+  color: var(--heading);
+}
+
+.auth-parent-mode .auth-link-button {
+  justify-self: start;
+}
+
 .auth-panel .button {
   width: 100%;
 }

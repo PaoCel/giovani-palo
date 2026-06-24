@@ -147,6 +147,7 @@ export interface UserProfile {
   email: string | null;
   phone: string;
   role: UserRole;
+  city: string;
   birthDate: string;
   genderRoleCategory: GenderRoleCategory | "";
   youthGroup: YouthGroup | "";
