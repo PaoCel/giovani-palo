@@ -147,6 +147,24 @@ function isConfiguredUnit(unitOptions: string[], unitName: string) {
   return unitOptions.some((unit) => normalizeUnitName(unit) === normalizeUnitName(unitName));
 }
 
+function isBirthDateMoreThan20YearsAgo(value: string) {
+  if (!value) {
+    return false;
+  }
+
+  const birthDate = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(birthDate.getTime())) {
+    return false;
+  }
+
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setFullYear(cutoff.getFullYear() - 20);
+
+  return birthDate < cutoff;
+}
+
 function GoogleMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -186,12 +204,10 @@ export function AuthAccessPanel({
     sendPasswordReset,
     completeProfile,
     completeParentProfile,
+    switchToParentAccount,
   } = useAuth();
   const cityOptionsListId = useId();
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [signupAccountType, setSignupAccountType] = useState<"participant" | "parent">(
-    "participant",
-  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -201,6 +217,7 @@ export function AuthAccessPanel({
   const [busy, setBusy] = useState<null | "auth" | "profile">(null);
   const [error, setError] = useState<string | null>(null);
   const [profileStep, setProfileStep] = useState(0);
+  const [parentPromptDismissed, setParentPromptDismissed] = useState(false);
   const [profileState, setProfileState] = useState({
     firstName: "",
     lastName: "",
@@ -255,6 +272,7 @@ export function AuthAccessPanel({
       ),
     );
     setProfileStep(0);
+    setParentPromptDismissed(false);
   }, [session, unitOptions]);
 
   useEffect(() => {
@@ -270,7 +288,6 @@ export function AuthAccessPanel({
     setPassword("");
     setConfirmPassword("");
     setShowPasswords(false);
-    setSignupAccountType("participant");
     setFieldErrors({});
     setError(null);
     setFeedback(null);
@@ -342,7 +359,7 @@ export function AuthAccessPanel({
 
     try {
       await (mode === "signup"
-        ? signUpWithEmail(normalizedEmail, password, signupAccountType)
+        ? signUpWithEmail(normalizedEmail, password)
         : signInWithEmail(normalizedEmail, password));
     } catch (caughtError) {
       setError(toUserFacingAuthError(caughtError));
@@ -357,7 +374,7 @@ export function AuthAccessPanel({
     setFeedback(null);
 
     try {
-      await signInWithGoogle(mode === "signup" ? signupAccountType : undefined);
+      await signInWithGoogle();
     } catch (caughtError) {
       setError(toUserFacingAuthError(caughtError));
     } finally {
@@ -426,11 +443,51 @@ export function AuthAccessPanel({
     return null;
   }
 
-  function goToNextProfileStep() {
+  async function maybeSwitchToParentFlow() {
+    if (
+      !session ||
+      isParentProfileFlow ||
+      profileStep !== 0 ||
+      parentPromptDismissed ||
+      !isBirthDateMoreThan20YearsAgo(profileState.birthDate)
+    ) {
+      return false;
+    }
+
+    const shouldSwitch =
+      typeof window !== "undefined" &&
+      window.confirm("Sei un genitore e stai iscrivendo un tuo figlio?");
+
+    if (!shouldSwitch) {
+      setParentPromptDismissed(true);
+      return false;
+    }
+
+    setBusy("profile");
+    setError(null);
+
+    try {
+      await switchToParentAccount();
+      setParentPromptDismissed(false);
+      setProfileStep(0);
+      return true;
+    } catch (caughtError) {
+      setError(toUserFacingAuthError(caughtError));
+      return true;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function goToNextProfileStep() {
     const nextError = validateProfileStep(profileStep);
 
     if (nextError) {
       setError(nextError);
+      return;
+    }
+
+    if (await maybeSwitchToParentFlow()) {
       return;
     }
 
@@ -448,7 +505,7 @@ export function AuthAccessPanel({
     }
 
     if (profileStep < activeProfileSteps.length - 1) {
-      goToNextProfileStep();
+      await goToNextProfileStep();
       return;
     }
 
@@ -582,14 +639,15 @@ export function AuthAccessPanel({
                       <input
                         className="input"
                         type="date"
-                        value={profileState.birthDate}
-                        onChange={(eventInput) =>
-                          setProfileState((current) => ({
-                            ...current,
-                            birthDate: eventInput.target.value,
-                          }))
-                        }
-                      />
+                      value={profileState.birthDate}
+                      onChange={(eventInput) => {
+                        setParentPromptDismissed(false);
+                        setProfileState((current) => ({
+                          ...current,
+                          birthDate: eventInput.target.value,
+                        }));
+                      }}
+                    />
                     </label>
                   ) : null}
                 </div>
@@ -767,20 +825,6 @@ export function AuthAccessPanel({
 
       <div className="auth-panel">
         <form className="auth-panel__form" noValidate onSubmit={handleEmailAuth}>
-          {mode === "signup" && signupAccountType === "parent" ? (
-            <div className="auth-parent-mode">
-              <strong>Account genitore</strong>
-              <span>Lo userai per iscrivere i tuoi figli alle attività.</span>
-              <button
-                className="auth-link-button"
-                onClick={() => setSignupAccountType("participant")}
-                type="button"
-              >
-                Torna alla registrazione standard
-              </button>
-            </div>
-          ) : null}
-
           <label className="field">
             <span>Email</span>
             <input
@@ -896,20 +940,6 @@ export function AuthAccessPanel({
           {mode === "login" ? "Crea un account" : "Fai login"}
         </button>
       </p>
-
-      {mode === "signup" && signupAccountType !== "parent" ? (
-        <p className="auth-screen__note">
-          Se sei genitore{" "}
-          <button
-            className="auth-link-button"
-            onClick={() => setSignupAccountType("parent")}
-            type="button"
-          >
-            clicca qui
-          </button>
-          .
-        </p>
-      ) : null}
 
       <p className="auth-screen__note">{effectiveDescription}</p>
     </section>

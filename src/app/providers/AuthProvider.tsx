@@ -170,6 +170,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return nextSession;
   }
 
+  async function switchToParentAccount() {
+    if (!session) {
+      throw new Error("Sessione non disponibile.");
+    }
+
+    return applyAccountType(session, "parent");
+  }
+
   async function handleChangePassword(nextPassword: string) {
     await authService.changePassword(nextPassword);
 
@@ -201,6 +209,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         signInAnonymously,
         completeProfile,
         completeParentProfile,
+        switchToParentAccount,
         changePassword: handleChangePassword,
         signOut: handleSignOut,
       }}
