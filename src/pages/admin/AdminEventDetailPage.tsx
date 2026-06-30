@@ -45,6 +45,12 @@ import {
   getRegistrationStatusLabel,
   getRegistrationStatusTone,
 } from "@/utils/registrations";
+import {
+  getParentAuthorizationBadge,
+  getParentAuthorizationStatus,
+  hasSignedParentAuthorizationPdf,
+  isParentAuthorizationAuthorized,
+} from "@/utils/parentAuthorization";
 
 type AdminEventTab =
   | "details"
@@ -226,39 +232,6 @@ function getParentName(registration: Registration) {
   return [firstName, lastName].filter(Boolean).join(" ").trim();
 }
 
-function getParentAuthorizationBadge(
-  registration: Registration,
-  required: boolean,
-): { label: string; tone: "neutral" | "info" | "success" | "warning" | "danger" } {
-  if (!required) {
-    return { label: "Email non richiesta", tone: "neutral" };
-  }
-
-  const status = registration.parentAuthorization?.status ?? "missing";
-
-  if (status === "authorized") {
-    return { label: "Email OK", tone: "success" };
-  }
-
-  if (status === "rejected_by_parent") {
-    return { label: "Rifiutata", tone: "danger" };
-  }
-
-  if (status === "email_error") {
-    return { label: "Errore email", tone: "danger" };
-  }
-
-  if (status === "expired") {
-    return { label: "Scaduta", tone: "warning" };
-  }
-
-  if (status === "email_sent" || status === "pending_parent_authorization") {
-    return { label: "In attesa", tone: "warning" };
-  }
-
-  return { label: "Email mancante", tone: "warning" };
-}
-
 function getAdminEventTabFromPath(pathname: string): AdminEventTab {
   if (pathname.endsWith("/registrations")) {
     return "registrations";
@@ -328,7 +301,6 @@ export function AdminEventDetailPage() {
     | "saveParentEmail"
     | "downloadSignedConsent"
     | "downloadSignedConsentsZip"
-    | "backfillLegacyApprovals"
     | "deleteRegistration"
     | "cancelRegistration"
     | "reactivateRegistration"
@@ -597,24 +569,27 @@ export function AdminEventDetailPage() {
   const minorRegistrations = activeRegistrations.filter((registration) =>
     isMinorRegistration(registration),
   );
-  const uploadedMinorConsentCount = minorRegistrations.filter((registration) =>
-    Boolean(registration.parentConsentDocumentUrl || registration.parentAuthorization?.pdfPath),
+  const parentAuthorizationRequired = Boolean(resolvedEvent.requiresParentAuthorization);
+  const parentAuthorizedCount = parentAuthorizationRequired
+    ? minorRegistrations.filter((registration) =>
+        isParentAuthorizationAuthorized(registration),
+      ).length
+    : 0;
+  const parentRejectedOrErroredCount = parentAuthorizationRequired
+    ? minorRegistrations.filter((registration) => {
+        const status = getParentAuthorizationStatus(registration);
+        return status === "rejected_by_parent" || status === "email_error";
+      }).length
+    : 0;
+  const parentPendingCount = parentAuthorizationRequired
+    ? minorRegistrations.length - parentAuthorizedCount - parentRejectedOrErroredCount
+    : 0;
+  const legacyParentConsentDocumentCount = activeRegistrations.filter((registration) =>
+    Boolean(registration.parentConsentDocumentUrl),
   ).length;
-  const missingMinorConsentCount = minorRegistrations.length - uploadedMinorConsentCount;
   const signedParentAuthorizationCount = activeRegistrations.filter(
-    (registration) =>
-      registration.parentAuthorization?.status === "authorized" &&
-      Boolean(registration.parentAuthorization?.pdfPath),
+    (registration) => hasSignedParentAuthorizationPdf(registration),
   ).length;
-  const legacyApprovedWithoutPdfCount = activeRegistrations.filter((registration) => {
-    if (registration.parentAuthorization?.pdfPath) return false;
-    if (registration.parentAuthorization?.status === "rejected_by_parent") return false;
-    return (
-      registration.parentAuthorization?.status === "authorized" ||
-      registration.answers.parentConfirmed === true ||
-      registration.answers.parentalConsentAccepted === true
-    );
-  }).length;
   const withRoomPreferencesCount = activeRegistrations.filter(
     (registration) =>
       roomPreferenceKeys.some((key) => Boolean(getRegistrationTextAnswer(registration, key))),
@@ -960,40 +935,6 @@ export function AdminEventDetailPage() {
         caughtError instanceof Error
           ? caughtError.message
           : "Impossibile preparare lo ZIP dei moduli firmati.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleBackfillLegacyApprovals() {
-    const confirmed = window.confirm(
-      "Generare il modulo ufficiale per le autorizzazioni già approvate col vecchio metodo e inviare una copia ai genitori?\n\n" +
-        "Verranno saltati automaticamente gli iscritti che hanno già un modulo firmato.",
-    );
-    if (!confirmed) return;
-
-    setBusy("backfillLegacyApprovals");
-    setActionError(null);
-    setActionInfo(null);
-
-    try {
-      const result = await parentAuthorizationService.backfillLegacyApprovals({
-        stakeId,
-        activityId: resolvedEventId,
-      });
-      setActionInfo(
-        `Fallback completato: ${result.processed} moduli generati, ${result.emailed} email inviate` +
-          (result.skipped ? `, ${result.skipped} saltati` : "") +
-          (result.errors.length ? `, ${result.errors.length} avvisi` : "") +
-          ".",
-      );
-      setRefreshKey((current) => current + 1);
-    } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile generare i fallback legacy.",
       );
     } finally {
       setBusy(null);
@@ -1637,39 +1578,16 @@ export function AdminEventDetailPage() {
               <span>Attivi</span>
             </article>
             <article className="admin-inline-metric">
-              <strong>
-                {
-                  activeRegistrations.filter(
-                    (registration) =>
-                      getParentAuthorizationBadge(
-                        registration,
-                        Boolean(resolvedEvent.requiresParentAuthorization),
-                      ).tone === "success",
-                  ).length
-                }
-              </strong>
-              <span>Email OK</span>
+              <strong>{parentAuthorizedCount}</strong>
+              <span>Autorizzate</span>
             </article>
             <article className="admin-inline-metric">
-              <strong>{uploadedMinorConsentCount}</strong>
-              <span>Doc. genitore</span>
+              <strong>{parentPendingCount}</strong>
+              <span>In attesa</span>
             </article>
             <article className="admin-inline-metric">
-              <strong>
-                {
-                  activeRegistrations.filter(
-                    (registration) =>
-                      (resolvedEvent.requiresParentAuthorization &&
-                        getParentAuthorizationBadge(registration, true).tone !== "success") ||
-                      (resolvedEvent.requiresParentalConsent &&
-                        registration.answers.parentalConsentAccepted !== true) ||
-                      (resolvedEvent.requiresPhotoRelease &&
-                        registration.answers.photoReleaseAccepted !== true) ||
-                      (isMinorRegistration(registration) && !registration.parentConsentDocumentUrl),
-                  ).length
-                }
-              </strong>
-              <span>Da verificare</span>
+              <strong>{parentRejectedOrErroredCount}</strong>
+              <span>Problemi</span>
             </article>
           </div>
 
@@ -1687,30 +1605,12 @@ export function AdminEventDetailPage() {
                     {signedParentAuthorizationCount > 0
                       ? `${signedParentAuthorizationCount} moduli firmati disponibili per il download.`
                       : "I moduli firmati appariranno qui appena i genitori completano il link."}
+                    {legacyParentConsentDocumentCount > 0
+                      ? ` ${legacyParentConsentDocumentCount} documenti precedenti restano consultabili aprendo il dettaglio della riga.`
+                      : ""}
                   </p>
                 </div>
                 <div className="admin-section-actions">
-                  <button
-                    className="button button--ghost button--small"
-                    disabled={
-                      busy !== null ||
-                      loading ||
-                      legacyApprovedWithoutPdfCount === 0
-                    }
-                    onClick={() => void handleBackfillLegacyApprovals()}
-                    type="button"
-                  >
-                    <AppIcon name="refresh" />
-                    <span>
-                      {busy === "backfillLegacyApprovals"
-                        ? "Conversione..."
-                        : `Fallback legacy${
-                            legacyApprovedWithoutPdfCount > 0
-                              ? ` (${legacyApprovedWithoutPdfCount})`
-                              : ""
-                          }`}
-                    </span>
-                  </button>
                   <button
                     className="button button--ghost button--small"
                     disabled={
@@ -1741,19 +1641,9 @@ export function AdminEventDetailPage() {
                 const isCurrentBusy = busyRegistrationId === registration.id;
                 const parentEmail = getParentEmail(registration);
                 const parentName = getParentName(registration);
-                const parentalAccepted = registration.answers.parentalConsentAccepted === true;
-                const photoAccepted = registration.answers.photoReleaseAccepted === true;
-                const signerName =
-                  typeof registration.answers.parentalConsentSignerName === "string" &&
-                  registration.answers.parentalConsentSignerName
-                    ? registration.answers.parentalConsentSignerName
-                    : typeof registration.answers.photoReleaseSignerName === "string"
-                      ? registration.answers.photoReleaseSignerName
-                      : "";
-                const parentAuthStatus = registration.parentAuthorization?.status ?? "missing";
-                const hasSignedParentAuthorizationPdf =
-                  parentAuthStatus === "authorized" &&
-                  Boolean(registration.parentAuthorization?.pdfPath);
+                const parentAuthStatus = getParentAuthorizationStatus(registration);
+                const signedParentAuthorizationPdf =
+                  hasSignedParentAuthorizationPdf(registration);
                 const canResendParentEmail =
                   resolvedEvent.requiresParentAuthorization &&
                   parentAuthStatus !== "authorized" &&
@@ -1786,41 +1676,11 @@ export function AdminEventDetailPage() {
                         {resolvedEvent.requiresParentAuthorization ? (
                           <StatusBadge label={authBadge.label} tone={authBadge.tone} />
                         ) : null}
-                        {resolvedEvent.requiresParentalConsent ? (
-                          <StatusBadge
-                            label={parentalAccepted ? "Genitore OK" : "Genitore NO"}
-                            tone={parentalAccepted ? "success" : "warning"}
-                          />
+                        {signedParentAuthorizationPdf ? (
+                          <StatusBadge label="Modulo PDF" tone="success" />
                         ) : null}
-                        {resolvedEvent.requiresPhotoRelease ? (
-                          <StatusBadge
-                            label={photoAccepted ? "Foto OK" : "Foto NO"}
-                            tone={photoAccepted ? "success" : "warning"}
-                          />
-                        ) : null}
-                        <StatusBadge
-                          label={registration.consentSignatureUrl ? "Firma" : "No firma"}
-                          tone={registration.consentSignatureUrl ? "success" : "warning"}
-                        />
-                        <StatusBadge
-                          label={registration.parentIdDocumentUrl ? "ID" : "No ID"}
-                          tone={registration.parentIdDocumentUrl ? "success" : "warning"}
-                        />
-                        {isMinorRegistration(registration) ? (
-                          <StatusBadge
-                            label={
-                              registration.parentConsentDocumentUrl ||
-                              registration.parentAuthorization?.pdfPath
-                                ? "Doc"
-                                : "No doc"
-                            }
-                            tone={
-                              registration.parentConsentDocumentUrl ||
-                              registration.parentAuthorization?.pdfPath
-                                ? "success"
-                                : "warning"
-                            }
-                          />
+                        {registration.parentConsentDocumentUrl ? (
+                          <StatusBadge label="Doc precedente" tone="info" />
                         ) : null}
                       </span>
                     </button>
@@ -1841,8 +1701,8 @@ export function AdminEventDetailPage() {
                             <dd>{parentEmail || "-"}</dd>
                           </div>
                           <div>
-                            <dt>Firmatario</dt>
-                            <dd>{signerName || "-"}</dd>
+                            <dt>Autorizzazione</dt>
+                            <dd>{authBadge.label}</dd>
                           </div>
                           {registration.parentAuthorization?.emailSentAt ? (
                             <div>
@@ -1931,28 +1791,6 @@ export function AdminEventDetailPage() {
                         ) : null}
 
                         <div className="admin-consent-actions">
-                          {registration.consentSignatureUrl ? (
-                            <a
-                              className="button button--ghost button--small"
-                              href={registration.consentSignatureUrl}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              <AppIcon name="eye" />
-                              <span>Firma</span>
-                            </a>
-                          ) : null}
-                          {registration.parentIdDocumentUrl ? (
-                            <a
-                              className="button button--ghost button--small"
-                              href={registration.parentIdDocumentUrl}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              <AppIcon name="eye" />
-                              <span>ID genitore</span>
-                            </a>
-                          ) : null}
                           {registration.parentConsentDocumentUrl ? (
                             <a
                               className="button button--ghost button--small"
@@ -1961,10 +1799,10 @@ export function AdminEventDetailPage() {
                               target="_blank"
                             >
                               <AppIcon name="eye" />
-                              <span>Doc. genitore</span>
+                              <span>Documento precedente</span>
                             </a>
                           ) : null}
-                          {hasSignedParentAuthorizationPdf ? (
+                          {signedParentAuthorizationPdf ? (
                             <button
                               className="button button--ghost button--small"
                               disabled={busy !== null}
@@ -1990,64 +1828,6 @@ export function AdminEventDetailPage() {
                             >
                               <AppIcon name="download" />
                               <span>Regolamento</span>
-                            </button>
-                          ) : null}
-                          {resolvedEvent.requiresParentalConsent ? (
-                            <button
-                              className="button button--ghost button--small"
-                              onClick={async () => {
-                                try {
-                                  const { downloadConsentPdf } = await import(
-                                    "@/utils/consentPdf"
-                                  );
-                                  await downloadConsentPdf({
-                                    event: resolvedEvent,
-                                    registration,
-                                    kind: "parental",
-                                    signatureDataUrl:
-                                      registration.consentSignatureUrl ?? null,
-                                  });
-                                } catch (caughtError) {
-                                  setActionError(
-                                    caughtError instanceof Error
-                                      ? caughtError.message
-                                      : "PDF non generato.",
-                                  );
-                                }
-                              }}
-                              type="button"
-                            >
-                              <AppIcon name="download" />
-                              <span>PDF consenso</span>
-                            </button>
-                          ) : null}
-                          {resolvedEvent.requiresPhotoRelease ? (
-                            <button
-                              className="button button--ghost button--small"
-                              onClick={async () => {
-                                try {
-                                  const { downloadConsentPdf } = await import(
-                                    "@/utils/consentPdf"
-                                  );
-                                  await downloadConsentPdf({
-                                    event: resolvedEvent,
-                                    registration,
-                                    kind: "photo",
-                                    signatureDataUrl:
-                                      registration.consentSignatureUrl ?? null,
-                                  });
-                                } catch (caughtError) {
-                                  setActionError(
-                                    caughtError instanceof Error
-                                      ? caughtError.message
-                                      : "PDF non generato.",
-                                  );
-                                }
-                              }}
-                              type="button"
-                            >
-                              <AppIcon name="download" />
-                              <span>PDF liberatoria</span>
                             </button>
                           ) : null}
                           <button
@@ -2493,12 +2273,11 @@ export function AdminEventDetailPage() {
                 ...(isMinorRegistration(registrationModal)
                   ? [
                       {
-                        label: "Consenso genitore",
-                        value:
-                          registrationModal.parentConsentDocumentUrl ||
-                          registrationModal.parentAuthorization?.pdfPath
-                          ? "Caricato"
-                          : "Mancante",
+                        label: "Autorizzazione genitore",
+                        value: getParentAuthorizationBadge(
+                          registrationModal,
+                          Boolean(resolvedEvent.requiresParentAuthorization),
+                        ).label,
                       },
                     ]
                   : []),

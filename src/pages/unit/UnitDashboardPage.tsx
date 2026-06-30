@@ -46,7 +46,7 @@ function ActivityRow({ summary }: { summary: UnitActivitySummary }) {
         )}
 
         {stats.missingParentConsent > 0 && (
-          <span className="unit-stat unit-stat--danger" title="Modulo genitore mancante (minorenni)">
+          <span className="unit-stat unit-stat--danger" title="Autorizzazione genitore mancante (minorenni)">
             <AppIcon name="badge" />
             {stats.missingParentConsent}
           </span>
@@ -119,7 +119,7 @@ export function UnitDashboardPage() {
           </article>
           <article className="admin-metric admin-metric--danger">
             <strong>{totals.consensoGenitore}</strong>
-            <span>Modulo genitore mancante</span>
+            <span>Autorizzazione genitore mancante</span>
           </article>
         </section>
       )}
@@ -165,7 +165,7 @@ export function UnitDashboardPage() {
           <span className="unit-stat unit-stat--ok"><AppIcon name="users" /> Iscritti unità</span>
           <span className="unit-stat unit-stat--warn"><AppIcon name="map-pin" /> Passaggio necessario / da definire</span>
           <span className="unit-stat unit-stat--warn"><AppIcon name="eye" /> Consenso foto mancante</span>
-          <span className="unit-stat unit-stat--danger"><AppIcon name="badge" /> Modulo genitore mancante</span>
+          <span className="unit-stat unit-stat--danger"><AppIcon name="badge" /> Autorizzazione genitore mancante</span>
         </div>
       </section>
 

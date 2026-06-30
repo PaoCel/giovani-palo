@@ -144,8 +144,7 @@ function mapEvent(
       typeof data.requiresImageConsent === "boolean"
         ? data.requiresImageConsent
         : data.requiresPhotoRelease === true,
-    requiresDocumentUpload:
-      typeof data.requiresDocumentUpload === "boolean" ? data.requiresDocumentUpload : false,
+    requiresDocumentUpload: false,
     consentVersionId:
       typeof data.consentVersionId === "string"
         ? data.consentVersionId
@@ -218,7 +217,7 @@ function normalizeEventInput(input: EventWriteInput) {
     requiresMedicalNotes: input.requiresMedicalNotes ?? isStrong,
     requiresImageConsent:
       input.requiresImageConsent ?? (input.requiresPhotoRelease ?? false),
-    requiresDocumentUpload: input.requiresDocumentUpload ?? false,
+    requiresDocumentUpload: false,
     consentVersionId: input.consentVersionId ?? LEGAL_DOC_VERSIONS.participation,
     privacyNoticeVersionId:
       input.privacyNoticeVersionId ?? LEGAL_DOC_VERSIONS.privacy,

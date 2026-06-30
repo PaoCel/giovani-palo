@@ -60,6 +60,8 @@ export function formatRegistrationAnswerValue(value: RegistrationAnswerValue) {
 
 export function getRegistrationStatusLabel(status: RegistrationStatus) {
   switch (status) {
+    case "draft":
+      return "Bozza";
     case "confirmed":
       return "Confermata";
     case "cancelled":
@@ -70,8 +72,10 @@ export function getRegistrationStatusLabel(status: RegistrationStatus) {
       return "Inviata";
     case "active":
       return "Attiva";
-    default:
-      return "Bozza";
+    case "pending_parent_authorization":
+      return "In attesa autorizzazione genitore";
+    case "rejected_by_parent":
+      return "Rifiutata dal genitore";
   }
 }
 
@@ -83,12 +87,14 @@ export function getRegistrationStatusTone(
     case "active":
       return "success";
     case "waitlist":
+    case "pending_parent_authorization":
       return "warning";
     case "cancelled":
+    case "rejected_by_parent":
       return "danger";
     case "submitted":
       return "info";
-    default:
+    case "draft":
       return "neutral";
   }
 }
@@ -155,8 +161,7 @@ export function getRegistrationHighlights(
     } else if (parentAuthStatus === "expired") {
       highlights.push({ label: "Link autorizzazione scaduto", tone: "warning" });
     } else if (registration.parentConsentDocumentUrl) {
-      // Fallback flusso legacy upload PDF.
-      highlights.push({ label: "Consenso genitore caricato", tone: "info" });
+      highlights.push({ label: "Documento genitore precedente", tone: "info" });
     } else {
       // Nessuno dei due flussi attivo per questa iscrizione.
       highlights.push({ label: "Consenso genitore mancante", tone: "warning" });

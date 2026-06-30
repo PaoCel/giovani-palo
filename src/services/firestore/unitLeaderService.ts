@@ -1,8 +1,9 @@
 import { eventsService } from "@/services/firestore/eventsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { usersService } from "@/services/firestore/usersService";
-import type { Registration, UserProfile } from "@/types";
+import type { Event, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
+import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
 
 export interface UnitActivityStats {
   total: number;
@@ -20,10 +21,11 @@ export interface UnitActivitySummary {
   stats: UnitActivityStats;
 }
 
-function computeStats(registrations: Registration[]): UnitActivityStats {
+function computeStats(registrations: Registration[], event?: Event | null): UnitActivityStats {
   let needsTransport = 0;
   let missingPhotoConsent = 0;
   let missingParentConsent = 0;
+  const requiresParentAuthorization = Boolean(event?.requiresParentAuthorization);
 
   for (const r of registrations) {
     const transport = typeof r.answers.transportMode === "string" ? r.answers.transportMode : "";
@@ -34,7 +36,7 @@ function computeStats(registrations: Registration[]): UnitActivityStats {
       missingPhotoConsent++;
     }
     const isMinor = isMinorBirthDate(r.birthDate);
-    if (isMinor && !r.parentConsentDocumentUrl && !r.answers.parentConfirmed) {
+    if (requiresParentAuthorization && isMinor && !isParentAuthorizationAuthorized(r)) {
       missingParentConsent++;
     }
   }
@@ -81,7 +83,7 @@ export const unitLeaderService = {
           eventStartDate: event.startDate,
           eventStatus: event.status,
           registrations,
-          stats: computeStats(registrations),
+          stats: computeStats(registrations, event),
         };
       }),
     );
@@ -105,6 +107,6 @@ export const unitLeaderService = {
       usersService.listUnitYouth(stakeId, unitId),
     ]);
 
-    return { event, registrations, unitYouth, stats: computeStats(registrations) };
+    return { event, registrations, unitYouth, stats: computeStats(registrations, event) };
   },
 };

@@ -2,8 +2,6 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
-import { ConsentSection } from "@/components/ConsentSection";
-import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 // keep import order stable for Vite
 import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
@@ -13,10 +11,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
-import { organizationService } from "@/services/firestore/organizationService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
-import { isMinorBirthDate } from "@/utils/age";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { getEventAudienceLabel } from "@/utils/events";
@@ -35,12 +31,6 @@ export function MyActivityDetailPage() {
   const [busy, setBusy] = useState<null | "cancel">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const { data: organization } = useAsyncData(
-    () => organizationService.getProfile(stakeId),
-    [stakeId],
-    null,
-  );
-
   const { data, loading, error, setData } = useAsyncData(
     async () => {
       if (!eventId || !stakeId) {
@@ -129,15 +119,6 @@ export function MyActivityDetailPage() {
   const answerEntries =
     data ? getRegistrationAnswerEntries(data.formConfig, data.registration) : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
-  const showParentConsentCard =
-    Boolean(
-      data &&
-        session?.isAuthenticated &&
-        !session.isAnonymous &&
-        data.formConfig.enabledStandardFields.includes("parentConfirmed") &&
-        isMinorBirthDate(data.registration.birthDate),
-    );
-
   return (
     <div className="page">
       <PageHero
@@ -318,52 +299,6 @@ export function MyActivityDetailPage() {
               <p className="subtle-text">Nessuna risposta aggiuntiva oltre ai dati base.</p>
             )}
           </SectionCard>
-
-          {(data.event.requiresParentalConsent || data.event.requiresPhotoRelease) && session ? (
-            <SectionCard
-              title="Autorizzazioni e firma"
-              description="Completa o aggiorna i consensi richiesti per questa attivita. Tutto e visibile solo agli admin."
-            >
-              <ConsentSection
-                event={data.event}
-                isMinor={isMinorBirthDate(data.registration.birthDate)}
-                onRegistrationUpdated={(updated) =>
-                  setData((current) =>
-                    current
-                      ? {
-                          ...current,
-                          registration: updated,
-                        }
-                      : current,
-                  )
-                }
-                persistImmediately
-                registration={data.registration}
-                sessionUid={session.firebaseUser.uid}
-                stakeId={stakeId}
-              />
-            </SectionCard>
-          ) : null}
-
-          {showParentConsentCard && session ? (
-            <ParentConsentUploadCard
-              eventId={data.event.id}
-              exampleImageUrl={organization?.minorConsentExampleImageUrl}
-              onRegistrationUpdated={(updatedRegistration) =>
-                setData((current) =>
-                  current
-                    ? {
-                        ...current,
-                        registration: updatedRegistration,
-                      }
-                    : current,
-                )
-              }
-              registration={data.registration}
-              sessionUid={session.firebaseUser.uid}
-              stakeId={stakeId}
-            />
-          ) : null}
 
           {data.event.questionsEnabled ? (
             <QuestionsSection
