@@ -1,5 +1,7 @@
 import type { GenderRoleCategory, Registration } from "@/types";
+import { isMinorBirthDate } from "@/utils/age";
 import { formatDateOnly, formatDateTime } from "@/utils/formatters";
+import { getParentAuthorizationBadge } from "@/utils/parentAuthorization";
 import { getRegistrationStatusLabel } from "@/utils/registrations";
 import { formatRoomPreferenceValue, getRegistrationTextAnswer } from "@/utils/roomPreferences";
 import { slugify } from "@/utils/slugify";
@@ -60,7 +62,7 @@ export const EXCEL_EXPORT_FIELDS: ExportFieldOption[] = [
   { key: "roomPreference1Name", label: "Preferenza stanza 1", group: "logistica" },
   { key: "roomPreference2Name", label: "Preferenza stanza 2", group: "logistica" },
   { key: "roomNotes", label: "Note stanza", group: "logistica" },
-  { key: "parentConfirmed", label: "Consenso genitore", group: "consensi" },
+  { key: "parentConfirmed", label: "Autorizzazione genitore", group: "consensi" },
   { key: "photoInternalConsent", label: "Foto uso interno", group: "consensi" },
   { key: "photoPublicConsent", label: "Foto uso pubblico", group: "consensi" },
   { key: "participatingDays", label: "Giorni di partecipazione", group: "logistica" },
@@ -110,7 +112,7 @@ const fieldHeaderLabels: Record<ExportFieldKey, string> = {
   roomPreference1Name: "Preferenza stanza 1",
   roomPreference2Name: "Preferenza stanza 2",
   roomNotes: "Note stanza",
-  parentConfirmed: "Consenso genitore",
+  parentConfirmed: "Autorizzazione genitore",
   photoInternalConsent: "Foto uso interno",
   photoPublicConsent: "Foto uso pubblico",
   participatingDays: "Giorni di partecipazione",
@@ -161,6 +163,24 @@ function formatBoolean(value: unknown) {
   return "";
 }
 
+function formatParentAuthorization(registration: Registration) {
+  if (!isMinorBirthDate(registration.birthDate)) {
+    return "";
+  }
+
+  const badge = getParentAuthorizationBadge(registration, true);
+
+  if (badge.tone !== "warning" || registration.parentAuthorization) {
+    return badge.label;
+  }
+
+  if (registration.parentConsentDocumentUrl || registration.answers.parentConfirmed === true) {
+    return "Documento precedente";
+  }
+
+  return badge.label;
+}
+
 function safeFormatDate(value: string, kind: "date" | "datetime") {
   if (!value) return "";
   const date = new Date(value);
@@ -203,6 +223,7 @@ function getFieldValue(registration: Registration, field: ExportFieldKey): strin
     case "roomNotes":
       return getRegistrationTextAnswer(registration, "roomNotes");
     case "parentConfirmed":
+      return formatParentAuthorization(registration);
     case "photoInternalConsent":
     case "photoPublicConsent":
       return formatBoolean(registration.answers[field]);

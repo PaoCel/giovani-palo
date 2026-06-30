@@ -9,6 +9,7 @@ import { unitLeaderService } from "@/services/firestore/unitLeaderService";
 import { unitTransportNotesService } from "@/services/firestore/unitTransportNotesService";
 import type { Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
+import { getParentAuthorizationBadge } from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
   getRegistrationStatusLabel,
@@ -82,12 +83,17 @@ function TransportBadge({
   );
 }
 
-function ConsentCell({ registration }: { registration: Registration }) {
+function ConsentCell({
+  registration,
+  requiresParentAuthorization,
+}: {
+  registration: Registration;
+  requiresParentAuthorization: boolean;
+}) {
   const hasPhoto = registration.answers.photoInternalConsent === true;
   const isMinor = isMinorBirthDate(registration.birthDate);
-  const hasParent =
-    !isMinor ||
-    Boolean(registration.parentConsentDocumentUrl || registration.answers.parentConfirmed);
+  const parentBadge = getParentAuthorizationBadge(registration, requiresParentAuthorization);
+  const hasParent = parentBadge.tone === "success";
 
   return (
     <div className="unit-consent-cell">
@@ -98,36 +104,27 @@ function ConsentCell({ registration }: { registration: Registration }) {
         <AppIcon name={hasPhoto ? "check" : "x"} />
         Foto
       </span>
-      {isMinor && (
+      {isMinor && requiresParentAuthorization ? (
         <span
           className={hasParent ? "unit-consent-ok" : "unit-consent-missing"}
-          title={hasParent ? "Modulo genitore OK" : "Modulo genitore mancante"}
+          title={`Autorizzazione genitore: ${parentBadge.label}`}
         >
-          {registration.parentConsentDocumentUrl ? (
-            <a
-              href={registration.parentConsentDocumentUrl}
-              onClick={(e) => e.stopPropagation()}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <AppIcon name="download" />
-            </a>
-          ) : (
-            <AppIcon name={hasParent ? "check" : "x"} />
-          )}
-          Genitore
+          <AppIcon name={hasParent ? "check" : "x"} />
+          {parentBadge.label}
         </span>
-      )}
+      ) : null}
     </div>
   );
 }
 
 function RegistrationRow({
   registration,
+  requiresParentAuthorization,
   isTransportResolved,
   onToggleTransport,
 }: {
   registration: Registration;
+  requiresParentAuthorization: boolean;
   isTransportResolved: boolean;
   onToggleTransport: () => void;
 }) {
@@ -152,7 +149,10 @@ function RegistrationRow({
         />
       </td>
       <td className="unit-table__cell">
-        <ConsentCell registration={registration} />
+        <ConsentCell
+          registration={registration}
+          requiresParentAuthorization={requiresParentAuthorization}
+        />
       </td>
     </tr>
   );
@@ -271,7 +271,7 @@ export function UnitActivityPage() {
           </article>
           <article className="admin-metric admin-metric--danger">
             <strong>{data.stats.missingParentConsent}</strong>
-            <span>Modulo genitore mancante</span>
+            <span>Autorizzazione genitore mancante</span>
           </article>
         </section>
       )}
@@ -304,6 +304,7 @@ export function UnitActivityPage() {
                   <RegistrationRow
                     key={r.id}
                     registration={r}
+                    requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
                     isTransportResolved={resolvedSet.has(r.id)}
                     onToggleTransport={() => void handleToggleTransport(r.id)}
                   />

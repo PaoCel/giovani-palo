@@ -28,7 +28,6 @@ const allowedStandardFieldKeys = new Set<StandardFieldKey>([
   "medicalNotes",
   "photoInternalConsent",
   "photoPublicConsent",
-  "parentConfirmed",
 ]);
 const defaultEnabledStandardFields: StandardFieldKey[] = [
   "birthDate",
