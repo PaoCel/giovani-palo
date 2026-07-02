@@ -226,6 +226,10 @@ service cloud.firestore {
           'assignedRoomId',
           'assignedTempleShiftId',
           'assignedServiceTeamIds',
+          'assignedPatrolId',
+          'assignedPatrolName',
+          'assignedPatrolRole',
+          'assignedCommittees',
           'createdAt',
           'updatedAt'
         ])
@@ -269,6 +273,10 @@ service cloud.firestore {
         && (data.assignedRoomId == null || data.assignedRoomId is string)
         && (data.assignedTempleShiftId == null || data.assignedTempleShiftId is string)
         && data.assignedServiceTeamIds is list
+        && (data.assignedPatrolId == null || data.assignedPatrolId is string)
+        && (data.assignedPatrolName == null || data.assignedPatrolName is string)
+        && (data.assignedPatrolRole == null || data.assignedPatrolRole in ['leader', 'supervisor', 'member'])
+        && (!('assignedCommittees' in data) || data.assignedCommittees is list)
         && data.createdAt is string
         && data.updatedAt is string;
     }
@@ -314,6 +322,11 @@ service cloud.firestore {
         && request.resource.data.assignedRoomId == null
         && request.resource.data.assignedTempleShiftId == null
         && request.resource.data.assignedServiceTeamIds.size() == 0
+        && request.resource.data.assignedPatrolId == null
+        && request.resource.data.assignedPatrolName == null
+        && request.resource.data.assignedPatrolRole == null
+        && (!('assignedCommittees' in request.resource.data)
+          || request.resource.data.assignedCommittees.size() == 0)
         && request.resource.data.linkedLaterToUserId == null;
     }
 
@@ -329,6 +342,22 @@ service cloud.firestore {
         && request.resource.data.assignedRoomId == resource.data.assignedRoomId
         && request.resource.data.assignedTempleShiftId == resource.data.assignedTempleShiftId
         && request.resource.data.assignedServiceTeamIds == resource.data.assignedServiceTeamIds
+        && request.resource.data.assignedPatrolId == resource.data.get('assignedPatrolId', null)
+        && request.resource.data.assignedPatrolName == resource.data.get('assignedPatrolName', null)
+        && request.resource.data.assignedPatrolRole == resource.data.get('assignedPatrolRole', null)
+        && (
+          (
+            !('assignedCommittees' in resource.data)
+            && (
+              !('assignedCommittees' in request.resource.data)
+              || request.resource.data.assignedCommittees.size() == 0
+            )
+          )
+          || (
+            'assignedCommittees' in resource.data
+            && request.resource.data.assignedCommittees == resource.data.assignedCommittees
+          )
+        )
         && request.resource.data.linkedLaterToUserId == resource.data.linkedLaterToUserId
         && (
           ('parentUid' in resource.data && resource.data.parentUid != null)
@@ -389,6 +418,22 @@ service cloud.firestore {
             && request.resource.data.parentAuthorization == resource.data.parentAuthorization
           )
         );
+    }
+
+    function validCampAssignmentUpdate(stakeId) {
+      return isUnitLeaderOfStake(stakeId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'assignedPatrolId',
+          'assignedPatrolName',
+          'assignedPatrolRole',
+          'assignedCommittees',
+          'updatedAt'
+        ])
+        && (request.resource.data.assignedPatrolId == null || request.resource.data.assignedPatrolId is string)
+        && (request.resource.data.assignedPatrolName == null || request.resource.data.assignedPatrolName is string)
+        && (request.resource.data.assignedPatrolRole == null || request.resource.data.assignedPatrolRole in ['leader', 'supervisor', 'member'])
+        && (!('assignedCommittees' in request.resource.data) || request.resource.data.assignedCommittees is list)
+        && request.resource.data.updatedAt is string;
     }
 
     function validQuestionStatus(value) {
@@ -1041,6 +1086,25 @@ service cloud.firestore {
           allow create, update, delete: if isStakeAdmin(stakeId);
         }
 
+        match /management/{managementId} {
+          allow get, list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
+          allow create, update: if (isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId))
+            && managementId == 'camp'
+            && request.resource.data.keys().hasOnly([
+              'committees',
+              'patrols',
+              'manualLeaders',
+              'updatedAt',
+              'savedAt'
+            ])
+            && request.resource.data.committees is list
+            && request.resource.data.patrols is list
+            && request.resource.data.manualLeaders is list
+            && request.resource.data.updatedAt is string;
+          allow delete: if (isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId))
+            && managementId == 'camp';
+        }
+
         match /formFields/{fieldId} {
           allow get, list: if isStakeAdmin(stakeId)
             || isPublicActivity(stakeId, activityId)
@@ -1057,7 +1121,7 @@ service cloud.firestore {
             || isUnitLeaderOfUnit(stakeId, resource.data.unitId);
           allow create: if isStakeAdmin(stakeId)
             || validRegistrationCreate(stakeId, activityId, registrationId);
-          allow update: if isStakeAdmin(stakeId) || validRegistrationUpdate();
+          allow update: if isStakeAdmin(stakeId) || validCampAssignmentUpdate(stakeId) || validRegistrationUpdate();
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
 

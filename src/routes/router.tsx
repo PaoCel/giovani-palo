@@ -216,6 +216,8 @@ export const router = createBrowserRouter([
           ...[
             "events/:eventId",
             "events/:eventId/form-builder",
+            "events/:eventId/committees",
+            "events/:eventId/comitati",
             "events/:eventId/registrations",
             "events/:eventId/consents",
             "events/:eventId/rooms",

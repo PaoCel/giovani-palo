@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { AdminActivityCard } from "@/components/AdminActivityCard";
@@ -16,15 +16,24 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
+import { campManagementService } from "@/services/firestore/campManagementService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { questionsService } from "@/services/firestore/questionsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
-import type { Question, Registration } from "@/types";
+import type {
+  CampCommitteeId,
+  CampManagementPlan,
+  CampPatrolPlan,
+  CampPatrolRole,
+  Question,
+  Registration,
+} from "@/types";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
+  downloadCampManagementExcel,
   downloadRegistrationsExcel,
   downloadYouthRegistrantsExcel,
   type ExportOptions,
@@ -52,6 +61,7 @@ import {
 
 type AdminEventTab =
   | "details"
+  | "committees"
   | "registrations"
   | "consents"
   | "overnight"
@@ -95,6 +105,27 @@ const registrationCategoryFilterOptions: Array<{
   { value: "dirigente", label: "Dirigenti" },
   { value: "accompagnatore", label: "Accompagnatori" },
 ];
+
+function getPatrolRoleLabel(role: CampPatrolRole | null) {
+  switch (role) {
+    case "leader":
+      return "Capo pattuglia";
+    case "supervisor":
+      return "Supervisore";
+    case "member":
+      return "Membro";
+    default:
+      return "";
+  }
+}
+
+function createLocalId(prefix: string) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}`;
+}
 
 function buildDistribution<T>(
   items: T[],
@@ -264,6 +295,10 @@ function getParentAuthorizationBadge(
 }
 
 function getAdminEventTabFromPath(pathname: string): AdminEventTab {
+  if (pathname.endsWith("/committees") || pathname.endsWith("/comitati")) {
+    return "committees";
+  }
+
   if (pathname.endsWith("/registrations")) {
     return "registrations";
   }
@@ -297,6 +332,8 @@ function getAdminEventTabFromPath(pathname: string): AdminEventTab {
 
 function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
   switch (tab) {
+    case "committees":
+      return `/admin/events/${eventId}/comitati`;
     case "registrations":
       return `/admin/events/${eventId}/registrations`;
     case "consents":
@@ -336,6 +373,7 @@ export function AdminEventDetailPage() {
     | "deleteRegistration"
     | "cancelRegistration"
     | "reactivateRegistration"
+    | "saveCampManagement"
   >(null);
   const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -361,6 +399,10 @@ export function AdminEventDetailPage() {
   >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState("all");
   const [nameSearch, setNameSearch] = useState("");
+  const [campDraft, setCampDraft] = useState<CampManagementPlan>(
+    campManagementService.getDefaultCampManagement(),
+  );
+  const [manualLeaderName, setManualLeaderName] = useState("");
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -368,10 +410,11 @@ export function AdminEventDetailPage() {
         return null;
       }
 
-      const [workspace, organization, allEvents] = await Promise.all([
+      const [workspace, organization, allEvents, campManagement] = await Promise.all([
         adminEventsService.getAdminEventWorkspace(stakeId, eventId),
         organizationService.getProfile(stakeId),
         adminEventsService.listAdminEvents(stakeId),
+        campManagementService.getCampManagement(stakeId, eventId),
       ]);
 
       if (!workspace) {
@@ -389,6 +432,7 @@ export function AdminEventDetailPage() {
         workspace,
         organization,
         registrationsPerEvent,
+        campManagement,
       };
     },
     [eventId, refreshKey, stakeId],
@@ -414,6 +458,14 @@ export function AdminEventDetailPage() {
   const formConfig = data?.workspace.formConfig ?? null;
   const registrations = data?.workspace.registrations ?? [];
   const routeTab = getAdminEventTabFromPath(location.pathname);
+  const campManagement = useMemo(
+    () => data?.campManagement ?? campManagementService.getDefaultCampManagement(),
+    [data?.campManagement],
+  );
+
+  useEffect(() => {
+    setCampDraft(campManagement);
+  }, [campManagement]);
 
   const sortedRegistrations = useMemo(
     () =>
@@ -433,6 +485,102 @@ export function AdminEventDetailPage() {
       ),
     [sortedRegistrations],
   );
+  const activeRegistrationById = useMemo(() => {
+    const map = new Map<string, Registration>();
+    for (const registration of activeRegistrations) {
+      map.set(registration.id, registration);
+    }
+    return map;
+  }, [activeRegistrations]);
+  const youthRegistrations = useMemo(
+    () =>
+      activeRegistrations.filter(
+        (registration) =>
+          registration.genderRoleCategory === "giovane_uomo" ||
+          registration.genderRoleCategory === "giovane_donna",
+      ),
+    [activeRegistrations],
+  );
+  const adultRegistrations = useMemo(
+    () =>
+      activeRegistrations.filter(
+        (registration) =>
+          registration.genderRoleCategory === "dirigente" ||
+          registration.genderRoleCategory === "accompagnatore",
+      ),
+    [activeRegistrations],
+  );
+  const manualLeaderById = useMemo(
+    () => new Map(campDraft.manualLeaders.map((leader) => [leader.id, leader])),
+    [campDraft.manualLeaders],
+  );
+  const committeeAssignmentByRegistrationId = useMemo(() => {
+    const map = new Map<string, CampCommitteeId>();
+
+    for (const committee of campDraft.committees) {
+      for (const registrationId of [
+        ...committee.leaderRegistrationIds,
+        ...committee.memberRegistrationIds,
+      ]) {
+        if (!map.has(registrationId)) {
+          map.set(registrationId, committee.id);
+        }
+      }
+    }
+
+    return map;
+  }, [campDraft.committees]);
+  const committeeAssignmentByManualLeaderId = useMemo(() => {
+    const map = new Map<string, CampCommitteeId>();
+
+    for (const committee of campDraft.committees) {
+      for (const leaderId of committee.manualLeaderIds) {
+        if (!map.has(leaderId)) {
+          map.set(leaderId, committee.id);
+        }
+      }
+    }
+
+    return map;
+  }, [campDraft.committees]);
+  const patrolAssignmentByRegistrationId = useMemo(() => {
+    const map = new Map<
+      string,
+      { patrolId: string; patrolName: string; role: CampPatrolRole }
+    >();
+
+    for (const patrol of campDraft.patrols) {
+      if (patrol.leaderRegistrationId) {
+        map.set(patrol.leaderRegistrationId, {
+          patrolId: patrol.id,
+          patrolName: patrol.name,
+          role: "leader",
+        });
+      }
+
+      for (const registrationId of patrol.supervisorRegistrationIds) {
+        if (!map.has(registrationId)) {
+          map.set(registrationId, {
+            patrolId: patrol.id,
+            patrolName: patrol.name,
+            role: "supervisor",
+          });
+        }
+      }
+
+      for (const registrationId of patrol.memberRegistrationIds) {
+        if (!map.has(registrationId)) {
+          map.set(registrationId, {
+            patrolId: patrol.id,
+            patrolName: patrol.name,
+            role: "member",
+          });
+        }
+      }
+    }
+
+    return map;
+  }, [campDraft.patrols]);
   const organizationDistribution = useMemo(
     () =>
       buildDistribution(
@@ -639,6 +787,12 @@ export function AdminEventDetailPage() {
   const assignedRoomCount = activeRegistrations.filter((registration) =>
     Boolean(registration.assignedRoomId),
   ).length;
+  const assignedPatrolCount = activeRegistrations.filter((registration) =>
+    Boolean(registration.assignedPatrolId),
+  ).length;
+  const assignedCommitteeCount = activeRegistrations.filter(
+    (registration) => registration.assignedCommittees.length > 0,
+  ).length;
   const averageAge = getAverageAge(activeRegistrations);
   const comparisonCounts = (data?.registrationsPerEvent ?? [])
     .map((item) => ({
@@ -663,9 +817,10 @@ export function AdminEventDetailPage() {
       ? "details"
       : routeTab;
   const subtabsCountClass = (() => {
-    let count = 4;
+    let count = 5;
     if (resolvedEvent.overnight) count += 1;
     if (resolvedEvent.questionsEnabled) count += 1;
+    if (count >= 7) return "admin-subtabs admin-subtabs--six";
     if (count === 6) return "admin-subtabs admin-subtabs--six";
     if (count === 5) return "admin-subtabs admin-subtabs--five";
     return "admin-subtabs admin-subtabs--four";
@@ -697,6 +852,241 @@ export function AdminEventDetailPage() {
 
   function openTab(tab: AdminEventTab) {
     navigate(getAdminEventTabHref(resolvedEventId, tab));
+  }
+
+  function updateCommitteeRegistration(
+    committeeId: CampCommitteeId,
+    registrationId: string,
+    role: "leader" | "member",
+  ) {
+    setCampDraft((current) => {
+      const target = current.committees.find((committee) => committee.id === committeeId);
+      const alreadyAssigned =
+        target?.leaderRegistrationIds.includes(registrationId) ||
+        target?.memberRegistrationIds.includes(registrationId);
+      const nextCommittees = current.committees.map((committee) => {
+        const withoutRegistration = {
+          ...committee,
+          leaderRegistrationIds: committee.leaderRegistrationIds.filter(
+            (value) => value !== registrationId,
+          ),
+          memberRegistrationIds: committee.memberRegistrationIds.filter(
+            (value) => value !== registrationId,
+          ),
+        };
+
+        if (committee.id !== committeeId || alreadyAssigned) {
+          return withoutRegistration;
+        }
+
+        return role === "leader"
+          ? {
+              ...withoutRegistration,
+              leaderRegistrationIds: [...withoutRegistration.leaderRegistrationIds, registrationId],
+            }
+          : {
+              ...withoutRegistration,
+              memberRegistrationIds: [...withoutRegistration.memberRegistrationIds, registrationId],
+            };
+      });
+
+      return { ...current, committees: nextCommittees };
+    });
+  }
+
+  function toggleCommitteeManualLeader(committeeId: CampCommitteeId, manualLeaderId: string) {
+    setCampDraft((current) => {
+      const target = current.committees.find((committee) => committee.id === committeeId);
+      const alreadyAssigned = Boolean(target?.manualLeaderIds.includes(manualLeaderId));
+
+      return {
+        ...current,
+        committees: current.committees.map((committee) => {
+          const withoutLeader = {
+            ...committee,
+            manualLeaderIds: committee.manualLeaderIds.filter((value) => value !== manualLeaderId),
+          };
+
+          if (committee.id !== committeeId || alreadyAssigned) {
+            return withoutLeader;
+          }
+
+          return {
+            ...withoutLeader,
+            manualLeaderIds: [...withoutLeader.manualLeaderIds, manualLeaderId],
+          };
+        }),
+      };
+    });
+  }
+
+  function addManualLeader() {
+    const fullName = manualLeaderName.trim();
+    if (!fullName) return;
+
+    const timestamp = new Date().toISOString();
+    setCampDraft((current) => ({
+      ...current,
+      manualLeaders: [
+        ...current.manualLeaders,
+        {
+          id: createLocalId("manual-leader"),
+          fullName,
+          linkedRegistrationId: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ],
+    }));
+    setManualLeaderName("");
+  }
+
+  function removeManualLeader(manualLeaderId: string) {
+    setCampDraft((current) => ({
+      ...current,
+      manualLeaders: current.manualLeaders.filter((leader) => leader.id !== manualLeaderId),
+      committees: current.committees.map((committee) => ({
+        ...committee,
+        manualLeaderIds: committee.manualLeaderIds.filter((value) => value !== manualLeaderId),
+      })),
+    }));
+  }
+
+  function addPatrol() {
+    const timestamp = new Date().toISOString();
+
+    setCampDraft((current) => ({
+      ...current,
+      patrols: [
+        ...current.patrols,
+        {
+          id: createLocalId("patrol"),
+          name: `Pattuglia ${current.patrols.length + 1}`,
+          leaderRegistrationId: "",
+          supervisorRegistrationIds: [],
+          memberRegistrationIds: [],
+          updatedAt: timestamp,
+        },
+      ],
+    }));
+  }
+
+  function removePatrol(patrolId: string) {
+    const confirmed = window.confirm("Rimuovere questa pattuglia?");
+    if (!confirmed) return;
+
+    setCampDraft((current) => ({
+      ...current,
+      patrols: current.patrols.filter((patrol) => patrol.id !== patrolId),
+    }));
+  }
+
+  function updatePatrolField<Key extends keyof CampPatrolPlan>(
+    patrolId: string,
+    key: Key,
+    value: CampPatrolPlan[Key],
+  ) {
+    setCampDraft((current) => ({
+      ...current,
+      patrols: current.patrols.map((patrol) =>
+        patrol.id === patrolId ? { ...patrol, [key]: value } : patrol,
+      ),
+    }));
+  }
+
+  function removeRegistrationFromPatrol(patrol: CampPatrolPlan, registrationId: string) {
+    return {
+      ...patrol,
+      leaderRegistrationId:
+        patrol.leaderRegistrationId === registrationId ? "" : patrol.leaderRegistrationId,
+      supervisorRegistrationIds: patrol.supervisorRegistrationIds.filter(
+        (value) => value !== registrationId,
+      ),
+      memberRegistrationIds: patrol.memberRegistrationIds.filter((value) => value !== registrationId),
+    };
+  }
+
+  function setPatrolLeader(patrolId: string, registrationId: string) {
+    setCampDraft((current) => ({
+      ...current,
+      patrols: current.patrols.map((patrol) => {
+        const withoutRegistration = registrationId
+          ? removeRegistrationFromPatrol(patrol, registrationId)
+          : patrol;
+
+        return patrol.id === patrolId
+          ? { ...withoutRegistration, leaderRegistrationId: registrationId }
+          : withoutRegistration;
+      }),
+    }));
+  }
+
+  function togglePatrolAssignment(
+    patrolId: string,
+    key: "supervisorRegistrationIds" | "memberRegistrationIds",
+    registrationId: string,
+  ) {
+    setCampDraft((current) => {
+      const targetPatrol = current.patrols.find((patrol) => patrol.id === patrolId);
+      const isRemoving = Boolean(targetPatrol?.[key].includes(registrationId));
+
+      return {
+        ...current,
+        patrols: current.patrols.map((patrol) => {
+          const withoutRegistration = removeRegistrationFromPatrol(patrol, registrationId);
+          if (patrol.id !== patrolId || isRemoving) {
+            return withoutRegistration;
+          }
+
+          return {
+            ...withoutRegistration,
+            [key]: [...withoutRegistration[key], registrationId],
+          };
+        }),
+      };
+    });
+  }
+
+  async function handleSaveCampManagement() {
+    setBusy("saveCampManagement");
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      const saved = await campManagementService.saveCampManagement(
+        stakeId,
+        resolvedEventId,
+        campDraft,
+      );
+      setCampDraft(saved);
+      setActionInfo("Comitati e pattuglie salvati.");
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile salvare comitati e pattuglie.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDownloadCampManagementExcel() {
+    setDownloadingExcel(true);
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      await downloadCampManagementExcel(resolvedEvent.title, activeRegistrations, campDraft);
+      setActionInfo("Excel comitati e pattuglie generato.");
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error ? caughtError.message : "Impossibile esportare l'Excel.",
+      );
+    } finally {
+      setDownloadingExcel(false);
+    }
   }
 
   async function handleToggleQuestionStatus(question: Question) {
@@ -1308,6 +1698,19 @@ export function AdminEventDetailPage() {
           <span>Dettagli</span>
         </button>
         <button
+          aria-pressed={activeTab === "committees"}
+          className={
+            activeTab === "committees"
+              ? "admin-subtabs__item admin-subtabs__item--active"
+              : "admin-subtabs__item"
+          }
+          onClick={() => openTab("committees")}
+          type="button"
+        >
+          <AppIcon name="badge" />
+          <span>Comitati</span>
+        </button>
+        <button
           aria-pressed={activeTab === "registrations"}
           className={
             activeTab === "registrations"
@@ -1504,6 +1907,394 @@ export function AdminEventDetailPage() {
               <p>{resolvedEvent.organizerNotes}</p>
             </article>
           ) : null}
+        </section>
+      ) : null}
+
+      {activeTab === "committees" ? (
+        <section className="admin-detail-stack">
+          <div className="admin-inline-metrics admin-inline-metrics--four">
+            <article className="admin-inline-metric">
+              <strong>{campDraft.committees.length}</strong>
+              <span>Comitati</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>{campDraft.patrols.length}</strong>
+              <span>Pattuglie</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>{assignedCommitteeCount}</strong>
+              <span>Con comitato</span>
+            </article>
+            <article className="admin-inline-metric">
+              <strong>{assignedPatrolCount}</strong>
+              <span>Con pattuglia</span>
+            </article>
+          </div>
+
+          <article className="surface-panel surface-panel--subtle admin-roster">
+            <div className="section-head admin-roster__head">
+              <div>
+                <h3>Comitati campeggio</h3>
+                <p>Dirigenti a capo e giovani membri. Ogni persona può stare in un solo comitato.</p>
+              </div>
+              <div className="admin-section-actions">
+                <button
+                  className="button button--ghost button--small"
+                  disabled={downloadingExcel}
+                  onClick={() => void handleDownloadCampManagementExcel()}
+                  type="button"
+                >
+                  <AppIcon name="download" />
+                  <span>{downloadingExcel ? "Preparazione..." : "Excel"}</span>
+                </button>
+                <button
+                  className="button button--primary button--small"
+                  disabled={busy === "saveCampManagement" || loading}
+                  onClick={() => void handleSaveCampManagement()}
+                  type="button"
+                >
+                  <AppIcon name="check" />
+                  <span>{busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="form-stack form-stack--compact">
+              <label className="field">
+                <span className="field__label">Dirigente non ancora iscritto</span>
+                <div className="inline-actions">
+                  <input
+                    className="input"
+                    value={manualLeaderName}
+                    onChange={(eventInput) => setManualLeaderName(eventInput.target.value)}
+                    placeholder="Nome e cognome"
+                  />
+                  <button
+                    className="button button--secondary button--small"
+                    onClick={addManualLeader}
+                    type="button"
+                  >
+                    <AppIcon name="plus" />
+                    <span>Aggiungi</span>
+                  </button>
+                </div>
+              </label>
+
+              {campDraft.manualLeaders.length > 0 ? (
+                <div className="chip-row admin-chip-row">
+                  {campDraft.manualLeaders.map((leader) => (
+                    <span className="chip" key={leader.id}>
+                      {leader.fullName}
+                      {leader.linkedRegistrationId ? " · collegato" : ""}
+                      <button
+                        aria-label={`Rimuovi ${leader.fullName}`}
+                        className="chip__button"
+                        onClick={() => removeManualLeader(leader.id)}
+                        type="button"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="camp-committee-grid">
+              {campDraft.committees.map((committee) => (
+                <details className="camp-committee-card" key={committee.id} open>
+                  <summary className="camp-committee-card__head">
+                    <span>
+                      <strong>
+                        {committee.emoji} {committee.title}
+                      </strong>
+                      <small>
+                        {committee.leaderRegistrationIds.length + committee.manualLeaderIds.length} dirigenti
+                        {" • "}
+                        {committee.memberRegistrationIds.length} giovani
+                      </small>
+                    </span>
+                  </summary>
+
+                  <div className="camp-committee-card__fields">
+                    <div className="field">
+                      <span className="field__label">Dirigenti iscritti</span>
+                      <div className="patrol-checkbox-list patrol-checkbox-list--compact">
+                        {adultRegistrations.length === 0 ? (
+                          <p className="subtle-text">Nessun dirigente/accompagnatore iscritto.</p>
+                        ) : (
+                          adultRegistrations.map((registration) => {
+                            const assignedCommittee = committeeAssignmentByRegistrationId.get(
+                              registration.id,
+                            );
+                            const checked = committee.leaderRegistrationIds.includes(
+                              registration.id,
+                            );
+                            const unavailable =
+                              assignedCommittee !== undefined &&
+                              assignedCommittee !== committee.id &&
+                              !checked;
+
+                            return (
+                              <label className="toggle-field" key={registration.id}>
+                                <input
+                                  checked={checked}
+                                  disabled={unavailable}
+                                  onChange={() =>
+                                    updateCommitteeRegistration(
+                                      committee.id,
+                                      registration.id,
+                                      "leader",
+                                    )
+                                  }
+                                  type="checkbox"
+                                />
+                                <span>
+                                  {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
+                                  {unavailable ? " · già assegnato" : ""}
+                                </span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="field">
+                      <span className="field__label">Dirigenti manuali</span>
+                      <div className="patrol-checkbox-list patrol-checkbox-list--compact">
+                        {campDraft.manualLeaders.length === 0 ? (
+                          <p className="subtle-text">Aggiungi sopra eventuali dirigenti non iscritti.</p>
+                        ) : (
+                          campDraft.manualLeaders.map((leader) => {
+                            const assignedCommittee = committeeAssignmentByManualLeaderId.get(
+                              leader.id,
+                            );
+                            const checked = committee.manualLeaderIds.includes(leader.id);
+                            const unavailable =
+                              assignedCommittee !== undefined &&
+                              assignedCommittee !== committee.id &&
+                              !checked;
+
+                            return (
+                              <label className="toggle-field" key={leader.id}>
+                                <input
+                                  checked={checked}
+                                  disabled={unavailable}
+                                  onChange={() => toggleCommitteeManualLeader(committee.id, leader.id)}
+                                  type="checkbox"
+                                />
+                                <span>
+                                  {leader.fullName}
+                                  {leader.linkedRegistrationId ? " · collegato" : ""}
+                                  {unavailable ? " · già assegnato" : ""}
+                                </span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="field">
+                      <span className="field__label">Giovani</span>
+                      <div className="patrol-checkbox-list patrol-checkbox-list--compact">
+                        {youthRegistrations.map((registration) => {
+                          const assignedCommittee = committeeAssignmentByRegistrationId.get(
+                            registration.id,
+                          );
+                          const checked = committee.memberRegistrationIds.includes(registration.id);
+                          const unavailable =
+                            assignedCommittee !== undefined &&
+                            assignedCommittee !== committee.id &&
+                            !checked;
+
+                          return (
+                            <label className="toggle-field" key={registration.id}>
+                              <input
+                                checked={checked}
+                                disabled={unavailable}
+                                onChange={() =>
+                                  updateCommitteeRegistration(
+                                    committee.id,
+                                    registration.id,
+                                    "member",
+                                  )
+                                }
+                                type="checkbox"
+                              />
+                              <span>
+                                {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)} ·{" "}
+                                {getCategoryShortLabel(registration)}
+                                {unavailable ? " · già assegnato" : ""}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </article>
+
+          <article className="surface-panel surface-panel--subtle admin-roster">
+            <div className="section-head admin-roster__head">
+              <div>
+                <h3>Pattuglie</h3>
+                <p>Crea pattuglie e assegna capo pattuglia, supervisori e membri.</p>
+              </div>
+              <div className="admin-section-actions">
+                <button className="button button--secondary button--small" onClick={addPatrol} type="button">
+                  <AppIcon name="plus" />
+                  <span>Aggiungi pattuglia</span>
+                </button>
+              </div>
+            </div>
+
+            {campDraft.patrols.length === 0 ? (
+              <EmptyState
+                title="Nessuna pattuglia"
+                description="Aggiungi la prima pattuglia e assegna i partecipanti."
+              />
+            ) : (
+              <div className="camp-committee-grid">
+                {campDraft.patrols.map((patrol) => (
+                  <details className="camp-committee-card" key={patrol.id} open>
+                    <summary className="camp-committee-card__head">
+                      <span>
+                        <strong>{patrol.name}</strong>
+                        <small>
+                          {patrol.leaderRegistrationId ? "capo assegnato" : "capo mancante"}
+                          {" • "}
+                          {patrol.supervisorRegistrationIds.length} supervisori
+                          {" • "}
+                          {patrol.memberRegistrationIds.length} membri
+                        </small>
+                      </span>
+                      <button
+                        aria-label={`Rimuovi ${patrol.name}`}
+                        className="icon-button admin-detail-action admin-detail-action--danger"
+                        onClick={(eventInput) => {
+                          eventInput.preventDefault();
+                          removePatrol(patrol.id);
+                        }}
+                        type="button"
+                      >
+                        <AppIcon name="trash" />
+                      </button>
+                    </summary>
+
+                    <div className="camp-committee-card__fields">
+                      <label className="field">
+                        <span className="field__label">Nome pattuglia</span>
+                        <input
+                          className="input"
+                          value={patrol.name}
+                          onChange={(eventInput) =>
+                            updatePatrolField(patrol.id, "name", eventInput.target.value)
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span className="field__label">Capo pattuglia</span>
+                        <select
+                          className="input"
+                          value={patrol.leaderRegistrationId}
+                          onChange={(eventInput) => setPatrolLeader(patrol.id, eventInput.target.value)}
+                        >
+                          <option value="">Da assegnare</option>
+                          {youthRegistrations.map((registration) => {
+                            const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                            const unavailable =
+                              assignment !== undefined && assignment.patrolId !== patrol.id;
+
+                            return (
+                              <option disabled={unavailable} key={registration.id} value={registration.id}>
+                                {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
+                                {unavailable ? ` · già in ${assignment.patrolName}` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+
+                      <div className="field">
+                        <span className="field__label">Supervisori</span>
+                        <div className="patrol-checkbox-list patrol-checkbox-list--compact">
+                          {adultRegistrations.map((registration) => {
+                            const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                            const checked = patrol.supervisorRegistrationIds.includes(registration.id);
+                            const unavailable =
+                              assignment !== undefined && assignment.patrolId !== patrol.id && !checked;
+
+                            return (
+                              <label className="toggle-field" key={registration.id}>
+                                <input
+                                  checked={checked}
+                                  disabled={unavailable}
+                                  onChange={() =>
+                                    togglePatrolAssignment(
+                                      patrol.id,
+                                      "supervisorRegistrationIds",
+                                      registration.id,
+                                    )
+                                  }
+                                  type="checkbox"
+                                />
+                                <span>
+                                  {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
+                                  {unavailable ? ` · già in ${assignment.patrolName}` : ""}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="field">
+                        <span className="field__label">Membri</span>
+                        <div className="patrol-checkbox-list patrol-checkbox-list--compact">
+                          {youthRegistrations.map((registration) => {
+                            const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                            const checked = patrol.memberRegistrationIds.includes(registration.id);
+                            const isLeader = patrol.leaderRegistrationId === registration.id;
+                            const unavailable =
+                              assignment !== undefined && assignment.patrolId !== patrol.id && !checked;
+
+                            return (
+                              <label className="toggle-field" key={registration.id}>
+                                <input
+                                  checked={checked}
+                                  disabled={unavailable || isLeader}
+                                  onChange={() =>
+                                    togglePatrolAssignment(
+                                      patrol.id,
+                                      "memberRegistrationIds",
+                                      registration.id,
+                                    )
+                                  }
+                                  type="checkbox"
+                                />
+                                <span>
+                                  {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)} ·{" "}
+                                  {getCategoryShortLabel(registration)}
+                                  {isLeader ? " · capo" : ""}
+                                  {unavailable ? ` · già in ${assignment.patrolName}` : ""}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </article>
         </section>
       ) : null}
 

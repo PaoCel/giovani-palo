@@ -17,6 +17,8 @@ import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { usersService } from "@/services/firestore/usersService";
 import type {
+  CampCommitteeAssignment,
+  CampPatrolRole,
   GenderRoleCategory,
   Registration,
   RegistrationLookup,
@@ -53,6 +55,37 @@ function splitFullName(value: string) {
     firstName: parts[0] ?? "",
     lastName: parts.slice(1).join(" "),
   };
+}
+
+function mapCampPatrolRole(value: unknown): CampPatrolRole | null {
+  return value === "leader" || value === "supervisor" || value === "member" ? value : null;
+}
+
+function mapAssignedCommittees(value: unknown): CampCommitteeAssignment[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const data = item as Record<string, unknown>;
+      const id = data.id;
+      if (
+        id !== "logistics" &&
+        id !== "wellbeing" &&
+        id !== "kitchen" &&
+        id !== "games" &&
+        id !== "spiritual"
+      ) {
+        return null;
+      }
+
+      return {
+        id,
+        title: typeof data.title === "string" ? data.title : "",
+        role: data.role === "leader" ? "leader" : "member",
+      };
+    })
+    .filter((item): item is CampCommitteeAssignment => item !== null);
 }
 
 function mapRegistration(
@@ -177,6 +210,12 @@ function mapRegistration(
           (value): value is string => typeof value === "string",
         )
       : [],
+    assignedPatrolId:
+      typeof data.assignedPatrolId === "string" ? data.assignedPatrolId : null,
+    assignedPatrolName:
+      typeof data.assignedPatrolName === "string" ? data.assignedPatrolName : null,
+    assignedPatrolRole: mapCampPatrolRole(data.assignedPatrolRole),
+    assignedCommittees: mapAssignedCommittees(data.assignedCommittees),
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
   };
@@ -489,6 +528,10 @@ export const registrationsService = {
       assignedRoomId: existing?.assignedRoomId ?? null,
       assignedTempleShiftId: existing?.assignedTempleShiftId ?? null,
       assignedServiceTeamIds: existing?.assignedServiceTeamIds ?? [],
+      assignedPatrolId: existing?.assignedPatrolId ?? null,
+      assignedPatrolName: existing?.assignedPatrolName ?? null,
+      assignedPatrolRole: existing?.assignedPatrolRole ?? null,
+      assignedCommittees: existing?.assignedCommittees ?? [],
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     });
