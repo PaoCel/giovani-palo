@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { surveysService } from "@/services/firestore/surveysService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
-import { getAbsoluteUrl, getActivitiesPath, getActivityPath } from "@/utils/activityLinks";
+import { getAbsoluteUrl, getActivitiesPath, getMyActivityPath } from "@/utils/activityLinks";
 import { formatEventWindow } from "@/utils/formatters";
 import {
   getEventAudienceLabel,
@@ -143,7 +143,7 @@ export function MeDashboardPage() {
                 <Link
                   aria-label={`Apri dettagli attività: ${event.title}`}
                   className="user-event-feature__media"
-                  to={getActivityPath(event.id, session?.profile.stakeId)}
+                  to={getMyActivityPath(event.id)}
                 >
                   {event.heroImageUrl ? (
                     <div
@@ -169,7 +169,7 @@ export function MeDashboardPage() {
 
                   <Link
                     className="user-event-feature__title"
-                    to={getActivityPath(event.id, session?.profile.stakeId)}
+                    to={getMyActivityPath(event.id)}
                   >
                     <h3>{event.title}</h3>
                   </Link>
@@ -180,7 +180,7 @@ export function MeDashboardPage() {
                   <div className="user-event-feature__actions">
                     <Link
                       className="button button--primary button--small"
-                      to={getActivityPath(event.id, session?.profile.stakeId)}
+                      to={getMyActivityPath(event.id)}
                     >
                       Dettagli attività
                     </Link>

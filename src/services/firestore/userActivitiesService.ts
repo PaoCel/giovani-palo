@@ -1,3 +1,4 @@
+import { campManagementService } from "@/services/firestore/campManagementService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import type { AuthSession, Event, Registration } from "@/types";
@@ -65,8 +66,13 @@ export const userActivitiesService = {
       return null;
     }
 
+    const campManagement = await campManagementService
+      .getCampManagement(session.profile.stakeId, eventId)
+      .catch(() => campManagementService.getDefaultCampManagement());
+
     return {
       event,
+      campManagement,
       registration,
     };
   },

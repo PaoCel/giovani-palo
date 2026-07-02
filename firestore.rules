@@ -1087,7 +1087,9 @@ service cloud.firestore {
         }
 
         match /management/{managementId} {
-          allow get, list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
+          allow get, list: if isStakeAdmin(stakeId)
+            || isUnitLeaderOfStake(stakeId)
+            || (managementId == 'camp' && hasOwnRegistration(stakeId, activityId));
           allow create, update: if (isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId))
             && managementId == 'camp'
             && request.resource.data.keys().hasOnly([
