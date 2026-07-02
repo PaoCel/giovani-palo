@@ -229,6 +229,25 @@ function buildSheetRows(registrations: Registration[], fields: ExportFieldKey[])
   });
 }
 
+function buildYouthRegistrantsRows(registrations: Registration[]) {
+  return registrations
+    .filter(
+      (registration) =>
+        registration.genderRoleCategory === "giovane_uomo" ||
+        registration.genderRoleCategory === "giovane_donna",
+    )
+    .sort(
+      (left, right) =>
+        left.lastName.localeCompare(right.lastName, "it-IT") ||
+        left.firstName.localeCompare(right.firstName, "it-IT"),
+    )
+    .map((registration) => ({
+      Nome: registration.firstName || "",
+      Cognome: registration.lastName || "",
+      "Rione/Ramo": getUnitLabel(registration),
+    }));
+}
+
 function autosizeColumns(rows: Array<Record<string, string>>, headers: string[]) {
   return headers.map((key) => {
     const contentWidth = rows.reduce((maxWidth, row) => {
@@ -239,6 +258,25 @@ function autosizeColumns(rows: Array<Record<string, string>>, headers: string[])
       wch: Math.min(Math.max(contentWidth + 2, 12), 38),
     };
   });
+}
+
+export async function downloadYouthRegistrantsExcel(
+  eventTitle: string,
+  registrations: Registration[],
+) {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.utils.book_new();
+  const headers = ["Nome", "Cognome", "Rione/Ramo"];
+  const rows = buildYouthRegistrantsRows(registrations);
+  const emptyRow = { Nome: "", Cognome: "", "Rione/Ramo": "" };
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+
+  worksheet["!cols"] = autosizeColumns(rows.length > 0 ? rows : [emptyRow], headers);
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Iscritti GU-GD");
+  XLSX.writeFile(
+    workbook,
+    `${slugify(eventTitle || "iscritti-evento") || "iscritti-evento"}-elenco-gu-gd.xlsx`,
+  );
 }
 
 export async function downloadRegistrationsExcel(
