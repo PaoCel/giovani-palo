@@ -8,7 +8,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import { galleryUnlockService } from "@/services/firestore/galleryUnlockService";
+import { userActivitiesService, type UserActivityItem } from "@/services/firestore/userActivitiesService";
 import type { FeedPost, Gallery, GalleryMedia } from "@/types";
+import { isCampPackingActivity } from "@/utils/campPacking";
+import { isPastEvent } from "@/utils/events";
 import { formatEventWindow } from "@/utils/formatters";
 import { eventsService } from "@/services/firestore/eventsService";
 
@@ -39,6 +42,7 @@ export function HomeFeed(_: HomeFeedProps) {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [galleries, setGalleries] = useState<Record<string, Gallery>>({});
   const [activities, setActivities] = useState<ActivityRefMap>({});
+  const [campChecklistActivities, setCampChecklistActivities] = useState<UserActivityItem[]>([]);
   const [unlocked, setUnlocked] = useState<UnlockedSet>({});
   const [mediaByGallery, setMediaByGallery] = useState<MediaCacheMap>({});
   const [likes, setLikes] = useState<LikeState>({ posts: {}, media: {} });
@@ -58,7 +62,17 @@ export function HomeFeed(_: HomeFeedProps) {
     setLoading(true);
     setError(null);
     try {
-      const feedPosts = await feedService.listPublishedPosts(stakeId);
+      const [feedPosts, registeredActivities] = await Promise.all([
+        feedService.listPublishedPosts(stakeId),
+        userActivitiesService.listForSession(session, { onlyRegistered: true }),
+      ]);
+      const checklistActivities = registeredActivities.filter(
+        ({ event, registration }) =>
+          Boolean(registration) &&
+          registration?.registrationStatus !== "cancelled" &&
+          isCampPackingActivity(event) &&
+          !isPastEvent(event),
+      );
 
       const galleryIds = Array.from(
         new Set(
@@ -139,6 +153,7 @@ export function HomeFeed(_: HomeFeedProps) {
       });
 
       setPosts(feedPosts);
+      setCampChecklistActivities(checklistActivities);
       setGalleries(galleryMap);
       setActivities(activityMap);
       setUnlocked(unlockedMap);
@@ -153,7 +168,7 @@ export function HomeFeed(_: HomeFeedProps) {
     } finally {
       setLoading(false);
     }
-  }, [stakeId, uid]);
+  }, [session, stakeId, uid]);
 
   useEffect(() => {
     void refresh();
@@ -269,7 +284,7 @@ export function HomeFeed(_: HomeFeedProps) {
     );
   }
 
-  if (sortedPosts.length === 0) {
+  if (sortedPosts.length === 0 && campChecklistActivities.length === 0) {
     return (
       <div className="feed-section">
         <p className="subtle-text">
@@ -283,6 +298,9 @@ export function HomeFeed(_: HomeFeedProps) {
     <>
       <div className="feed-section">
         <div className="feed-stack">
+          {campChecklistActivities.slice(0, 2).map(({ event }) => (
+            <CampChecklistFeedCard key={`camp-checklist-${event.id}`} event={event} />
+          ))}
           {sortedPosts.map((post) => {
             const liked = likes.posts[post.id] === true;
             if (post.type === "announcement") {
@@ -351,6 +369,27 @@ export function HomeFeed(_: HomeFeedProps) {
         />
       ) : null}
     </>
+  );
+}
+
+function CampChecklistFeedCard({ event }: { event: UserActivityItem["event"] }) {
+  return (
+    <article className="card feed-card feed-card--camp-checklist">
+      <header className="feed-card__header">
+        <span className="feed-card__kind">Campeggio</span>
+        <time className="feed-card__date">{formatEventWindow(event)}</time>
+      </header>
+      <h3 className="feed-card__title">Prepara lo zaino per {event.title}</h3>
+      <p className="feed-card__body">
+        Apri la tua scheda per vedere pattuglia, comitati, menu e una checklist interattiva delle
+        cose da portare.
+      </p>
+      <div className="feed-card__actions">
+        <Link className="button button--primary button--small" to={`/me/activities/${event.id}`}>
+          Apri checklist
+        </Link>
+      </div>
+    </article>
   );
 }
 

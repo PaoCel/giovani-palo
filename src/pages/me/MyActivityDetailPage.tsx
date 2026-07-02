@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
 import { ConsentSection } from "@/components/ConsentSection";
+import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
@@ -18,6 +19,7 @@ import { registrationsService } from "@/services/firestore/registrationsService"
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import { isMinorBirthDate } from "@/utils/age";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
+import { isCampPackingActivity } from "@/utils/campPacking";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { getEventAudienceLabel } from "@/utils/events";
 import {
@@ -363,6 +365,10 @@ export function MyActivityDetailPage() {
             </SectionCard>
           ) : null}
 
+          {session?.firebaseUser.uid && isCampPackingActivity(data.event) ? (
+            <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} />
+          ) : null}
+
           <SectionCard
             title="Sondaggio post-evento"
             description="Compila il modulo per dare un feedback sull'attività. Anonimo."
@@ -386,6 +392,36 @@ export function MyActivityDetailPage() {
               Apri galleria attività
             </Link>
           </SectionCard>
+
+          {data.event.menuInfo?.trim() ||
+          data.event.roomsInfo?.trim() ||
+          data.event.allergiesInfo?.trim() ? (
+            <SectionCard
+              title="Info utili campeggio"
+              description="Menu, logistica e indicazioni importanti quando disponibili."
+            >
+              <dl className="summary-list">
+                {data.event.menuInfo?.trim() ? (
+                  <div>
+                    <dt>Menu</dt>
+                    <dd>{data.event.menuInfo}</dd>
+                  </div>
+                ) : null}
+                {data.event.roomsInfo?.trim() ? (
+                  <div>
+                    <dt>Logistica e stanze</dt>
+                    <dd>{data.event.roomsInfo}</dd>
+                  </div>
+                ) : null}
+                {data.event.allergiesInfo?.trim() ? (
+                  <div>
+                    <dt>Allergie e indicazioni</dt>
+                    <dd>{data.event.allergiesInfo}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </SectionCard>
+          ) : null}
 
           {data.event.whatToBring?.trim() ? (
             <SectionCard
