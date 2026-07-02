@@ -20,6 +20,10 @@ export function getActivityPath(eventId: string, stakeId?: string) {
   return `/activities/${eventId}${query ? `?${query}` : ""}`;
 }
 
+export function getMyActivityPath(eventId: string) {
+  return `/me/activities/${eventId}`;
+}
+
 export function getActivityRegistrationPath(eventId: string, stakeId?: string) {
   const params = new URLSearchParams();
 

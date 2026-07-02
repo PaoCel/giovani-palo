@@ -1,4 +1,4 @@
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppLoader } from "@/components/AppLoader";
@@ -30,6 +30,7 @@ import {
   getAbsoluteUrl,
   getActivityPath,
   getActivityRegistrationPath,
+  getMyActivityPath,
 } from "@/utils/activityLinks";
 
 interface ActivityDetailData {
@@ -153,6 +154,19 @@ export function ActivityDetailPage() {
   }
 
   const event = data.event;
+  const hasActiveRegistration =
+    Boolean(data.registration) && data.registration?.registrationStatus !== "cancelled";
+
+  if (
+    !loading &&
+    event &&
+    hasActiveRegistration &&
+    session?.isAuthenticated &&
+    !session.isAnonymous
+  ) {
+    return <Navigate replace to={getMyActivityPath(event.id)} />;
+  }
+
   const formConfig = data.formConfig;
   const standardFieldDefinitions = getVisibleStandardFieldDefinitions(
     data.organization?.registrationDefaults.fieldOverrides,
@@ -186,9 +200,9 @@ export function ActivityDetailPage() {
 
     if (data.registration) {
       return (
-        <Link className={primaryClass} to={registrationPath}>
+        <Link className={primaryClass} to={getMyActivityPath(event.id)}>
           <AppIcon name="ticket" />
-          <span>Iscrizione</span>
+          <span>La tua scheda</span>
         </Link>
       );
     }
