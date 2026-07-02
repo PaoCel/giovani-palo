@@ -1,4 +1,4 @@
-import type { GenderRoleCategory, Registration } from "@/types";
+import type { CampManagementPlan, GenderRoleCategory, Registration } from "@/types";
 import { formatDateOnly, formatDateTime } from "@/utils/formatters";
 import { getRegistrationStatusLabel } from "@/utils/registrations";
 import { formatRoomPreferenceValue, getRegistrationTextAnswer } from "@/utils/roomPreferences";
@@ -276,6 +276,102 @@ export async function downloadYouthRegistrantsExcel(
   XLSX.writeFile(
     workbook,
     `${slugify(eventTitle || "iscritti-evento") || "iscritti-evento"}-elenco-gu-gd.xlsx`,
+  );
+}
+
+export async function downloadCampManagementExcel(
+  eventTitle: string,
+  registrations: Registration[],
+  plan: CampManagementPlan,
+) {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.utils.book_new();
+  const registrationById = new Map(registrations.map((registration) => [registration.id, registration]));
+  const manualLeaderById = new Map(plan.manualLeaders.map((leader) => [leader.id, leader]));
+
+  const committeeRows = plan.committees.flatMap((committee) => {
+    const rows: Array<Record<string, string>> = [];
+
+    for (const registrationId of committee.leaderRegistrationIds) {
+      const registration = registrationById.get(registrationId);
+      rows.push({
+        Comitato: committee.title,
+        Ruolo: "Dirigente",
+        Nome: registration ? getFieldValue(registration, "fullName") : "",
+        "Rione/Ramo": registration ? getUnitLabel(registration) : "",
+        Fonte: "Iscrizione",
+      });
+    }
+
+    for (const manualLeaderId of committee.manualLeaderIds) {
+      const leader = manualLeaderById.get(manualLeaderId);
+      rows.push({
+        Comitato: committee.title,
+        Ruolo: "Dirigente",
+        Nome: leader?.fullName ?? "",
+        "Rione/Ramo": "",
+        Fonte: leader?.linkedRegistrationId ? "Manuale collegato" : "Manuale",
+      });
+    }
+
+    for (const registrationId of committee.memberRegistrationIds) {
+      const registration = registrationById.get(registrationId);
+      rows.push({
+        Comitato: committee.title,
+        Ruolo: "Giovane",
+        Nome: registration ? getFieldValue(registration, "fullName") : "",
+        "Rione/Ramo": registration ? getUnitLabel(registration) : "",
+        Fonte: "Iscrizione",
+      });
+    }
+
+    return rows;
+  });
+
+  const patrolRows = plan.patrols.flatMap((patrol) => {
+    const rows: Array<Record<string, string>> = [];
+    const pushRegistration = (registrationId: string, role: string) => {
+      const registration = registrationById.get(registrationId);
+      rows.push({
+        Pattuglia: patrol.name,
+        Ruolo: role,
+        Nome: registration ? getFieldValue(registration, "fullName") : "",
+        "Rione/Ramo": registration ? getUnitLabel(registration) : "",
+      });
+    };
+
+    if (patrol.leaderRegistrationId) {
+      pushRegistration(patrol.leaderRegistrationId, "Capo pattuglia");
+    }
+    for (const registrationId of patrol.supervisorRegistrationIds) {
+      pushRegistration(registrationId, "Supervisore");
+    }
+    for (const registrationId of patrol.memberRegistrationIds) {
+      pushRegistration(registrationId, "Membro");
+    }
+
+    return rows;
+  });
+  const committeeHeaders = ["Comitato", "Ruolo", "Nome", "Rione/Ramo", "Fonte"];
+  const patrolHeaders = ["Pattuglia", "Ruolo", "Nome", "Rione/Ramo"];
+  const committeeEmptyRow = { Comitato: "", Ruolo: "", Nome: "", "Rione/Ramo": "", Fonte: "" };
+  const patrolEmptyRow = { Pattuglia: "", Ruolo: "", Nome: "", "Rione/Ramo": "" };
+  const committeeSheet = XLSX.utils.json_to_sheet(committeeRows, { header: committeeHeaders });
+  const patrolSheet = XLSX.utils.json_to_sheet(patrolRows, { header: patrolHeaders });
+
+  committeeSheet["!cols"] = autosizeColumns(
+    committeeRows.length > 0 ? committeeRows : [committeeEmptyRow],
+    committeeHeaders,
+  );
+  patrolSheet["!cols"] = autosizeColumns(
+    patrolRows.length > 0 ? patrolRows : [patrolEmptyRow],
+    patrolHeaders,
+  );
+  XLSX.utils.book_append_sheet(workbook, committeeSheet, "Comitati");
+  XLSX.utils.book_append_sheet(workbook, patrolSheet, "Pattuglie");
+  XLSX.writeFile(
+    workbook,
+    `${slugify(eventTitle || "campeggio") || "campeggio"}-comitati-pattuglie.xlsx`,
   );
 }
 

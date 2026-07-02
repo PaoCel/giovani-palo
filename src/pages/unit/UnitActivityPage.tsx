@@ -122,6 +122,29 @@ function ConsentCell({ registration }: { registration: Registration }) {
   );
 }
 
+function CampAssignmentCell({ registration }: { registration: Registration }) {
+  const committee = registration.assignedCommittees[0];
+
+  if (!registration.assignedPatrolName && !committee) {
+    return <span className="subtle-text">-</span>;
+  }
+
+  return (
+    <div className="unit-consent-cell">
+      {registration.assignedPatrolName ? (
+        <span className="unit-badge unit-badge--ok" title="Pattuglia">
+          {registration.assignedPatrolName}
+        </span>
+      ) : null}
+      {committee ? (
+        <span className="unit-badge" title="Comitato">
+          {committee.title}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function RegistrationRow({
   registration,
   isTransportResolved,
@@ -154,6 +177,9 @@ function RegistrationRow({
       <td className="unit-table__cell">
         <ConsentCell registration={registration} />
       </td>
+      <td className="unit-table__cell">
+        <CampAssignmentCell registration={registration} />
+      </td>
     </tr>
   );
 }
@@ -161,7 +187,7 @@ function RegistrationRow({
 function NotRegisteredRow({ youth }: { youth: UserProfile }) {
   return (
     <tr className="unit-table__row unit-table__row--unregistered">
-      <td className="unit-table__cell unit-table__cell--name" colSpan={4}>
+      <td className="unit-table__cell unit-table__cell--name" colSpan={5}>
         <strong>{youth.fullName}</strong>
         <small className="subtle-text">
           {getGenderRoleCategoryLabel(youth.genderRoleCategory)} · Non iscritto/a
@@ -297,6 +323,7 @@ export function UnitActivityPage() {
                   <th>Stato</th>
                   <th>Trasporto</th>
                   <th>Consensi</th>
+                  <th>Campeggio</th>
                 </tr>
               </thead>
               <tbody>

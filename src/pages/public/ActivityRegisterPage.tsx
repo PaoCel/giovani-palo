@@ -108,6 +108,10 @@ function buildChildPrefill(child: ChildProfile): Registration {
     assignedRoomId: null,
     assignedTempleShiftId: null,
     assignedServiceTeamIds: [],
+    assignedPatrolId: null,
+    assignedPatrolName: null,
+    assignedPatrolRole: null,
+    assignedCommittees: [],
     createdAt: timestamp,
     updatedAt: timestamp,
   };

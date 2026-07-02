@@ -39,6 +39,55 @@ export type ActivityType =
   | "camp"
   | "multi_day";
 
+export type CampCommitteeId =
+  | "logistics"
+  | "wellbeing"
+  | "kitchen"
+  | "games"
+  | "spiritual";
+export type CampCommitteeRole = "leader" | "member";
+export type CampPatrolRole = "leader" | "supervisor" | "member";
+
+export interface CampCommitteeAssignment {
+  id: CampCommitteeId;
+  title: string;
+  role: CampCommitteeRole;
+}
+
+export interface CampManualLeader {
+  id: string;
+  fullName: string;
+  linkedRegistrationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CampCommitteePlan {
+  id: CampCommitteeId;
+  title: string;
+  emoji: string;
+  leaderRegistrationIds: string[];
+  manualLeaderIds: string[];
+  memberRegistrationIds: string[];
+  updatedAt: string;
+}
+
+export interface CampPatrolPlan {
+  id: string;
+  name: string;
+  leaderRegistrationId: string;
+  supervisorRegistrationIds: string[];
+  memberRegistrationIds: string[];
+  updatedAt: string;
+}
+
+export interface CampManagementPlan {
+  committees: CampCommitteePlan[];
+  patrols: CampPatrolPlan[];
+  manualLeaders: CampManualLeader[];
+  updatedAt: string;
+}
+
 export type ParentAuthorizationStatus =
   | "not_required"
   | "pending_request"
@@ -330,6 +379,10 @@ export interface Registration {
   assignedRoomId: string | null;
   assignedTempleShiftId: string | null;
   assignedServiceTeamIds: string[];
+  assignedPatrolId: string | null;
+  assignedPatrolName: string | null;
+  assignedPatrolRole: CampPatrolRole | null;
+  assignedCommittees: CampCommitteeAssignment[];
   createdAt: string;
   updatedAt: string;
   cancelledAt?: string | null;

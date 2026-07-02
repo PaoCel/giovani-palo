@@ -27,6 +27,23 @@ import {
 } from "@/utils/registrations";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 
+function getPatrolRoleLabel(role: string | null) {
+  switch (role) {
+    case "leader":
+      return "Capo pattuglia";
+    case "supervisor":
+      return "Supervisore";
+    case "member":
+      return "Membro";
+    default:
+      return "";
+  }
+}
+
+function getCommitteeRoleLabel(role: string) {
+  return role === "leader" ? "Responsabile" : "Membro";
+}
+
 export function MyActivityDetailPage() {
   const { eventId } = useParams();
   const { session } = useAuth();
@@ -227,6 +244,17 @@ export function MyActivityDetailPage() {
                   />
                 </dd>
               </div>
+              {data.registration.assignedPatrolName ? (
+                <div>
+                  <dt>Pattuglia</dt>
+                  <dd>
+                    {data.registration.assignedPatrolName}
+                    {data.registration.assignedPatrolRole
+                      ? ` · ${getPatrolRoleLabel(data.registration.assignedPatrolRole)}`
+                      : ""}
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Ultimo aggiornamento</dt>
                 <dd>{formatDateTime(data.registration.updatedAt)}</dd>
@@ -239,6 +267,36 @@ export function MyActivityDetailPage() {
               ) : null}
             </dl>
           </SectionCard>
+
+          {data.registration.assignedPatrolName ||
+          data.registration.assignedCommittees.length > 0 ? (
+            <SectionCard
+              title="La tua organizzazione campeggio"
+              description="Pattuglia e comitato a cui sei assegnato."
+            >
+              <div className="admin-key-facts">
+                {data.registration.assignedPatrolName ? (
+                  <article className="admin-key-fact">
+                    <span>Pattuglia</span>
+                    <strong>
+                      {data.registration.assignedPatrolName}
+                      {data.registration.assignedPatrolRole
+                        ? ` · ${getPatrolRoleLabel(data.registration.assignedPatrolRole)}`
+                        : ""}
+                    </strong>
+                  </article>
+                ) : null}
+                {data.registration.assignedCommittees.map((committee) => (
+                  <article className="admin-key-fact" key={committee.id}>
+                    <span>Comitato</span>
+                    <strong>
+                      {committee.title} · {getCommitteeRoleLabel(committee.role)}
+                    </strong>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
+          ) : null}
 
           <SectionCard
             title="Sondaggio post-evento"
