@@ -6,6 +6,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isNonAnonymousSignedIn() {
+      return isSignedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     function userDocPath(uid) {
       return /databases/$(database)/documents/users/$(uid);
     }
@@ -1089,7 +1094,11 @@ service cloud.firestore {
         match /management/{managementId} {
           allow get, list: if isStakeAdmin(stakeId)
             || isUnitLeaderOfStake(stakeId)
-            || (managementId == 'camp' && hasOwnRegistration(stakeId, activityId));
+            || (
+              managementId == 'camp'
+              && isNonAnonymousSignedIn()
+              && hasOwnRegistration(stakeId, activityId)
+            );
           allow create, update: if (isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId))
             && managementId == 'camp'
             && request.resource.data.keys().hasOnly([

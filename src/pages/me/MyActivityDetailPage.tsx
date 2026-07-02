@@ -17,6 +17,7 @@ import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
+import type { CampPublicMember } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { isCampPackingActivity } from "@/utils/campPacking";
@@ -34,6 +35,7 @@ type PersonalCampPatrol = {
   name: string;
   role: string | null;
   assignedCount: number;
+  publicMembers: CampPublicMember[];
 };
 
 type PersonalCampCommittee = {
@@ -43,6 +45,7 @@ type PersonalCampCommittee = {
   role: "leader" | "member";
   assignedCount: number;
   manualLeaderNames: string[];
+  publicMembers: CampPublicMember[];
 };
 
 function getPatrolRoleLabel(role: string | null) {
@@ -60,6 +63,20 @@ function getPatrolRoleLabel(role: string | null) {
 
 function getCommitteeRoleLabel(role: string) {
   return role === "leader" ? "Responsabile" : "Membro";
+}
+
+function getPublicMemberLabel(member: CampPublicMember, context: "committee" | "patrol") {
+  return context === "committee"
+    ? getCommitteeRoleLabel(member.role)
+    : getPatrolRoleLabel(member.role);
+}
+
+function getMemberPreview(members: CampPublicMember[]) {
+  return members
+    .map((member) => member.fullName)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(", ");
 }
 
 export function MyActivityDetailPage() {
@@ -126,6 +143,19 @@ export function MyActivityDetailPage() {
           ? "supervisor"
           : "member"
       : data.registration.assignedPatrolRole;
+    const selfPublicMember: CampPublicMember = {
+      registrationId,
+      fullName: data.registration.fullName,
+      genderRoleCategory: data.registration.genderRoleCategory,
+      unitName: data.registration.unitNameSnapshot,
+      role: data.registration.assignedPatrolRole ?? "member",
+    };
+    const patrolPublicMembers =
+      patrolFromPlan?.publicMembers.length
+        ? patrolFromPlan.publicMembers
+        : patrolFromPlan || data.registration.assignedPatrolName
+          ? [{ ...selfPublicMember, role: patrolRole ?? "member" }]
+          : [];
     const patrol = patrolFromPlan
       ? {
           id: patrolFromPlan.id,
@@ -135,6 +165,7 @@ export function MyActivityDetailPage() {
             patrolFromPlan.memberRegistrationIds.length +
             patrolFromPlan.supervisorRegistrationIds.length +
             (patrolFromPlan.leaderRegistrationId ? 1 : 0),
+          publicMembers: patrolPublicMembers,
         }
       : data.registration.assignedPatrolName
         ? {
@@ -142,6 +173,7 @@ export function MyActivityDetailPage() {
             name: data.registration.assignedPatrolName,
             role: data.registration.assignedPatrolRole,
             assignedCount: 1,
+            publicMembers: patrolPublicMembers,
           }
         : null;
 
@@ -168,6 +200,9 @@ export function MyActivityDetailPage() {
         manualLeaderNames: committee.manualLeaderIds
           .map((leaderId) => manualLeaderById.get(leaderId))
           .filter((value): value is string => Boolean(value)),
+        publicMembers: committee.publicMembers.length
+          ? committee.publicMembers
+          : [{ ...selfPublicMember, role }],
       });
     }
 
@@ -181,6 +216,7 @@ export function MyActivityDetailPage() {
         role: committee.role,
         assignedCount: 1,
         manualLeaderNames: [],
+        publicMembers: [{ ...selfPublicMember, role: committee.role }],
       });
     }
 
@@ -444,9 +480,10 @@ export function MyActivityDetailPage() {
                           : ""}
                       </small>
                       <span className="camp-ios-card__preview">
-                        {personalCampOrganization.patrol.assignedCount > 1
-                          ? `${personalCampOrganization.patrol.assignedCount} persone assegnate`
-                          : "Tocca per vedere il dettaglio"}
+                        {getMemberPreview(personalCampOrganization.patrol.publicMembers) ||
+                          (personalCampOrganization.patrol.assignedCount > 1
+                            ? `${personalCampOrganization.patrol.assignedCount} persone assegnate`
+                            : "Tocca per vedere il dettaglio")}
                       </span>
                     </span>
                   </button>
@@ -465,9 +502,10 @@ export function MyActivityDetailPage() {
                       <strong>{committee.title}</strong>
                       <small>{getCommitteeRoleLabel(committee.role)}</small>
                       <span className="camp-ios-card__preview">
-                        {committee.manualLeaderNames.length > 0
-                          ? `Responsabili: ${committee.manualLeaderNames.slice(0, 2).join(", ")}`
-                          : `${committee.assignedCount} persone assegnate`}
+                        {getMemberPreview(committee.publicMembers) ||
+                          (committee.manualLeaderNames.length > 0
+                            ? `Responsabili: ${committee.manualLeaderNames.slice(0, 2).join(", ")}`
+                            : `${committee.assignedCount} persone assegnate`)}
                       </span>
                     </span>
                   </button>
@@ -665,22 +703,15 @@ export function MyActivityDetailPage() {
               onClose={() => setSelectedCampItem(null)}
             >
               <div className="camp-person-list">
-                <article className="camp-person-row">
-                  <span>
-                    <strong>{data.registration.fullName}</strong>
-                    <small>
-                      {personalCampOrganization.patrol.role
-                        ? getPatrolRoleLabel(personalCampOrganization.patrol.role)
-                        : "Membro"}
-                    </small>
-                  </span>
-                </article>
-                {personalCampOrganization.patrol.assignedCount > 1 ? (
-                  <p className="subtle-text">
-                    {personalCampOrganization.patrol.assignedCount} persone risultano assegnate a
-                    questa pattuglia.
-                  </p>
-                ) : null}
+                {personalCampOrganization.patrol.publicMembers.map((member) => (
+                  <article className="camp-person-row" key={member.registrationId}>
+                    <span>
+                      <strong>{member.fullName}</strong>
+                      <small>{getPublicMemberLabel(member, "patrol")}</small>
+                    </span>
+                    {member.unitName ? <small>{member.unitName}</small> : null}
+                  </article>
+                ))}
               </div>
             </AppModal>
           ) : null}
@@ -707,17 +738,15 @@ export function MyActivityDetailPage() {
                         </span>
                       </article>
                     ))}
-                    <article className="camp-person-row">
-                      <span>
-                        <strong>{data.registration.fullName}</strong>
-                        <small>{getCommitteeRoleLabel(committee.role)}</small>
-                      </span>
-                    </article>
-                    {committee.assignedCount > committee.manualLeaderNames.length + 1 ? (
-                      <p className="subtle-text">
-                        {committee.assignedCount} persone risultano assegnate a questo comitato.
-                      </p>
-                    ) : null}
+                    {committee.publicMembers.map((member) => (
+                      <article className="camp-person-row" key={member.registrationId}>
+                        <span>
+                          <strong>{member.fullName}</strong>
+                          <small>{getPublicMemberLabel(member, "committee")}</small>
+                        </span>
+                        {member.unitName ? <small>{member.unitName}</small> : null}
+                      </article>
+                    ))}
                   </div>
                 </AppModal>
               ) : null;
