@@ -5022,6 +5022,116 @@ button {
   padding-bottom: 0.5rem;
 }
 
+.personal-event-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(18, 33, 59, 0.08);
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 24px rgba(18, 33, 59, 0.04);
+}
+
+.personal-event-strip > span:not(.status-badge) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: #52617a;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.personal-event-strip svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #44577a;
+}
+
+.personal-action-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.personal-action-tile {
+  appearance: none;
+  min-width: 0;
+  min-height: 5.6rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(18, 33, 59, 0.08);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.96));
+  color: #52617a;
+  box-shadow: 0 12px 28px rgba(18, 33, 59, 0.05);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.72rem 0.5rem;
+  text-align: center;
+}
+
+.personal-action-tile > span {
+  width: 2.15rem;
+  height: 2.15rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(38, 110, 196, 0.1);
+  color: #266ec4;
+}
+
+.personal-action-tile svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.personal-action-tile strong,
+.personal-action-tile small {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-action-tile strong {
+  color: #12213b;
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+
+.personal-action-tile small {
+  color: #52617a;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.personal-action-tile--active {
+  border-color: rgba(38, 110, 196, 0.22);
+  background: rgba(38, 110, 196, 0.08);
+  color: #1263da;
+}
+
+.personal-tab-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.personal-tab-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.personal-summary-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .packing-card {
   display: grid;
   gap: 1rem;
@@ -5056,6 +5166,11 @@ button {
   text-transform: uppercase;
 }
 
+.packing-progress-set {
+  display: flex;
+  gap: 0.45rem;
+}
+
 .packing-progress {
   min-width: 5rem;
   display: grid;
@@ -5065,6 +5180,11 @@ button {
   border-radius: 1rem;
   background: rgba(45, 107, 86, 0.1);
   color: #2d6b56;
+}
+
+.packing-progress--percent {
+  background: rgba(38, 110, 196, 0.1);
+  color: #266ec4;
 }
 
 .packing-progress strong {
@@ -5096,6 +5216,13 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
+}
+
+.packing-sync-error {
+  margin: -0.35rem 0 0;
+  color: #b14e44;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .packing-section-grid {
@@ -5320,6 +5447,48 @@ button {
     justify-content: center;
   }
 
+  .personal-event-strip {
+    padding: 0.6rem;
+  }
+
+  .personal-event-strip > span:not(.status-badge) {
+    font-size: 0.76rem;
+  }
+
+  .personal-action-grid {
+    grid-template-columns: repeat(5, minmax(4.85rem, 1fr));
+    overflow-x: auto;
+    scroll-padding-inline: 0.5rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .personal-action-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .personal-action-tile {
+    min-height: 4.85rem;
+    border-radius: 1rem;
+    padding: 0.58rem 0.42rem;
+  }
+
+  .personal-action-tile > span {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .personal-action-tile strong {
+    font-size: 0.74rem;
+  }
+
+  .personal-action-tile small {
+    font-size: 0.66rem;
+  }
+
+  .personal-summary-list {
+    grid-template-columns: 1fr;
+  }
+
   .page--unit-activity .unit-table,
   .page--unit-activity .unit-table tbody,
   .page--unit-activity .unit-table tr,
@@ -5371,8 +5540,12 @@ button {
     display: grid;
   }
 
+  .packing-progress-set {
+    width: 100%;
+  }
+
   .packing-progress {
-    justify-self: start;
+    flex: 1 1 0;
     grid-template-columns: auto auto;
     align-items: baseline;
   }
