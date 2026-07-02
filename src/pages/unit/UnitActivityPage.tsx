@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { AppModal } from "@/components/AppModal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
@@ -204,11 +205,16 @@ const initialData = {
   stats: { total: 0, needsTransport: 0, missingPhotoConsent: 0, missingParentConsent: 0 },
 };
 
+type CampGroup =
+  | { kind: "patrol"; id: string; title: string; registrations: Registration[] }
+  | { kind: "committee"; id: string; title: string; registrations: Registration[] };
+
 export function UnitActivityPage() {
   const { eventId = "" } = useParams<{ eventId: string }>();
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId ?? "roma-est";
   const unitId = session?.profile.unitId ?? "";
+  const [selectedCampGroupKey, setSelectedCampGroupKey] = useState<string | null>(null);
 
   const { data, loading, error } = useAsyncData(
     () => unitLeaderService.getUnitActivityDetail(stakeId, eventId, unitId),
@@ -254,6 +260,46 @@ export function UnitActivityPage() {
     data.registrations.flatMap((r) => (r.userId ? [r.userId] : [])),
   );
   const notRegistered = data.unitYouth.filter((y) => !registeredUserIds.has(y.id));
+  const campGroups = useMemo<CampGroup[]>(() => {
+    const patrols = new Map<string, CampGroup>();
+    const committees = new Map<string, CampGroup>();
+
+    for (const registration of data.registrations) {
+      if (registration.assignedPatrolId && registration.assignedPatrolName) {
+        const key = registration.assignedPatrolId;
+        const existing =
+          patrols.get(key) ??
+          ({
+            kind: "patrol",
+            id: key,
+            title: registration.assignedPatrolName,
+            registrations: [],
+          } satisfies CampGroup);
+        existing.registrations.push(registration);
+        patrols.set(key, existing);
+      }
+
+      for (const committee of registration.assignedCommittees) {
+        const key = committee.id;
+        const existing =
+          committees.get(key) ??
+          ({
+            kind: "committee",
+            id: key,
+            title: committee.title,
+            registrations: [],
+          } satisfies CampGroup);
+        existing.registrations.push(registration);
+        committees.set(key, existing);
+      }
+    }
+
+    return [...committees.values(), ...patrols.values()];
+  }, [data.registrations]);
+  const selectedCampGroup =
+    selectedCampGroupKey !== null
+      ? campGroups.find((group) => `${group.kind}:${group.id}` === selectedCampGroupKey) ?? null
+      : null;
 
   return (
     <div className="page page--unit-activity">
@@ -301,6 +347,49 @@ export function UnitActivityPage() {
           </article>
         </section>
       )}
+
+      {!loading && campGroups.length > 0 ? (
+        <section className="admin-section">
+          <div className="admin-section__head">
+            <div>
+              <h2>Organizzazione campeggio</h2>
+              <p className="subtle-text">Comitati e pattuglie dove compaiono ragazzi della tua unità</p>
+            </div>
+          </div>
+          <div className="camp-ios-grid">
+            {campGroups.map((group) => (
+              <button
+                className={
+                  group.kind === "committee"
+                    ? "camp-ios-card camp-ios-card--committee"
+                    : "camp-ios-card camp-ios-card--patrol"
+                }
+                key={`${group.kind}:${group.id}`}
+                onClick={() => setSelectedCampGroupKey(`${group.kind}:${group.id}`)}
+                type="button"
+              >
+                <span className="camp-ios-card__icon" aria-hidden="true">
+                  {group.kind === "committee" ? "◌" : "🧭"}
+                </span>
+                <span className="camp-ios-card__body">
+                  <strong>{group.title}</strong>
+                  <small>
+                    {group.kind === "committee" ? "Comitato" : "Pattuglia"} ·{" "}
+                    {group.registrations.length} persone
+                  </small>
+                  <span className="camp-ios-card__preview">
+                    {group.registrations
+                      .slice(0, 3)
+                      .map((registration) => registration.fullName)
+                      .join(", ")}
+                  </span>
+                </span>
+                <AppIcon name="arrow-right" />
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="admin-section">
         <div className="admin-section__head">
@@ -363,6 +452,50 @@ export function UnitActivityPage() {
           </div>
         </section>
       )}
+
+      {selectedCampGroup ? (
+        <AppModal
+          title={selectedCampGroup.title}
+          subtitle={selectedCampGroup.kind === "committee" ? "Comitato" : "Pattuglia"}
+          size="compact"
+          onClose={() => setSelectedCampGroupKey(null)}
+        >
+          <div className="camp-person-list">
+            {selectedCampGroup.registrations.map((registration) => (
+              <article className="camp-person-row" key={registration.id}>
+                <span>
+                  <strong>{registration.fullName}</strong>
+                  <small>{getGenderRoleCategoryLabel(registration.genderRoleCategory)}</small>
+                </span>
+                {selectedCampGroup.kind === "patrol" && registration.assignedPatrolRole ? (
+                  <StatusBadge
+                    label={
+                      registration.assignedPatrolRole === "leader"
+                        ? "Capo"
+                        : registration.assignedPatrolRole === "supervisor"
+                          ? "Supervisore"
+                          : "Membro"
+                    }
+                    tone="info"
+                  />
+                ) : null}
+                {selectedCampGroup.kind === "committee" ? (
+                  <StatusBadge
+                    label={
+                      registration.assignedCommittees.find(
+                        (committee) => committee.id === selectedCampGroup.id,
+                      )?.role === "leader"
+                        ? "Responsabile"
+                        : "Membro"
+                    }
+                    tone="info"
+                  />
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </AppModal>
+      ) : null}
     </div>
   );
 }

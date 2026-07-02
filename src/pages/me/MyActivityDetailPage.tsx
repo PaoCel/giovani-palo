@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "@/components/EmptyState";
 import { ConsentSection } from "@/components/ConsentSection";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
+import { AppModal } from "@/components/AppModal";
 // keep import order stable for Vite
 import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
@@ -52,6 +53,7 @@ export function MyActivityDetailPage() {
   const [busy, setBusy] = useState<null | "cancel">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedCampItem, setSelectedCampItem] = useState<string | null>(null);
   const { data: organization } = useAsyncData(
     () => organizationService.getProfile(stakeId),
     [stakeId],
@@ -274,25 +276,44 @@ export function MyActivityDetailPage() {
               title="La tua organizzazione campeggio"
               description="Pattuglia e comitato a cui sei assegnato."
             >
-              <div className="admin-key-facts">
+              <div className="camp-ios-grid">
                 {data.registration.assignedPatrolName ? (
-                  <article className="admin-key-fact">
-                    <span>Pattuglia</span>
-                    <strong>
+                  <button
+                    className="camp-ios-card camp-ios-card--patrol"
+                    onClick={() => setSelectedCampItem("patrol")}
+                    type="button"
+                  >
+                    <span className="camp-ios-card__icon" aria-hidden="true">
+                      🧭
+                    </span>
+                    <span className="camp-ios-card__body">
+                      <strong>Pattuglia</strong>
+                      <small>
                       {data.registration.assignedPatrolName}
                       {data.registration.assignedPatrolRole
                         ? ` · ${getPatrolRoleLabel(data.registration.assignedPatrolRole)}`
                         : ""}
-                    </strong>
-                  </article>
+                      </small>
+                      <span className="camp-ios-card__preview">Tocca per vedere il dettaglio</span>
+                    </span>
+                  </button>
                 ) : null}
                 {data.registration.assignedCommittees.map((committee) => (
-                  <article className="admin-key-fact" key={committee.id}>
-                    <span>Comitato</span>
-                    <strong>
-                      {committee.title} · {getCommitteeRoleLabel(committee.role)}
-                    </strong>
-                  </article>
+                  <button
+                    className="camp-ios-card camp-ios-card--committee"
+                    key={committee.id}
+                    onClick={() => setSelectedCampItem(`committee:${committee.id}`)}
+                    type="button"
+                  >
+                    <span className="camp-ios-card__icon" aria-hidden="true">
+                      ◌
+                    </span>
+                    <span className="camp-ios-card__body">
+                      <strong>{committee.title}</strong>
+                      <small>{getCommitteeRoleLabel(committee.role)}</small>
+                      <span className="camp-ios-card__preview">Tocca per vedere il dettaglio</span>
+                    </span>
+                  </button>
                 ))}
               </div>
             </SectionCard>
@@ -430,6 +451,54 @@ export function MyActivityDetailPage() {
               session={session}
               stakeId={stakeId}
             />
+          ) : null}
+
+          {selectedCampItem === "patrol" && data.registration.assignedPatrolName ? (
+            <AppModal
+              title={data.registration.assignedPatrolName}
+              subtitle="La tua pattuglia"
+              size="compact"
+              onClose={() => setSelectedCampItem(null)}
+            >
+              <div className="camp-person-list">
+                <article className="camp-person-row">
+                  <span>
+                    <strong>{data.registration.fullName}</strong>
+                    <small>
+                      {data.registration.assignedPatrolRole
+                        ? getPatrolRoleLabel(data.registration.assignedPatrolRole)
+                        : "Membro"}
+                    </small>
+                  </span>
+                </article>
+              </div>
+            </AppModal>
+          ) : null}
+
+          {selectedCampItem?.startsWith("committee:") ? (
+            (() => {
+              const committee = data.registration.assignedCommittees.find(
+                (item) => `committee:${item.id}` === selectedCampItem,
+              );
+
+              return committee ? (
+                <AppModal
+                  title={committee.title}
+                  subtitle="Il tuo comitato"
+                  size="compact"
+                  onClose={() => setSelectedCampItem(null)}
+                >
+                  <div className="camp-person-list">
+                    <article className="camp-person-row">
+                      <span>
+                        <strong>{data.registration.fullName}</strong>
+                        <small>{getCommitteeRoleLabel(committee.role)}</small>
+                      </span>
+                    </article>
+                  </div>
+                </AppModal>
+              ) : null;
+            })()
           ) : null}
         </>
       ) : null}
