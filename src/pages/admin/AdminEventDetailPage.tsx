@@ -403,6 +403,9 @@ export function AdminEventDetailPage() {
     campManagementService.getDefaultCampManagement(),
   );
   const [manualLeaderName, setManualLeaderName] = useState("");
+  const [selectedCampCommitteeId, setSelectedCampCommitteeId] =
+    useState<CampCommitteeId | null>(null);
+  const [selectedCampPatrolId, setSelectedCampPatrolId] = useState<string | null>(null);
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -849,6 +852,25 @@ export function AdminEventDetailPage() {
     registrationModalMode === "overnight"
       ? "Preferenze stanza e dati inviati"
       : "Dettaglio registrazione";
+  const selectedCampCommittee =
+    selectedCampCommitteeId !== null
+      ? campDraft.committees.find((committee) => committee.id === selectedCampCommitteeId) ?? null
+      : null;
+  const selectedCampPatrol =
+    selectedCampPatrolId !== null
+      ? campDraft.patrols.find((patrol) => patrol.id === selectedCampPatrolId) ?? null
+      : null;
+
+  function getRegistrationName(registrationId: string) {
+    const registration = activeRegistrationById.get(registrationId);
+    return registration ? getRegistrationDisplayName(registration) : "Non trovato";
+  }
+
+  function getRegistrationMeta(registrationId: string) {
+    const registration = activeRegistrationById.get(registrationId);
+    if (!registration) return "";
+    return `${getUnitLabel(registration)} · ${getCategoryShortLabel(registration)}`;
+  }
 
   function openTab(tab: AdminEventTab) {
     navigate(getAdminEventTabHref(resolvedEventId, tab));
@@ -2001,141 +2023,47 @@ export function AdminEventDetailPage() {
             </div>
 
             <div className="camp-committee-grid">
-              {campDraft.committees.map((committee) => (
-                <details className="camp-committee-card" key={committee.id} open>
-                  <summary className="camp-committee-card__head">
-                    <span>
-                      <strong>
-                        {committee.emoji} {committee.title}
-                      </strong>
+              {campDraft.committees.map((committee) => {
+                const leaderNames = [
+                  ...committee.leaderRegistrationIds.map((registrationId) =>
+                    getRegistrationName(registrationId),
+                  ),
+                  ...committee.manualLeaderIds.map(
+                    (leaderId) => manualLeaderById.get(leaderId)?.fullName ?? "Dirigente",
+                  ),
+                ];
+                const previewNames = [
+                  ...leaderNames,
+                  ...committee.memberRegistrationIds
+                    .slice(0, Math.max(0, 4 - leaderNames.length))
+                    .map((registrationId) => getRegistrationName(registrationId)),
+                ];
+
+                return (
+                  <button
+                    className="camp-ios-card camp-ios-card--committee"
+                    key={committee.id}
+                    onClick={() => setSelectedCampCommitteeId(committee.id)}
+                    type="button"
+                  >
+                    <span className="camp-ios-card__icon" aria-hidden="true">
+                      {committee.emoji}
+                    </span>
+                    <span className="camp-ios-card__body">
+                      <strong>{committee.title}</strong>
                       <small>
                         {committee.leaderRegistrationIds.length + committee.manualLeaderIds.length} dirigenti
-                        {" • "}
+                        {" · "}
                         {committee.memberRegistrationIds.length} giovani
                       </small>
+                      <span className="camp-ios-card__preview">
+                        {previewNames.length > 0 ? previewNames.join(", ") : "Tocca per assegnare"}
+                      </span>
                     </span>
-                  </summary>
-
-                  <div className="camp-committee-card__fields">
-                    <div className="field">
-                      <span className="field__label">Dirigenti iscritti</span>
-                      <div className="patrol-checkbox-list patrol-checkbox-list--compact">
-                        {adultRegistrations.length === 0 ? (
-                          <p className="subtle-text">Nessun dirigente/accompagnatore iscritto.</p>
-                        ) : (
-                          adultRegistrations.map((registration) => {
-                            const assignedCommittee = committeeAssignmentByRegistrationId.get(
-                              registration.id,
-                            );
-                            const checked = committee.leaderRegistrationIds.includes(
-                              registration.id,
-                            );
-                            const unavailable =
-                              assignedCommittee !== undefined &&
-                              assignedCommittee !== committee.id &&
-                              !checked;
-
-                            return (
-                              <label className="toggle-field" key={registration.id}>
-                                <input
-                                  checked={checked}
-                                  disabled={unavailable}
-                                  onChange={() =>
-                                    updateCommitteeRegistration(
-                                      committee.id,
-                                      registration.id,
-                                      "leader",
-                                    )
-                                  }
-                                  type="checkbox"
-                                />
-                                <span>
-                                  {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
-                                  {unavailable ? " · già assegnato" : ""}
-                                </span>
-                              </label>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="field">
-                      <span className="field__label">Dirigenti manuali</span>
-                      <div className="patrol-checkbox-list patrol-checkbox-list--compact">
-                        {campDraft.manualLeaders.length === 0 ? (
-                          <p className="subtle-text">Aggiungi sopra eventuali dirigenti non iscritti.</p>
-                        ) : (
-                          campDraft.manualLeaders.map((leader) => {
-                            const assignedCommittee = committeeAssignmentByManualLeaderId.get(
-                              leader.id,
-                            );
-                            const checked = committee.manualLeaderIds.includes(leader.id);
-                            const unavailable =
-                              assignedCommittee !== undefined &&
-                              assignedCommittee !== committee.id &&
-                              !checked;
-
-                            return (
-                              <label className="toggle-field" key={leader.id}>
-                                <input
-                                  checked={checked}
-                                  disabled={unavailable}
-                                  onChange={() => toggleCommitteeManualLeader(committee.id, leader.id)}
-                                  type="checkbox"
-                                />
-                                <span>
-                                  {leader.fullName}
-                                  {leader.linkedRegistrationId ? " · collegato" : ""}
-                                  {unavailable ? " · già assegnato" : ""}
-                                </span>
-                              </label>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="field">
-                      <span className="field__label">Giovani</span>
-                      <div className="patrol-checkbox-list patrol-checkbox-list--compact">
-                        {youthRegistrations.map((registration) => {
-                          const assignedCommittee = committeeAssignmentByRegistrationId.get(
-                            registration.id,
-                          );
-                          const checked = committee.memberRegistrationIds.includes(registration.id);
-                          const unavailable =
-                            assignedCommittee !== undefined &&
-                            assignedCommittee !== committee.id &&
-                            !checked;
-
-                          return (
-                            <label className="toggle-field" key={registration.id}>
-                              <input
-                                checked={checked}
-                                disabled={unavailable}
-                                onChange={() =>
-                                  updateCommitteeRegistration(
-                                    committee.id,
-                                    registration.id,
-                                    "member",
-                                  )
-                                }
-                                type="checkbox"
-                              />
-                              <span>
-                                {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)} ·{" "}
-                                {getCategoryShortLabel(registration)}
-                                {unavailable ? " · già assegnato" : ""}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </details>
-              ))}
+                    <AppIcon name="arrow-right" />
+                  </button>
+                );
+              })}
             </div>
           </article>
 
@@ -2160,138 +2088,48 @@ export function AdminEventDetailPage() {
               />
             ) : (
               <div className="camp-committee-grid">
-                {campDraft.patrols.map((patrol) => (
-                  <details className="camp-committee-card" key={patrol.id} open>
-                    <summary className="camp-committee-card__head">
-                      <span>
+                {campDraft.patrols.map((patrol) => {
+                  const previewNames = [
+                    patrol.leaderRegistrationId
+                      ? getRegistrationName(patrol.leaderRegistrationId)
+                      : "",
+                    ...patrol.supervisorRegistrationIds.map((registrationId) =>
+                      getRegistrationName(registrationId),
+                    ),
+                    ...patrol.memberRegistrationIds.map((registrationId) =>
+                      getRegistrationName(registrationId),
+                    ),
+                  ].filter(Boolean);
+
+                  return (
+                    <button
+                      className="camp-ios-card camp-ios-card--patrol"
+                      key={patrol.id}
+                      onClick={() => setSelectedCampPatrolId(patrol.id)}
+                      type="button"
+                    >
+                      <span className="camp-ios-card__icon" aria-hidden="true">
+                        🧭
+                      </span>
+                      <span className="camp-ios-card__body">
                         <strong>{patrol.name}</strong>
                         <small>
-                          {patrol.leaderRegistrationId ? "capo assegnato" : "capo mancante"}
-                          {" • "}
+                          {patrol.leaderRegistrationId ? "Capo assegnato" : "Capo mancante"}
+                          {" · "}
                           {patrol.supervisorRegistrationIds.length} supervisori
-                          {" • "}
+                          {" · "}
                           {patrol.memberRegistrationIds.length} membri
                         </small>
+                        <span className="camp-ios-card__preview">
+                          {previewNames.length > 0
+                            ? previewNames.slice(0, 4).join(", ")
+                            : "Tocca per assegnare"}
+                        </span>
                       </span>
-                      <button
-                        aria-label={`Rimuovi ${patrol.name}`}
-                        className="icon-button admin-detail-action admin-detail-action--danger"
-                        onClick={(eventInput) => {
-                          eventInput.preventDefault();
-                          removePatrol(patrol.id);
-                        }}
-                        type="button"
-                      >
-                        <AppIcon name="trash" />
-                      </button>
-                    </summary>
-
-                    <div className="camp-committee-card__fields">
-                      <label className="field">
-                        <span className="field__label">Nome pattuglia</span>
-                        <input
-                          className="input"
-                          value={patrol.name}
-                          onChange={(eventInput) =>
-                            updatePatrolField(patrol.id, "name", eventInput.target.value)
-                          }
-                        />
-                      </label>
-
-                      <label className="field">
-                        <span className="field__label">Capo pattuglia</span>
-                        <select
-                          className="input"
-                          value={patrol.leaderRegistrationId}
-                          onChange={(eventInput) => setPatrolLeader(patrol.id, eventInput.target.value)}
-                        >
-                          <option value="">Da assegnare</option>
-                          {youthRegistrations.map((registration) => {
-                            const assignment = patrolAssignmentByRegistrationId.get(registration.id);
-                            const unavailable =
-                              assignment !== undefined && assignment.patrolId !== patrol.id;
-
-                            return (
-                              <option disabled={unavailable} key={registration.id} value={registration.id}>
-                                {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
-                                {unavailable ? ` · già in ${assignment.patrolName}` : ""}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </label>
-
-                      <div className="field">
-                        <span className="field__label">Supervisori</span>
-                        <div className="patrol-checkbox-list patrol-checkbox-list--compact">
-                          {adultRegistrations.map((registration) => {
-                            const assignment = patrolAssignmentByRegistrationId.get(registration.id);
-                            const checked = patrol.supervisorRegistrationIds.includes(registration.id);
-                            const unavailable =
-                              assignment !== undefined && assignment.patrolId !== patrol.id && !checked;
-
-                            return (
-                              <label className="toggle-field" key={registration.id}>
-                                <input
-                                  checked={checked}
-                                  disabled={unavailable}
-                                  onChange={() =>
-                                    togglePatrolAssignment(
-                                      patrol.id,
-                                      "supervisorRegistrationIds",
-                                      registration.id,
-                                    )
-                                  }
-                                  type="checkbox"
-                                />
-                                <span>
-                                  {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
-                                  {unavailable ? ` · già in ${assignment.patrolName}` : ""}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="field">
-                        <span className="field__label">Membri</span>
-                        <div className="patrol-checkbox-list patrol-checkbox-list--compact">
-                          {youthRegistrations.map((registration) => {
-                            const assignment = patrolAssignmentByRegistrationId.get(registration.id);
-                            const checked = patrol.memberRegistrationIds.includes(registration.id);
-                            const isLeader = patrol.leaderRegistrationId === registration.id;
-                            const unavailable =
-                              assignment !== undefined && assignment.patrolId !== patrol.id && !checked;
-
-                            return (
-                              <label className="toggle-field" key={registration.id}>
-                                <input
-                                  checked={checked}
-                                  disabled={unavailable || isLeader}
-                                  onChange={() =>
-                                    togglePatrolAssignment(
-                                      patrol.id,
-                                      "memberRegistrationIds",
-                                      registration.id,
-                                    )
-                                  }
-                                  type="checkbox"
-                                />
-                                <span>
-                                  {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)} ·{" "}
-                                  {getCategoryShortLabel(registration)}
-                                  {isLeader ? " · capo" : ""}
-                                  {unavailable ? ` · già in ${assignment.patrolName}` : ""}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </details>
-                ))}
+                      <AppIcon name="arrow-right" />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </article>
@@ -3260,6 +3098,318 @@ export function AdminEventDetailPage() {
             </article>
           </div>
         </section>
+      ) : null}
+
+      {selectedCampCommittee ? (
+        <AppModal
+          title={`${selectedCampCommittee.emoji} ${selectedCampCommittee.title}`}
+          subtitle="Dirigenti e giovani assegnati al comitato"
+          size="wide"
+          onClose={() => setSelectedCampCommitteeId(null)}
+          footer={
+            <>
+              <button
+                className="button button--ghost"
+                onClick={() => setSelectedCampCommitteeId(null)}
+                type="button"
+              >
+                Chiudi
+              </button>
+              <button
+                className="button button--primary"
+                disabled={busy === "saveCampManagement" || loading}
+                onClick={() => void handleSaveCampManagement()}
+                type="button"
+              >
+                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}
+              </button>
+            </>
+          }
+        >
+          <div className="camp-modal-stack">
+            <div className="camp-ios-summary">
+              <article>
+                <span>Dirigenti</span>
+                <strong>
+                  {selectedCampCommittee.leaderRegistrationIds.length +
+                    selectedCampCommittee.manualLeaderIds.length}
+                </strong>
+              </article>
+              <article>
+                <span>Giovani</span>
+                <strong>{selectedCampCommittee.memberRegistrationIds.length}</strong>
+              </article>
+            </div>
+
+            <section className="camp-modal-section">
+              <h3>Dirigenti iscritti</h3>
+              <div className="patrol-checkbox-list">
+                {adultRegistrations.length === 0 ? (
+                  <p className="subtle-text">Nessun dirigente/accompagnatore iscritto.</p>
+                ) : (
+                  adultRegistrations.map((registration) => {
+                    const assignedCommittee = committeeAssignmentByRegistrationId.get(
+                      registration.id,
+                    );
+                    const checked = selectedCampCommittee.leaderRegistrationIds.includes(
+                      registration.id,
+                    );
+                    const unavailable =
+                      assignedCommittee !== undefined &&
+                      assignedCommittee !== selectedCampCommittee.id &&
+                      !checked;
+
+                    return (
+                      <label className="toggle-field" key={registration.id}>
+                        <input
+                          checked={checked}
+                          disabled={unavailable}
+                          onChange={() =>
+                            updateCommitteeRegistration(
+                              selectedCampCommittee.id,
+                              registration.id,
+                              "leader",
+                            )
+                          }
+                          type="checkbox"
+                        />
+                        <span>
+                          {getRegistrationDisplayName(registration)}
+                          <small>{getRegistrationMeta(registration.id)}</small>
+                          {unavailable ? <small>Già assegnato a un altro comitato</small> : null}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            <section className="camp-modal-section">
+              <h3>Dirigenti manuali</h3>
+              <div className="patrol-checkbox-list">
+                {campDraft.manualLeaders.length === 0 ? (
+                  <p className="subtle-text">Aggiungi i dirigenti manuali dalla schermata comitati.</p>
+                ) : (
+                  campDraft.manualLeaders.map((leader) => {
+                    const assignedCommittee = committeeAssignmentByManualLeaderId.get(leader.id);
+                    const checked = selectedCampCommittee.manualLeaderIds.includes(leader.id);
+                    const unavailable =
+                      assignedCommittee !== undefined &&
+                      assignedCommittee !== selectedCampCommittee.id &&
+                      !checked;
+
+                    return (
+                      <label className="toggle-field" key={leader.id}>
+                        <input
+                          checked={checked}
+                          disabled={unavailable}
+                          onChange={() =>
+                            toggleCommitteeManualLeader(selectedCampCommittee.id, leader.id)
+                          }
+                          type="checkbox"
+                        />
+                        <span>
+                          {leader.fullName}
+                          <small>{leader.linkedRegistrationId ? "Collegato" : "Manuale"}</small>
+                          {unavailable ? <small>Già assegnato a un altro comitato</small> : null}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            <section className="camp-modal-section">
+              <h3>Giovani</h3>
+              <div className="patrol-checkbox-list">
+                {youthRegistrations.map((registration) => {
+                  const assignedCommittee = committeeAssignmentByRegistrationId.get(registration.id);
+                  const checked = selectedCampCommittee.memberRegistrationIds.includes(registration.id);
+                  const unavailable =
+                    assignedCommittee !== undefined &&
+                    assignedCommittee !== selectedCampCommittee.id &&
+                    !checked;
+
+                  return (
+                    <label className="toggle-field" key={registration.id}>
+                      <input
+                        checked={checked}
+                        disabled={unavailable}
+                        onChange={() =>
+                          updateCommitteeRegistration(
+                            selectedCampCommittee.id,
+                            registration.id,
+                            "member",
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        {getRegistrationDisplayName(registration)}
+                        <small>{getRegistrationMeta(registration.id)}</small>
+                        {unavailable ? <small>Già assegnato a un altro comitato</small> : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        </AppModal>
+      ) : null}
+
+      {selectedCampPatrol ? (
+        <AppModal
+          title={selectedCampPatrol.name}
+          subtitle="Capo pattuglia, supervisori e membri"
+          size="wide"
+          onClose={() => setSelectedCampPatrolId(null)}
+          footer={
+            <>
+              <button
+                className="button button--ghost"
+                onClick={() => setSelectedCampPatrolId(null)}
+                type="button"
+              >
+                Chiudi
+              </button>
+              <button
+                className="button button--ghost button--danger"
+                onClick={() => {
+                  removePatrol(selectedCampPatrol.id);
+                  setSelectedCampPatrolId(null);
+                }}
+                type="button"
+              >
+                Elimina
+              </button>
+              <button
+                className="button button--primary"
+                disabled={busy === "saveCampManagement" || loading}
+                onClick={() => void handleSaveCampManagement()}
+                type="button"
+              >
+                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}
+              </button>
+            </>
+          }
+        >
+          <div className="camp-modal-stack">
+            <label className="field">
+              <span className="field__label">Nome pattuglia</span>
+              <input
+                className="input"
+                value={selectedCampPatrol.name}
+                onChange={(eventInput) =>
+                  updatePatrolField(selectedCampPatrol.id, "name", eventInput.target.value)
+                }
+              />
+            </label>
+
+            <section className="camp-modal-section">
+              <h3>Capo pattuglia</h3>
+              <select
+                className="input"
+                value={selectedCampPatrol.leaderRegistrationId}
+                onChange={(eventInput) =>
+                  setPatrolLeader(selectedCampPatrol.id, eventInput.target.value)
+                }
+              >
+                <option value="">Da assegnare</option>
+                {youthRegistrations.map((registration) => {
+                  const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                  const unavailable =
+                    assignment !== undefined && assignment.patrolId !== selectedCampPatrol.id;
+
+                  return (
+                    <option disabled={unavailable} key={registration.id} value={registration.id}>
+                      {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
+                      {unavailable ? ` · già in ${assignment.patrolName}` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </section>
+
+            <section className="camp-modal-section">
+              <h3>Supervisori</h3>
+              <div className="patrol-checkbox-list">
+                {adultRegistrations.map((registration) => {
+                  const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                  const checked = selectedCampPatrol.supervisorRegistrationIds.includes(
+                    registration.id,
+                  );
+                  const unavailable =
+                    assignment !== undefined &&
+                    assignment.patrolId !== selectedCampPatrol.id &&
+                    !checked;
+
+                  return (
+                    <label className="toggle-field" key={registration.id}>
+                      <input
+                        checked={checked}
+                        disabled={unavailable}
+                        onChange={() =>
+                          togglePatrolAssignment(
+                            selectedCampPatrol.id,
+                            "supervisorRegistrationIds",
+                            registration.id,
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        {getRegistrationDisplayName(registration)}
+                        <small>{getRegistrationMeta(registration.id)}</small>
+                        {unavailable ? <small>Già in {assignment.patrolName}</small> : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="camp-modal-section">
+              <h3>Membri</h3>
+              <div className="patrol-checkbox-list">
+                {youthRegistrations.map((registration) => {
+                  const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                  const checked = selectedCampPatrol.memberRegistrationIds.includes(registration.id);
+                  const isLeader = selectedCampPatrol.leaderRegistrationId === registration.id;
+                  const unavailable =
+                    assignment !== undefined &&
+                    assignment.patrolId !== selectedCampPatrol.id &&
+                    !checked;
+
+                  return (
+                    <label className="toggle-field" key={registration.id}>
+                      <input
+                        checked={checked}
+                        disabled={unavailable || isLeader}
+                        onChange={() =>
+                          togglePatrolAssignment(
+                            selectedCampPatrol.id,
+                            "memberRegistrationIds",
+                            registration.id,
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        {getRegistrationDisplayName(registration)}
+                        <small>{getRegistrationMeta(registration.id)}</small>
+                        {isLeader ? <small>Capo pattuglia</small> : null}
+                        {unavailable ? <small>Già in {assignment.patrolName}</small> : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        </AppModal>
       ) : null}
 
       {registrationModal ? (

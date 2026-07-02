@@ -6238,6 +6238,137 @@ button {
   margin-top: 1rem;
 }
 
+.camp-ios-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+
+.camp-ios-card {
+  appearance: none;
+  width: 100%;
+  min-height: 6rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid rgba(27, 42, 65, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 253, 0.92));
+  box-shadow: 0 16px 34px rgba(27, 42, 65, 0.08);
+  color: var(--heading);
+  cursor: pointer;
+  padding: 0.95rem;
+  text-align: left;
+}
+
+.camp-ios-card--committee {
+  border-color: rgba(38, 110, 196, 0.18);
+}
+
+.camp-ios-card--patrol {
+  border-color: rgba(53, 135, 93, 0.2);
+}
+
+.camp-ios-card__icon {
+  width: 3rem;
+  height: 3rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(38, 110, 196, 0.1);
+  font-size: 1.45rem;
+}
+
+.camp-ios-card--patrol .camp-ios-card__icon {
+  background: rgba(53, 135, 93, 0.12);
+}
+
+.camp-ios-card__body {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.camp-ios-card__body strong,
+.camp-ios-card__body small,
+.camp-ios-card__preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camp-ios-card__body strong {
+  font-size: 0.98rem;
+}
+
+.camp-ios-card__body small,
+.camp-ios-card__preview {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.camp-modal-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.camp-ios-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.camp-ios-summary article,
+.camp-modal-section {
+  border: 1px solid rgba(27, 42, 65, 0.1);
+  border-radius: 16px;
+  background: rgba(248, 250, 253, 0.82);
+  padding: 0.9rem;
+}
+
+.camp-ios-summary span,
+.camp-modal-section h3,
+.camp-person-row small {
+  color: var(--muted);
+}
+
+.camp-ios-summary strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.55rem;
+}
+
+.camp-modal-section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.camp-person-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.camp-person-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid rgba(27, 42, 65, 0.1);
+  border-radius: 14px;
+  background: rgba(248, 250, 253, 0.82);
+  padding: 0.75rem 0.85rem;
+}
+
+.camp-person-row span {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
 .camp-committee-card {
   border: 1px solid rgba(27, 42, 65, 0.12);
   border-radius: 8px;
@@ -6281,6 +6412,21 @@ button {
 
 .patrol-checkbox-list--compact {
   max-height: 13rem;
+}
+
+@media (max-width: 640px) {
+  .camp-ios-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .camp-ios-card {
+    border-radius: 20px;
+    min-height: 5.5rem;
+  }
+
+  .camp-ios-summary {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .star-rating {
