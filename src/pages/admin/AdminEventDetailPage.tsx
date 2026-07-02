@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
-import { AdminActivityCard } from "@/components/AdminActivityCard";
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
@@ -1590,7 +1589,7 @@ export function AdminEventDetailPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--activity-ios page--admin-activity-detail">
       {error ? (
         <div className="notice notice--warning">
           <div>
@@ -1631,74 +1630,107 @@ export function AdminEventDetailPage() {
         </div>
       ) : null}
 
-      <section className="admin-detail-hero">
-        <AdminActivityCard
-          event={resolvedEvent}
-          registrationsCount={currentCount}
-          to={`/admin/events/${resolvedEvent.id}`}
-          variant="feature"
-        />
-
-        <div className="surface-panel surface-panel--subtle admin-detail-hero__toolbar">
-          <div className="admin-inline-metrics admin-inline-metrics--three admin-inline-metrics--hero">
-            <article className="admin-inline-metric">
-              <strong>{currentCount}</strong>
-              <span>Attivi</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{sortedRegistrations.length}</strong>
-              <span>Iscritti</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{resolvedEvent.overnight ? "Sì" : "No"}</strong>
-              <span>Pernotto</span>
-            </article>
-          </div>
-
-          <div className="admin-detail-hero__actions admin-detail-hero__actions--icons">
-            {resolvedEvent.isPublic ? (
-              <ShareButton
-                className="icon-button icon-button--soft admin-detail-action"
-                iconOnly
-                text="Guarda questa attività e apri l'iscrizione."
-                title={resolvedEvent.title}
-                url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
-              />
-            ) : null}
-            <button
-              aria-label="Modifica attività"
-              className="icon-button icon-button--soft admin-detail-action"
-              onClick={() => {
-                setActionInfo(null);
-                setEditModalOpen(true);
-              }}
-              title="Modifica"
-              type="button"
-            >
-              <AppIcon name="pencil" />
-            </button>
-            <button
-              aria-label="Rendi pubblica"
-              className="icon-button icon-button--soft admin-detail-action"
-              disabled={busy === "delete"}
-              onClick={() => void handlePublish()}
-              title="Pubblica"
-              type="button"
-            >
-              <AppIcon name="globe" />
-            </button>
-            <button
-              aria-label="Cancella attività"
-              className="icon-button admin-detail-action admin-detail-action--danger"
-              disabled={busy !== null}
-              onClick={() => void handleDelete()}
-              title="Cancella"
-              type="button"
-            >
-              <AppIcon name="trash" />
-            </button>
-          </div>
+      <section className="activity-ios-hero">
+        <div
+          className="activity-ios-hero__image"
+          style={
+            resolvedEvent.heroImageUrl
+              ? { backgroundImage: `url(${resolvedEvent.heroImageUrl})` }
+              : undefined
+          }
+        >
+          {!resolvedEvent.heroImageUrl ? <AppIcon name="ticket" /> : null}
         </div>
+
+        <div className="activity-ios-hero__content">
+          <div className="activity-ios-chip-row">
+            <StatusBadge
+              label={getEventStatusLabel(effectiveStatus)}
+              tone={getEventStatusTone(effectiveStatus)}
+            />
+            <span className="activity-ios-chip activity-ios-chip--blue">
+              {getEventAudienceLabel(resolvedEvent.audience)}
+            </span>
+            {resolvedEvent.overnight ? (
+              <span className="activity-ios-chip activity-ios-chip--violet">Pernottamento</span>
+            ) : null}
+          </div>
+
+          <h1>{resolvedEvent.title}</h1>
+
+          <p className="activity-ios-meta">
+            <AppIcon name="calendar" />
+            <span>{formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}</span>
+          </p>
+          {resolvedEvent.location ? (
+            <p className="activity-ios-meta">
+              <AppIcon name="map-pin" />
+              <span>{resolvedEvent.location}</span>
+            </p>
+          ) : null}
+        </div>
+
+        <div className="activity-ios-actions">
+          {resolvedEvent.isPublic ? (
+            <ShareButton
+              className="activity-ios-action"
+              iconOnly
+              text="Guarda questa attività e apri l'iscrizione."
+              title={resolvedEvent.title}
+              url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
+            />
+          ) : null}
+          <button
+            aria-label="Modifica attività"
+            className="activity-ios-action"
+            onClick={() => {
+              setActionInfo(null);
+              setEditModalOpen(true);
+            }}
+            title="Modifica"
+            type="button"
+          >
+            <AppIcon name="pencil" />
+          </button>
+          <button
+            aria-label="Rendi pubblica"
+            className="activity-ios-action"
+            disabled={busy === "delete"}
+            onClick={() => void handlePublish()}
+            title="Pubblica"
+            type="button"
+          >
+            <AppIcon name="globe" />
+          </button>
+          <button
+            aria-label="Cancella attività"
+            className="activity-ios-action activity-ios-action--danger"
+            disabled={busy !== null}
+            onClick={() => void handleDelete()}
+            title="Cancella"
+            type="button"
+          >
+            <AppIcon name="trash" />
+          </button>
+        </div>
+      </section>
+
+      <section className="activity-ios-metrics">
+        <article className="activity-ios-metric">
+          <span><AppIcon name="users" /></span>
+          <strong>{currentCount}</strong>
+          <small>Attivi</small>
+        </article>
+        <article className="activity-ios-metric">
+          <span><AppIcon name="user" /></span>
+          <strong>{sortedRegistrations.length}</strong>
+          <small>Iscritti</small>
+        </article>
+        <article className="activity-ios-metric">
+          <span><AppIcon name="building" /></span>
+          <strong>{resolvedEvent.overnight ? "Sì" : "No"}</strong>
+          <small>Pernotto</small>
+        </article>
       </section>
 
       <div

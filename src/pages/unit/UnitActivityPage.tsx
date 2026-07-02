@@ -24,6 +24,14 @@ function formatDate(iso: string) {
   });
 }
 
+function formatUnitDateRange(startDate: string, endDate: string) {
+  if (startDate === endDate) {
+    return formatDate(startDate);
+  }
+
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+}
+
 function TransportBadge({
   registration,
   isResolved,
@@ -302,21 +310,40 @@ export function UnitActivityPage() {
       : null;
 
   return (
-    <div className="page page--unit-activity">
-      <div className="admin-section__head">
-        <div>
-          {data.event ? (
-            <>
-              <h2>{data.event.title}</h2>
-              <p className="subtle-text">
-                {formatDate(data.event.startDate)} · {data.event.location}
+    <div className="page page--activity-ios page--unit-activity">
+      {data.event ? (
+        <section className="activity-ios-hero activity-ios-hero--compact">
+          <div
+            className="activity-ios-hero__image"
+            style={
+              data.event.heroImageUrl ? { backgroundImage: `url(${data.event.heroImageUrl})` } : undefined
+            }
+          >
+            {!data.event.heroImageUrl ? <AppIcon name="ticket" /> : null}
+          </div>
+          <div className="activity-ios-hero__content">
+            <div className="activity-ios-chip-row">
+              <span className="activity-ios-chip activity-ios-chip--green">La tua unità</span>
+              {data.event.overnight ? (
+                <span className="activity-ios-chip activity-ios-chip--violet">Pernottamento</span>
+              ) : null}
+            </div>
+            <h1>{data.event.title}</h1>
+            <p className="activity-ios-meta">
+              <AppIcon name="calendar" />
+              <span>{formatUnitDateRange(data.event.startDate, data.event.endDate)}</span>
+            </p>
+            {data.event.location ? (
+              <p className="activity-ios-meta">
+                <AppIcon name="map-pin" />
+                <span>{data.event.location}</span>
               </p>
-            </>
-          ) : loading ? (
-            <p className="subtle-text">Caricamento...</p>
-          ) : null}
-        </div>
-      </div>
+            ) : null}
+          </div>
+        </section>
+      ) : loading ? (
+        <p className="subtle-text">Caricamento...</p>
+      ) : null}
 
       {error ? (
         <div className="notice notice--warning">
@@ -328,28 +355,32 @@ export function UnitActivityPage() {
       ) : null}
 
       {!loading && (
-        <section className="admin-metrics">
-          <article className="admin-metric">
+        <section className="activity-ios-metrics activity-ios-metrics--four">
+          <article className="activity-ios-metric">
+            <span><AppIcon name="users" /></span>
             <strong>{data.stats.total}</strong>
-            <span>Iscritti unità</span>
+            <small>Iscritti unità</small>
           </article>
-          <article className="admin-metric admin-metric--warn">
+          <article className="activity-ios-metric activity-ios-metric--warn">
+            <span><AppIcon name="map-pin" /></span>
             <strong>{effectiveNeedsTransport}</strong>
-            <span>Passaggio / da definire</span>
+            <small>Trasporto</small>
           </article>
-          <article className="admin-metric admin-metric--warn">
+          <article className="activity-ios-metric activity-ios-metric--warn">
+            <span><AppIcon name="eye" /></span>
             <strong>{data.stats.missingPhotoConsent}</strong>
-            <span>Consenso foto mancante</span>
+            <small>Foto mancanti</small>
           </article>
-          <article className="admin-metric admin-metric--danger">
+          <article className="activity-ios-metric activity-ios-metric--danger">
+            <span><AppIcon name="lock" /></span>
             <strong>{data.stats.missingParentConsent}</strong>
-            <span>Modulo genitore mancante</span>
+            <small>Genitori</small>
           </article>
         </section>
       )}
 
       {!loading && campGroups.length > 0 ? (
-        <section className="admin-section">
+        <section className="activity-ios-panel admin-section">
           <div className="admin-section__head">
             <div>
               <h2>Organizzazione campeggio</h2>
@@ -391,7 +422,7 @@ export function UnitActivityPage() {
         </section>
       ) : null}
 
-      <section className="admin-section">
+      <section className="activity-ios-panel admin-section">
         <div className="admin-section__head">
           <div>
             <h2>Iscritti dalla tua unità</h2>
@@ -431,7 +462,7 @@ export function UnitActivityPage() {
       </section>
 
       {!loading && notRegistered.length > 0 && (
-        <section className="admin-section">
+        <section className="activity-ios-panel admin-section">
           <div className="admin-section__head">
             <div>
               <h2>Non ancora iscritti</h2>

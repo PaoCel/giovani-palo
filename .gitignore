@@ -87,3 +87,8 @@ firebase-debug.*.log
 
 # Local TypeScript build state
 *.tsbuildinfo
+
+# Local generated outputs
+output/
+outputs/
+tmp/
