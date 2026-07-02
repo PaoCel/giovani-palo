@@ -1,8 +1,10 @@
 import { eventsService } from "@/services/firestore/eventsService";
+import { campManagementService } from "@/services/firestore/campManagementService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { usersService } from "@/services/firestore/usersService";
-import type { Registration, UserProfile } from "@/types";
+import type { CampManagementPlan, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
+import { hasConfirmedParentConsent } from "@/utils/registrationConsents";
 
 export interface UnitActivityStats {
   total: number;
@@ -34,7 +36,7 @@ function computeStats(registrations: Registration[]): UnitActivityStats {
       missingPhotoConsent++;
     }
     const isMinor = isMinorBirthDate(r.birthDate);
-    if (isMinor && !r.parentConsentDocumentUrl && !r.answers.parentConfirmed) {
+    if (isMinor && !hasConfirmedParentConsent(r)) {
       missingParentConsent++;
     }
   }
@@ -97,14 +99,16 @@ export const unitLeaderService = {
     event: Awaited<ReturnType<typeof eventsService.getEventById>>;
     registrations: Registration[];
     unitYouth: UserProfile[];
+    campManagement: CampManagementPlan;
     stats: UnitActivityStats;
   }> {
-    const [event, registrations, unitYouth] = await Promise.all([
+    const [event, registrations, unitYouth, campManagement] = await Promise.all([
       eventsService.getEventById(stakeId, activityId),
       unitLeaderService.listUnitRegistrationsForEvent(stakeId, activityId, unitId),
       usersService.listUnitYouth(stakeId, unitId),
+      campManagementService.getCampManagement(stakeId, activityId),
     ]);
 
-    return { event, registrations, unitYouth, stats: computeStats(registrations) };
+    return { event, registrations, unitYouth, campManagement, stats: computeStats(registrations) };
   },
 };

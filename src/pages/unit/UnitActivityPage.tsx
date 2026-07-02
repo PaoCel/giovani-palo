@@ -3,14 +3,17 @@ import { useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
+import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { unitLeaderService } from "@/services/firestore/unitLeaderService";
 import { unitTransportNotesService } from "@/services/firestore/unitTransportNotesService";
-import type { Registration, UserProfile } from "@/types";
+import type { CampPatrolRole, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
+import { isCampPackingActivity } from "@/utils/campPacking";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
+import { hasConfirmedParentConsent } from "@/utils/registrationConsents";
 import {
   getRegistrationStatusLabel,
   getRegistrationStatusTone,
@@ -94,9 +97,7 @@ function TransportBadge({
 function ConsentCell({ registration }: { registration: Registration }) {
   const hasPhoto = registration.answers.photoInternalConsent === true;
   const isMinor = isMinorBirthDate(registration.birthDate);
-  const hasParent =
-    !isMinor ||
-    Boolean(registration.parentConsentDocumentUrl || registration.answers.parentConfirmed);
+  const hasParent = hasConfirmedParentConsent(registration);
 
   return (
     <div className="unit-consent-cell">
@@ -131,23 +132,40 @@ function ConsentCell({ registration }: { registration: Registration }) {
   );
 }
 
-function CampAssignmentCell({ registration }: { registration: Registration }) {
-  const committee = registration.assignedCommittees[0];
+interface UnitCampAssignment {
+  patrolId: string | null;
+  patrolName: string | null;
+  patrolRole: CampPatrolRole | null;
+  committeeId: string | null;
+  committeeTitle: string | null;
+  committeeRole: "leader" | "member" | null;
+}
 
-  if (!registration.assignedPatrolName && !committee) {
+function CampAssignmentCell({
+  assignment,
+  registration,
+}: {
+  assignment: UnitCampAssignment | null;
+  registration: Registration;
+}) {
+  const fallbackCommittee = registration.assignedCommittees[0];
+  const patrolName = assignment?.patrolName ?? registration.assignedPatrolName;
+  const committeeTitle = assignment?.committeeTitle ?? fallbackCommittee?.title;
+
+  if (!patrolName && !committeeTitle) {
     return <span className="subtle-text">-</span>;
   }
 
   return (
     <div className="unit-consent-cell">
-      {registration.assignedPatrolName ? (
+      {patrolName ? (
         <span className="unit-badge unit-badge--ok" title="Pattuglia">
-          {registration.assignedPatrolName}
+          {patrolName}
         </span>
       ) : null}
-      {committee ? (
+      {committeeTitle ? (
         <span className="unit-badge" title="Comitato">
-          {committee.title}
+          {committeeTitle}
         </span>
       ) : null}
     </div>
@@ -157,10 +175,12 @@ function CampAssignmentCell({ registration }: { registration: Registration }) {
 function RegistrationRow({
   registration,
   isTransportResolved,
+  campAssignment,
   onToggleTransport,
 }: {
   registration: Registration;
   isTransportResolved: boolean;
+  campAssignment: UnitCampAssignment | null;
   onToggleTransport: () => void;
 }) {
   const categoryLabel = getGenderRoleCategoryLabel(registration.genderRoleCategory);
@@ -187,7 +207,7 @@ function RegistrationRow({
         <ConsentCell registration={registration} />
       </td>
       <td className="unit-table__cell">
-        <CampAssignmentCell registration={registration} />
+        <CampAssignmentCell registration={registration} assignment={campAssignment} />
       </td>
     </tr>
   );
@@ -210,12 +230,44 @@ const initialData = {
   event: null as Awaited<ReturnType<typeof unitLeaderService.getUnitActivityDetail>>["event"],
   registrations: [] as Registration[],
   unitYouth: [] as UserProfile[],
+  campManagement: { committees: [], patrols: [], manualLeaders: [], updatedAt: "" },
   stats: { total: 0, needsTransport: 0, missingPhotoConsent: 0, missingParentConsent: 0 },
 };
 
 type CampGroup =
-  | { kind: "patrol"; id: string; title: string; registrations: Registration[] }
-  | { kind: "committee"; id: string; title: string; registrations: Registration[] };
+  | {
+      kind: "patrol";
+      id: string;
+      title: string;
+      registrations: Registration[];
+      roles: Record<string, CampPatrolRole>;
+      manualLeaderNames: string[];
+    }
+  | {
+      kind: "committee";
+      id: string;
+      title: string;
+      registrations: Registration[];
+      roles: Record<string, "leader" | "member">;
+      manualLeaderNames: string[];
+    };
+
+function getPatrolRoleShortLabel(role: CampPatrolRole | null) {
+  switch (role) {
+    case "leader":
+      return "Capo";
+    case "supervisor":
+      return "Supervisore";
+    case "member":
+      return "Membro";
+    default:
+      return "Membro";
+  }
+}
+
+function getCommitteeRoleShortLabel(role: "leader" | "member" | null) {
+  return role === "leader" ? "Responsabile" : "Membro";
+}
 
 export function UnitActivityPage() {
   const { eventId = "" } = useParams<{ eventId: string }>();
@@ -268,46 +320,133 @@ export function UnitActivityPage() {
     data.registrations.flatMap((r) => (r.userId ? [r.userId] : [])),
   );
   const notRegistered = data.unitYouth.filter((y) => !registeredUserIds.has(y.id));
-  const campGroups = useMemo<CampGroup[]>(() => {
-    const patrols = new Map<string, CampGroup>();
-    const committees = new Map<string, CampGroup>();
+  const registrationById = useMemo(
+    () => new Map(data.registrations.map((registration) => [registration.id, registration])),
+    [data.registrations],
+  );
+  const manualLeaderById = useMemo(
+    () =>
+      new Map(
+        data.campManagement.manualLeaders.map((leader) => [
+          leader.id,
+          leader.fullName,
+        ]),
+      ),
+    [data.campManagement.manualLeaders],
+  );
+  const campOrganization = useMemo(() => {
+    const assignmentByRegistrationId = new Map<string, UnitCampAssignment>();
+    const groups: CampGroup[] = [];
 
-    for (const registration of data.registrations) {
-      if (registration.assignedPatrolId && registration.assignedPatrolName) {
-        const key = registration.assignedPatrolId;
-        const existing =
-          patrols.get(key) ??
-          ({
-            kind: "patrol",
-            id: key,
-            title: registration.assignedPatrolName,
-            registrations: [],
-          } satisfies CampGroup);
-        existing.registrations.push(registration);
-        patrols.set(key, existing);
-      }
+    function ensureAssignment(registrationId: string) {
+      const fallback = data.registrations.find((registration) => registration.id === registrationId);
+      const fallbackCommittee = fallback?.assignedCommittees[0];
+      const current = assignmentByRegistrationId.get(registrationId);
 
-      for (const committee of registration.assignedCommittees) {
-        const key = committee.id;
-        const existing =
-          committees.get(key) ??
-          ({
-            kind: "committee",
-            id: key,
-            title: committee.title,
-            registrations: [],
-          } satisfies CampGroup);
-        existing.registrations.push(registration);
-        committees.set(key, existing);
-      }
+      if (current) return current;
+
+      const next: UnitCampAssignment = {
+        patrolId: fallback?.assignedPatrolId ?? null,
+        patrolName: fallback?.assignedPatrolName ?? null,
+        patrolRole: fallback?.assignedPatrolRole ?? null,
+        committeeId: fallbackCommittee?.id ?? null,
+        committeeTitle: fallbackCommittee?.title ?? null,
+        committeeRole: fallbackCommittee?.role ?? null,
+      };
+      assignmentByRegistrationId.set(registrationId, next);
+      return next;
     }
 
-    return [...committees.values(), ...patrols.values()];
-  }, [data.registrations]);
+    for (const registration of data.registrations) {
+      ensureAssignment(registration.id);
+    }
+
+    for (const committee of data.campManagement.committees) {
+      const roles: Record<string, "leader" | "member"> = {};
+      const registrations: Registration[] = [];
+
+      for (const registrationId of committee.leaderRegistrationIds) {
+        const registration = registrationById.get(registrationId);
+        if (!registration) continue;
+        roles[registrationId] = "leader";
+        registrations.push(registration);
+        const assignment = ensureAssignment(registrationId);
+        assignment.committeeId = committee.id;
+        assignment.committeeTitle = committee.title;
+        assignment.committeeRole = "leader";
+      }
+
+      for (const registrationId of committee.memberRegistrationIds) {
+        const registration = registrationById.get(registrationId);
+        if (!registration) continue;
+        roles[registrationId] = "member";
+        registrations.push(registration);
+        const assignment = ensureAssignment(registrationId);
+        assignment.committeeId = committee.id;
+        assignment.committeeTitle = committee.title;
+        assignment.committeeRole = "member";
+      }
+
+      const manualLeaderNames = committee.manualLeaderIds
+        .map((leaderId) => manualLeaderById.get(leaderId))
+        .filter((value): value is string => Boolean(value));
+
+      groups.push({
+        kind: "committee",
+        id: committee.id,
+        title: committee.title,
+        registrations,
+        roles,
+        manualLeaderNames,
+      });
+    }
+
+    for (const patrol of data.campManagement.patrols) {
+      const roles: Record<string, CampPatrolRole> = {};
+      const registrations: Registration[] = [];
+
+      const orderedAssignments: Array<[string, CampPatrolRole]> = [
+        ...(patrol.leaderRegistrationId
+          ? ([[patrol.leaderRegistrationId, "leader"]] as Array<[string, CampPatrolRole]>)
+          : []),
+        ...patrol.supervisorRegistrationIds.map(
+          (registrationId): [string, CampPatrolRole] => [registrationId, "supervisor"],
+        ),
+        ...patrol.memberRegistrationIds.map(
+          (registrationId): [string, CampPatrolRole] => [registrationId, "member"],
+        ),
+      ];
+
+      for (const [registrationId, role] of orderedAssignments) {
+        const registration = registrationById.get(registrationId);
+        if (!registration) continue;
+        roles[registrationId] = role;
+        registrations.push(registration);
+        const assignment = ensureAssignment(registrationId);
+        assignment.patrolId = patrol.id;
+        assignment.patrolName = patrol.name;
+        assignment.patrolRole = role;
+      }
+
+      groups.push({
+        kind: "patrol",
+        id: patrol.id,
+        title: patrol.name,
+        registrations,
+        roles,
+        manualLeaderNames: [],
+      });
+    }
+
+    return { groups, assignmentByRegistrationId };
+  }, [data.campManagement, data.registrations, manualLeaderById, registrationById]);
+  const campGroups = campOrganization.groups;
   const selectedCampGroup =
     selectedCampGroupKey !== null
       ? campGroups.find((group) => `${group.kind}:${group.id}` === selectedCampGroupKey) ?? null
       : null;
+  const showCampOrganization =
+    Boolean(data.event && isCampPackingActivity(data.event)) && campGroups.length > 0;
 
   return (
     <div className="page page--activity-ios page--unit-activity">
@@ -379,7 +518,7 @@ export function UnitActivityPage() {
         </section>
       )}
 
-      {!loading && campGroups.length > 0 ? (
+      {!loading && showCampOrganization ? (
         <section className="activity-ios-panel admin-section">
           <div className="admin-section__head">
             <div>
@@ -402,17 +541,19 @@ export function UnitActivityPage() {
                 <span className="camp-ios-card__icon" aria-hidden="true">
                   {group.kind === "committee" ? "◌" : "🧭"}
                 </span>
-                <span className="camp-ios-card__body">
+                  <span className="camp-ios-card__body">
                   <strong>{group.title}</strong>
                   <small>
                     {group.kind === "committee" ? "Comitato" : "Pattuglia"} ·{" "}
-                    {group.registrations.length} persone
+                    {group.registrations.length} della tua unità
                   </small>
                   <span className="camp-ios-card__preview">
-                    {group.registrations
+                    {[
+                      ...group.manualLeaderNames,
+                      ...group.registrations.map((registration) => registration.fullName),
+                    ]
                       .slice(0, 3)
-                      .map((registration) => registration.fullName)
-                      .join(", ")}
+                      .join(", ") || "Nessun iscritto della tua unità assegnato"}
                   </span>
                 </span>
                 <AppIcon name="arrow-right" />
@@ -420,6 +561,10 @@ export function UnitActivityPage() {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {data.event && session?.firebaseUser.uid && isCampPackingActivity(data.event) ? (
+        <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} />
       ) : null}
 
       <section className="activity-ios-panel admin-section">
@@ -451,6 +596,7 @@ export function UnitActivityPage() {
                   <RegistrationRow
                     key={r.id}
                     registration={r}
+                    campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
                     isTransportResolved={resolvedSet.has(r.id)}
                     onToggleTransport={() => void handleToggleTransport(r.id)}
                   />
@@ -492,33 +638,30 @@ export function UnitActivityPage() {
           onClose={() => setSelectedCampGroupKey(null)}
         >
           <div className="camp-person-list">
+            {selectedCampGroup.manualLeaderNames.map((fullName) => (
+              <article className="camp-person-row" key={`manual-${fullName}`}>
+                <span>
+                  <strong>{fullName}</strong>
+                  <small>Dirigente manuale</small>
+                </span>
+                <StatusBadge label="Responsabile" tone="info" />
+              </article>
+            ))}
             {selectedCampGroup.registrations.map((registration) => (
               <article className="camp-person-row" key={registration.id}>
                 <span>
                   <strong>{registration.fullName}</strong>
                   <small>{getGenderRoleCategoryLabel(registration.genderRoleCategory)}</small>
                 </span>
-                {selectedCampGroup.kind === "patrol" && registration.assignedPatrolRole ? (
+                {selectedCampGroup.kind === "patrol" ? (
                   <StatusBadge
-                    label={
-                      registration.assignedPatrolRole === "leader"
-                        ? "Capo"
-                        : registration.assignedPatrolRole === "supervisor"
-                          ? "Supervisore"
-                          : "Membro"
-                    }
+                    label={getPatrolRoleShortLabel(selectedCampGroup.roles[registration.id] ?? null)}
                     tone="info"
                   />
                 ) : null}
                 {selectedCampGroup.kind === "committee" ? (
                   <StatusBadge
-                    label={
-                      registration.assignedCommittees.find(
-                        (committee) => committee.id === selectedCampGroup.id,
-                      )?.role === "leader"
-                        ? "Responsabile"
-                        : "Membro"
-                    }
+                    label={getCommitteeRoleShortLabel(selectedCampGroup.roles[registration.id] ?? null)}
                     tone="info"
                   />
                 ) : null}
