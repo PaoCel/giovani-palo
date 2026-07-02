@@ -34,6 +34,11 @@ interface LikeState {
   media: Record<string, boolean>;
 }
 
+function isPermissionError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /permission|permissions|insufficient/i.test(message);
+}
+
 export function HomeFeed(_: HomeFeedProps) {
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId ?? "";
@@ -66,6 +71,17 @@ export function HomeFeed(_: HomeFeedProps) {
         feedService.listPublishedPosts(stakeId),
         userActivitiesService.listForSession(session, { onlyRegistered: true }),
       ]);
+      const registeredActivityIds = new Set(
+        registeredActivities
+          .filter(({ registration }) => registration?.registrationStatus !== "cancelled")
+          .map(({ event }) => event.id),
+      );
+      const visibleFeedPosts = feedPosts.filter(
+        (post) =>
+          post.type !== "gallery" ||
+          !post.activityId ||
+          registeredActivityIds.has(post.activityId),
+      );
       const checklistActivities = registeredActivities.filter(
         ({ event, registration }) =>
           Boolean(registration) &&
@@ -76,7 +92,7 @@ export function HomeFeed(_: HomeFeedProps) {
 
       const galleryIds = Array.from(
         new Set(
-          feedPosts
+          visibleFeedPosts
             .map((post) => post.galleryId)
             .filter((value): value is string => Boolean(value)),
         ),
@@ -90,14 +106,18 @@ export function HomeFeed(_: HomeFeedProps) {
       }
       const activityIds = Array.from(
         new Set(
-          feedPosts
+          visibleFeedPosts
             .map((post) => post.activityId)
             .filter((value): value is string => Boolean(value)),
         ),
       );
 
       const [galleryDocs, activityDocs] = await Promise.all([
-        Promise.all(galleryIds.map((id) => galleriesService.getGallery(stakeId, id))),
+        Promise.all(
+          galleryIds.map((id) =>
+            galleriesService.getGallery(stakeId, id).catch(() => null),
+          ),
+        ),
         Promise.all(activityIds.map((id) => eventsService.getEventById(stakeId, id).catch(() => null))),
       ]);
 
@@ -122,7 +142,7 @@ export function HomeFeed(_: HomeFeedProps) {
         }
       });
 
-      const galleryPosts = feedPosts.filter(
+      const galleryPosts = visibleFeedPosts.filter(
         (post) => post.type === "gallery" && post.galleryId,
       );
       const unlockedGalleryPosts = galleryPosts.filter(
@@ -142,9 +162,9 @@ export function HomeFeed(_: HomeFeedProps) {
       );
 
       const likedPosts = await Promise.all(
-        feedPosts.map(async (post) => ({
+        visibleFeedPosts.map(async (post) => ({
           id: post.id,
-          liked: await feedService.hasUserLikedPost(stakeId, post.id, uid),
+          liked: await feedService.hasUserLikedPost(stakeId, post.id, uid).catch(() => false),
         })),
       );
       const postLikes: Record<string, boolean> = {};
@@ -152,7 +172,7 @@ export function HomeFeed(_: HomeFeedProps) {
         if (liked) postLikes[id] = true;
       });
 
-      setPosts(feedPosts);
+      setPosts(visibleFeedPosts);
       setCampChecklistActivities(checklistActivities);
       setGalleries(galleryMap);
       setActivities(activityMap);
@@ -160,6 +180,17 @@ export function HomeFeed(_: HomeFeedProps) {
       setMediaByGallery(mediaCache);
       setLikes((prev) => ({ ...prev, posts: postLikes }));
     } catch (caughtError) {
+      if (isPermissionError(caughtError)) {
+        setPosts([]);
+        setCampChecklistActivities([]);
+        setGalleries({});
+        setActivities({});
+        setUnlocked({});
+        setMediaByGallery({});
+        setLikes((prev) => ({ ...prev, posts: {} }));
+        return;
+      }
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
