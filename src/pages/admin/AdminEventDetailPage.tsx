@@ -70,10 +70,7 @@ type AdminEventTab =
   | "stats";
 type RegistrationModalMode = "registration" | "overnight";
 type RegistrationCategoryFilter =
-  | "giovane_uomo"
-  | "giovane_donna"
-  | "dirigente"
-  | "accompagnatore";
+  "giovane_uomo" | "giovane_donna" | "dirigente" | "accompagnatore";
 
 interface DistributionItem {
   label: string;
@@ -119,7 +116,10 @@ function getPatrolRoleLabel(role: CampPatrolRole | null) {
 }
 
 function createLocalId(prefix: string) {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
 
@@ -142,7 +142,10 @@ function buildDistribution<T>(
   const total = items.length || 1;
 
   return [...counts.entries()]
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "it"))
+    .sort(
+      (left, right) =>
+        right[1] - left[1] || left[0].localeCompare(right[0], "it"),
+    )
     .map<DistributionItem>(([label, count]) => ({
       label,
       count,
@@ -165,7 +168,8 @@ function getAgeFromBirthDate(value: string) {
   let age = today.getFullYear() - birthDate.getFullYear();
   const hasBirthdayPassed =
     today.getMonth() > birthDate.getMonth() ||
-    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() >= birthDate.getDate());
 
   if (!hasBirthdayPassed) {
     age -= 1;
@@ -188,7 +192,10 @@ function getAverageAge(registrations: Registration[]) {
 }
 
 function getCategoryLabel(registration: Registration) {
-  return getGenderRoleCategoryLabel(registration.genderRoleCategory) || "Organizzazione non indicata";
+  return (
+    getGenderRoleCategoryLabel(registration.genderRoleCategory) ||
+    "Organizzazione non indicata"
+  );
 }
 
 function getCategoryShortLabel(registration: Registration) {
@@ -223,13 +230,16 @@ function isRegistrationCategoryFilter(
 function getUnitLabel(registration: Registration) {
   return (
     registration.unitNameSnapshot ||
-    (typeof registration.answers.unitName === "string" ? registration.answers.unitName : "") ||
+    (typeof registration.answers.unitName === "string"
+      ? registration.answers.unitName
+      : "") ||
     "Unità non indicata"
   );
 }
 
 function getParentAuthorizationRequest(registration: Registration) {
-  const request = (registration.answers as Record<string, unknown>).parentAuthorizationRequest;
+  const request = (registration.answers as Record<string, unknown>)
+    .parentAuthorizationRequest;
 
   if (!request || typeof request !== "object" || Array.isArray(request)) {
     return null;
@@ -252,7 +262,9 @@ function getParentName(registration: Registration) {
   const request = getParentAuthorizationRequest(registration);
   const firstName =
     registration.parentAuthorization?.parentFirstName ||
-    (typeof request?.parentFirstName === "string" ? request.parentFirstName : "");
+    (typeof request?.parentFirstName === "string"
+      ? request.parentFirstName
+      : "");
   const lastName =
     registration.parentAuthorization?.parentLastName ||
     (typeof request?.parentLastName === "string" ? request.parentLastName : "");
@@ -263,7 +275,10 @@ function getParentName(registration: Registration) {
 function getParentAuthorizationBadge(
   registration: Registration,
   required: boolean,
-): { label: string; tone: "neutral" | "info" | "success" | "warning" | "danger" } {
+): {
+  label: string;
+  tone: "neutral" | "info" | "success" | "warning" | "danger";
+} {
   if (!required) {
     return { label: "Email non richiesta", tone: "neutral" };
   }
@@ -374,7 +389,9 @@ export function AdminEventDetailPage() {
     | "reactivateRegistration"
     | "saveCampManagement"
   >(null);
-  const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(null);
+  const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionInfo, setActionInfo] = useState<string | null>(null);
   // Link di download persistente: window.open dopo un await viene bloccato
@@ -383,16 +400,21 @@ export function AdminEventDetailPage() {
     url: string;
     label: string;
   } | null>(null);
-  const [registrationModalId, setRegistrationModalId] = useState<string | null>(null);
+  const [registrationModalId, setRegistrationModalId] = useState<string | null>(
+    null,
+  );
   const [registrationModalMode, setRegistrationModalMode] =
     useState<RegistrationModalMode>("registration");
   const [selectedConsentRegistrationId, setSelectedConsentRegistrationId] =
     useState<string | null>(null);
-  const [parentEmailEditingId, setParentEmailEditingId] = useState<string | null>(null);
+  const [parentEmailEditingId, setParentEmailEditingId] = useState<
+    string | null
+  >(null);
   const [parentEmailDraft, setParentEmailDraft] = useState("");
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [excelExportModalOpen, setExcelExportModalOpen] = useState(false);
-  const [normalizingRoomPreferences, setNormalizingRoomPreferences] = useState(false);
+  const [normalizingRoomPreferences, setNormalizingRoomPreferences] =
+    useState(false);
   const [activeRegistrationFilters, setActiveRegistrationFilters] = useState<
     RegistrationCategoryFilter[]
   >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
@@ -404,7 +426,9 @@ export function AdminEventDetailPage() {
   const [manualLeaderName, setManualLeaderName] = useState("");
   const [selectedCampCommitteeId, setSelectedCampCommitteeId] =
     useState<CampCommitteeId | null>(null);
-  const [selectedCampPatrolId, setSelectedCampPatrolId] = useState<string | null>(null);
+  const [selectedCampPatrolId, setSelectedCampPatrolId] = useState<
+    string | null
+  >(null);
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -412,12 +436,13 @@ export function AdminEventDetailPage() {
         return null;
       }
 
-      const [workspace, organization, allEvents, campManagement] = await Promise.all([
-        adminEventsService.getAdminEventWorkspace(stakeId, eventId),
-        organizationService.getProfile(stakeId),
-        adminEventsService.listAdminEvents(stakeId),
-        campManagementService.getCampManagement(stakeId, eventId),
-      ]);
+      const [workspace, organization, allEvents, campManagement] =
+        await Promise.all([
+          adminEventsService.getAdminEventWorkspace(stakeId, eventId),
+          organizationService.getProfile(stakeId),
+          adminEventsService.listAdminEvents(stakeId),
+          campManagementService.getCampManagement(stakeId, eventId),
+        ]);
 
       if (!workspace) {
         return null;
@@ -426,7 +451,10 @@ export function AdminEventDetailPage() {
       const registrationsPerEvent = await Promise.all(
         allEvents.map(async (event) => ({
           eventId: event.id,
-          registrations: await registrationsService.listRegistrationsByEvent(stakeId, event.id),
+          registrations: await registrationsService.listRegistrationsByEvent(
+            stakeId,
+            event.id,
+          ),
         })),
       );
 
@@ -443,25 +471,29 @@ export function AdminEventDetailPage() {
 
   const questionsEnabled = data?.workspace.event.questionsEnabled === true;
   const [questionsRefreshKey, setQuestionsRefreshKey] = useState(0);
-  const { data: questions, loading: questionsLoading, error: questionsError } =
-    useAsyncData<Question[]>(
-      async () => {
-        if (!eventId || !questionsEnabled) {
-          return [];
-        }
+  const {
+    data: questions,
+    loading: questionsLoading,
+    error: questionsError,
+  } = useAsyncData<Question[]>(
+    async () => {
+      if (!eventId || !questionsEnabled) {
+        return [];
+      }
 
-        return questionsService.listAllForEvent(stakeId, eventId);
-      },
-      [eventId, stakeId, questionsEnabled, questionsRefreshKey],
-      [],
-    );
+      return questionsService.listAllForEvent(stakeId, eventId);
+    },
+    [eventId, stakeId, questionsEnabled, questionsRefreshKey],
+    [],
+  );
 
   const event = data?.workspace.event ?? null;
   const formConfig = data?.workspace.formConfig ?? null;
   const registrations = data?.workspace.registrations ?? [];
   const routeTab = getAdminEventTabFromPath(location.pathname);
   const campManagement = useMemo(
-    () => data?.campManagement ?? campManagementService.getDefaultCampManagement(),
+    () =>
+      data?.campManagement ?? campManagementService.getDefaultCampManagement(),
     [data?.campManagement],
   );
 
@@ -483,7 +515,8 @@ export function AdminEventDetailPage() {
     () =>
       sortedRegistrations.filter(
         (registration) =>
-          registration.registrationStatus !== "cancelled" && registration.status !== "cancelled",
+          registration.registrationStatus !== "cancelled" &&
+          registration.status !== "cancelled",
       ),
     [sortedRegistrations],
   );
@@ -606,14 +639,18 @@ export function AdminEventDetailPage() {
       buildDistribution(
         activeRegistrations,
         (registration) =>
-          typeof registration.answers.city === "string" ? registration.answers.city : "",
+          typeof registration.answers.city === "string"
+            ? registration.answers.city
+            : "",
         "Città non indicata",
       ),
     [activeRegistrations],
   );
   const roomRequestDistribution = useMemo(() => {
     const requests = activeRegistrations.flatMap((registration) =>
-      roomPreferenceKeys.map((key) => getRoomPreferenceResolvedName(registration, key)),
+      roomPreferenceKeys.map((key) =>
+        getRoomPreferenceResolvedName(registration, key),
+      ),
     );
     const filteredRequests = requests.filter(Boolean);
 
@@ -625,12 +662,15 @@ export function AdminEventDetailPage() {
   }, [activeRegistrations]);
   const registrationFilterCounts = useMemo(
     () =>
-      registrationCategoryFilterOptions.reduce<Record<RegistrationCategoryFilter, number>>(
+      registrationCategoryFilterOptions.reduce<
+        Record<RegistrationCategoryFilter, number>
+      >(
         (accumulator, option) => {
           accumulator[option.value] = sortedRegistrations.filter(
             (registration) =>
               registration.genderRoleCategory === option.value &&
-              (selectedUnitFilter === "all" || getUnitLabel(registration) === selectedUnitFilter),
+              (selectedUnitFilter === "all" ||
+                getUnitLabel(registration) === selectedUnitFilter),
           ).length;
           return accumulator;
         },
@@ -662,9 +702,14 @@ export function AdminEventDetailPage() {
   const filteredRegistrations = useMemo(() => {
     const needle = nameSearch.trim().toLocaleLowerCase("it-IT");
     return sortedRegistrations.filter((registration) => {
-      if (!isRegistrationCategoryFilter(registration.genderRoleCategory)) return false;
-      if (!activeRegistrationFilters.includes(registration.genderRoleCategory)) return false;
-      if (selectedUnitFilter !== "all" && getUnitLabel(registration) !== selectedUnitFilter) {
+      if (!isRegistrationCategoryFilter(registration.genderRoleCategory))
+        return false;
+      if (!activeRegistrationFilters.includes(registration.genderRoleCategory))
+        return false;
+      if (
+        selectedUnitFilter !== "all" &&
+        getUnitLabel(registration) !== selectedUnitFilter
+      ) {
         return false;
       }
       if (needle) {
@@ -681,7 +726,12 @@ export function AdminEventDetailPage() {
       }
       return true;
     });
-  }, [activeRegistrationFilters, nameSearch, selectedUnitFilter, sortedRegistrations]);
+  }, [
+    activeRegistrationFilters,
+    nameSearch,
+    selectedUnitFilter,
+    sortedRegistrations,
+  ]);
   const registrationLookupById = useMemo(() => {
     const map = new Map<string, Registration>();
     for (const registration of registrations) {
@@ -752,37 +802,50 @@ export function AdminEventDetailPage() {
     isMinorRegistration(registration),
   );
   const uploadedMinorConsentCount = minorRegistrations.filter((registration) =>
-    Boolean(registration.parentConsentDocumentUrl || registration.parentAuthorization?.pdfPath),
+    Boolean(
+      registration.parentConsentDocumentUrl ||
+      registration.parentAuthorization?.pdfPath,
+    ),
   ).length;
-  const missingMinorConsentCount = minorRegistrations.length - uploadedMinorConsentCount;
+  const missingMinorConsentCount =
+    minorRegistrations.length - uploadedMinorConsentCount;
   const signedParentAuthorizationCount = activeRegistrations.filter(
     (registration) =>
       registration.parentAuthorization?.status === "authorized" &&
       Boolean(registration.parentAuthorization?.pdfPath),
   ).length;
-  const legacyApprovedWithoutPdfCount = activeRegistrations.filter((registration) => {
-    if (registration.parentAuthorization?.pdfPath) return false;
-    if (registration.parentAuthorization?.status === "rejected_by_parent") return false;
-    return (
-      registration.parentAuthorization?.status === "authorized" ||
-      registration.answers.parentConfirmed === true ||
-      registration.answers.parentalConsentAccepted === true
-    );
-  }).length;
-  const withRoomPreferencesCount = activeRegistrations.filter(
-    (registration) =>
-      roomPreferenceKeys.some((key) => Boolean(getRegistrationTextAnswer(registration, key))),
+  const legacyApprovedWithoutPdfCount = activeRegistrations.filter(
+    (registration) => {
+      if (registration.parentAuthorization?.pdfPath) return false;
+      if (registration.parentAuthorization?.status === "rejected_by_parent")
+        return false;
+      return (
+        registration.parentAuthorization?.status === "authorized" ||
+        registration.answers.parentConfirmed === true ||
+        registration.answers.parentalConsentAccepted === true
+      );
+    },
   ).length;
-  const normalizedRoomPreferencesCount = activeRegistrations.reduce((total, registration) => {
-    return (
-      total +
-      roomPreferenceKeys.filter(
-        (key) =>
-          registration.roomPreferenceMatches[key]?.status === "matched" &&
-          Boolean(registration.roomPreferenceMatches[key]?.matchedRegistrationId),
-      ).length
-    );
-  }, 0);
+  const withRoomPreferencesCount = activeRegistrations.filter((registration) =>
+    roomPreferenceKeys.some((key) =>
+      Boolean(getRegistrationTextAnswer(registration, key)),
+    ),
+  ).length;
+  const normalizedRoomPreferencesCount = activeRegistrations.reduce(
+    (total, registration) => {
+      return (
+        total +
+        roomPreferenceKeys.filter(
+          (key) =>
+            registration.roomPreferenceMatches[key]?.status === "matched" &&
+            Boolean(
+              registration.roomPreferenceMatches[key]?.matchedRegistrationId,
+            ),
+        ).length
+      );
+    },
+    0,
+  );
   const withRoomNotesCount = activeRegistrations.filter((registration) =>
     Boolean(getRegistrationTextAnswer(registration, "roomNotes")),
   ).length;
@@ -804,12 +867,15 @@ export function AdminEventDetailPage() {
       ).length,
     }))
     .sort((left, right) => right.total - left.total);
-  const eventRankIndex = comparisonCounts.findIndex((item) => item.eventId === resolvedEventId);
+  const eventRankIndex = comparisonCounts.findIndex(
+    (item) => item.eventId === resolvedEventId,
+  );
   const eventRank = eventRankIndex >= 0 ? eventRankIndex + 1 : null;
   const averageRegistrations =
     comparisonCounts.length > 0
       ? Math.round(
-          (comparisonCounts.reduce((sum, item) => sum + item.total, 0) / comparisonCounts.length) *
+          (comparisonCounts.reduce((sum, item) => sum + item.total, 0) /
+            comparisonCounts.length) *
             10,
         ) / 10
       : 0;
@@ -827,11 +893,17 @@ export function AdminEventDetailPage() {
     if (count === 5) return "admin-subtabs admin-subtabs--five";
     return "admin-subtabs admin-subtabs--four";
   })();
-  const visibleQuestions = sortedQuestions.filter((question) => question.status === "active");
-  const hiddenQuestions = sortedQuestions.filter((question) => question.status === "hidden");
+  const visibleQuestions = sortedQuestions.filter(
+    (question) => question.status === "active",
+  );
+  const hiddenQuestions = sortedQuestions.filter(
+    (question) => question.status === "hidden",
+  );
   const registrationModal =
     registrationModalId !== null
-      ? sortedRegistrations.find((registration) => registration.id === registrationModalId) ?? null
+      ? (sortedRegistrations.find(
+          (registration) => registration.id === registrationModalId,
+        ) ?? null)
       : null;
   const registrationModalHighlights = registrationModal
     ? getRegistrationHighlights(registrationModal)
@@ -849,20 +921,26 @@ export function AdminEventDetailPage() {
       : [];
   const modalSubtitle =
     registrationModalMode === "overnight"
-      ? "Preferenze stanza e dati inviati"
+      ? "Preferenze tenda e dati inviati"
       : "Dettaglio registrazione";
   const selectedCampCommittee =
     selectedCampCommitteeId !== null
-      ? campDraft.committees.find((committee) => committee.id === selectedCampCommitteeId) ?? null
+      ? (campDraft.committees.find(
+          (committee) => committee.id === selectedCampCommitteeId,
+        ) ?? null)
       : null;
   const selectedCampPatrol =
     selectedCampPatrolId !== null
-      ? campDraft.patrols.find((patrol) => patrol.id === selectedCampPatrolId) ?? null
+      ? (campDraft.patrols.find(
+          (patrol) => patrol.id === selectedCampPatrolId,
+        ) ?? null)
       : null;
 
   function getRegistrationName(registrationId: string) {
     const registration = activeRegistrationById.get(registrationId);
-    return registration ? getRegistrationDisplayName(registration) : "Non trovato";
+    return registration
+      ? getRegistrationDisplayName(registration)
+      : "Non trovato";
   }
 
   function getRegistrationMeta(registrationId: string) {
@@ -881,7 +959,9 @@ export function AdminEventDetailPage() {
     role: "leader" | "member",
   ) {
     setCampDraft((current) => {
-      const target = current.committees.find((committee) => committee.id === committeeId);
+      const target = current.committees.find(
+        (committee) => committee.id === committeeId,
+      );
       const alreadyAssigned =
         target?.leaderRegistrationIds.includes(registrationId) ||
         target?.memberRegistrationIds.includes(registrationId);
@@ -903,11 +983,17 @@ export function AdminEventDetailPage() {
         return role === "leader"
           ? {
               ...withoutRegistration,
-              leaderRegistrationIds: [...withoutRegistration.leaderRegistrationIds, registrationId],
+              leaderRegistrationIds: [
+                ...withoutRegistration.leaderRegistrationIds,
+                registrationId,
+              ],
             }
           : {
               ...withoutRegistration,
-              memberRegistrationIds: [...withoutRegistration.memberRegistrationIds, registrationId],
+              memberRegistrationIds: [
+                ...withoutRegistration.memberRegistrationIds,
+                registrationId,
+              ],
             };
       });
 
@@ -915,17 +1001,26 @@ export function AdminEventDetailPage() {
     });
   }
 
-  function toggleCommitteeManualLeader(committeeId: CampCommitteeId, manualLeaderId: string) {
+  function toggleCommitteeManualLeader(
+    committeeId: CampCommitteeId,
+    manualLeaderId: string,
+  ) {
     setCampDraft((current) => {
-      const target = current.committees.find((committee) => committee.id === committeeId);
-      const alreadyAssigned = Boolean(target?.manualLeaderIds.includes(manualLeaderId));
+      const target = current.committees.find(
+        (committee) => committee.id === committeeId,
+      );
+      const alreadyAssigned = Boolean(
+        target?.manualLeaderIds.includes(manualLeaderId),
+      );
 
       return {
         ...current,
         committees: current.committees.map((committee) => {
           const withoutLeader = {
             ...committee,
-            manualLeaderIds: committee.manualLeaderIds.filter((value) => value !== manualLeaderId),
+            manualLeaderIds: committee.manualLeaderIds.filter(
+              (value) => value !== manualLeaderId,
+            ),
           };
 
           if (committee.id !== committeeId || alreadyAssigned) {
@@ -965,10 +1060,14 @@ export function AdminEventDetailPage() {
   function removeManualLeader(manualLeaderId: string) {
     setCampDraft((current) => ({
       ...current,
-      manualLeaders: current.manualLeaders.filter((leader) => leader.id !== manualLeaderId),
+      manualLeaders: current.manualLeaders.filter(
+        (leader) => leader.id !== manualLeaderId,
+      ),
       committees: current.committees.map((committee) => ({
         ...committee,
-        manualLeaderIds: committee.manualLeaderIds.filter((value) => value !== manualLeaderId),
+        manualLeaderIds: committee.manualLeaderIds.filter(
+          (value) => value !== manualLeaderId,
+        ),
       })),
     }));
   }
@@ -1016,15 +1115,22 @@ export function AdminEventDetailPage() {
     }));
   }
 
-  function removeRegistrationFromPatrol(patrol: CampPatrolPlan, registrationId: string) {
+  function removeRegistrationFromPatrol(
+    patrol: CampPatrolPlan,
+    registrationId: string,
+  ) {
     return {
       ...patrol,
       leaderRegistrationId:
-        patrol.leaderRegistrationId === registrationId ? "" : patrol.leaderRegistrationId,
+        patrol.leaderRegistrationId === registrationId
+          ? ""
+          : patrol.leaderRegistrationId,
       supervisorRegistrationIds: patrol.supervisorRegistrationIds.filter(
         (value) => value !== registrationId,
       ),
-      memberRegistrationIds: patrol.memberRegistrationIds.filter((value) => value !== registrationId),
+      memberRegistrationIds: patrol.memberRegistrationIds.filter(
+        (value) => value !== registrationId,
+      ),
     };
   }
 
@@ -1049,13 +1155,18 @@ export function AdminEventDetailPage() {
     registrationId: string,
   ) {
     setCampDraft((current) => {
-      const targetPatrol = current.patrols.find((patrol) => patrol.id === patrolId);
+      const targetPatrol = current.patrols.find(
+        (patrol) => patrol.id === patrolId,
+      );
       const isRemoving = Boolean(targetPatrol?.[key].includes(registrationId));
 
       return {
         ...current,
         patrols: current.patrols.map((patrol) => {
-          const withoutRegistration = removeRegistrationFromPatrol(patrol, registrationId);
+          const withoutRegistration = removeRegistrationFromPatrol(
+            patrol,
+            registrationId,
+          );
           if (patrol.id !== patrolId || isRemoving) {
             return withoutRegistration;
           }
@@ -1100,11 +1211,17 @@ export function AdminEventDetailPage() {
     setActionInfo(null);
 
     try {
-      await downloadCampManagementExcel(resolvedEvent.title, activeRegistrations, campDraft);
+      await downloadCampManagementExcel(
+        resolvedEvent.title,
+        activeRegistrations,
+        campDraft,
+      );
       setActionInfo("Excel comitati e pattuglie generato.");
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error ? caughtError.message : "Impossibile esportare l'Excel.",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile esportare l'Excel.",
       );
     } finally {
       setDownloadingExcel(false);
@@ -1139,7 +1256,10 @@ export function AdminEventDetailPage() {
 
     try {
       const { downloadQuestionsPdf } = await import("@/utils/questionsPdf");
-      downloadQuestionsPdf({ event: resolvedEvent, questions: sortedQuestions });
+      downloadQuestionsPdf({
+        event: resolvedEvent,
+        questions: sortedQuestions,
+      });
       setActionInfo("PDF domande generato.");
     } catch (caughtError) {
       setActionError(
@@ -1151,7 +1271,9 @@ export function AdminEventDetailPage() {
   }
 
   async function handleDeleteQuestion(question: Question) {
-    const confirmed = window.confirm("Eliminare definitivamente questa domanda?");
+    const confirmed = window.confirm(
+      "Eliminare definitivamente questa domanda?",
+    );
 
     if (!confirmed) {
       return;
@@ -1186,7 +1308,10 @@ export function AdminEventDetailPage() {
     );
   }
 
-  function openRegistrationModal(registrationId: string, mode: RegistrationModalMode) {
+  function openRegistrationModal(
+    registrationId: string,
+    mode: RegistrationModalMode,
+  ) {
     setRegistrationModalMode(mode);
     setRegistrationModalId(registrationId);
   }
@@ -1212,7 +1337,9 @@ export function AdminEventDetailPage() {
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error ? caughtError.message : "Impossibile pubblicare l'attività.",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile pubblicare l'attività.",
       );
     } finally {
       setBusy(null);
@@ -1234,14 +1361,18 @@ export function AdminEventDetailPage() {
 
     try {
       if (resolvedEvent.heroImagePath) {
-        await storageService.deleteFile(resolvedEvent.heroImagePath).catch(() => undefined);
+        await storageService
+          .deleteFile(resolvedEvent.heroImagePath)
+          .catch(() => undefined);
       }
 
       await eventsService.deleteEvent(stakeId, resolvedEventId);
       navigate("/admin/events", { replace: true });
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error ? caughtError.message : "Impossibile eliminare l'attività.",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile eliminare l'attività.",
       );
     } finally {
       setBusy(null);
@@ -1336,12 +1467,13 @@ export function AdminEventDetailPage() {
     setActionDownload(null);
 
     try {
-      const result = await parentAuthorizationService.getSignedConsentDownloadUrl({
-        stakeId,
-        activityId: resolvedEventId,
-        registrationId: registration.id,
-        documentKind,
-      });
+      const result =
+        await parentAuthorizationService.getSignedConsentDownloadUrl({
+          stakeId,
+          activityId: resolvedEventId,
+          registrationId: registration.id,
+          documentKind,
+        });
       window.open(result.url, "_blank", "noopener,noreferrer");
       setActionInfo(`Download pronto: ${result.filename}.`);
       setActionDownload({ url: result.url, label: "Scarica il modulo" });
@@ -1364,10 +1496,12 @@ export function AdminEventDetailPage() {
     setActionDownload(null);
 
     try {
-      const result = await parentAuthorizationService.downloadSignedConsentsZip({
-        stakeId,
-        activityId: resolvedEventId,
-      });
+      const result = await parentAuthorizationService.downloadSignedConsentsZip(
+        {
+          stakeId,
+          activityId: resolvedEventId,
+        },
+      );
       window.open(result.url, "_blank", "noopener,noreferrer");
       setActionInfo(`ZIP pronto: ${result.count} moduli firmati.`);
       setActionDownload({ url: result.url, label: "Scarica lo ZIP" });
@@ -1524,12 +1658,18 @@ export function AdminEventDetailPage() {
           registration.genderRoleCategory as ExportOptions["categories"][number],
         ),
       );
-      await downloadRegistrationsExcel(resolvedEvent.title, activeRegistrations, options);
+      await downloadRegistrationsExcel(
+        resolvedEvent.title,
+        activeRegistrations,
+        options,
+      );
       setActionInfo(`Excel esportato con ${filtered.length} iscritti attivi.`);
       setExcelExportModalOpen(false);
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error ? caughtError.message : "Impossibile esportare l'Excel.",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile esportare l'Excel.",
       );
     } finally {
       setDownloadingExcel(false);
@@ -1547,11 +1687,18 @@ export function AdminEventDetailPage() {
           registration.genderRoleCategory === "giovane_uomo" ||
           registration.genderRoleCategory === "giovane_donna",
       );
-      await downloadYouthRegistrantsExcel(resolvedEvent.title, activeRegistrations);
-      setActionInfo(`Elenco GU/GD esportato con ${youthRegistrations.length} iscritti attivi.`);
+      await downloadYouthRegistrantsExcel(
+        resolvedEvent.title,
+        activeRegistrations,
+      );
+      setActionInfo(
+        `Elenco GU/GD esportato con ${youthRegistrations.length} iscritti attivi.`,
+      );
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error ? caughtError.message : "Impossibile esportare l'Excel.",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile esportare l'Excel.",
       );
     } finally {
       setDownloadingExcel(false);
@@ -1570,7 +1717,7 @@ export function AdminEventDetailPage() {
       );
 
       if (result.processedRequestsCount === 0) {
-        setActionInfo("Nessuna richiesta stanza da normalizzare.");
+        setActionInfo("Nessuna richiesta tenda da normalizzare.");
       } else {
         setActionInfo(
           `Normalizzazione completata: ${result.matchedCount} richieste abbinate, ${result.unmatchedCount} senza match su ${result.processedRequestsCount} richieste analizzate.`,
@@ -1582,7 +1729,7 @@ export function AdminEventDetailPage() {
       setActionError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Impossibile normalizzare le richieste stanza.",
+          : "Impossibile normalizzare le richieste tenda.",
       );
     } finally {
       setNormalizingRoomPreferences(false);
@@ -1615,7 +1762,9 @@ export function AdminEventDetailPage() {
                 >
                   {actionDownload.label}
                 </a>{" "}
-                <span className="subtle-text">Il link scade tra 15 minuti.</span>
+                <span className="subtle-text">
+                  Il link scade tra 15 minuti.
+                </span>
               </p>
             ) : null}
           </div>
@@ -1653,7 +1802,9 @@ export function AdminEventDetailPage() {
               {getEventAudienceLabel(resolvedEvent.audience)}
             </span>
             {resolvedEvent.overnight ? (
-              <span className="activity-ios-chip activity-ios-chip--violet">Pernottamento</span>
+              <span className="activity-ios-chip activity-ios-chip--violet">
+                Pernottamento
+              </span>
             ) : null}
           </div>
 
@@ -1661,7 +1812,9 @@ export function AdminEventDetailPage() {
 
           <p className="activity-ios-meta">
             <AppIcon name="calendar" />
-            <span>{formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}</span>
+            <span>
+              {formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}
+            </span>
           </p>
           {resolvedEvent.location ? (
             <p className="activity-ios-meta">
@@ -1718,17 +1871,23 @@ export function AdminEventDetailPage() {
 
       <section className="activity-ios-metrics">
         <article className="activity-ios-metric">
-          <span><AppIcon name="users" /></span>
+          <span>
+            <AppIcon name="users" />
+          </span>
           <strong>{currentCount}</strong>
           <small>Attivi</small>
         </article>
         <article className="activity-ios-metric">
-          <span><AppIcon name="user" /></span>
+          <span>
+            <AppIcon name="user" />
+          </span>
           <strong>{sortedRegistrations.length}</strong>
           <small>Iscritti</small>
         </article>
         <article className="activity-ios-metric">
-          <span><AppIcon name="building" /></span>
+          <span>
+            <AppIcon name="building" />
+          </span>
           <strong>{resolvedEvent.overnight ? "Sì" : "No"}</strong>
           <small>Pernotto</small>
         </article>
@@ -1803,7 +1962,7 @@ export function AdminEventDetailPage() {
             type="button"
           >
             <AppIcon name="building" />
-            <span>Stanze</span>
+            <span>Tende</span>
           </button>
         ) : null}
         {resolvedEvent.questionsEnabled ? (
@@ -1882,7 +2041,12 @@ export function AdminEventDetailPage() {
               </div>
               <div>
                 <dt>Quando</dt>
-                <dd>{formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}</dd>
+                <dd>
+                  {formatDateRange(
+                    resolvedEvent.startDate,
+                    resolvedEvent.endDate,
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Luogo</dt>
@@ -1902,7 +2066,11 @@ export function AdminEventDetailPage() {
               </div>
               <div>
                 <dt>Capienza</dt>
-                <dd>{resolvedEvent.maxParticipants ? `${resolvedEvent.maxParticipants} posti` : "-"}</dd>
+                <dd>
+                  {resolvedEvent.maxParticipants
+                    ? `${resolvedEvent.maxParticipants} posti`
+                    : "-"}
+                </dd>
               </div>
             </dl>
           </article>
@@ -1944,7 +2112,7 @@ export function AdminEventDetailPage() {
 
           {resolvedEvent.roomsInfo ? (
             <article className="surface-panel surface-panel--subtle">
-              <h3>Stanze e logistica</h3>
+              <h3>Tende e logistica</h3>
               <p>{resolvedEvent.roomsInfo}</p>
             </article>
           ) : null}
@@ -1990,7 +2158,10 @@ export function AdminEventDetailPage() {
             <div className="section-head admin-roster__head">
               <div>
                 <h3>Comitati campeggio</h3>
-                <p>Dirigenti a capo e giovani membri. Ogni persona può stare in un solo comitato.</p>
+                <p>
+                  Dirigenti a capo e giovani membri. Ogni persona può stare in
+                  un solo comitato.
+                </p>
               </div>
               <div className="admin-section-actions">
                 <button
@@ -2009,19 +2180,25 @@ export function AdminEventDetailPage() {
                   type="button"
                 >
                   <AppIcon name="check" />
-                  <span>{busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}</span>
+                  <span>
+                    {busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}
+                  </span>
                 </button>
               </div>
             </div>
 
             <div className="form-stack form-stack--compact">
               <label className="field">
-                <span className="field__label">Dirigente non ancora iscritto</span>
+                <span className="field__label">
+                  Dirigente non ancora iscritto
+                </span>
                 <div className="inline-actions">
                   <input
                     className="input"
                     value={manualLeaderName}
-                    onChange={(eventInput) => setManualLeaderName(eventInput.target.value)}
+                    onChange={(eventInput) =>
+                      setManualLeaderName(eventInput.target.value)
+                    }
                     placeholder="Nome e cognome"
                   />
                   <button
@@ -2062,14 +2239,17 @@ export function AdminEventDetailPage() {
                     getRegistrationName(registrationId),
                   ),
                   ...committee.manualLeaderIds.map(
-                    (leaderId) => manualLeaderById.get(leaderId)?.fullName ?? "Dirigente",
+                    (leaderId) =>
+                      manualLeaderById.get(leaderId)?.fullName ?? "Dirigente",
                   ),
                 ];
                 const previewNames = [
                   ...leaderNames,
                   ...committee.memberRegistrationIds
                     .slice(0, Math.max(0, 4 - leaderNames.length))
-                    .map((registrationId) => getRegistrationName(registrationId)),
+                    .map((registrationId) =>
+                      getRegistrationName(registrationId),
+                    ),
                 ];
 
                 return (
@@ -2085,12 +2265,16 @@ export function AdminEventDetailPage() {
                     <span className="camp-ios-card__body">
                       <strong>{committee.title}</strong>
                       <small>
-                        {committee.leaderRegistrationIds.length + committee.manualLeaderIds.length} dirigenti
+                        {committee.leaderRegistrationIds.length +
+                          committee.manualLeaderIds.length}{" "}
+                        dirigenti
                         {" · "}
                         {committee.memberRegistrationIds.length} giovani
                       </small>
                       <span className="camp-ios-card__preview">
-                        {previewNames.length > 0 ? previewNames.join(", ") : "Tocca per assegnare"}
+                        {previewNames.length > 0
+                          ? previewNames.join(", ")
+                          : "Tocca per assegnare"}
                       </span>
                     </span>
                     <AppIcon name="arrow-right" />
@@ -2104,10 +2288,16 @@ export function AdminEventDetailPage() {
             <div className="section-head admin-roster__head">
               <div>
                 <h3>Pattuglie</h3>
-                <p>Crea pattuglie e assegna capo pattuglia, supervisori e membri.</p>
+                <p>
+                  Crea pattuglie e assegna capo pattuglia, supervisori e membri.
+                </p>
               </div>
               <div className="admin-section-actions">
-                <button className="button button--secondary button--small" onClick={addPatrol} type="button">
+                <button
+                  className="button button--secondary button--small"
+                  onClick={addPatrol}
+                  type="button"
+                >
                   <AppIcon name="plus" />
                   <span>Aggiungi pattuglia</span>
                 </button>
@@ -2147,7 +2337,9 @@ export function AdminEventDetailPage() {
                       <span className="camp-ios-card__body">
                         <strong>{patrol.name}</strong>
                         <small>
-                          {patrol.leaderRegistrationId ? "Capo assegnato" : "Capo mancante"}
+                          {patrol.leaderRegistrationId
+                            ? "Capo assegnato"
+                            : "Capo mancante"}
                           {" · "}
                           {patrol.supervisorRegistrationIds.length} supervisori
                           {" · "}
@@ -2196,7 +2388,10 @@ export function AdminEventDetailPage() {
               <div className="section-head admin-roster__head">
                 <div>
                   <h3>Elenco iscritti</h3>
-                  <p>Tocca una riga per aprire tutti i dettagli della registrazione.</p>
+                  <p>
+                    Tocca una riga per aprire tutti i dettagli della
+                    registrazione.
+                  </p>
                 </div>
                 <div className="admin-section-actions">
                   <button
@@ -2206,7 +2401,9 @@ export function AdminEventDetailPage() {
                     type="button"
                   >
                     <AppIcon name="download" />
-                    <span>{downloadingExcel ? "Preparazione..." : "Elenco GU/GD"}</span>
+                    <span>
+                      {downloadingExcel ? "Preparazione..." : "Elenco GU/GD"}
+                    </span>
                   </button>
                   <button
                     className="button button--ghost button--small"
@@ -2215,7 +2412,9 @@ export function AdminEventDetailPage() {
                     type="button"
                   >
                     <AppIcon name="download" />
-                    <span>{downloadingExcel ? "Preparazione..." : "Scarica Excel"}</span>
+                    <span>
+                      {downloadingExcel ? "Preparazione..." : "Scarica Excel"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2226,7 +2425,9 @@ export function AdminEventDetailPage() {
                 role="group"
               >
                 {registrationCategoryFilterOptions.map((option) => {
-                  const active = activeRegistrationFilters.includes(option.value);
+                  const active = activeRegistrationFilters.includes(
+                    option.value,
+                  );
 
                   return (
                     <button
@@ -2240,10 +2441,15 @@ export function AdminEventDetailPage() {
                       onClick={() => toggleRegistrationFilter(option.value)}
                       type="button"
                     >
-                      <span className="admin-filter-toggle__box" aria-hidden="true">
+                      <span
+                        className="admin-filter-toggle__box"
+                        aria-hidden="true"
+                      >
                         {active ? <AppIcon name="check" /> : null}
                       </span>
-                      <span className="admin-filter-toggle__label">{option.label}</span>
+                      <span className="admin-filter-toggle__label">
+                        {option.label}
+                      </span>
                       <small>{registrationFilterCounts[option.value]}</small>
                     </button>
                   );
@@ -2254,7 +2460,9 @@ export function AdminEventDetailPage() {
                   <select
                     className="input"
                     value={selectedUnitFilter}
-                    onChange={(eventInput) => setSelectedUnitFilter(eventInput.target.value)}
+                    onChange={(eventInput) =>
+                      setSelectedUnitFilter(eventInput.target.value)
+                    }
                   >
                     <option value="all">Tutte le unità</option>
                     {registrationUnitOptions.map((unitOption) => (
@@ -2272,7 +2480,9 @@ export function AdminEventDetailPage() {
                     type="search"
                     placeholder="Nome, cognome o email"
                     value={nameSearch}
-                    onChange={(eventInput) => setNameSearch(eventInput.target.value)}
+                    onChange={(eventInput) =>
+                      setNameSearch(eventInput.target.value)
+                    }
                   />
                 </label>
               </div>
@@ -2296,10 +2506,14 @@ export function AdminEventDetailPage() {
                       <button
                         key={registration.id}
                         className="admin-roster-row"
-                        onClick={() => openRegistrationModal(registration.id, "registration")}
+                        onClick={() =>
+                          openRegistrationModal(registration.id, "registration")
+                        }
                         type="button"
                       >
-                        <strong>{getRegistrationDisplayName(registration)}</strong>
+                        <strong>
+                          {getRegistrationDisplayName(registration)}
+                        </strong>
                         <span className="admin-roster-row__type">
                           {getCategoryShortLabel(registration)}
                         </span>
@@ -2357,12 +2571,15 @@ export function AdminEventDetailPage() {
                   activeRegistrations.filter(
                     (registration) =>
                       (resolvedEvent.requiresParentAuthorization &&
-                        getParentAuthorizationBadge(registration, true).tone !== "success") ||
+                        getParentAuthorizationBadge(registration, true).tone !==
+                          "success") ||
                       (resolvedEvent.requiresParentalConsent &&
-                        registration.answers.parentalConsentAccepted !== true) ||
+                        registration.answers.parentalConsentAccepted !==
+                          true) ||
                       (resolvedEvent.requiresPhotoRelease &&
                         registration.answers.photoReleaseAccepted !== true) ||
-                      (isMinorRegistration(registration) && !registration.parentConsentDocumentUrl),
+                      (isMinorRegistration(registration) &&
+                        !registration.parentConsentDocumentUrl),
                   ).length
                 }
               </strong>
@@ -2433,21 +2650,26 @@ export function AdminEventDetailPage() {
                   registration,
                   Boolean(resolvedEvent.requiresParentAuthorization),
                 );
-                const isSelected = selectedConsentRegistrationId === registration.id;
+                const isSelected =
+                  selectedConsentRegistrationId === registration.id;
                 const isEmailEditing = parentEmailEditingId === registration.id;
                 const isCurrentBusy = busyRegistrationId === registration.id;
                 const parentEmail = getParentEmail(registration);
                 const parentName = getParentName(registration);
-                const parentalAccepted = registration.answers.parentalConsentAccepted === true;
-                const photoAccepted = registration.answers.photoReleaseAccepted === true;
+                const parentalAccepted =
+                  registration.answers.parentalConsentAccepted === true;
+                const photoAccepted =
+                  registration.answers.photoReleaseAccepted === true;
                 const signerName =
-                  typeof registration.answers.parentalConsentSignerName === "string" &&
-                  registration.answers.parentalConsentSignerName
+                  typeof registration.answers.parentalConsentSignerName ===
+                    "string" && registration.answers.parentalConsentSignerName
                     ? registration.answers.parentalConsentSignerName
-                    : typeof registration.answers.photoReleaseSignerName === "string"
+                    : typeof registration.answers.photoReleaseSignerName ===
+                        "string"
                       ? registration.answers.photoReleaseSignerName
                       : "";
-                const parentAuthStatus = registration.parentAuthorization?.status ?? "missing";
+                const parentAuthStatus =
+                  registration.parentAuthorization?.status ?? "missing";
                 const hasSignedParentAuthorizationPdf =
                   parentAuthStatus === "authorized" &&
                   Boolean(registration.parentAuthorization?.pdfPath);
@@ -2469,23 +2691,33 @@ export function AdminEventDetailPage() {
                       aria-expanded={isSelected}
                       className="admin-consent-summary"
                       onClick={() =>
-                        setSelectedConsentRegistrationId(isSelected ? null : registration.id)
+                        setSelectedConsentRegistrationId(
+                          isSelected ? null : registration.id,
+                        )
                       }
                       type="button"
                     >
                       <span className="admin-consent-summary__person">
-                        <strong>{getRegistrationDisplayName(registration)}</strong>
+                        <strong>
+                          {getRegistrationDisplayName(registration)}
+                        </strong>
                         <span>
-                          {getUnitLabel(registration)} • {getCategoryShortLabel(registration)}
+                          {getUnitLabel(registration)} •{" "}
+                          {getCategoryShortLabel(registration)}
                         </span>
                       </span>
                       <span className="chip-row admin-chip-row admin-consent-summary__badges">
                         {resolvedEvent.requiresParentAuthorization ? (
-                          <StatusBadge label={authBadge.label} tone={authBadge.tone} />
+                          <StatusBadge
+                            label={authBadge.label}
+                            tone={authBadge.tone}
+                          />
                         ) : null}
                         {resolvedEvent.requiresParentalConsent ? (
                           <StatusBadge
-                            label={parentalAccepted ? "Genitore OK" : "Genitore NO"}
+                            label={
+                              parentalAccepted ? "Genitore OK" : "Genitore NO"
+                            }
                             tone={parentalAccepted ? "success" : "warning"}
                           />
                         ) : null}
@@ -2496,12 +2728,26 @@ export function AdminEventDetailPage() {
                           />
                         ) : null}
                         <StatusBadge
-                          label={registration.consentSignatureUrl ? "Firma" : "No firma"}
-                          tone={registration.consentSignatureUrl ? "success" : "warning"}
+                          label={
+                            registration.consentSignatureUrl
+                              ? "Firma"
+                              : "No firma"
+                          }
+                          tone={
+                            registration.consentSignatureUrl
+                              ? "success"
+                              : "warning"
+                          }
                         />
                         <StatusBadge
-                          label={registration.parentIdDocumentUrl ? "ID" : "No ID"}
-                          tone={registration.parentIdDocumentUrl ? "success" : "warning"}
+                          label={
+                            registration.parentIdDocumentUrl ? "ID" : "No ID"
+                          }
+                          tone={
+                            registration.parentIdDocumentUrl
+                              ? "success"
+                              : "warning"
+                          }
                         />
                         {isMinorRegistration(registration) ? (
                           <StatusBadge
@@ -2544,7 +2790,11 @@ export function AdminEventDetailPage() {
                           {registration.parentAuthorization?.emailSentAt ? (
                             <div>
                               <dt>Ultimo invio</dt>
-                              <dd>{formatDateTime(registration.parentAuthorization.emailSentAt)}</dd>
+                              <dd>
+                                {formatDateTime(
+                                  registration.parentAuthorization.emailSentAt,
+                                )}
+                              </dd>
                             </div>
                           ) : null}
                         </dl>
@@ -2558,7 +2808,9 @@ export function AdminEventDetailPage() {
                                   <input
                                     className="input"
                                     onChange={(eventInput) =>
-                                      setParentEmailDraft(eventInput.target.value)
+                                      setParentEmailDraft(
+                                        eventInput.target.value,
+                                      )
                                     }
                                     type="email"
                                     value={parentEmailDraft}
@@ -2568,12 +2820,15 @@ export function AdminEventDetailPage() {
                                   <button
                                     className="button button--primary button--small"
                                     disabled={busy !== null}
-                                    onClick={() => void handleSaveParentEmail(registration)}
+                                    onClick={() =>
+                                      void handleSaveParentEmail(registration)
+                                    }
                                     type="button"
                                   >
                                     <AppIcon name="check" />
                                     <span>
-                                      {isCurrentBusy && busy === "saveParentEmail"
+                                      {isCurrentBusy &&
+                                      busy === "saveParentEmail"
                                         ? "Salvataggio..."
                                         : "Salva email"}
                                     </span>
@@ -2596,7 +2851,9 @@ export function AdminEventDetailPage() {
                                 <button
                                   className="button button--ghost button--small"
                                   disabled={busy !== null}
-                                  onClick={() => handleStartParentEmailEdit(registration)}
+                                  onClick={() =>
+                                    handleStartParentEmailEdit(registration)
+                                  }
                                   type="button"
                                 >
                                   <AppIcon name="pencil" />
@@ -2606,12 +2863,17 @@ export function AdminEventDetailPage() {
                                   <button
                                     className="button button--ghost button--small"
                                     disabled={busy !== null || !parentEmail}
-                                    onClick={() => void handleResendParentAuthEmail(registration)}
+                                    onClick={() =>
+                                      void handleResendParentAuthEmail(
+                                        registration,
+                                      )
+                                    }
                                     type="button"
                                   >
                                     <AppIcon name="mail" />
                                     <span>
-                                      {isCurrentBusy && busy === "resendParentAuth"
+                                      {isCurrentBusy &&
+                                      busy === "resendParentAuth"
                                         ? "Reinvio..."
                                         : "Reinvia email"}
                                     </span>
@@ -2619,9 +2881,13 @@ export function AdminEventDetailPage() {
                                 ) : null}
                               </div>
                             )}
-                            {registration.parentAuthorization?.emailLastError ? (
+                            {registration.parentAuthorization
+                              ?.emailLastError ? (
                               <p className="admin-consent-error">
-                                {registration.parentAuthorization.emailLastError}
+                                {
+                                  registration.parentAuthorization
+                                    .emailLastError
+                                }
                               </p>
                             ) : null}
                           </div>
@@ -2665,12 +2931,15 @@ export function AdminEventDetailPage() {
                             <button
                               className="button button--ghost button--small"
                               disabled={busy !== null}
-                              onClick={() => void handleDownloadSignedConsent(registration)}
+                              onClick={() =>
+                                void handleDownloadSignedConsent(registration)
+                              }
                               type="button"
                             >
                               <AppIcon name="download" />
                               <span>
-                                {isCurrentBusy && busy === "downloadSignedConsent"
+                                {isCurrentBusy &&
+                                busy === "downloadSignedConsent"
                                   ? "Apro..."
                                   : "Modulo firmato"}
                               </span>
@@ -2681,7 +2950,10 @@ export function AdminEventDetailPage() {
                               className="button button--ghost button--small"
                               disabled={busy !== null}
                               onClick={() =>
-                                void handleDownloadSignedConsent(registration, "conduct")
+                                void handleDownloadSignedConsent(
+                                  registration,
+                                  "conduct",
+                                )
                               }
                               type="button"
                             >
@@ -2694,9 +2966,8 @@ export function AdminEventDetailPage() {
                               className="button button--ghost button--small"
                               onClick={async () => {
                                 try {
-                                  const { downloadConsentPdf } = await import(
-                                    "@/utils/consentPdf"
-                                  );
+                                  const { downloadConsentPdf } =
+                                    await import("@/utils/consentPdf");
                                   await downloadConsentPdf({
                                     event: resolvedEvent,
                                     registration,
@@ -2723,9 +2994,8 @@ export function AdminEventDetailPage() {
                               className="button button--ghost button--small"
                               onClick={async () => {
                                 try {
-                                  const { downloadConsentPdf } = await import(
-                                    "@/utils/consentPdf"
-                                  );
+                                  const { downloadConsentPdf } =
+                                    await import("@/utils/consentPdf");
                                   await downloadConsentPdf({
                                     event: resolvedEvent,
                                     registration,
@@ -2749,7 +3019,12 @@ export function AdminEventDetailPage() {
                           ) : null}
                           <button
                             className="button button--ghost button--small"
-                            onClick={() => openRegistrationModal(registration.id, "registration")}
+                            onClick={() =>
+                              openRegistrationModal(
+                                registration.id,
+                                "registration",
+                              )
+                            }
                             type="button"
                           >
                             Apri iscrizione
@@ -2757,7 +3032,9 @@ export function AdminEventDetailPage() {
                           <button
                             className="button button--ghost button--small button--danger"
                             disabled={busy !== null}
-                            onClick={() => void handleAdminDeleteRegistration(registration)}
+                            onClick={() =>
+                              void handleAdminDeleteRegistration(registration)
+                            }
                             type="button"
                           >
                             <AppIcon name="trash" />
@@ -2815,7 +3092,9 @@ export function AdminEventDetailPage() {
             <article className="surface-panel surface-panel--subtle">
               <h3>Compagni più richiesti</h3>
               {roomRequestDistribution.length === 0 ? (
-                <p className="subtle-text">Ancora nessuna preferenza stanza raccolta.</p>
+                <p className="subtle-text">
+                  Ancora nessuna preferenza tenda raccolta.
+                </p>
               ) : (
                 <ul className="plain-list plain-list--compact">
                   {roomRequestDistribution.slice(0, 5).map((item) => (
@@ -2840,8 +3119,11 @@ export function AdminEventDetailPage() {
             <article className="surface-panel surface-panel--subtle admin-roster">
               <div className="section-head admin-roster__head">
                 <div>
-                  <h3>Riepilogo stanze</h3>
-                  <p>Tocca una riga per vedere preferenze stanza e risposte complete.</p>
+                  <h3>Riepilogo tende</h3>
+                  <p>
+                    Tocca una riga per vedere preferenze tenda e risposte
+                    complete.
+                  </p>
                 </div>
                 <div className="admin-section-actions">
                   <button
@@ -2851,7 +3133,9 @@ export function AdminEventDetailPage() {
                     type="button"
                   >
                     <AppIcon name="download" />
-                    <span>{downloadingExcel ? "Preparazione..." : "Scarica Excel"}</span>
+                    <span>
+                      {downloadingExcel ? "Preparazione..." : "Scarica Excel"}
+                    </span>
                   </button>
                   <button
                     className="button button--secondary button--small"
@@ -2873,19 +3157,27 @@ export function AdminEventDetailPage() {
                 {activeRegistrations.map((registration) => {
                   const roomEntries = getRoomPreferenceEntries(registration);
                   const roomPreview =
-                    roomEntries.find((entry) => entry.key !== "roomNotes") ?? roomEntries[0] ?? null;
+                    roomEntries.find((entry) => entry.key !== "roomNotes") ??
+                    roomEntries[0] ??
+                    null;
 
                   return (
                     <button
                       key={registration.id}
                       className="admin-roster-row admin-roster-row--overnight"
-                      onClick={() => openRegistrationModal(registration.id, "overnight")}
+                      onClick={() =>
+                        openRegistrationModal(registration.id, "overnight")
+                      }
                       type="button"
                     >
                       <div className="admin-roster-row__content">
-                        <strong>{getRegistrationDisplayName(registration)}</strong>
+                        <strong>
+                          {getRegistrationDisplayName(registration)}
+                        </strong>
                         <small>
-                          {roomPreview ? roomPreview.value : "Nessuna preferenza stanza"}
+                          {roomPreview
+                            ? roomPreview.value
+                            : "Nessuna preferenza tenda"}
                         </small>
                       </div>
                       <div className="admin-roster-row__side">
@@ -2919,7 +3211,12 @@ export function AdminEventDetailPage() {
               <span>Visibili</span>
             </article>
             <article className="admin-inline-metric">
-              <strong>{visibleQuestions.filter((question) => question.isAnonymous).length}</strong>
+              <strong>
+                {
+                  visibleQuestions.filter((question) => question.isAnonymous)
+                    .length
+                }
+              </strong>
               <span>Anonime</span>
             </article>
             <article className="admin-inline-metric">
@@ -2950,8 +3247,8 @@ export function AdminEventDetailPage() {
                 <div>
                   <h3>Elenco domande</h3>
                   <p>
-                    Le domande anonime non mostrano l'autore. Usa "Nascondi" per escluderle dal
-                    riepilogo da girare al Settanta.
+                    Le domande anonime non mostrano l'autore. Usa "Nascondi" per
+                    escluderle dal riepilogo da girare al Settanta.
                   </p>
                 </div>
                 <div className="admin-section-actions">
@@ -2973,7 +3270,9 @@ export function AdminEventDetailPage() {
                   const author = question.isAnonymous
                     ? "Anonima"
                     : question.authorName || "Senza nome";
-                  const ownerRegistration = registrationLookupById.get(question.registrationId);
+                  const ownerRegistration = registrationLookupById.get(
+                    question.registrationId,
+                  );
                   const unitLabel =
                     !question.isAnonymous && ownerRegistration
                       ? getUnitLabel(ownerRegistration)
@@ -2990,11 +3289,15 @@ export function AdminEventDetailPage() {
                         {isHidden ? " • Nascosta" : ""}
                       </strong>
                       <span>{question.text}</span>
-                      <small>Inviata il {formatDateTime(question.createdAt)}</small>
+                      <small>
+                        Inviata il {formatDateTime(question.createdAt)}
+                      </small>
                       <div className="inline-actions inline-actions--compact">
                         <button
                           className="button button--ghost button--small"
-                          onClick={() => void handleToggleQuestionStatus(question)}
+                          onClick={() =>
+                            void handleToggleQuestionStatus(question)
+                          }
                           type="button"
                         >
                           <AppIcon name={isHidden ? "eye" : "lock"} />
@@ -3170,7 +3473,9 @@ export function AdminEventDetailPage() {
               </article>
               <article>
                 <span>Giovani</span>
-                <strong>{selectedCampCommittee.memberRegistrationIds.length}</strong>
+                <strong>
+                  {selectedCampCommittee.memberRegistrationIds.length}
+                </strong>
               </article>
             </div>
 
@@ -3178,15 +3483,17 @@ export function AdminEventDetailPage() {
               <h3>Dirigenti iscritti</h3>
               <div className="patrol-checkbox-list">
                 {adultRegistrations.length === 0 ? (
-                  <p className="subtle-text">Nessun dirigente/accompagnatore iscritto.</p>
+                  <p className="subtle-text">
+                    Nessun dirigente/accompagnatore iscritto.
+                  </p>
                 ) : (
                   adultRegistrations.map((registration) => {
-                    const assignedCommittee = committeeAssignmentByRegistrationId.get(
-                      registration.id,
-                    );
-                    const checked = selectedCampCommittee.leaderRegistrationIds.includes(
-                      registration.id,
-                    );
+                    const assignedCommittee =
+                      committeeAssignmentByRegistrationId.get(registration.id);
+                    const checked =
+                      selectedCampCommittee.leaderRegistrationIds.includes(
+                        registration.id,
+                      );
                     const unavailable =
                       assignedCommittee !== undefined &&
                       assignedCommittee !== selectedCampCommittee.id &&
@@ -3209,7 +3516,9 @@ export function AdminEventDetailPage() {
                         <span>
                           {getRegistrationDisplayName(registration)}
                           <small>{getRegistrationMeta(registration.id)}</small>
-                          {unavailable ? <small>Già assegnato a un altro comitato</small> : null}
+                          {unavailable ? (
+                            <small>Già assegnato a un altro comitato</small>
+                          ) : null}
                         </span>
                       </label>
                     );
@@ -3222,11 +3531,15 @@ export function AdminEventDetailPage() {
               <h3>Dirigenti manuali</h3>
               <div className="patrol-checkbox-list">
                 {campDraft.manualLeaders.length === 0 ? (
-                  <p className="subtle-text">Aggiungi i dirigenti manuali dalla schermata comitati.</p>
+                  <p className="subtle-text">
+                    Aggiungi i dirigenti manuali dalla schermata comitati.
+                  </p>
                 ) : (
                   campDraft.manualLeaders.map((leader) => {
-                    const assignedCommittee = committeeAssignmentByManualLeaderId.get(leader.id);
-                    const checked = selectedCampCommittee.manualLeaderIds.includes(leader.id);
+                    const assignedCommittee =
+                      committeeAssignmentByManualLeaderId.get(leader.id);
+                    const checked =
+                      selectedCampCommittee.manualLeaderIds.includes(leader.id);
                     const unavailable =
                       assignedCommittee !== undefined &&
                       assignedCommittee !== selectedCampCommittee.id &&
@@ -3238,14 +3551,23 @@ export function AdminEventDetailPage() {
                           checked={checked}
                           disabled={unavailable}
                           onChange={() =>
-                            toggleCommitteeManualLeader(selectedCampCommittee.id, leader.id)
+                            toggleCommitteeManualLeader(
+                              selectedCampCommittee.id,
+                              leader.id,
+                            )
                           }
                           type="checkbox"
                         />
                         <span>
                           {leader.fullName}
-                          <small>{leader.linkedRegistrationId ? "Collegato" : "Manuale"}</small>
-                          {unavailable ? <small>Già assegnato a un altro comitato</small> : null}
+                          <small>
+                            {leader.linkedRegistrationId
+                              ? "Collegato"
+                              : "Manuale"}
+                          </small>
+                          {unavailable ? (
+                            <small>Già assegnato a un altro comitato</small>
+                          ) : null}
                         </span>
                       </label>
                     );
@@ -3258,8 +3580,12 @@ export function AdminEventDetailPage() {
               <h3>Giovani</h3>
               <div className="patrol-checkbox-list">
                 {youthRegistrations.map((registration) => {
-                  const assignedCommittee = committeeAssignmentByRegistrationId.get(registration.id);
-                  const checked = selectedCampCommittee.memberRegistrationIds.includes(registration.id);
+                  const assignedCommittee =
+                    committeeAssignmentByRegistrationId.get(registration.id);
+                  const checked =
+                    selectedCampCommittee.memberRegistrationIds.includes(
+                      registration.id,
+                    );
                   const unavailable =
                     assignedCommittee !== undefined &&
                     assignedCommittee !== selectedCampCommittee.id &&
@@ -3282,7 +3608,9 @@ export function AdminEventDetailPage() {
                       <span>
                         {getRegistrationDisplayName(registration)}
                         <small>{getRegistrationMeta(registration.id)}</small>
-                        {unavailable ? <small>Già assegnato a un altro comitato</small> : null}
+                        {unavailable ? (
+                          <small>Già assegnato a un altro comitato</small>
+                        ) : null}
                       </span>
                     </label>
                   );
@@ -3336,7 +3664,11 @@ export function AdminEventDetailPage() {
                 className="input"
                 value={selectedCampPatrol.name}
                 onChange={(eventInput) =>
-                  updatePatrolField(selectedCampPatrol.id, "name", eventInput.target.value)
+                  updatePatrolField(
+                    selectedCampPatrol.id,
+                    "name",
+                    eventInput.target.value,
+                  )
                 }
               />
             </label>
@@ -3347,18 +3679,29 @@ export function AdminEventDetailPage() {
                 className="input"
                 value={selectedCampPatrol.leaderRegistrationId}
                 onChange={(eventInput) =>
-                  setPatrolLeader(selectedCampPatrol.id, eventInput.target.value)
+                  setPatrolLeader(
+                    selectedCampPatrol.id,
+                    eventInput.target.value,
+                  )
                 }
               >
                 <option value="">Da assegnare</option>
                 {youthRegistrations.map((registration) => {
-                  const assignment = patrolAssignmentByRegistrationId.get(registration.id);
+                  const assignment = patrolAssignmentByRegistrationId.get(
+                    registration.id,
+                  );
                   const unavailable =
-                    assignment !== undefined && assignment.patrolId !== selectedCampPatrol.id;
+                    assignment !== undefined &&
+                    assignment.patrolId !== selectedCampPatrol.id;
 
                   return (
-                    <option disabled={unavailable} key={registration.id} value={registration.id}>
-                      {getRegistrationDisplayName(registration)} · {getUnitLabel(registration)}
+                    <option
+                      disabled={unavailable}
+                      key={registration.id}
+                      value={registration.id}
+                    >
+                      {getRegistrationDisplayName(registration)} ·{" "}
+                      {getUnitLabel(registration)}
                       {unavailable ? ` · già in ${assignment.patrolName}` : ""}
                     </option>
                   );
@@ -3370,10 +3713,13 @@ export function AdminEventDetailPage() {
               <h3>Supervisori</h3>
               <div className="patrol-checkbox-list">
                 {adultRegistrations.map((registration) => {
-                  const assignment = patrolAssignmentByRegistrationId.get(registration.id);
-                  const checked = selectedCampPatrol.supervisorRegistrationIds.includes(
+                  const assignment = patrolAssignmentByRegistrationId.get(
                     registration.id,
                   );
+                  const checked =
+                    selectedCampPatrol.supervisorRegistrationIds.includes(
+                      registration.id,
+                    );
                   const unavailable =
                     assignment !== undefined &&
                     assignment.patrolId !== selectedCampPatrol.id &&
@@ -3396,7 +3742,9 @@ export function AdminEventDetailPage() {
                       <span>
                         {getRegistrationDisplayName(registration)}
                         <small>{getRegistrationMeta(registration.id)}</small>
-                        {unavailable ? <small>Già in {assignment.patrolName}</small> : null}
+                        {unavailable ? (
+                          <small>Già in {assignment.patrolName}</small>
+                        ) : null}
                       </span>
                     </label>
                   );
@@ -3408,9 +3756,15 @@ export function AdminEventDetailPage() {
               <h3>Membri</h3>
               <div className="patrol-checkbox-list">
                 {youthRegistrations.map((registration) => {
-                  const assignment = patrolAssignmentByRegistrationId.get(registration.id);
-                  const checked = selectedCampPatrol.memberRegistrationIds.includes(registration.id);
-                  const isLeader = selectedCampPatrol.leaderRegistrationId === registration.id;
+                  const assignment = patrolAssignmentByRegistrationId.get(
+                    registration.id,
+                  );
+                  const checked =
+                    selectedCampPatrol.memberRegistrationIds.includes(
+                      registration.id,
+                    );
+                  const isLeader =
+                    selectedCampPatrol.leaderRegistrationId === registration.id;
                   const unavailable =
                     assignment !== undefined &&
                     assignment.patrolId !== selectedCampPatrol.id &&
@@ -3434,7 +3788,9 @@ export function AdminEventDetailPage() {
                         {getRegistrationDisplayName(registration)}
                         <small>{getRegistrationMeta(registration.id)}</small>
                         {isLeader ? <small>Capo pattuglia</small> : null}
-                        {unavailable ? <small>Già in {assignment.patrolName}</small> : null}
+                        {unavailable ? (
+                          <small>Già in {assignment.patrolName}</small>
+                        ) : null}
                       </span>
                     </label>
                   );
@@ -3459,8 +3815,12 @@ export function AdminEventDetailPage() {
                 <p>{getUnitLabel(registrationModal)}</p>
               </div>
               <StatusBadge
-                label={getRegistrationStatusLabel(registrationModal.registrationStatus)}
-                tone={getRegistrationStatusTone(registrationModal.registrationStatus)}
+                label={getRegistrationStatusLabel(
+                  registrationModal.registrationStatus,
+                )}
+                tone={getRegistrationStatusTone(
+                  registrationModal.registrationStatus,
+                )}
               />
             </div>
 
@@ -3484,7 +3844,9 @@ export function AdminEventDetailPage() {
                 },
                 {
                   label: "Stato",
-                  value: getRegistrationStatusLabel(registrationModal.registrationStatus),
+                  value: getRegistrationStatusLabel(
+                    registrationModal.registrationStatus,
+                  ),
                 },
                 {
                   label: "Email",
@@ -3497,7 +3859,9 @@ export function AdminEventDetailPage() {
                 {
                   label: "Canale",
                   value:
-                    registrationModal.submittedByMode === "anonymous" ? "Ospite" : "Con account",
+                    registrationModal.submittedByMode === "anonymous"
+                      ? "Ospite"
+                      : "Con account",
                 },
                 ...(isMinorRegistration(registrationModal)
                   ? [
@@ -3506,8 +3870,8 @@ export function AdminEventDetailPage() {
                         value:
                           registrationModal.parentConsentDocumentUrl ||
                           registrationModal.parentAuthorization?.pdfPath
-                          ? "Caricato"
-                          : "Mancante",
+                            ? "Caricato"
+                            : "Mancante",
                       },
                     ]
                   : []),
@@ -3515,11 +3879,13 @@ export function AdminEventDetailPage() {
                   label: "Aggiornata",
                   value: formatDateTime(registrationModal.updatedAt),
                 },
-                ...(registrationModalMode === "overnight" || registrationModalRoomEntries.length > 0
+                ...(registrationModalMode === "overnight" ||
+                registrationModalRoomEntries.length > 0
                   ? [
                       {
-                        label: "Stanza",
-                        value: registrationModal.assignedRoomId || "Da assegnare",
+                        label: "Tenda",
+                        value:
+                          registrationModal.assignedRoomId || "Da assegnare",
                       },
                     ]
                   : []),
@@ -3533,7 +3899,7 @@ export function AdminEventDetailPage() {
 
             {registrationModalRoomEntries.length > 0 ? (
               <div className="registration-detail__answers">
-                <h4>Preferenze stanza</h4>
+                <h4>Preferenze tenda</h4>
                 <div className="admin-answer-grid">
                   {registrationModalRoomEntries.map((entry) => (
                     <article
@@ -3543,7 +3909,11 @@ export function AdminEventDetailPage() {
                       <strong>{entry.label}</strong>
                       <span>{entry.value}</span>
                       {entry.key !== "roomNotes" ? (
-                        <small>{entry.isMatched ? "Richiesta collegata" : "Richiesta non collegata"}</small>
+                        <small>
+                          {entry.isMatched
+                            ? "Richiesta collegata"
+                            : "Richiesta non collegata"}
+                        </small>
                       ) : null}
                     </article>
                   ))}
@@ -3556,7 +3926,10 @@ export function AdminEventDetailPage() {
                 <h4>Risposte inviate</h4>
                 <div className="admin-answer-grid">
                   {registrationModalAnswerEntries.map((entry) => (
-                    <article key={`${registrationModal.id}-${entry.key}`} className="admin-answer-card">
+                    <article
+                      key={`${registrationModal.id}-${entry.key}`}
+                      className="admin-answer-card"
+                    >
                       <strong>{entry.label}</strong>
                       <span>{entry.value}</span>
                     </article>
@@ -3564,7 +3937,9 @@ export function AdminEventDetailPage() {
                 </div>
               </div>
             ) : (
-              <p className="subtle-text">Nessun dettaglio aggiuntivo oltre ai dati principali.</p>
+              <p className="subtle-text">
+                Nessun dettaglio aggiuntivo oltre ai dati principali.
+              </p>
             )}
 
             <div className="inline-actions" style={{ flexWrap: "wrap" }}>
@@ -3572,7 +3947,9 @@ export function AdminEventDetailPage() {
                 <button
                   className="button button--soft button--small"
                   disabled={busy !== null}
-                  onClick={() => void handleAdminReactivateRegistration(registrationModal)}
+                  onClick={() =>
+                    void handleAdminReactivateRegistration(registrationModal)
+                  }
                   type="button"
                 >
                   <AppIcon name="check" />
@@ -3587,7 +3964,9 @@ export function AdminEventDetailPage() {
                 <button
                   className="button button--soft button--small"
                   disabled={busy !== null}
-                  onClick={() => void handleAdminCancelRegistration(registrationModal)}
+                  onClick={() =>
+                    void handleAdminCancelRegistration(registrationModal)
+                  }
                   type="button"
                 >
                   <AppIcon name="x" />
@@ -3602,7 +3981,9 @@ export function AdminEventDetailPage() {
               <button
                 className="button button--ghost button--small"
                 disabled={busy !== null}
-                onClick={() => void handleAdminDeleteRegistration(registrationModal)}
+                onClick={() =>
+                  void handleAdminDeleteRegistration(registrationModal)
+                }
                 type="button"
               >
                 <AppIcon name="trash" />
@@ -3615,8 +3996,8 @@ export function AdminEventDetailPage() {
               </button>
             </div>
             <p className="subtle-text">
-              "Annulla" sposta l'iscrizione tra le cancellate (reversibile). "Elimina"
-              rimuove definitivamente il documento (irreversibile).
+              "Annulla" sposta l'iscrizione tra le cancellate (reversibile).
+              "Elimina" rimuove definitivamente il documento (irreversibile).
             </p>
           </div>
         </AppModal>

@@ -5175,6 +5175,365 @@ button {
   padding-bottom: 0.5rem;
 }
 
+.page--admin-activity-detail {
+  --admin-camp-ink: #17243a;
+  --admin-camp-muted: #647086;
+  --admin-camp-card: rgba(255, 255, 255, 0.94);
+  --admin-camp-line: rgba(31, 46, 72, 0.1);
+  --admin-camp-blue: #235d90;
+  --admin-camp-blue-soft: rgba(35, 93, 144, 0.11);
+  --admin-camp-sage: #5f7d62;
+  --admin-camp-sage-soft: rgba(95, 125, 98, 0.13);
+  --admin-camp-gold: #b98a2e;
+  --admin-camp-gold-soft: rgba(185, 138, 46, 0.14);
+  --admin-camp-danger: #b14e44;
+  width: min(760px, calc(100vw - 20px));
+  gap: 0.9rem;
+  padding: 0.85rem 0 3rem;
+  color: var(--admin-camp-ink);
+}
+
+.page--admin-activity-detail .activity-ios-hero,
+.page--admin-activity-detail .activity-ios-metric,
+.page--admin-activity-detail .surface-panel,
+.page--admin-activity-detail .card,
+.page--admin-activity-detail .admin-inline-metric {
+  border-color: var(--admin-camp-line);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(252, 253, 249, 0.95)
+    ),
+    var(--admin-camp-card);
+  box-shadow:
+    0 18px 42px rgba(23, 36, 58, 0.07),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.page--admin-activity-detail .activity-ios-hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "image image"
+    "content actions";
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(252, 253, 249, 0.94)
+    ),
+    linear-gradient(135deg, rgba(95, 125, 98, 0.12), rgba(185, 138, 46, 0.1));
+}
+
+.page--admin-activity-detail .activity-ios-hero__image {
+  grid-area: image;
+  position: relative;
+  min-height: 9rem;
+  aspect-ratio: 2.8 / 1;
+  border-radius: 1rem;
+  background:
+    radial-gradient(
+      circle at 78% 22%,
+      rgba(255, 227, 163, 0.95) 0 1rem,
+      transparent 1.05rem
+    ),
+    linear-gradient(
+      180deg,
+      rgba(211, 225, 218, 0.92),
+      rgba(244, 237, 219, 0.9) 60%,
+      rgba(205, 183, 126, 0.45)
+    ),
+    rgba(245, 248, 245, 0.95);
+}
+
+.page--admin-activity-detail .activity-ios-hero__image::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 58%;
+  background:
+    linear-gradient(
+      138deg,
+      transparent 0 24%,
+      rgba(63, 84, 50, 0.78) 24% 46%,
+      transparent 46%
+    ),
+    linear-gradient(
+      32deg,
+      transparent 0 34%,
+      rgba(35, 93, 144, 0.48) 34% 58%,
+      transparent 58%
+    ),
+    linear-gradient(
+      155deg,
+      transparent 0 48%,
+      rgba(95, 125, 98, 0.72) 48% 76%,
+      transparent 76%
+    );
+}
+
+.page--admin-activity-detail .activity-ios-hero__image[style]::after {
+  background: linear-gradient(180deg, transparent, rgba(23, 36, 58, 0.18));
+}
+
+.page--admin-activity-detail .activity-ios-hero__content {
+  grid-area: content;
+}
+
+.page--admin-activity-detail .activity-ios-actions {
+  grid-area: actions;
+  align-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.page--admin-activity-detail .activity-ios-chip-row .status-badge,
+.page--admin-activity-detail .activity-ios-chip {
+  border: 1px solid var(--admin-camp-line);
+  background: #fff;
+  color: var(--admin-camp-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
+.page--admin-activity-detail .activity-ios-chip--blue {
+  background: var(--admin-camp-blue-soft);
+  color: var(--admin-camp-blue);
+}
+
+.page--admin-activity-detail .activity-ios-chip--violet {
+  background: var(--admin-camp-gold-soft);
+  color: #8c6a20;
+}
+
+.page--admin-activity-detail .activity-ios-hero__content h1 {
+  color: var(--admin-camp-ink);
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.45rem, 4vw, 2.05rem);
+  font-weight: 650;
+}
+
+.page--admin-activity-detail .activity-ios-meta {
+  color: var(--admin-camp-muted);
+  font-size: 0.9rem;
+}
+
+.page--admin-activity-detail .activity-ios-meta svg {
+  color: var(--admin-camp-sage);
+}
+
+.page--admin-activity-detail .activity-ios-action {
+  border-color: var(--admin-camp-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--admin-camp-ink);
+  box-shadow: 0 10px 24px rgba(23, 36, 58, 0.05);
+}
+
+.page--admin-activity-detail .activity-ios-action--danger {
+  border-color: rgba(177, 78, 68, 0.18);
+  background: rgba(255, 246, 245, 0.96);
+  color: var(--admin-camp-danger);
+}
+
+.page--admin-activity-detail .activity-ios-metrics {
+  gap: 0.6rem;
+}
+
+.page--admin-activity-detail .activity-ios-metric {
+  min-height: 5.8rem;
+  border-radius: 1.1rem;
+}
+
+.page--admin-activity-detail .activity-ios-metric > span {
+  background: var(--admin-camp-blue-soft);
+  color: var(--admin-camp-blue);
+}
+
+.page--admin-activity-detail .activity-ios-metric:nth-child(2) > span {
+  background: var(--admin-camp-sage-soft);
+  color: var(--admin-camp-sage);
+}
+
+.page--admin-activity-detail .activity-ios-metric:nth-child(3) > span {
+  background: var(--admin-camp-gold-soft);
+  color: #8c6a20;
+}
+
+.page--admin-activity-detail .activity-ios-metric strong {
+  color: var(--admin-camp-ink);
+}
+
+.page--admin-activity-detail .activity-ios-metric small {
+  color: var(--admin-camp-muted);
+}
+
+.page--admin-activity-detail .admin-subtabs {
+  position: relative;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 0.2rem 0.25rem 0.75rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  scrollbar-width: none;
+}
+
+.page--admin-activity-detail .admin-subtabs::-webkit-scrollbar {
+  display: none;
+}
+
+.page--admin-activity-detail .admin-subtabs__item {
+  position: relative;
+  min-width: 4.55rem;
+  min-height: 3.95rem;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.34rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--admin-camp-muted);
+}
+
+.page--admin-activity-detail .admin-subtabs__item::before {
+  content: "";
+  position: absolute;
+  top: 1rem;
+  left: -2.3rem;
+  width: 4.6rem;
+  border-top: 2px dotted rgba(31, 46, 72, 0.16);
+}
+
+.page--admin-activity-detail .admin-subtabs__item:first-child::before {
+  display: none;
+}
+
+.page--admin-activity-detail .admin-subtabs__item svg {
+  position: relative;
+  z-index: 1;
+  width: 2rem;
+  height: 2rem;
+  padding: 0.48rem;
+  border: 1px solid var(--admin-camp-line);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(23, 36, 58, 0.05);
+}
+
+.page--admin-activity-detail .admin-subtabs__item span {
+  max-width: 4.2rem;
+  color: var(--admin-camp-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.page--admin-activity-detail .admin-subtabs__item--active {
+  color: var(--admin-camp-blue);
+  background: transparent;
+}
+
+.page--admin-activity-detail .admin-subtabs__item--active svg {
+  border-color: rgba(35, 93, 144, 0.28);
+  background: var(--admin-camp-blue);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--admin-camp-blue-soft);
+}
+
+.page--admin-activity-detail .admin-subtabs__item--active span {
+  color: var(--admin-camp-ink);
+}
+
+.page--admin-activity-detail .admin-subtabs__item--active::after {
+  right: auto;
+  bottom: 0.22rem;
+  left: 50%;
+  width: 0.28rem;
+  height: 0.28rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--admin-camp-gold);
+}
+
+.page--admin-activity-detail .admin-detail-grid,
+.page--admin-activity-detail .admin-detail-stack {
+  gap: 0.75rem;
+}
+
+.page--admin-activity-detail .surface-panel h3,
+.page--admin-activity-detail .section-head h3,
+.page--admin-activity-detail .admin-section__head h2 {
+  color: var(--admin-camp-ink);
+  font-family: "Fraunces", serif;
+  font-weight: 650;
+}
+
+.page--admin-activity-detail .surface-panel p,
+.page--admin-activity-detail .summary-list dd,
+.page--admin-activity-detail .section-head p {
+  color: var(--admin-camp-muted);
+}
+
+.page--admin-activity-detail .summary-list div,
+.page--admin-activity-detail .admin-roster-row,
+.page--admin-activity-detail .camp-ios-card {
+  border-color: var(--admin-camp-line);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.page--admin-activity-detail .admin-inline-metric {
+  min-height: 4.85rem;
+  border-radius: 1rem;
+}
+
+.page--admin-activity-detail .admin-inline-metric strong {
+  color: var(--admin-camp-ink);
+  font-family: "Fraunces", serif;
+}
+
+@media (max-width: 540px) {
+  .page--admin-activity-detail {
+    width: min(390px, calc(100vw - 12px));
+    padding-top: 0.65rem;
+  }
+
+  .page--admin-activity-detail .activity-ios-hero {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "image"
+      "content"
+      "actions";
+    gap: 0.85rem;
+    padding: 0.85rem;
+  }
+
+  .page--admin-activity-detail .activity-ios-hero__image {
+    min-height: 8.2rem;
+  }
+
+  .page--admin-activity-detail .activity-ios-actions {
+    justify-content: flex-start;
+  }
+
+  .page--admin-activity-detail .activity-ios-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .page--admin-activity-detail .activity-ios-metric {
+    min-height: 5.2rem;
+    padding: 0.68rem 0.45rem;
+  }
+}
+
 .page--my-activity-detail {
   --camp-ink: #1e2a3b;
   --camp-ink-soft: #4a5768;
