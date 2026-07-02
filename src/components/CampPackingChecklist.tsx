@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { AppIcon } from "@/components/AppIcon";
 import { packingChecklistService } from "@/services/firestore/packingChecklistService";
 import type { Event } from "@/types";
 import { buildCampPackingSections } from "@/utils/campPacking";
@@ -10,7 +9,10 @@ interface CampPackingChecklistProps {
   userId: string;
 }
 
-export function CampPackingChecklist({ event, userId }: CampPackingChecklistProps) {
+export function CampPackingChecklist({
+  event,
+  userId,
+}: CampPackingChecklistProps) {
   const sections = useMemo(
     () => buildCampPackingSections(event.whatToBring),
     [event.whatToBring],
@@ -32,7 +34,9 @@ export function CampPackingChecklist({ event, userId }: CampPackingChecklistProp
       .getCheckedItemIds(event.stakeId, event.id, userId)
       .then((checkedItemIds) => {
         if (!active) return;
-        setChecked(Object.fromEntries(checkedItemIds.map((itemId) => [itemId, true])));
+        setChecked(
+          Object.fromEntries(checkedItemIds.map((itemId) => [itemId, true])),
+        );
         setLoaded(true);
       })
       .catch((caughtError) => {
@@ -75,7 +79,8 @@ export function CampPackingChecklist({ event, userId }: CampPackingChecklistProp
 
   const completedCount = allItems.filter((itemId) => checked[itemId]).length;
   const totalCount = allItems.length;
-  const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const progress =
+    totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   function toggleItem(itemId: string) {
     setChecked((current) => ({
@@ -93,65 +98,75 @@ export function CampPackingChecklist({ event, userId }: CampPackingChecklistProp
   }
 
   return (
-    <section className="card packing-card">
-      <div className="packing-card__head">
-        <div>
-          <span className="packing-card__eyebrow">Preparazione campeggio</span>
-          <h2>Cose da portare</h2>
-        </div>
-        <div className="packing-progress-set">
-          <div className="packing-progress" aria-label={`${completedCount} di ${totalCount} pronti`}>
-            <strong>{completedCount}/{totalCount}</strong>
-            <span>prese</span>
-          </div>
-          <div className="packing-progress packing-progress--percent" aria-label={`${progress}% completato`}>
-            <strong>{progress}%</strong>
-            <span>completo</span>
-          </div>
-        </div>
-      </div>
+    <section className="camp-youth-screen camp-youth-screen--packing">
+      <span className="camp-section-eyebrow">Preparazione campeggio</span>
+      <h2 className="camp-section-title">Cosa portare nello zaino</h2>
 
       {syncError ? <p className="packing-sync-error">{syncError}</p> : null}
 
-      <div className="packing-progress-bar" aria-hidden="true">
-        <span style={{ width: `${progress}%` }} />
+      <div className="packing-journey-card">
+        <div className="packing-journey-card__top">
+          <span>Il tuo cammino</span>
+          <strong aria-label={`${completedCount} di ${totalCount} pronti`}>
+            {completedCount}/{totalCount}
+          </strong>
+        </div>
+        <div className="camp-trail-bar" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+        <div className="packing-journey-card__foot">
+          <span>{completedCount} cose prese</span>
+          <span>{progress}% pronto</span>
+        </div>
       </div>
 
-      <div className="packing-card__actions">
-        <button className="button button--soft button--small" onClick={checkAll} type="button">
-          <AppIcon name="check" />
-          <span>Tutto pronto</span>
+      <div className="packing-quick-actions">
+        <button
+          className="camp-pill-btn camp-pill-btn--solid"
+          onClick={checkAll}
+          type="button"
+        >
+          <span aria-hidden="true">✓</span>
+          Tutto pronto
         </button>
-        <button className="button button--ghost button--small" onClick={resetAll} type="button">
-          <AppIcon name="refresh" />
-          <span>Reset</span>
+        <button className="camp-pill-btn" onClick={resetAll} type="button">
+          <span aria-hidden="true">↺</span>
+          Reset
         </button>
       </div>
 
-      <div className="packing-section-grid">
+      <div className="camp-waypoint-list">
         {sections.map((section) => (
-          <article className="packing-section" key={section.id}>
-            <h3>{section.title}</h3>
-            <div className="packing-list">
-              {section.items.map((item) => {
-                const isChecked = checked[item.id] === true;
-                return (
-                  <label
-                    className={isChecked ? "packing-item packing-item--checked" : "packing-item"}
-                    key={item.id}
-                  >
-                    <input
-                      checked={isChecked}
-                      onChange={() => toggleItem(item.id)}
-                      type="checkbox"
-                    />
-                    <span className="packing-item__box" aria-hidden="true">
-                      {isChecked ? <AppIcon name="check" /> : null}
-                    </span>
-                    <span>{item.label}</span>
-                  </label>
-                );
-              })}
+          <article className="camp-waypoint-group" key={section.id}>
+            <span className="camp-waypoint-dot" aria-hidden="true" />
+            <div className="camp-cat-card">
+              <div className="camp-cat-head">
+                <h3>{section.title}</h3>
+                <span>{section.items.length} oggetti</span>
+              </div>
+              <div className="packing-list">
+                {section.items.map((item) => {
+                  const isChecked = checked[item.id] === true;
+                  return (
+                    <label
+                      className={
+                        isChecked
+                          ? "packing-item packing-item--checked"
+                          : "packing-item"
+                      }
+                      key={item.id}
+                    >
+                      <input
+                        checked={isChecked}
+                        onChange={() => toggleItem(item.id)}
+                        type="checkbox"
+                      />
+                      <span className="packing-item__box" aria-hidden="true" />
+                      <span className="packing-item__text">{item.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           </article>
         ))}

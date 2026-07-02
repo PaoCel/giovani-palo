@@ -48,7 +48,8 @@ type PersonalCampCommittee = {
   publicMembers: CampPublicMember[];
 };
 
-type YouthActivityTab = "registration" | "patrol" | "committees" | "gallery" | "survey";
+type YouthActivityTab =
+  "registration" | "patrol" | "committees" | "gallery" | "survey";
 
 function getPatrolRoleLabel(role: string | null) {
   switch (role) {
@@ -67,7 +68,10 @@ function getCommitteeRoleLabel(role: string) {
   return role === "leader" ? "Responsabile" : "Membro";
 }
 
-function getPublicMemberLabel(member: CampPublicMember, context: "committee" | "patrol") {
+function getPublicMemberLabel(
+  member: CampPublicMember,
+  context: "committee" | "patrol",
+) {
   return context === "committee"
     ? getCommitteeRoleLabel(member.role)
     : getPatrolRoleLabel(member.role);
@@ -99,10 +103,24 @@ function getRegistrationStatusDisplay(registration: Registration) {
   };
 }
 
+function getInitials(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "";
+  const second = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return `${first}${second}`.toUpperCase() || "•";
+}
+
+function getAvatarTone(index: number) {
+  const tones = ["clay", "dusk", "sage", "amber", "ink"];
+  return tones[index % tones.length];
+}
+
 export function MyActivityDetailPage() {
   const { eventId } = useParams();
   const { session } = useAuth();
-  const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "none";
+  const sessionKey = session
+    ? `${session.firebaseUser.uid}:${session.isAnonymous}`
+    : "none";
   const stakeId = session?.profile.stakeId ?? "";
   const [busy, setBusy] = useState<null | "cancel">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -120,13 +138,19 @@ export function MyActivityDetailPage() {
         return null;
       }
 
-      const bundle = await userActivitiesService.getForSessionEvent(session, eventId);
+      const bundle = await userActivitiesService.getForSessionEvent(
+        session,
+        eventId,
+      );
 
       if (!bundle) {
         return null;
       }
 
-      const formConfig = await eventFormsService.getFormConfig(stakeId, eventId);
+      const formConfig = await eventFormsService.getFormConfig(
+        stakeId,
+        eventId,
+      );
 
       return {
         ...bundle,
@@ -148,7 +172,10 @@ export function MyActivityDetailPage() {
     const registrationId = data.registration.id;
     const management = data.campManagement;
     const manualLeaderById = new Map(
-      (management?.manualLeaders ?? []).map((leader) => [leader.id, leader.fullName]),
+      (management?.manualLeaders ?? []).map((leader) => [
+        leader.id,
+        leader.fullName,
+      ]),
     );
     const patrolFromPlan = management?.patrols.find(
       (patrol) =>
@@ -170,12 +197,11 @@ export function MyActivityDetailPage() {
       unitName: data.registration.unitNameSnapshot,
       role: data.registration.assignedPatrolRole ?? "member",
     };
-    const patrolPublicMembers =
-      patrolFromPlan?.publicMembers.length
-        ? patrolFromPlan.publicMembers
-        : patrolFromPlan || data.registration.assignedPatrolName
-          ? [{ ...selfPublicMember, role: patrolRole ?? "member" }]
-          : [];
+    const patrolPublicMembers = patrolFromPlan?.publicMembers.length
+      ? patrolFromPlan.publicMembers
+      : patrolFromPlan || data.registration.assignedPatrolName
+        ? [{ ...selfPublicMember, role: patrolRole ?? "member" }]
+        : [];
     const patrol = patrolFromPlan
       ? {
           id: patrolFromPlan.id,
@@ -259,14 +285,17 @@ export function MyActivityDetailPage() {
     setActionError(null);
 
     try {
-      const cancelledRegistration = await registrationsService.cancelRegistration(
-        stakeId,
-        eventId,
-        getRegistrationLookupFromSession(session),
-      );
+      const cancelledRegistration =
+        await registrationsService.cancelRegistration(
+          stakeId,
+          eventId,
+          getRegistrationLookupFromSession(session),
+        );
 
       if (!cancelledRegistration) {
-        throw new Error("Impossibile rileggere la registrazione dopo l'annullamento.");
+        throw new Error(
+          "Impossibile rileggere la registrazione dopo l'annullamento.",
+        );
       }
 
       setData((current) =>
@@ -305,17 +334,17 @@ export function MyActivityDetailPage() {
     );
   }
 
-  const answerEntries =
-    data ? getRegistrationAnswerEntries(data.formConfig, data.registration) : [];
+  const answerEntries = data
+    ? getRegistrationAnswerEntries(data.formConfig, data.registration)
+    : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
-  const showParentConsentCard =
-    Boolean(
-      data &&
-        session?.isAuthenticated &&
-        !session.isAnonymous &&
-        data.formConfig.enabledStandardFields.includes("parentConfirmed") &&
-        isMinorBirthDate(data.registration.birthDate),
-    );
+  const showParentConsentCard = Boolean(
+    data &&
+    session?.isAuthenticated &&
+    !session.isAnonymous &&
+    data.formConfig.enabledStandardFields.includes("parentConfirmed") &&
+    isMinorBirthDate(data.registration.birthDate),
+  );
   const registrationStatusDisplay = data
     ? getRegistrationStatusDisplay(data.registration)
     : null;
@@ -323,90 +352,92 @@ export function MyActivityDetailPage() {
     id: YouthActivityTab;
     label: string;
     icon: "badge" | "users" | "list" | "eye" | "check";
-    value?: string;
   }> = [
     { id: "registration", label: "Iscrizione", icon: "badge" },
-    {
-      id: "patrol",
-      label: "Pattuglia",
-      icon: "users",
-      value: personalCampOrganization.patrol?.name,
-    },
-    {
-      id: "committees",
-      label: "Comitati",
-      icon: "list",
-      value: personalCampOrganization.committees.length
-        ? String(personalCampOrganization.committees.length)
-        : undefined,
-    },
+    { id: "patrol", label: "Pattuglia", icon: "users" },
+    { id: "committees", label: "Comitati", icon: "list" },
     { id: "gallery", label: "Galleria", icon: "eye" },
     { id: "survey", label: "Sondaggio", icon: "check" },
   ];
+  const currentPatrol = personalCampOrganization.patrol;
+  const currentCommittees = personalCampOrganization.committees;
 
   return (
     <div className="page page--activity-ios page--my-activity-detail">
       {data ? (
-        <section className="activity-ios-hero activity-ios-hero--personal">
+        <section className="camp-youth-hero">
           <div
-            className="activity-ios-hero__image"
+            className="camp-youth-hero__art"
             style={
-              data.event.heroImageUrl ? { backgroundImage: `url(${data.event.heroImageUrl})` } : undefined
+              data.event.heroImageUrl
+                ? { backgroundImage: `url(${data.event.heroImageUrl})` }
+                : undefined
             }
           >
-            {!data.event.heroImageUrl ? <AppIcon name="ticket" /> : null}
+            <span className="camp-youth-hero__sun" aria-hidden="true" />
           </div>
-          <div className="activity-ios-hero__content">
-            <div className="activity-ios-chip-row">
-              {registrationStatusDisplay ? (
+          <div className="camp-youth-hero__badges">
+            {registrationStatusDisplay ? (
+              <span className="camp-youth-badge camp-youth-badge--status">
                 <StatusBadge
                   label={registrationStatusDisplay.label}
                   tone={registrationStatusDisplay.tone}
                 />
-              ) : null}
-              <span className="activity-ios-chip activity-ios-chip--blue">
-                {getEventAudienceLabel(data.event.audience)}
               </span>
-              {data.event.overnight ? (
-                <span className="activity-ios-chip activity-ios-chip--violet">Pernottamento</span>
-              ) : null}
-            </div>
-            <h1>{data.event.title}</h1>
-            <p className="activity-ios-meta">
-              <AppIcon name="calendar" />
-              <span>{formatDateRange(data.event.startDate, data.event.endDate)}</span>
-            </p>
-            {data.event.location ? (
-              <p className="activity-ios-meta">
-                <AppIcon name="map-pin" />
-                <span>{data.event.location}</span>
-              </p>
+            ) : null}
+            <span className="camp-youth-badge camp-youth-badge--blue">
+              <span aria-hidden="true" />
+              {getEventAudienceLabel(data.event.audience)}
+            </span>
+            {data.event.overnight ? (
+              <span className="camp-youth-badge camp-youth-badge--amber">
+                <span aria-hidden="true" />
+                Pernottamento
+              </span>
             ) : null}
           </div>
-          <div className="activity-ios-actions activity-ios-actions--personal">
+          <h1 className="camp-youth-title">{data.event.title}</h1>
+          <p className="camp-youth-meta">
+            <AppIcon name="calendar" />
+            <span>
+              {formatDateRange(data.event.startDate, data.event.endDate)}
+            </span>
+          </p>
+          {data.event.location ? (
+            <p className="camp-youth-meta">
+              <AppIcon name="map-pin" />
+              <span>{data.event.location}</span>
+            </p>
+          ) : null}
+          <div className="camp-youth-hero__actions">
             {!isCancelled ? (
-              <Link className="activity-ios-action activity-ios-action--wide" to={`/me/activities/${data.event.id}/edit`}>
+              <Link
+                className="camp-youth-primary-action"
+                to={`/me/activities/${data.event.id}/edit`}
+              >
                 <AppIcon name="pencil" />
-                <span>Modifica</span>
+                <span>Modifica iscrizione</span>
               </Link>
             ) : null}
             <ShareButton
-              className="activity-ios-action"
+              className="camp-youth-icon-action"
               iconOnly
               title={data.event.title}
               text="Guarda questa attività e apri l'iscrizione."
               url={getAbsoluteUrl(getActivityPath(data.event.id, stakeId))}
             />
-            <Link className="activity-ios-action" to="/me/activities" title="Torna alle attività">
+            <Link
+              className="camp-youth-icon-action"
+              to="/me/activities"
+              title="Torna alle attività"
+            >
               <AppIcon name="arrow-left" />
             </Link>
           </div>
         </section>
       ) : (
-        <section className="activity-ios-hero activity-ios-hero--personal">
-          <div className="activity-ios-hero__content">
-            <h1>Caricamento iscrizione...</h1>
-          </div>
+        <section className="camp-youth-hero">
+          <h1 className="camp-youth-title">Caricamento iscrizione...</h1>
         </section>
       )}
 
@@ -439,59 +470,54 @@ export function MyActivityDetailPage() {
 
       {data ? (
         <>
-          <section className="personal-event-strip">
-            <span>
-              <AppIcon name="calendar" />
-              {formatDateRange(data.event.startDate, data.event.endDate)}
-            </span>
-            {data.event.location ? (
-              <span>
-                <AppIcon name="map-pin" />
-                {data.event.location}
-              </span>
-            ) : null}
-            {registrationStatusDisplay ? (
-              <StatusBadge
-                label={registrationStatusDisplay.label}
-                tone={registrationStatusDisplay.tone}
-              />
-            ) : null}
+          <section className="camp-trail-nav" aria-label="Menu attività">
+            <div className="camp-trail-track" role="tablist">
+              {tabDefinitions.map((tab) => (
+                <button
+                  aria-selected={activeTab === tab.id}
+                  className={
+                    activeTab === tab.id
+                      ? "camp-trail-stop camp-trail-stop--active"
+                      : "camp-trail-stop"
+                  }
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <span className="camp-trail-stop__node">
+                    <AppIcon name={tab.icon} />
+                  </span>
+                  <span className="camp-trail-stop__label">{tab.label}</span>
+                </button>
+              ))}
+            </div>
           </section>
 
-          <section className="personal-action-grid" aria-label="Menu attività">
-            {tabDefinitions.map((tab) => (
-              <button
-                aria-selected={activeTab === tab.id}
-                className={
-                  activeTab === tab.id
-                    ? "personal-action-tile personal-action-tile--active"
-                    : "personal-action-tile"
-                }
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                role="tab"
-                type="button"
-              >
-                <span>
-                  <AppIcon name={tab.icon} />
-                </span>
-                <strong>{tab.label}</strong>
-                {tab.value ? <small>{tab.value}</small> : null}
-              </button>
-            ))}
-          </section>
-
-          {session?.firebaseUser.uid && isCampPackingActivity(data.event) ? (
-            <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} />
-          ) : null}
-
-          <section className="personal-tab-panel" role="tabpanel">
+          <section className="camp-youth-tab-panel" role="tabpanel">
             {activeTab === "registration" ? (
-              <div className="personal-tab-stack">
-                <SectionCard title="Informazioni iscrizione">
-                  <dl className="summary-list personal-summary-list">
+              <div className="camp-youth-stack">
+                {session?.firebaseUser.uid &&
+                isCampPackingActivity(data.event) ? (
+                  <CampPackingChecklist
+                    event={data.event}
+                    userId={session.firebaseUser.uid}
+                  />
+                ) : null}
+
+                <section className="camp-cat-card camp-registration-card">
+                  <div className="camp-cat-head">
+                    <h3>Dati iscrizione</h3>
+                    {registrationStatusDisplay ? (
+                      <StatusBadge
+                        label={registrationStatusDisplay.label}
+                        tone={registrationStatusDisplay.tone}
+                      />
+                    ) : null}
+                  </div>
+                  <dl className="camp-youth-data-list">
                     <div>
-                      <dt>Nome completo</dt>
+                      <dt>Nome</dt>
                       <dd>{data.registration.fullName}</dd>
                     </div>
                     <div>
@@ -503,30 +529,31 @@ export function MyActivityDetailPage() {
                       <dd>{data.registration.phone || "-"}</dd>
                     </div>
                     <div>
-                      <dt>Stato</dt>
+                      <dt>Unità</dt>
                       <dd>
-                        {registrationStatusDisplay ? (
-                          <StatusBadge
-                            label={registrationStatusDisplay.label}
-                            tone={registrationStatusDisplay.tone}
-                          />
-                        ) : null}
+                        {data.registration.unitNameSnapshot ||
+                          data.registration.unitName ||
+                          "-"}
                       </dd>
                     </div>
                     <div>
                       <dt>Ultimo aggiornamento</dt>
                       <dd>{formatDateTime(data.registration.updatedAt)}</dd>
                     </div>
-                    {data.registration.recoveryCode || data.registration.accessCode ? (
+                    {data.registration.recoveryCode ||
+                    data.registration.accessCode ? (
                       <div>
                         <dt>Codice iscrizione</dt>
-                        <dd>{data.registration.recoveryCode || data.registration.accessCode}</dd>
+                        <dd>
+                          {data.registration.recoveryCode ||
+                            data.registration.accessCode}
+                        </dd>
                       </div>
                     ) : null}
                   </dl>
 
                   {answerEntries.length > 0 ? (
-                    <ul className="plain-list">
+                    <ul className="camp-youth-answer-list">
                       {answerEntries.map((entry) => (
                         <li key={entry.key}>
                           <strong>{entry.label}</strong>
@@ -535,13 +562,16 @@ export function MyActivityDetailPage() {
                       ))}
                     </ul>
                   ) : null}
-                </SectionCard>
+                </section>
 
                 {data.event.menuInfo?.trim() ||
                 data.event.roomsInfo?.trim() ||
                 data.event.allergiesInfo?.trim() ? (
-                  <SectionCard title="Info campeggio">
-                    <dl className="summary-list personal-summary-list">
+                  <section className="camp-cat-card camp-registration-card">
+                    <div className="camp-cat-head">
+                      <h3>Info campeggio</h3>
+                    </div>
+                    <dl className="camp-youth-data-list">
                       {data.event.menuInfo?.trim() ? (
                         <div>
                           <dt>Menu</dt>
@@ -561,10 +591,11 @@ export function MyActivityDetailPage() {
                         </div>
                       ) : null}
                     </dl>
-                  </SectionCard>
+                  </section>
                 ) : null}
 
-                {(data.event.requiresParentalConsent || data.event.requiresPhotoRelease) &&
+                {(data.event.requiresParentalConsent ||
+                  data.event.requiresPhotoRelease) &&
                 session ? (
                   <SectionCard title="Autorizzazioni e firma">
                     <ConsentSection
@@ -625,7 +656,9 @@ export function MyActivityDetailPage() {
                       onClick={() => void handleCancelRegistration()}
                       type="button"
                     >
-                      {busy === "cancel" ? "Annullamento..." : "Annulla iscrizione"}
+                      {busy === "cancel"
+                        ? "Annullamento..."
+                        : "Annulla iscrizione"}
                     </button>
                   </section>
                 ) : null}
@@ -633,82 +666,224 @@ export function MyActivityDetailPage() {
             ) : null}
 
             {activeTab === "patrol" ? (
-              <SectionCard title={personalCampOrganization.patrol?.name ?? "Pattuglia"}>
-                {personalCampOrganization.patrol ? (
-                  <div className="camp-person-list">
-                    {personalCampOrganization.patrol.publicMembers.map((member) => (
-                      <article className="camp-person-row" key={member.registrationId}>
-                        <span>
-                          <strong>{member.fullName}</strong>
-                          <small>{getPublicMemberLabel(member, "patrol")}</small>
-                        </span>
-                        {member.unitName ? <small>{member.unitName}</small> : null}
-                      </article>
-                    ))}
-                  </div>
+              <div className="camp-youth-screen">
+                <span className="camp-section-eyebrow">Il tuo gruppo</span>
+                <h2 className="camp-section-title">La tua pattuglia</h2>
+                <p className="camp-section-sub">
+                  Le persone con cui condividi turni, attività e vita di campo.
+                </p>
+
+                {currentPatrol ? (
+                  <>
+                    <section className="camp-patrol-card">
+                      <div
+                        className="camp-patrol-card__emoji"
+                        aria-hidden="true"
+                      >
+                        🧭
+                      </div>
+                      <h3>{currentPatrol.name}</h3>
+                      <p>Con chi cammini durante il campeggio.</p>
+                      <div className="camp-patrol-meta">
+                        <div>
+                          Ruolo
+                          <b>
+                            {getPatrolRoleLabel(currentPatrol.role) || "Membro"}
+                          </b>
+                        </div>
+                        <div>
+                          Membri
+                          <b>
+                            {currentPatrol.assignedCount ||
+                              currentPatrol.publicMembers.length}
+                          </b>
+                        </div>
+                      </div>
+                    </section>
+
+                    <span className="camp-list-label">Componenti</span>
+                    <section className="camp-cat-card camp-member-card">
+                      {currentPatrol.publicMembers.map((member, index) => (
+                        <article
+                          className="camp-member-row"
+                          key={member.registrationId}
+                        >
+                          <span
+                            className={`camp-avatar camp-avatar--${getAvatarTone(index)}`}
+                          >
+                            {getInitials(member.fullName)}
+                          </span>
+                          <span>
+                            <strong>{member.fullName}</strong>
+                            <small>
+                              {getPublicMemberLabel(member, "patrol") ||
+                                "Componente"}
+                            </small>
+                          </span>
+                          {member.registrationId === data.registration.id ? (
+                            <em className="camp-you-tag">TU</em>
+                          ) : null}
+                        </article>
+                      ))}
+                    </section>
+                  </>
                 ) : (
                   <EmptyState
                     title="Nessuna pattuglia assegnata"
                     description="Quando sara' assegnata, la vedrai qui."
                   />
                 )}
-              </SectionCard>
+              </div>
             ) : null}
 
             {activeTab === "committees" ? (
-              <div className="personal-tab-stack">
-                {personalCampOrganization.committees.length > 0 ? (
-                  personalCampOrganization.committees.map((committee) => (
-                    <SectionCard key={committee.id} title={`${committee.emoji} ${committee.title}`}>
-                      <div className="camp-person-list">
-                        {committee.manualLeaderNames.map((leaderName) => (
-                          <article className="camp-person-row" key={leaderName}>
-                            <span>
-                              <strong>{leaderName}</strong>
-                              <small>Responsabile</small>
+              <div className="camp-youth-screen">
+                <span className="camp-section-eyebrow">Servizio</span>
+                <h2 className="camp-section-title">Comitati del campeggio</h2>
+                <p className="camp-section-sub">
+                  Qui vedi il tuo comitato e le persone con cui lo prepari.
+                </p>
+
+                {currentCommittees.length > 0 ? (
+                  currentCommittees.map((committee, committeeIndex) => {
+                    const leaders = [
+                      ...committee.manualLeaderNames,
+                      ...committee.publicMembers
+                        .filter((member) => member.role === "leader")
+                        .map((member) => member.fullName),
+                    ];
+
+                    return (
+                      <section
+                        className="camp-committee-card"
+                        key={committee.id}
+                      >
+                        <div className="camp-committee-card__head">
+                          <span
+                            className={`camp-committee-icon camp-committee-icon--${getAvatarTone(
+                              committeeIndex,
+                            )}`}
+                          >
+                            {committee.emoji}
+                          </span>
+                          <span>
+                            <h3>{committee.title}</h3>
+                            <small>
+                              Responsabile:{" "}
+                              {leaders.length
+                                ? leaders.join(", ")
+                                : "da definire"}
+                            </small>
+                          </span>
+                        </div>
+                        <p>
+                          {committee.role === "leader"
+                            ? "Sei tra i responsabili di questo comitato."
+                            : "Sei assegnato a questo comitato."}
+                        </p>
+                        <div className="camp-committee-members">
+                          {committee.manualLeaderNames.map(
+                            (leaderName, index) => (
+                              <span key={leaderName}>
+                                <i
+                                  className={`camp-avatar camp-avatar--${getAvatarTone(index)}`}
+                                >
+                                  {getInitials(leaderName)}
+                                </i>
+                                {leaderName}
+                              </span>
+                            ),
+                          )}
+                          {committee.publicMembers.map((member, index) => (
+                            <span key={member.registrationId}>
+                              <i
+                                className={`camp-avatar camp-avatar--${getAvatarTone(index + 2)}`}
+                              >
+                                {getInitials(member.fullName)}
+                              </i>
+                              {member.fullName}
                             </span>
-                          </article>
-                        ))}
-                        {committee.publicMembers.map((member) => (
-                          <article className="camp-person-row" key={member.registrationId}>
-                            <span>
-                              <strong>{member.fullName}</strong>
-                              <small>{getPublicMemberLabel(member, "committee")}</small>
-                            </span>
-                            {member.unitName ? <small>{member.unitName}</small> : null}
-                          </article>
-                        ))}
-                      </div>
-                    </SectionCard>
-                  ))
+                          ))}
+                        </div>
+                        <div className="camp-spots-row">
+                          <span>{committee.assignedCount} persone</span>
+                          <button
+                            className="camp-join-btn camp-join-btn--full"
+                            type="button"
+                          >
+                            Assegnato
+                          </button>
+                        </div>
+                      </section>
+                    );
+                  })
                 ) : (
-                  <SectionCard title="Comitati">
-                    <EmptyState
-                      title="Nessun comitato assegnato"
-                      description="Quando sarai assegnato a un comitato, comparira' qui."
-                    />
-                  </SectionCard>
+                  <EmptyState
+                    title="Nessun comitato assegnato"
+                    description="Quando sarai assegnato a un comitato, comparira' qui."
+                  />
                 )}
               </div>
             ) : null}
 
             {activeTab === "gallery" ? (
-              <SectionCard title="Galleria foto e video">
+              <div className="camp-youth-screen">
+                <span className="camp-section-eyebrow">Ricordi</span>
+                <h2 className="camp-section-title">Galleria foto e video</h2>
+                <p className="camp-section-sub">
+                  Quando la galleria dell'attività sarà disponibile, la troverai
+                  qui.
+                </p>
+                <div className="camp-filter-row" aria-hidden="true">
+                  <span className="camp-filter-chip camp-filter-chip--active">
+                    Tutti
+                  </span>
+                  <span className="camp-filter-chip">Foto</span>
+                  <span className="camp-filter-chip">Video</span>
+                </div>
+                <div className="camp-masonry-preview" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
                 <Link
-                  className="button button--primary"
+                  className="camp-youth-primary-action camp-youth-primary-action--full"
                   to={`/me/galleria/per-attivita/${data.event.id}`}
                 >
                   Apri galleria attività
                 </Link>
-              </SectionCard>
+              </div>
             ) : null}
 
             {activeTab === "survey" ? (
-              <SectionCard title="Sondaggio post-evento">
-                <Link className="button button--primary" to={`/me/sondaggi/${data.event.id}`}>
-                  Vai al sondaggio
-                </Link>
-              </SectionCard>
+              <div className="camp-youth-screen">
+                <span className="camp-section-eyebrow">Post evento</span>
+                <h2 className="camp-section-title">Sondaggio</h2>
+                <p className="camp-section-sub">
+                  Dopo il campeggio potrai lasciare un feedback veloce per
+                  aiutarci a migliorare.
+                </p>
+                <div className="camp-survey-progress" aria-hidden="true">
+                  <span className="camp-survey-progress__step camp-survey-progress__step--active" />
+                  <span className="camp-survey-progress__step" />
+                  <span className="camp-survey-progress__step" />
+                </div>
+                <section className="camp-question-card">
+                  <span>Domande rapide</span>
+                  <h3>Raccontaci com'è andata</h3>
+                  <p>
+                    Il sondaggio sarà disponibile qui quando sarà il momento di
+                    compilarlo.
+                  </p>
+                  <Link
+                    className="camp-join-btn"
+                    to={`/me/sondaggi/${data.event.id}`}
+                  >
+                    Vai al sondaggio
+                  </Link>
+                </section>
+              </div>
             ) : null}
           </section>
         </>
