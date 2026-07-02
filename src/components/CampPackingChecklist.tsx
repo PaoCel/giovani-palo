@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
+import { packingChecklistService } from "@/services/firestore/packingChecklistService";
 import type { Event } from "@/types";
 import { buildCampPackingSections } from "@/utils/campPacking";
 
 interface CampPackingChecklistProps {
   event: Event;
   userId: string;
-}
-
-function getStorageKey(eventId: string, userId: string) {
-  return `camp-packing:${userId}:${eventId}`;
 }
 
 export function CampPackingChecklist({ event, userId }: CampPackingChecklistProps) {
@@ -22,25 +19,59 @@ export function CampPackingChecklist({ event, userId }: CampPackingChecklistProp
     () => sections.flatMap((section) => section.items.map((item) => item.id)),
     [sections],
   );
-  const storageKey = getStorageKey(event.id, userId);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      setChecked(raw ? JSON.parse(raw) : {});
-    } catch {
-      setChecked({});
-    }
-  }, [storageKey]);
+    let active = true;
+
+    setLoaded(false);
+    setSyncError(null);
+    packingChecklistService
+      .getCheckedItemIds(event.stakeId, event.id, userId)
+      .then((checkedItemIds) => {
+        if (!active) return;
+        setChecked(Object.fromEntries(checkedItemIds.map((itemId) => [itemId, true])));
+        setLoaded(true);
+      })
+      .catch((caughtError) => {
+        if (!active) return;
+        setChecked({});
+        setLoaded(true);
+        setSyncError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Impossibile caricare la checklist.",
+        );
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [event.id, event.stakeId, userId]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(checked));
-    } catch {
-      // localStorage puo' essere non disponibile in modalita' privacy.
+    if (!loaded) {
+      return;
     }
-  }, [checked, storageKey]);
+
+    const checkedItemIds = allItems.filter((itemId) => checked[itemId]);
+    const timeoutId = window.setTimeout(() => {
+      packingChecklistService
+        .saveCheckedItemIds(event.stakeId, event.id, userId, checkedItemIds)
+        .then(() => setSyncError(null))
+        .catch((caughtError) => {
+          setSyncError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Impossibile salvare la checklist.",
+          );
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [allItems, checked, event.id, event.stakeId, loaded, userId]);
 
   const completedCount = allItems.filter((itemId) => checked[itemId]).length;
   const totalCount = allItems.length;
@@ -67,15 +98,20 @@ export function CampPackingChecklist({ event, userId }: CampPackingChecklistProp
         <div>
           <span className="packing-card__eyebrow">Preparazione campeggio</span>
           <h2>Cose da portare</h2>
-          <p>
-            Spunta quello che hai già preparato. La lista resta salvata su questo dispositivo.
-          </p>
         </div>
-        <div className="packing-progress" aria-label={`${progress}% completato`}>
-          <strong>{completedCount}/{totalCount}</strong>
-          <span>{progress}%</span>
+        <div className="packing-progress-set">
+          <div className="packing-progress" aria-label={`${completedCount} di ${totalCount} pronti`}>
+            <strong>{completedCount}/{totalCount}</strong>
+            <span>prese</span>
+          </div>
+          <div className="packing-progress packing-progress--percent" aria-label={`${progress}% completato`}>
+            <strong>{progress}%</strong>
+            <span>completo</span>
+          </div>
         </div>
       </div>
+
+      {syncError ? <p className="packing-sync-error">{syncError}</p> : null}
 
       <div className="packing-progress-bar" aria-hidden="true">
         <span style={{ width: `${progress}%` }} />

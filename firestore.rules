@@ -1170,6 +1170,30 @@ service cloud.firestore {
           allow delete: if isUnitLeaderOfStake(stakeId);
         }
 
+        match /packingChecklists/{userId} {
+          allow get: if isStakeAdmin(stakeId)
+            || (
+              isNonAnonymousSignedIn()
+              && request.auth.uid == userId
+              && hasOwnRegistration(stakeId, activityId)
+            );
+          allow list: if false;
+          allow create, update: if isNonAnonymousSignedIn()
+            && request.auth.uid == userId
+            && hasOwnRegistration(stakeId, activityId)
+            && request.resource.data.keys().hasOnly([
+              'userId',
+              'checkedItemIds',
+              'updatedAt'
+            ])
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.checkedItemIds is list
+            && request.resource.data.updatedAt is string;
+          allow delete: if isNonAnonymousSignedIn()
+            && request.auth.uid == userId
+            && hasOwnRegistration(stakeId, activityId);
+        }
+
         match /surveyQuestions/{questionId} {
           allow get, list: if isStakeAdmin(stakeId) || isSignedIn();
           allow create, update, delete: if isStakeAdmin(stakeId);
