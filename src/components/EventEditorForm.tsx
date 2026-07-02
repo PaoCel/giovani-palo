@@ -8,11 +8,21 @@ import type {
   EventStatus,
   EventWriteInput,
 } from "@/types";
-import { fromDatetimeLocalValue, toDatetimeLocalValue } from "@/utils/formatters";
-import { eventSpansMultipleCalendarDays, getEventAudienceLabel } from "@/utils/events";
+import {
+  fromDatetimeLocalValue,
+  toDatetimeLocalValue,
+} from "@/utils/formatters";
+import {
+  eventSpansMultipleCalendarDays,
+  getEventAudienceLabel,
+} from "@/utils/events";
 import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 
-const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; description: string }[] = [
+const ACTIVITY_TYPE_OPTIONS: {
+  value: ActivityType;
+  label: string;
+  description: string;
+}[] = [
   {
     value: "standard",
     label: "Standard",
@@ -151,7 +161,9 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     registrationOpen: toDatetimeLocalValue(event?.registrationOpen),
     registrationClose: toDatetimeLocalValue(event?.registrationClose),
     maxParticipants:
-      typeof event?.maxParticipants === "number" ? String(event.maxParticipants) : "",
+      typeof event?.maxParticipants === "number"
+        ? String(event.maxParticipants)
+        : "",
     activityType: initialActivityType,
     organizerNotes: event?.organizerNotes ?? "",
     menuInfo: event?.menuInfo ?? "",
@@ -168,7 +180,7 @@ function getInitialValues(event?: Event | null): EventEditorValues {
       event?.requiresEmergencyContacts ?? initialIsStrong,
     requiresMedicalNotes: event?.requiresMedicalNotes ?? initialIsStrong,
     requiresImageConsent:
-      event?.requiresImageConsent ?? (event?.requiresPhotoRelease ?? false),
+      event?.requiresImageConsent ?? event?.requiresPhotoRelease ?? false,
     requiresDocumentUpload: event?.requiresDocumentUpload ?? false,
     requiresParentalConsent: event?.requiresParentalConsent ?? false,
     requiresPhotoRelease: event?.requiresPhotoRelease ?? false,
@@ -185,13 +197,18 @@ export function EventEditorForm({
   onSubmit,
   onUploadImage,
 }: EventEditorFormProps) {
-  const [values, setValues] = useState<EventEditorValues>(getInitialValues(initialEvent));
+  const [values, setValues] = useState<EventEditorValues>(
+    getInitialValues(initialEvent),
+  );
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const canHaveOvernight = eventSpansMultipleCalendarDays(values.startDate, values.endDate);
+  const canHaveOvernight = eventSpansMultipleCalendarDays(
+    values.startDate,
+    values.endDate,
+  );
   const isStrongAuthActivityValue = isStrongAuthActivity(values.activityType);
   const effectiveOvernight = canHaveOvernight && isStrongAuthActivityValue;
   const currentStep = eventEditorSteps[currentStepIndex];
@@ -281,7 +298,11 @@ export function EventEditorForm({
 
   function renderFieldLabel(label: string, key: string, required = false) {
     return (
-      <span className={fieldErrors[key] ? "field__label field__label--error" : "field__label"}>
+      <span
+        className={
+          fieldErrors[key] ? "field__label field__label--error" : "field__label"
+        }
+      >
         {label}
         {required ? <em aria-hidden="true">*</em> : null}
       </span>
@@ -358,7 +379,10 @@ export function EventEditorForm({
 
     const parsedYear = Number(values.year);
 
-    if (stepId === "details" && (Number.isNaN(parsedYear) || parsedYear < 2000)) {
+    if (
+      stepId === "details" &&
+      (Number.isNaN(parsedYear) || parsedYear < 2000)
+    ) {
       setFieldErrors({ year: true });
       return "L'anno evento non è valido.";
     }
@@ -405,11 +429,18 @@ export function EventEditorForm({
         nextIsPublic = false;
       } else {
         const now = Date.now();
-        const opensAt = new Date(fromDatetimeLocalValue(values.registrationOpen)).getTime();
-        const closesAt = new Date(fromDatetimeLocalValue(values.registrationClose)).getTime();
+        const opensAt = new Date(
+          fromDatetimeLocalValue(values.registrationOpen),
+        ).getTime();
+        const closesAt = new Date(
+          fromDatetimeLocalValue(values.registrationClose),
+        ).getTime();
 
         nextStatus =
-          !Number.isNaN(opensAt) && !Number.isNaN(closesAt) && now >= opensAt && now <= closesAt
+          !Number.isNaN(opensAt) &&
+          !Number.isNaN(closesAt) &&
+          now >= opensAt &&
+          now <= closesAt
             ? "registrations_open"
             : "registrations_closed";
         nextIsPublic = true;
@@ -440,7 +471,9 @@ export function EventEditorForm({
       isPublic: nextIsPublic,
       registrationOpen: fromDatetimeLocalValue(values.registrationOpen),
       registrationClose: fromDatetimeLocalValue(values.registrationClose),
-      maxParticipants: values.maxParticipants ? Number(values.maxParticipants) : null,
+      maxParticipants: values.maxParticipants
+        ? Number(values.maxParticipants)
+        : null,
       overnight: effectiveOvernight,
       activityType: values.activityType,
       requiresAccount: values.requiresAccount,
@@ -483,7 +516,9 @@ export function EventEditorForm({
     }
 
     if (!isLastStep) {
-      setCurrentStepIndex((current) => Math.min(current + 1, eventEditorSteps.length - 1));
+      setCurrentStepIndex((current) =>
+        Math.min(current + 1, eventEditorSteps.length - 1),
+      );
       return;
     }
 
@@ -507,8 +542,15 @@ export function EventEditorForm({
   }
 
   return (
-    <form className={compact ? "form-stack form-stack--compact" : "form-stack"} onSubmit={handleSubmit}>
-      <div className={compact ? "form-stepper form-stepper--compact" : "form-stepper"}>
+    <form
+      className={compact ? "form-stack form-stack--compact" : "form-stack"}
+      onSubmit={handleSubmit}
+    >
+      <div
+        className={
+          compact ? "form-stepper form-stepper--compact" : "form-stepper"
+        }
+      >
         <div className="form-stepper__progress">
           <div className="form-stepper__track">
             <span style={{ width: `${progress}%` }} />
@@ -526,7 +568,9 @@ export function EventEditorForm({
                 }
               >
                 <div className="form-stepper__step-icon">
-                  <AppIcon name={index < currentStepIndex ? "check" : step.icon} />
+                  <AppIcon
+                    name={index < currentStepIndex ? "check" : step.icon}
+                  />
                 </div>
                 <div>
                   <strong>{step.title}</strong>
@@ -547,7 +591,9 @@ export function EventEditorForm({
                   <input
                     className={getInputClass("title")}
                     value={values.title}
-                    onChange={(event) => updateValue("title", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("title", event.target.value)
+                    }
                   />
                   {renderFieldHint("title")}
                 </label>
@@ -560,7 +606,9 @@ export function EventEditorForm({
                     min="2000"
                     type="number"
                     value={values.year}
-                    onChange={(event) => updateValue("year", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("year", event.target.value)
+                    }
                   />
                   {renderFieldHint("year")}
                 </label>
@@ -571,11 +619,19 @@ export function EventEditorForm({
                 <select
                   className={getInputClass("audience")}
                   value={values.audience}
-                  onChange={(event) => updateValue("audience", event.target.value as EventAudience)}
+                  onChange={(event) =>
+                    updateValue("audience", event.target.value as EventAudience)
+                  }
                 >
-                  <option value="congiunta">{getEventAudienceLabel("congiunta")}</option>
-                  <option value="giovane_uomo">{getEventAudienceLabel("giovane_uomo")}</option>
-                  <option value="giovane_donna">{getEventAudienceLabel("giovane_donna")}</option>
+                  <option value="congiunta">
+                    {getEventAudienceLabel("congiunta")}
+                  </option>
+                  <option value="giovane_uomo">
+                    {getEventAudienceLabel("giovane_uomo")}
+                  </option>
+                  <option value="giovane_donna">
+                    {getEventAudienceLabel("giovane_donna")}
+                  </option>
                 </select>
               </label>
 
@@ -583,11 +639,15 @@ export function EventEditorForm({
                 {renderFieldLabel("Descrizione", "description", true)}
                 <textarea
                   className={
-                    fieldErrors.description ? "input input--textarea input--error" : "input input--textarea"
+                    fieldErrors.description
+                      ? "input input--textarea input--error"
+                      : "input input--textarea"
                   }
                   rows={5}
                   value={values.description}
-                  onChange={(event) => updateValue("description", event.target.value)}
+                  onChange={(event) =>
+                    updateValue("description", event.target.value)
+                  }
                 />
                 {renderFieldHint("description")}
               </label>
@@ -603,7 +663,9 @@ export function EventEditorForm({
                     className={getInputClass("startDate")}
                     type="datetime-local"
                     value={values.startDate}
-                    onChange={(event) => updateValue("startDate", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("startDate", event.target.value)
+                    }
                   />
                   {renderFieldHint("startDate")}
                 </label>
@@ -614,7 +676,9 @@ export function EventEditorForm({
                     className={getInputClass("endDate")}
                     type="datetime-local"
                     value={values.endDate}
-                    onChange={(event) => updateValue("endDate", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("endDate", event.target.value)
+                    }
                   />
                   {renderFieldHint("endDate")}
                 </label>
@@ -625,30 +689,44 @@ export function EventEditorForm({
                 <input
                   className={getInputClass("location")}
                   value={values.location}
-                  onChange={(event) => updateValue("location", event.target.value)}
+                  onChange={(event) =>
+                    updateValue("location", event.target.value)
+                  }
                 />
                 {renderFieldHint("location")}
               </label>
 
               <div className="card-grid card-grid--two">
                 <label className="field">
-                  {renderFieldLabel("Apertura iscrizioni", "registrationOpen", true)}
+                  {renderFieldLabel(
+                    "Apertura iscrizioni",
+                    "registrationOpen",
+                    true,
+                  )}
                   <input
                     className={getInputClass("registrationOpen")}
                     type="datetime-local"
                     value={values.registrationOpen}
-                    onChange={(event) => updateValue("registrationOpen", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("registrationOpen", event.target.value)
+                    }
                   />
                   {renderFieldHint("registrationOpen")}
                 </label>
 
                 <label className="field">
-                  {renderFieldLabel("Chiusura iscrizioni", "registrationClose", true)}
+                  {renderFieldLabel(
+                    "Chiusura iscrizioni",
+                    "registrationClose",
+                    true,
+                  )}
                   <input
                     className={getInputClass("registrationClose")}
                     type="datetime-local"
                     value={values.registrationClose}
-                    onChange={(event) => updateValue("registrationClose", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("registrationClose", event.target.value)
+                    }
                   />
                   {renderFieldHint("registrationClose")}
                 </label>
@@ -661,7 +739,10 @@ export function EventEditorForm({
                       type="checkbox"
                       checked={values.status === "cancelled"}
                       onChange={(event) =>
-                        updateValue("status", event.target.checked ? "cancelled" : "draft")
+                        updateValue(
+                          "status",
+                          event.target.checked ? "cancelled" : "draft",
+                        )
                       }
                     />
                     <span>
@@ -681,8 +762,12 @@ export function EventEditorForm({
                       <option value="draft">Bozza</option>
                       <option value="planned">In pianificazione</option>
                       <option value="confirmed">Confermata</option>
-                      <option value="registrations_open">Iscrizioni aperte</option>
-                      <option value="registrations_closed">Iscrizioni chiuse</option>
+                      <option value="registrations_open">
+                        Iscrizioni aperte
+                      </option>
+                      <option value="registrations_closed">
+                        Iscrizioni chiuse
+                      </option>
                       <option value="completed">Conclusa</option>
                       <option value="cancelled">Annullata</option>
                     </select>
@@ -697,7 +782,9 @@ export function EventEditorForm({
                     placeholder="Lascia vuoto per nessun limite"
                     type="number"
                     value={values.maxParticipants}
-                    onChange={(event) => updateValue("maxParticipants", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("maxParticipants", event.target.value)
+                    }
                   />
                   {renderFieldHint("maxParticipants")}
                 </label>
@@ -705,7 +792,7 @@ export function EventEditorForm({
             </>
           ) : null}
 
-              {currentStep.id === "settings" ? (
+          {currentStep.id === "settings" ? (
             <>
               <label className="field">
                 {renderFieldLabel("Locandina", "heroImageUrl")}
@@ -716,7 +803,9 @@ export function EventEditorForm({
                       style={{ backgroundImage: `url(${values.heroImageUrl})` }}
                     />
                   ) : (
-                    <div className="upload-placeholder">Carica una locandina verticale.</div>
+                    <div className="upload-placeholder">
+                      Carica una locandina verticale.
+                    </div>
                   )}
 
                   <div className="upload-actions">
@@ -726,7 +815,9 @@ export function EventEditorForm({
                         className="sr-only"
                         disabled={uploadingImage || busy || !onUploadImage}
                         onChange={(event) =>
-                          void handleImageSelection(event.target.files?.[0] ?? null)
+                          void handleImageSelection(
+                            event.target.files?.[0] ?? null,
+                          )
                         }
                         type="file"
                       />
@@ -738,7 +829,9 @@ export function EventEditorForm({
                       placeholder="Oppure incolla un URL immagine"
                       type="url"
                       value={values.heroImageUrl}
-                      onChange={(event) => updateValue("heroImageUrl", event.target.value)}
+                      onChange={(event) =>
+                        updateValue("heroImageUrl", event.target.value)
+                      }
                     />
 
                     {values.heroImageUrl || values.heroImagePath ? (
@@ -755,7 +848,9 @@ export function EventEditorForm({
                     ) : null}
                   </div>
                 </div>
-                {uploadError ? <small className="field-error">{uploadError}</small> : null}
+                {uploadError ? (
+                  <small className="field-error">{uploadError}</small>
+                ) : null}
               </label>
 
               <label className="field">
@@ -764,7 +859,9 @@ export function EventEditorForm({
                   className="input input--textarea"
                   rows={4}
                   value={values.program}
-                  onChange={(event) => updateValue("program", event.target.value)}
+                  onChange={(event) =>
+                    updateValue("program", event.target.value)
+                  }
                 />
               </label>
 
@@ -775,7 +872,9 @@ export function EventEditorForm({
                     className="input input--textarea"
                     rows={3}
                     value={values.menuInfo}
-                    onChange={(event) => updateValue("menuInfo", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("menuInfo", event.target.value)
+                    }
                   />
                 </label>
 
@@ -785,19 +884,23 @@ export function EventEditorForm({
                     className="input input--textarea"
                     rows={3}
                     value={values.allergiesInfo}
-                    onChange={(event) => updateValue("allergiesInfo", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("allergiesInfo", event.target.value)
+                    }
                   />
                 </label>
               </div>
 
               {effectiveOvernight ? (
                 <label className="field">
-                  {renderFieldLabel("Stanze / logistica", "roomsInfo")}
+                  {renderFieldLabel("Tende / logistica", "roomsInfo")}
                   <textarea
                     className="input input--textarea"
                     rows={3}
                     value={values.roomsInfo}
-                    onChange={(event) => updateValue("roomsInfo", event.target.value)}
+                    onChange={(event) =>
+                      updateValue("roomsInfo", event.target.value)
+                    }
                   />
                 </label>
               ) : null}
@@ -809,11 +912,15 @@ export function EventEditorForm({
                   rows={4}
                   placeholder="Es. sacco a pelo, scarponi, borraccia, k-way..."
                   value={values.whatToBring}
-                  onChange={(event) => updateValue("whatToBring", event.target.value)}
+                  onChange={(event) =>
+                    updateValue("whatToBring", event.target.value)
+                  }
                 />
-                <small>Mostrato in evidenza ai partecipanti nella scheda dell'attività.</small>
+                <small>
+                  Mostrato in evidenza ai partecipanti nella scheda
+                  dell'attività.
+                </small>
               </label>
-
 
               <label className="field">
                 {renderFieldLabel("Note organizzative", "organizerNotes")}
@@ -821,7 +928,9 @@ export function EventEditorForm({
                   className="input input--textarea"
                   rows={3}
                   value={values.organizerNotes}
-                  onChange={(event) => updateValue("organizerNotes", event.target.value)}
+                  onChange={(event) =>
+                    updateValue("organizerNotes", event.target.value)
+                  }
                 />
               </label>
 
@@ -841,8 +950,9 @@ export function EventEditorForm({
                   ))}
                 </select>
                 <small>
-                  {ACTIVITY_TYPE_OPTIONS.find((option) => option.value === values.activityType)
-                    ?.description ?? ""}
+                  {ACTIVITY_TYPE_OPTIONS.find(
+                    (option) => option.value === values.activityType,
+                  )?.description ?? ""}
                 </small>
               </label>
 
@@ -850,14 +960,16 @@ export function EventEditorForm({
                 <div className="form-info-banner">
                   <strong>Autorizzazione genitoriale rafforzata attiva.</strong>
                   <span>
-                    Per i partecipanti minorenni il sistema chiedera' i contatti del genitore
-                    e inviera' un'email con un link unico di conferma. Senza autorizzazione
-                    genitoriale l'iscrizione restera' in stato "in attesa autorizzazione".
+                    Per i partecipanti minorenni il sistema chiedera' i contatti
+                    del genitore e inviera' un'email con un link unico di
+                    conferma. Senza autorizzazione genitoriale l'iscrizione
+                    restera' in stato "in attesa autorizzazione".
                   </span>
                   {!canHaveOvernight ? (
                     <span className="form-info-banner__warning">
-                      Attenzione: hai selezionato un tipo che prevede pernottamento ma le date
-                      coprono un solo giorno. Verifica le date di inizio e fine.
+                      Attenzione: hai selezionato un tipo che prevede
+                      pernottamento ma le date coprono un solo giorno. Verifica
+                      le date di inizio e fine.
                     </span>
                   ) : null}
                 </div>
@@ -869,7 +981,9 @@ export function EventEditorForm({
                     <input
                       type="checkbox"
                       checked={values.isPublic}
-                      onChange={(event) => updateValue("isPublic", event.target.checked)}
+                      onChange={(event) =>
+                        updateValue("isPublic", event.target.checked)
+                      }
                     />
                     <span>Evento visibile pubblicamente</span>
                   </label>
@@ -878,14 +992,24 @@ export function EventEditorForm({
                 <label className="toggle-field">
                   <input
                     type="checkbox"
-                    checked={values.allowGuestRegistration && !values.requiresAccount}
+                    checked={
+                      values.allowGuestRegistration && !values.requiresAccount
+                    }
                     disabled={values.requiresAccount}
-                    onChange={(event) => updateValue("allowGuestRegistration", event.target.checked)}
+                    onChange={(event) =>
+                      updateValue(
+                        "allowGuestRegistration",
+                        event.target.checked,
+                      )
+                    }
                   />
                   <span>
                     Consenti iscrizione senza account
                     {values.requiresAccount ? (
-                      <small> (disattivato perche' l'account e' obbligatorio)</small>
+                      <small>
+                        {" "}
+                        (disattivato perche' l'account e' obbligatorio)
+                      </small>
                     ) : null}
                   </span>
                 </label>
@@ -894,7 +1018,9 @@ export function EventEditorForm({
                   <input
                     type="checkbox"
                     checked={values.requireLoginForEdit}
-                    onChange={(event) => updateValue("requireLoginForEdit", event.target.checked)}
+                    onChange={(event) =>
+                      updateValue("requireLoginForEdit", event.target.checked)
+                    }
                   />
                   <span>Richiedi login per modificare l'iscrizione</span>
                 </label>
@@ -903,16 +1029,19 @@ export function EventEditorForm({
                   <input
                     type="checkbox"
                     checked={values.questionsEnabled}
-                    onChange={(event) => updateValue("questionsEnabled", event.target.checked)}
+                    onChange={(event) =>
+                      updateValue("questionsEnabled", event.target.checked)
+                    }
                   />
                   <span>Abilita domande dei partecipanti (caminetto)</span>
                 </label>
-
               </div>
 
               {isStrongAuthActivityValue ? (
                 <div className="checkbox-grid checkbox-grid--bordered">
-                  <h4 className="checkbox-grid__heading">Requisiti rafforzati</h4>
+                  <h4 className="checkbox-grid__heading">
+                    Requisiti rafforzati
+                  </h4>
                   <label className="toggle-field">
                     <input
                       type="checkbox"
@@ -927,7 +1056,10 @@ export function EventEditorForm({
                     />
                     <span>
                       Richiedi account utente (no iscrizione anonima)
-                      <small> Consigliato per attivita' con pernottamento.</small>
+                      <small>
+                        {" "}
+                        Consigliato per attivita' con pernottamento.
+                      </small>
                     </span>
                   </label>
 
@@ -936,12 +1068,18 @@ export function EventEditorForm({
                       type="checkbox"
                       checked={values.requiresParentAuthorization}
                       onChange={(event) =>
-                        updateValue("requiresParentAuthorization", event.target.checked)
+                        updateValue(
+                          "requiresParentAuthorization",
+                          event.target.checked,
+                        )
                       }
                     />
                     <span>
                       Invia email di autorizzazione al genitore (magic link)
-                      <small> Per minorenni, con scadenza link 14 giorni.</small>
+                      <small>
+                        {" "}
+                        Per minorenni, con scadenza link 14 giorni.
+                      </small>
                     </span>
                   </label>
 
@@ -950,7 +1088,10 @@ export function EventEditorForm({
                       type="checkbox"
                       checked={values.requiresEmergencyContacts}
                       onChange={(event) =>
-                        updateValue("requiresEmergencyContacts", event.target.checked)
+                        updateValue(
+                          "requiresEmergencyContacts",
+                          event.target.checked,
+                        )
                       }
                     />
                     <span>Richiedi contatti di emergenza</span>
@@ -961,7 +1102,10 @@ export function EventEditorForm({
                       type="checkbox"
                       checked={values.requiresMedicalNotes}
                       onChange={(event) =>
-                        updateValue("requiresMedicalNotes", event.target.checked)
+                        updateValue(
+                          "requiresMedicalNotes",
+                          event.target.checked,
+                        )
                       }
                     />
                     <span>
@@ -974,12 +1118,19 @@ export function EventEditorForm({
                       type="checkbox"
                       checked={values.requiresImageConsent}
                       onChange={(event) =>
-                        updateValue("requiresImageConsent", event.target.checked)
+                        updateValue(
+                          "requiresImageConsent",
+                          event.target.checked,
+                        )
                       }
                     />
                     <span>
                       Includi consenso foto/video nell'autorizzazione
-                      <small> Sempre facoltativo per il genitore, non blocca l'iscrizione.</small>
+                      <small>
+                        {" "}
+                        Sempre facoltativo per il genitore, non blocca
+                        l'iscrizione.
+                      </small>
                     </span>
                   </label>
 
@@ -988,12 +1139,19 @@ export function EventEditorForm({
                       type="checkbox"
                       checked={values.requiresDocumentUpload}
                       onChange={(event) =>
-                        updateValue("requiresDocumentUpload", event.target.checked)
+                        updateValue(
+                          "requiresDocumentUpload",
+                          event.target.checked,
+                        )
                       }
                     />
                     <span>
-                      Richiedi upload documento del genitore (opzionale, sconsigliato)
-                      <small> Attivare solo se necessario per motivi specifici.</small>
+                      Richiedi upload documento del genitore (opzionale,
+                      sconsigliato)
+                      <small>
+                        {" "}
+                        Attivare solo se necessario per motivi specifici.
+                      </small>
                     </span>
                   </label>
                 </div>
@@ -1033,11 +1191,17 @@ export function EventEditorForm({
                 }
                 type="button"
               >
-                {busy ? secondaryAction.busyLabel || "Salvataggio..." : secondaryAction.label}
+                {busy
+                  ? secondaryAction.busyLabel || "Salvataggio..."
+                  : secondaryAction.label}
               </button>
             ) : null}
 
-            <button className="button button--primary" disabled={busy || uploadingImage} type="submit">
+            <button
+              className="button button--primary"
+              disabled={busy || uploadingImage}
+              type="submit"
+            >
               {busy ? (
                 "Salvataggio..."
               ) : isLastStep ? (
