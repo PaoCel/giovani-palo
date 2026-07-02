@@ -24,7 +24,11 @@ import { parentAuthorizationService } from "@/services/firestore/parentAuthoriza
 import type { Question, Registration } from "@/types";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
-import { downloadRegistrationsExcel, type ExportOptions } from "@/utils/registrationExcel";
+import {
+  downloadRegistrationsExcel,
+  downloadYouthRegistrantsExcel,
+  type ExportOptions,
+} from "@/utils/registrationExcel";
 import {
   getRegistrationDisplayName,
   getRegistrationTextAnswer,
@@ -1120,6 +1124,28 @@ export function AdminEventDetailPage() {
     }
   }
 
+  async function handleDownloadYouthRegistrantsExcel() {
+    setDownloadingExcel(true);
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      const youthRegistrations = activeRegistrations.filter(
+        (registration) =>
+          registration.genderRoleCategory === "giovane_uomo" ||
+          registration.genderRoleCategory === "giovane_donna",
+      );
+      await downloadYouthRegistrantsExcel(resolvedEvent.title, activeRegistrations);
+      setActionInfo(`Elenco GU/GD esportato con ${youthRegistrations.length} iscritti attivi.`);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error ? caughtError.message : "Impossibile esportare l'Excel.",
+      );
+    } finally {
+      setDownloadingExcel(false);
+    }
+  }
+
   async function handleNormalizeRoomPreferences() {
     setNormalizingRoomPreferences(true);
     setActionError(null);
@@ -1511,6 +1537,15 @@ export function AdminEventDetailPage() {
                   <p>Tocca una riga per aprire tutti i dettagli della registrazione.</p>
                 </div>
                 <div className="admin-section-actions">
+                  <button
+                    className="button button--secondary button--small"
+                    disabled={downloadingExcel || loading}
+                    onClick={() => void handleDownloadYouthRegistrantsExcel()}
+                    type="button"
+                  >
+                    <AppIcon name="download" />
+                    <span>{downloadingExcel ? "Preparazione..." : "Elenco GU/GD"}</span>
+                  </button>
                   <button
                     className="button button--ghost button--small"
                     disabled={downloadingExcel || loading}
