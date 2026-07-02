@@ -4,9 +4,8 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "@/components/EmptyState";
 import { ConsentSection } from "@/components/ConsentSection";
 import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
+import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
-// keep import order stable for Vite
-import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { SectionCard } from "@/components/SectionCard";
 import { ShareButton } from "@/components/ShareButton";
@@ -158,41 +157,68 @@ export function MyActivityDetailPage() {
     );
 
   return (
-    <div className="page">
-      <PageHero
-        eyebrow="Dettaglio iscrizione"
-        title={data?.event.title ?? "Caricamento iscrizione..."}
-        description="Qui ritrovi i dati inviati, lo stato dell'iscrizione e le informazioni da conservare."
-        actions={
-          data ? (
-            <>
-              {!isCancelled ? (
-                <Link className="button button--primary" to={`/me/activities/${data.event.id}/edit`}>
-                  Modifica iscrizione
-                </Link>
-              ) : null}
-              <ShareButton
-                title={data.event.title}
-                text="Guarda questa attività e apri l'iscrizione."
-                url={getAbsoluteUrl(getActivityPath(data.event.id, stakeId))}
+    <div className="page page--activity-ios page--my-activity-detail">
+      {data ? (
+        <section className="activity-ios-hero activity-ios-hero--personal">
+          <div
+            className="activity-ios-hero__image"
+            style={
+              data.event.heroImageUrl ? { backgroundImage: `url(${data.event.heroImageUrl})` } : undefined
+            }
+          >
+            {!data.event.heroImageUrl ? <AppIcon name="ticket" /> : null}
+          </div>
+          <div className="activity-ios-hero__content">
+            <div className="activity-ios-chip-row">
+              <StatusBadge
+                label={getRegistrationStatusLabel(data.registration.registrationStatus)}
+                tone={getRegistrationStatusTone(data.registration.registrationStatus)}
               />
-              {!isCancelled ? (
-                <button
-                  className="button button--ghost"
-                  disabled={busy !== null}
-                  onClick={() => void handleCancelRegistration()}
-                  type="button"
-                >
-                  {busy === "cancel" ? "Annullamento..." : "Annulla iscrizione"}
-                </button>
+              <span className="activity-ios-chip activity-ios-chip--blue">
+                {getEventAudienceLabel(data.event.audience)}
+              </span>
+              {data.event.overnight ? (
+                <span className="activity-ios-chip activity-ios-chip--violet">Pernottamento</span>
               ) : null}
-              <Link className="button button--ghost" to="/me/activities">
-                Torna alle attività
+            </div>
+            <h1>{data.event.title}</h1>
+            <p className="activity-ios-meta">
+              <AppIcon name="calendar" />
+              <span>{formatDateRange(data.event.startDate, data.event.endDate)}</span>
+            </p>
+            {data.event.location ? (
+              <p className="activity-ios-meta">
+                <AppIcon name="map-pin" />
+                <span>{data.event.location}</span>
+              </p>
+            ) : null}
+          </div>
+          <div className="activity-ios-actions activity-ios-actions--personal">
+            {!isCancelled ? (
+              <Link className="activity-ios-action activity-ios-action--wide" to={`/me/activities/${data.event.id}/edit`}>
+                <AppIcon name="pencil" />
+                <span>Modifica</span>
               </Link>
-            </>
-          ) : null
-        }
-      />
+            ) : null}
+            <ShareButton
+              className="activity-ios-action"
+              iconOnly
+              title={data.event.title}
+              text="Guarda questa attività e apri l'iscrizione."
+              url={getAbsoluteUrl(getActivityPath(data.event.id, stakeId))}
+            />
+            <Link className="activity-ios-action" to="/me/activities" title="Torna alle attività">
+              <AppIcon name="arrow-left" />
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <section className="activity-ios-hero activity-ios-hero--personal">
+          <div className="activity-ios-hero__content">
+            <h1>Caricamento iscrizione...</h1>
+          </div>
+        </section>
+      )}
 
       {error ? (
         <div className="notice notice--warning">
@@ -223,6 +249,24 @@ export function MyActivityDetailPage() {
 
       {data ? (
         <>
+          <section className="activity-ios-metrics">
+            <article className="activity-ios-metric">
+              <span><AppIcon name="check" /></span>
+              <strong>{getRegistrationStatusLabel(data.registration.registrationStatus)}</strong>
+              <small>Iscrizione</small>
+            </article>
+            <article className="activity-ios-metric">
+              <span><AppIcon name="users" /></span>
+              <strong>{data.registration.assignedPatrolName ? "Sì" : "-"}</strong>
+              <small>Pattuglia</small>
+            </article>
+            <article className="activity-ios-metric">
+              <span><AppIcon name="badge" /></span>
+              <strong>{data.registration.assignedCommittees.length || "-"}</strong>
+              <small>Comitati</small>
+            </article>
+          </section>
+
           <SectionCard title="Riepilogo evento" description="Contesto dell'attività a cui sei iscritto.">
             <dl className="summary-list">
               <div>
@@ -451,6 +495,19 @@ export function MyActivityDetailPage() {
               session={session}
               stakeId={stakeId}
             />
+          ) : null}
+
+          {!isCancelled ? (
+            <section className="activity-ios-danger-zone">
+              <button
+                className="button button--ghost button--danger"
+                disabled={busy !== null}
+                onClick={() => void handleCancelRegistration()}
+                type="button"
+              >
+                {busy === "cancel" ? "Annullamento..." : "Annulla iscrizione"}
+              </button>
+            </section>
           ) : null}
 
           {selectedCampItem === "patrol" && data.registration.assignedPatrolName ? (

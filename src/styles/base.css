@@ -4611,6 +4611,617 @@ button {
   color: var(--success);
 }
 
+.page--activity-ios {
+  width: min(980px, calc(100vw - 20px));
+  gap: 0.95rem;
+  color: #12213b;
+}
+
+.page--activity-ios .notice {
+  border-radius: 1.35rem;
+}
+
+.activity-ios-hero,
+.activity-ios-metric,
+.activity-ios-panel,
+.page--activity-ios .card,
+.page--activity-ios .surface-panel {
+  border: 1px solid rgba(18, 33, 59, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(251, 253, 255, 0.95));
+  box-shadow:
+    0 18px 44px rgba(18, 33, 59, 0.07),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
+}
+
+.activity-ios-hero {
+  display: grid;
+  grid-template-columns: minmax(9rem, 14rem) minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1rem;
+  border-radius: 1.55rem;
+}
+
+.activity-ios-hero--compact,
+.activity-ios-hero--personal {
+  grid-template-columns: minmax(7.2rem, 11rem) minmax(0, 1fr);
+}
+
+.activity-ios-hero__image {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(135deg, rgba(35, 93, 144, 0.08), rgba(45, 107, 86, 0.08)),
+    rgba(244, 248, 253, 0.95);
+  background-position: center;
+  background-size: cover;
+  color: #266ec4;
+  overflow: hidden;
+}
+
+.activity-ios-hero__image svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.activity-ios-hero__content {
+  min-width: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.activity-ios-hero__content h1 {
+  margin: 0;
+  color: #081735;
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
+  line-height: 1.14;
+  letter-spacing: 0;
+}
+
+.activity-ios-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.activity-ios-chip-row .status-badge,
+.activity-ios-chip {
+  min-height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.28rem 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.activity-ios-chip {
+  color: #235d90;
+  background: rgba(38, 110, 196, 0.1);
+}
+
+.activity-ios-chip--green {
+  color: #21744e;
+  background: rgba(45, 107, 86, 0.12);
+}
+
+.activity-ios-chip--blue {
+  color: #266ec4;
+  background: rgba(38, 110, 196, 0.11);
+}
+
+.activity-ios-chip--violet {
+  color: #6b43c9;
+  background: rgba(107, 67, 201, 0.11);
+}
+
+.activity-ios-meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  color: #52617a;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.activity-ios-meta svg {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.18rem;
+  color: #44577a;
+}
+
+.activity-ios-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 2.85rem);
+  gap: 0.48rem;
+  justify-content: end;
+}
+
+.activity-ios-actions--personal {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.activity-ios-action {
+  min-width: 2.85rem;
+  min-height: 2.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(18, 33, 59, 0.08);
+  border-radius: 0.95rem;
+  background: rgba(255, 255, 255, 0.88);
+  color: #0b1a38;
+  box-shadow: 0 10px 24px rgba(18, 33, 59, 0.06);
+  font: inherit;
+  font-weight: 800;
+}
+
+.activity-ios-action svg {
+  width: 1.02rem;
+  height: 1.02rem;
+}
+
+.activity-ios-action--wide {
+  padding: 0 0.95rem;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2f76e6, #145cd4);
+}
+
+.activity-ios-action--danger {
+  color: #b14e44;
+  background: rgba(255, 246, 245, 0.96);
+  border-color: rgba(177, 78, 68, 0.18);
+}
+
+.activity-ios-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.activity-ios-metrics--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.activity-ios-metric {
+  min-width: 0;
+  min-height: 6.4rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "icon value"
+    "icon label";
+  gap: 0.12rem 0.75rem;
+  align-items: center;
+  align-content: center;
+  padding: 1rem;
+  border-radius: 1.25rem;
+}
+
+.activity-ios-metric > span {
+  grid-area: icon;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(38, 110, 196, 0.1);
+  color: #266ec4;
+}
+
+.activity-ios-metric--warn > span {
+  background: rgba(245, 158, 11, 0.13);
+  color: #a56500;
+}
+
+.activity-ios-metric--danger > span {
+  background: rgba(177, 78, 68, 0.12);
+  color: #b14e44;
+}
+
+.activity-ios-metric svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.activity-ios-metric strong {
+  grid-area: value;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #081735;
+  font-size: 1.65rem;
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-ios-metric small {
+  grid-area: label;
+  min-width: 0;
+  color: #52617a;
+  font-size: 0.86rem;
+  line-height: 1.28;
+}
+
+.activity-ios-panel,
+.page--activity-ios .card,
+.page--activity-ios .surface-panel {
+  border-radius: 1.45rem;
+  padding: 1rem;
+}
+
+.page--activity-ios .section-head,
+.page--activity-ios .admin-roster__head {
+  align-items: flex-start;
+}
+
+.page--activity-ios .section-head h2,
+.page--activity-ios .section-head h3,
+.page--activity-ios .admin-section__head h2,
+.page--activity-ios .surface-panel h3 {
+  margin: 0;
+  color: #081735;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.page--activity-ios .section-head p,
+.page--activity-ios .admin-section__head p,
+.page--activity-ios .surface-panel p {
+  color: #52617a;
+}
+
+.page--activity-ios .admin-section__head h2::before {
+  display: none;
+}
+
+.page--activity-ios .admin-subtabs {
+  gap: 0;
+  padding: 0.38rem;
+  border-radius: 1.3rem;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(18, 33, 59, 0.08);
+  box-shadow: 0 16px 38px rgba(18, 33, 59, 0.06);
+}
+
+.page--activity-ios .admin-subtabs__item {
+  position: relative;
+  min-width: 5.35rem;
+  min-height: 4.35rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-radius: 1rem;
+  color: #596984;
+}
+
+.page--activity-ios .admin-subtabs__item svg {
+  width: 1.12rem;
+  height: 1.12rem;
+}
+
+.page--activity-ios .admin-subtabs__item--active {
+  background: rgba(38, 110, 196, 0.06);
+  color: #1263da;
+  box-shadow: none;
+}
+
+.page--activity-ios .admin-subtabs__item--active::after {
+  content: "";
+  position: absolute;
+  left: 1.05rem;
+  right: 1.05rem;
+  bottom: 0.08rem;
+  height: 3px;
+  border-radius: 999px;
+  background: #2f76e6;
+}
+
+.page--activity-ios .admin-inline-metrics {
+  gap: 0.75rem;
+}
+
+.page--activity-ios .admin-inline-metric {
+  min-height: 5.45rem;
+  border-radius: 1.15rem;
+  border-color: rgba(18, 33, 59, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.96));
+  box-shadow: 0 12px 30px rgba(18, 33, 59, 0.06);
+}
+
+.page--activity-ios .admin-inline-metric strong {
+  color: #081735;
+  font-size: 1.45rem;
+}
+
+.page--activity-ios .admin-roster-row {
+  position: relative;
+  margin-top: 0.58rem;
+  padding: 0.82rem 2.1rem 0.82rem 0.9rem;
+  border: 1px solid rgba(18, 33, 59, 0.07);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 24px rgba(18, 33, 59, 0.04);
+}
+
+.page--activity-ios .admin-roster-row::after {
+  content: "›";
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  align-self: center;
+  color: #12213b;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.page--activity-ios .admin-roster-row__type,
+.page--activity-ios .admin-roster-row__flag,
+.page--activity-ios .unit-badge {
+  min-height: 1.65rem;
+  border-radius: 999px;
+}
+
+.page--activity-ios .admin-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(4, auto) minmax(10rem, 1fr) minmax(12rem, 1.4fr);
+  align-items: end;
+  gap: 0.55rem;
+}
+
+.page--activity-ios .admin-filter-toggle,
+.page--activity-ios .input,
+.page--activity-ios .toggle-field {
+  border-radius: 1rem;
+}
+
+.page--activity-ios .camp-ios-grid,
+.page--activity-ios .camp-committee-grid {
+  grid-template-columns: 1fr;
+  gap: 0.68rem;
+}
+
+.page--activity-ios .camp-ios-card {
+  min-height: 5.7rem;
+  border-radius: 1.15rem;
+  box-shadow: 0 12px 28px rgba(18, 33, 59, 0.06);
+}
+
+.page--activity-ios .camp-ios-card__icon {
+  border-radius: 999px;
+}
+
+.page--activity-ios .summary-list div,
+.page--activity-ios .admin-key-fact,
+.page--activity-ios .admin-answer-card,
+.camp-modal-section,
+.camp-person-row {
+  border-radius: 1.05rem;
+}
+
+.activity-ios-danger-zone {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 0.5rem;
+}
+
+.page--unit-activity .unit-table-wrapper {
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(18, 33, 59, 0.06);
+}
+
+.page--unit-activity .unit-table th {
+  background: rgba(248, 250, 253, 0.86);
+}
+
+@media (max-width: 760px) {
+  .page--activity-ios {
+    width: min(100% - 18px, 44rem);
+    padding-top: 0.75rem;
+  }
+
+  .activity-ios-hero,
+  .activity-ios-hero--compact,
+  .activity-ios-hero--personal {
+    grid-template-columns: 6.6rem minmax(0, 1fr);
+    gap: 0.85rem;
+    padding: 0.85rem;
+    border-radius: 1.35rem;
+  }
+
+  .activity-ios-hero__content h1 {
+    font-size: 1.18rem;
+  }
+
+  .activity-ios-meta {
+    font-size: 0.82rem;
+  }
+
+  .activity-ios-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .activity-ios-metrics,
+  .activity-ios-metrics--four {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .activity-ios-metrics--four .activity-ios-metric {
+    min-height: 5.6rem;
+  }
+
+  .activity-ios-metric {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "icon"
+      "value"
+      "label";
+    justify-items: center;
+    text-align: center;
+    gap: 0.25rem;
+    min-height: 6.1rem;
+    padding: 0.7rem 0.5rem;
+  }
+
+  .activity-ios-metric > span {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .activity-ios-metric strong {
+    font-size: 1.28rem;
+  }
+
+  .activity-ios-metric small {
+    font-size: 0.74rem;
+  }
+
+  .activity-ios-panel,
+  .page--activity-ios .card,
+  .page--activity-ios .surface-panel {
+    border-radius: 1.25rem;
+    padding: 0.85rem;
+  }
+
+  .page--activity-ios .admin-subtabs {
+    margin-inline: -0.05rem;
+    scroll-padding-inline: 0.5rem;
+  }
+
+  .page--activity-ios .admin-subtabs__item {
+    min-width: 4.9rem;
+    min-height: 4rem;
+    padding: 0.48rem 0.5rem;
+  }
+
+  .page--activity-ios .admin-subtabs__item span {
+    font-size: 0.7rem;
+  }
+
+  .page--activity-ios .admin-inline-metrics,
+  .page--activity-ios .admin-inline-metrics--three,
+  .page--activity-ios .admin-inline-metrics--four,
+  .page--activity-ios .admin-inline-metrics--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page--activity-ios .admin-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page--activity-ios .admin-filter-select,
+  .page--activity-ios .admin-filter-select--search {
+    grid-column: 1 / -1;
+  }
+
+  .page--activity-ios .section-head,
+  .page--activity-ios .admin-section__head,
+  .page--activity-ios .admin-roster__head {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .page--activity-ios .admin-section-actions,
+  .page--activity-ios .inline-actions {
+    width: 100%;
+  }
+
+  .page--activity-ios .admin-section-actions .button,
+  .page--activity-ios .inline-actions .button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .page--unit-activity .unit-table,
+  .page--unit-activity .unit-table tbody,
+  .page--unit-activity .unit-table tr,
+  .page--unit-activity .unit-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .page--unit-activity .unit-table thead {
+    display: none;
+  }
+
+  .page--unit-activity .unit-table-wrapper {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .page--unit-activity .unit-table__row {
+    margin-top: 0.65rem;
+    padding: 0.85rem;
+    border: 1px solid rgba(18, 33, 59, 0.08);
+    border-radius: 1.1rem;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 12px 28px rgba(18, 33, 59, 0.05);
+  }
+
+  .page--unit-activity .unit-table__cell {
+    padding: 0.42rem 0;
+  }
+
+  .page--unit-activity .unit-table__cell:not(.unit-table__cell--name)::before {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: #6b7890;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .page--unit-activity .unit-table__cell:nth-child(2)::before { content: "Stato"; }
+  .page--unit-activity .unit-table__cell:nth-child(3)::before { content: "Trasporto"; }
+  .page--unit-activity .unit-table__cell:nth-child(4)::before { content: "Consensi"; }
+  .page--unit-activity .unit-table__cell:nth-child(5)::before { content: "Campeggio"; }
+}
+
+@media (max-width: 430px) {
+  .activity-ios-hero,
+  .activity-ios-hero--compact,
+  .activity-ios-hero--personal {
+    grid-template-columns: 5.9rem minmax(0, 1fr);
+  }
+
+  .activity-ios-chip-row .status-badge,
+  .activity-ios-chip {
+    min-height: 1.55rem;
+    padding-inline: 0.55rem;
+    font-size: 0.68rem;
+  }
+
+  .activity-ios-metrics,
+  .activity-ios-metrics--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .settings-action-card {
   width: 100%;
   display: grid;
