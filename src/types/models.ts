@@ -54,6 +54,14 @@ export interface CampCommitteeAssignment {
   role: CampCommitteeRole;
 }
 
+export interface CampPublicMember {
+  registrationId: string;
+  fullName: string;
+  genderRoleCategory: GenderRoleCategory | "";
+  unitName: string;
+  role: CampCommitteeRole | CampPatrolRole;
+}
+
 export interface CampManualLeader {
   id: string;
   fullName: string;
@@ -69,6 +77,7 @@ export interface CampCommitteePlan {
   leaderRegistrationIds: string[];
   manualLeaderIds: string[];
   memberRegistrationIds: string[];
+  publicMembers: CampPublicMember[];
   updatedAt: string;
 }
 
@@ -78,6 +87,7 @@ export interface CampPatrolPlan {
   leaderRegistrationId: string;
   supervisorRegistrationIds: string[];
   memberRegistrationIds: string[];
+  publicMembers: CampPublicMember[];
   updatedAt: string;
 }
 

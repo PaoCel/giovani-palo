@@ -17,6 +17,8 @@ import type {
   CampManualLeader,
   CampPatrolPlan,
   CampPatrolRole,
+  CampPublicMember,
+  GenderRoleCategory,
 } from "@/types";
 
 const COMMITTEE_DEFINITIONS: Array<{
@@ -70,6 +72,26 @@ function isAdultCategory(value: unknown) {
   return value === "dirigente" || value === "accompagnatore";
 }
 
+function asGenderRoleCategory(value: unknown): GenderRoleCategory | "" {
+  return value === "giovane_uomo" ||
+    value === "giovane_donna" ||
+    value === "dirigente" ||
+    value === "accompagnatore"
+    ? value
+    : "";
+}
+
+function getPublicName(data: Record<string, unknown>) {
+  return (
+    asString(data.fullName) ||
+    [asString(data.firstName), asString(data.lastName)].filter(Boolean).join(" ")
+  ).trim();
+}
+
+function getPublicUnitName(data: Record<string, unknown>) {
+  return (asString(data.unitNameSnapshot) || asString(data.unitName)).trim();
+}
+
 function normalizeManualLeader(source: unknown, index: number): CampManualLeader {
   const data =
     source && typeof source === "object" && !Array.isArray(source)
@@ -86,6 +108,47 @@ function normalizeManualLeader(source: unknown, index: number): CampManualLeader
   };
 }
 
+function normalizePublicMember(
+  source: unknown,
+  roleByRegistrationId: Map<string, CampPublicMember["role"]>,
+): CampPublicMember | null {
+  const data =
+    source && typeof source === "object" && !Array.isArray(source)
+      ? (source as Record<string, unknown>)
+      : {};
+  const registrationId = asString(data.registrationId);
+  const role = roleByRegistrationId.get(registrationId);
+  const fullName = asString(data.fullName).trim();
+
+  if (!registrationId || !role || !fullName) {
+    return null;
+  }
+
+  return {
+    registrationId,
+    fullName,
+    genderRoleCategory: asGenderRoleCategory(data.genderRoleCategory),
+    unitName: asString(data.unitName).trim(),
+    role,
+  };
+}
+
+function normalizePublicMembers(
+  source: unknown,
+  roleByRegistrationId: Map<string, CampPublicMember["role"]>,
+) {
+  const rawMembers = Array.isArray(source) ? source : [];
+  const seen = new Set<string>();
+
+  return rawMembers
+    .map((member) => normalizePublicMember(member, roleByRegistrationId))
+    .filter((member): member is CampPublicMember => {
+      if (!member || seen.has(member.registrationId)) return false;
+      seen.add(member.registrationId);
+      return true;
+    });
+}
+
 function normalizeCommittee(
   definition: (typeof COMMITTEE_DEFINITIONS)[number],
   source: unknown,
@@ -100,11 +163,13 @@ function normalizeCommittee(
   const leaderRegistrationIds: string[] = [];
   const memberRegistrationIds: string[] = [];
   const manualLeaderIds: string[] = [];
+  const roleByRegistrationId = new Map<string, CampPublicMember["role"]>();
 
   for (const registrationId of uniqueStrings(asStringArray(data.leaderRegistrationIds))) {
     if (claimedRegistrationIds.has(registrationId)) continue;
     claimedRegistrationIds.add(registrationId);
     leaderRegistrationIds.push(registrationId);
+    roleByRegistrationId.set(registrationId, "leader");
   }
 
   for (const manualLeaderId of uniqueStrings(asStringArray(data.manualLeaderIds))) {
@@ -117,6 +182,7 @@ function normalizeCommittee(
     if (claimedRegistrationIds.has(registrationId)) continue;
     claimedRegistrationIds.add(registrationId);
     memberRegistrationIds.push(registrationId);
+    roleByRegistrationId.set(registrationId, "member");
   }
 
   return {
@@ -126,6 +192,7 @@ function normalizeCommittee(
     leaderRegistrationIds,
     manualLeaderIds,
     memberRegistrationIds,
+    publicMembers: normalizePublicMembers(data.publicMembers, roleByRegistrationId),
     updatedAt: timestamp,
   };
 }
@@ -143,6 +210,7 @@ function normalizePatrol(
   const leaderRegistrationId = asString(data.leaderRegistrationId);
   const supervisorRegistrationIds: string[] = [];
   const memberRegistrationIds: string[] = [];
+  const roleByRegistrationId = new Map<string, CampPublicMember["role"]>();
   const safeLeaderRegistrationId =
     leaderRegistrationId && !claimedRegistrationIds.has(leaderRegistrationId)
       ? leaderRegistrationId
@@ -150,18 +218,21 @@ function normalizePatrol(
 
   if (safeLeaderRegistrationId) {
     claimedRegistrationIds.add(safeLeaderRegistrationId);
+    roleByRegistrationId.set(safeLeaderRegistrationId, "leader");
   }
 
   for (const registrationId of uniqueStrings(asStringArray(data.supervisorRegistrationIds))) {
     if (claimedRegistrationIds.has(registrationId)) continue;
     claimedRegistrationIds.add(registrationId);
     supervisorRegistrationIds.push(registrationId);
+    roleByRegistrationId.set(registrationId, "supervisor");
   }
 
   for (const registrationId of uniqueStrings(asStringArray(data.memberRegistrationIds))) {
     if (claimedRegistrationIds.has(registrationId)) continue;
     claimedRegistrationIds.add(registrationId);
     memberRegistrationIds.push(registrationId);
+    roleByRegistrationId.set(registrationId, "member");
   }
 
   return {
@@ -170,6 +241,7 @@ function normalizePatrol(
     leaderRegistrationId: safeLeaderRegistrationId,
     supervisorRegistrationIds,
     memberRegistrationIds,
+    publicMembers: normalizePublicMembers(data.publicMembers, roleByRegistrationId),
     updatedAt: timestamp,
   };
 }
@@ -333,6 +405,72 @@ async function linkManualLeadersByName(stakeId: string, eventId: string, plan: C
   };
 }
 
+function buildPublicMember(
+  registrationsById: Map<string, Record<string, unknown>>,
+  registrationId: string,
+  role: CampPublicMember["role"],
+): CampPublicMember | null {
+  const registration = registrationsById.get(registrationId);
+
+  if (!registration) {
+    return null;
+  }
+
+  const fullName = getPublicName(registration);
+
+  if (!fullName) {
+    return null;
+  }
+
+  return {
+    registrationId,
+    fullName,
+    genderRoleCategory: asGenderRoleCategory(registration.genderRoleCategory),
+    unitName: getPublicUnitName(registration),
+    role,
+  };
+}
+
+function attachPublicMembers(
+  registrationsSnapshot: Awaited<ReturnType<typeof getDocs>>,
+  plan: CampManagementPlan,
+): CampManagementPlan {
+  const registrationsById = new Map<string, Record<string, unknown>>();
+
+  for (const document of registrationsSnapshot.docs) {
+    registrationsById.set(document.id, document.data() as Record<string, unknown>);
+  }
+
+  return {
+    ...plan,
+    committees: plan.committees.map((committee) => ({
+      ...committee,
+      publicMembers: [
+        ...committee.leaderRegistrationIds.map((registrationId) =>
+          buildPublicMember(registrationsById, registrationId, "leader"),
+        ),
+        ...committee.memberRegistrationIds.map((registrationId) =>
+          buildPublicMember(registrationsById, registrationId, "member"),
+        ),
+      ].filter((member): member is CampPublicMember => Boolean(member)),
+    })),
+    patrols: plan.patrols.map((patrol) => ({
+      ...patrol,
+      publicMembers: [
+        patrol.leaderRegistrationId
+          ? buildPublicMember(registrationsById, patrol.leaderRegistrationId, "leader")
+          : null,
+        ...patrol.supervisorRegistrationIds.map((registrationId) =>
+          buildPublicMember(registrationsById, registrationId, "supervisor"),
+        ),
+        ...patrol.memberRegistrationIds.map((registrationId) =>
+          buildPublicMember(registrationsById, registrationId, "member"),
+        ),
+      ].filter((member): member is CampPublicMember => Boolean(member)),
+    })),
+  };
+}
+
 async function syncRegistrationCampAssignments(
   registrationsSnapshot: Awaited<ReturnType<typeof getDocs>>,
   plan: CampManagementPlan,
@@ -404,17 +542,19 @@ export const campManagementService = {
     });
     const linked = await linkManualLeadersByName(stakeId, eventId, normalized);
 
+    const publicPlan = attachPublicMembers(linked.registrationsSnapshot, linked.plan);
+
     await setDoc(
       getCampManagementReference(stakeId, eventId),
       {
-        ...linked.plan,
+        ...publicPlan,
         savedAt: serverTimestamp(),
       },
       { merge: true },
     );
 
-    await syncRegistrationCampAssignments(linked.registrationsSnapshot, linked.plan, timestamp);
+    await syncRegistrationCampAssignments(linked.registrationsSnapshot, publicPlan, timestamp);
 
-    return linked.plan;
+    return publicPlan;
   },
 };

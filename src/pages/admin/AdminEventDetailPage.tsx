@@ -986,6 +986,7 @@ export function AdminEventDetailPage() {
           leaderRegistrationId: "",
           supervisorRegistrationIds: [],
           memberRegistrationIds: [],
+          publicMembers: [],
           updatedAt: timestamp,
         },
       ],
