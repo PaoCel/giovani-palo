@@ -416,6 +416,12 @@ button {
   display: none;
 }
 
+.bottom-nav--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(100% + 1.25rem));
+}
+
 .bottom-nav__item {
   display: inline-flex;
   align-items: center;
@@ -472,6 +478,10 @@ button {
   background: rgba(250, 247, 241, 0.9);
   box-shadow: 0 18px 50px rgba(20, 39, 70, 0.1);
   backdrop-filter: blur(24px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.22s ease;
+  will-change: transform;
 }
 
 .shell--user .bottom-nav__item,
@@ -495,6 +505,11 @@ button {
   right: auto;
   width: min(21.5rem, calc(100vw - 1.5rem));
   transform: translateX(-50%);
+}
+
+[data-display-mode="standalone"] .shell--user .bottom-nav--hidden,
+[data-display-mode="standalone"] .shell--family .bottom-nav--hidden {
+  transform: translateX(-50%) translateY(calc(100% + 1.25rem));
 }
 
 .install-hint-shell {
@@ -6933,6 +6948,10 @@ button {
     background: rgba(250, 247, 241, 0.88);
     box-shadow: 0 18px 50px rgba(20, 39, 70, 0.1);
     backdrop-filter: blur(24px);
+    transition:
+      opacity 0.18s ease,
+      transform 0.22s ease;
+    will-change: transform;
   }
 
   .shell--admin .bottom-nav__item {
@@ -6954,6 +6973,10 @@ button {
     right: auto;
     width: min(21.5rem, calc(100vw - 1.5rem));
     transform: translateX(-50%);
+  }
+
+  [data-display-mode="standalone"] .shell--admin .bottom-nav--hidden {
+    transform: translateX(-50%) translateY(calc(100% + 1.25rem));
   }
 
   .topbar__meta,

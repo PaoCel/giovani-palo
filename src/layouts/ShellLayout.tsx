@@ -60,8 +60,11 @@ export function ShellLayout({
   const navigate = useNavigate();
   const [adminAlerts, setAdminAlerts] = useState<Alert[]>([]);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
+  const [bottomNavHidden, setBottomNavHidden] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const alertDropdownRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
+  const scrollFrameRef = useRef<number | null>(null);
   const showTopNav = area === "admin" && links.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
   const showPublicBack = area === "public" && location.pathname !== "/";
@@ -120,6 +123,51 @@ export function ShellLayout({
   useEffect(() => {
     setAlertDropdownOpen(false);
   }, [location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    if (!showBottomNav || typeof window === "undefined") {
+      setBottomNavHidden(false);
+      return;
+    }
+
+    const topRevealThreshold = 80;
+    const directionThreshold = 8;
+
+    lastScrollYRef.current = Math.max(window.scrollY, 0);
+    setBottomNavHidden(false);
+
+    function handleScroll() {
+      if (scrollFrameRef.current !== null) {
+        return;
+      }
+
+      scrollFrameRef.current = window.requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+        const currentScrollY = Math.max(window.scrollY, 0);
+        const delta = currentScrollY - lastScrollYRef.current;
+
+        if (currentScrollY <= topRevealThreshold) {
+          setBottomNavHidden(false);
+        } else if (delta > directionThreshold) {
+          setBottomNavHidden(true);
+        } else if (delta < -directionThreshold) {
+          setBottomNavHidden(false);
+        }
+
+        lastScrollYRef.current = currentScrollY;
+      });
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, [location.pathname, location.search, showBottomNav]);
 
   useEffect(() => {
     if (!alertDropdownOpen || typeof document === "undefined") {
@@ -436,7 +484,10 @@ export function ShellLayout({
       </header>
 
       {showBottomNav ? (
-        <nav className="bottom-nav" aria-label={`Navigazione ${area}`}>
+        <nav
+          className={bottomNavHidden ? "bottom-nav bottom-nav--hidden" : "bottom-nav"}
+          aria-label={`Navigazione ${area}`}
+        >
           {links.map((link) => (
             <NavLink
               key={link.to}
