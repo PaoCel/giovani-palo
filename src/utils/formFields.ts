@@ -108,7 +108,7 @@ export const standardFieldDefinitions: StandardFieldDefinition[] = [
   {
     key: "parentConfirmed",
     label: "Autorizzazione genitore o tutore",
-    helpText: "Il consenso per i minori viene raccolto tramite caricamento di una foto del foglio firmato.",
+    helpText: "Campo legacy: il consenso per i minori viene raccolto tramite email al genitore.",
     inputType: "checkbox",
   },
 ];
@@ -156,7 +156,9 @@ export function getStandardFieldDefinitions(overrides?: StandardFieldOverrides) 
 }
 
 export function getVisibleStandardFieldDefinitions(overrides?: StandardFieldOverrides) {
-  return getStandardFieldDefinitions(overrides).filter((field) => field.key !== "youthGroup");
+  return getStandardFieldDefinitions(overrides).filter(
+    (field) => field.key !== "youthGroup" && field.key !== "parentConfirmed",
+  );
 }
 
 export const visibleStandardFieldDefinitions = getVisibleStandardFieldDefinitions();

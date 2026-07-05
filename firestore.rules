@@ -335,6 +335,20 @@ service cloud.firestore {
         && request.resource.data.linkedLaterToUserId == null;
     }
 
+    function manualConsentFieldsUnchanged() {
+      return request.resource.data.get('parentConsentDocumentName', null) == resource.data.get('parentConsentDocumentName', null)
+        && request.resource.data.get('parentConsentDocumentUrl', null) == resource.data.get('parentConsentDocumentUrl', null)
+        && request.resource.data.get('parentConsentDocumentPath', null) == resource.data.get('parentConsentDocumentPath', null)
+        && request.resource.data.get('parentConsentUploadedAt', null) == resource.data.get('parentConsentUploadedAt', null)
+        && request.resource.data.get('consentSignatureUrl', null) == resource.data.get('consentSignatureUrl', null)
+        && request.resource.data.get('consentSignaturePath', null) == resource.data.get('consentSignaturePath', null)
+        && request.resource.data.get('consentSignatureSetAt', null) == resource.data.get('consentSignatureSetAt', null)
+        && request.resource.data.get('parentIdDocumentName', null) == resource.data.get('parentIdDocumentName', null)
+        && request.resource.data.get('parentIdDocumentUrl', null) == resource.data.get('parentIdDocumentUrl', null)
+        && request.resource.data.get('parentIdDocumentPath', null) == resource.data.get('parentIdDocumentPath', null)
+        && request.resource.data.get('parentIdUploadedAt', null) == resource.data.get('parentIdUploadedAt', null);
+    }
+
     function validRegistrationUpdate() {
       return validRegistrationPayload(request.resource.data)
         && isOwnRegistration(resource.data)
@@ -415,6 +429,7 @@ service cloud.firestore {
           request.resource.data.registrationStatus == resource.data.registrationStatus
           || request.resource.data.registrationStatus == 'cancelled'
         )
+        && manualConsentFieldsUnchanged()
         && (
           (!('parentAuthorization' in request.resource.data) && !('parentAuthorization' in resource.data))
           || (

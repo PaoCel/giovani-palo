@@ -103,12 +103,13 @@ export function PrivacyPage() {
           <div className="surface-panel surface-panel--subtle">
             <h3>Dati specifici per i minori</h3>
             <p>
-              Per i partecipanti minorenni puo essere richiesto il caricamento del consenso del genitore
-              o del tutore legale come immagine del foglio firmato. Questo documento viene conservato
-              in area protetta accessibile solo agli admin di palo e al titolare dell&apos;iscrizione,
-              e gestito secondo le indicazioni dell&apos;Art. 8 GDPR (in Italia, eta minima 14 anni
-              per il consenso digitale; GUGD applica la regola operativa piu rigorosa di richiedere
-              il consenso del genitore per tutti gli iscritti sotto i 18 anni).
+              Per i partecipanti minorenni puo essere richiesto il consenso del genitore
+              o del tutore legale tramite link inviato via email. Il sistema conserva lo stato
+              dell&apos;autorizzazione e i PDF firmati generati dalla procedura in area protetta
+              accessibile solo agli admin di palo. Il trattamento segue le indicazioni
+              dell&apos;Art. 8 GDPR (in Italia, eta minima 14 anni per il consenso digitale;
+              GUGD applica la regola operativa piu rigorosa di richiedere il consenso del
+              genitore per tutti gli iscritti sotto i 18 anni).
             </p>
           </div>
         </div>
@@ -143,7 +144,7 @@ export function PrivacyPage() {
               da oltre 24 mesi vengono eliminati salvo rinnovo del consenso.</li>
             <li><strong>Iscrizioni a una attivita e moduli compilati:</strong> 24 mesi dopo la data
               di fine dell&apos;attivita.</li>
-            <li><strong>Documenti di consenso del genitore (immagini):</strong> 24 mesi dopo la
+            <li><strong>Autorizzazioni genitore e PDF firmati:</strong> 24 mesi dopo la
               data di fine dell&apos;attivita.</li>
             <li><strong>Tentativi di iscrizione (log tecnico):</strong> 90 giorni.</li>
             <li><strong>Token di recupero per iscrizioni guest:</strong> 90 giorni dalla fine
@@ -244,9 +245,9 @@ export function PrivacyPage() {
             (regione Firestore <code>eur3</code>: Belgio + Paesi Bassi).
             L&apos;accesso e regolato da regole di sicurezza per ruolo (admin di palo,
             responsabile di unita, partecipante), validate lato server da Firebase Security Rules.
-            La connessione e cifrata in HTTPS. I documenti sensibili (es. consensi dei minori)
+            La connessione e cifrata in HTTPS. I documenti sensibili (es. autorizzazioni dei minori)
             sono in area di storage protetta, accessibile solo all&apos;admin di palo e al
-            titolare dell&apos;iscrizione.
+            titolare dell&apos;iscrizione quando previsto.
           </p>
           <p>
             In caso di violazione confermata che riguardi dati personali, il titolare notifica

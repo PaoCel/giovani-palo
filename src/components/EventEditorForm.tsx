@@ -105,7 +105,6 @@ interface EventEditorValues {
   requiresEmergencyContacts: boolean;
   requiresMedicalNotes: boolean;
   requiresImageConsent: boolean;
-  requiresDocumentUpload: boolean;
   requiresParentalConsent: boolean;
   requiresPhotoRelease: boolean;
 }
@@ -181,7 +180,6 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     requiresMedicalNotes: event?.requiresMedicalNotes ?? initialIsStrong,
     requiresImageConsent:
       event?.requiresImageConsent ?? event?.requiresPhotoRelease ?? false,
-    requiresDocumentUpload: event?.requiresDocumentUpload ?? false,
     requiresParentalConsent: event?.requiresParentalConsent ?? false,
     requiresPhotoRelease: event?.requiresPhotoRelease ?? false,
   };
@@ -283,7 +281,6 @@ export function EventEditorForm({
           requiresParentAuthorization: false,
           requiresEmergencyContacts: false,
           requiresMedicalNotes: false,
-          requiresDocumentUpload: false,
           roomsInfo: "",
         };
       }
@@ -481,7 +478,6 @@ export function EventEditorForm({
       requiresEmergencyContacts: values.requiresEmergencyContacts,
       requiresMedicalNotes: values.requiresMedicalNotes,
       requiresImageConsent: values.requiresImageConsent,
-      requiresDocumentUpload: values.requiresDocumentUpload,
       consentVersionId:
         initialEvent?.consentVersionId ?? LEGAL_DOC_VERSIONS.participation,
       privacyNoticeVersionId:
@@ -1134,26 +1130,6 @@ export function EventEditorForm({
                     </span>
                   </label>
 
-                  <label className="toggle-field">
-                    <input
-                      type="checkbox"
-                      checked={values.requiresDocumentUpload}
-                      onChange={(event) =>
-                        updateValue(
-                          "requiresDocumentUpload",
-                          event.target.checked,
-                        )
-                      }
-                    />
-                    <span>
-                      Richiedi upload documento del genitore (opzionale,
-                      sconsigliato)
-                      <small>
-                        {" "}
-                        Attivare solo se necessario per motivi specifici.
-                      </small>
-                    </span>
-                  </label>
                 </div>
               ) : null}
             </>
