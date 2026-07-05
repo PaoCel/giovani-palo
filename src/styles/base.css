@@ -1785,6 +1785,22 @@ button {
   color: var(--muted);
 }
 
+.surface-chip--link {
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.surface-chip--link:hover {
+  border-color: rgba(35, 93, 144, 0.18);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
 .unit-chip-list {
   margin-top: 1rem;
 }

@@ -65,10 +65,13 @@ export function ShellLayout({
   const showTopNav = area === "admin" && links.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
   const showPublicBack = area === "public" && location.pathname !== "/";
+  const showAdminModeSwitch =
+    Boolean(session?.isAdmin && !session.isAnonymous) && (area === "admin" || area === "user");
   const showMeta =
-    area !== "user" &&
-    area !== "family" &&
-    Boolean(eyebrow || title || (area !== "public" && session));
+    showAdminModeSwitch ||
+    (area !== "user" &&
+      area !== "family" &&
+      Boolean(eyebrow || title || (area !== "public" && session)));
   const brandDestination =
     area === "admin"
       ? "/admin"
@@ -97,6 +100,13 @@ export function ShellLayout({
     return adminAlerts.filter((alert) => !(alert.readBy ?? []).includes(currentUserId));
   }, [adminAlerts, session?.firebaseUser.uid]);
   const adminUnreadCount = unreadAdminAlerts.length;
+  const sessionLabel = session
+    ? getSessionLabel(
+        session.profile?.fullName,
+        session.firebaseUser.email,
+        session.firebaseUser.displayName,
+      )
+    : "Sessione pubblica";
 
   useEffect(() => {
     if (area !== "admin" || !session?.isAdmin || !session.profile.stakeId) {
@@ -385,16 +395,37 @@ export function ShellLayout({
               {title ? <p>{title}</p> : null}
             </div>
             <div className="chip-row">
-              <div className="surface-chip">
-                {session
-                  ? getSessionLabel(
-                      session.profile?.fullName,
-                      session.firebaseUser.email,
-                      session.firebaseUser.displayName,
-                    )
-                  : "Sessione pubblica"}
-              </div>
-              {session ? (
+              {showAdminModeSwitch ? (
+                <>
+                  <NavLink
+                    aria-label={`Apri vista giovane per ${sessionLabel}`}
+                    className={({ isActive }) =>
+                      isActive
+                        ? "surface-chip surface-chip--link surface-chip--active"
+                        : "surface-chip surface-chip--link"
+                    }
+                    title="Vista giovane"
+                    to="/me"
+                  >
+                    {sessionLabel}
+                  </NavLink>
+                  <NavLink
+                    aria-label="Apri vista admin"
+                    className={({ isActive }) =>
+                      isActive
+                        ? "surface-chip surface-chip--link surface-chip--active"
+                        : "surface-chip surface-chip--link"
+                    }
+                    title="Vista admin"
+                    to="/admin"
+                  >
+                    {getRoleLabel(session?.profile.role ?? "admin")}
+                  </NavLink>
+                </>
+              ) : (
+                <div className="surface-chip">{sessionLabel}</div>
+              )}
+              {session && !showAdminModeSwitch ? (
                 <div className="surface-chip">
                   {session.isAnonymous ? "Ospite" : getRoleLabel(session.profile.role)}
                 </div>
