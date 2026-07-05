@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
-import { ConsentTextModal, type ConsentKind } from "@/components/ConsentTextModal";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
 import type {
   AuthSession,
@@ -52,9 +51,6 @@ interface RegistrationEditorValues {
   category: string;
   unitName: string;
   answers: RegistrationAnswers;
-  consentSignerName: string;
-  parentalConsentAccepted: boolean;
-  photoReleaseAccepted: boolean;
   parentFirstName: string;
   parentLastName: string;
   parentEmail: string;
@@ -94,7 +90,6 @@ const detailFieldKeys = new Set<StandardFieldKey>([
   "medicalNotes",
   "photoInternalConsent",
   "photoPublicConsent",
-  "parentConfirmed",
 ]);
 
 function getDefaultAnswerValue(field: CustomField) {
@@ -183,14 +178,6 @@ function getInitialValues(
       "",
     unitName: registration?.unitNameSnapshot || session?.profile.unitName || "",
     answers,
-    consentSignerName:
-      typeof registration?.answers.parentalConsentSignerName === "string"
-        ? registration.answers.parentalConsentSignerName
-        : typeof registration?.answers.photoReleaseSignerName === "string"
-          ? registration.answers.photoReleaseSignerName
-          : "",
-    parentalConsentAccepted: registration?.answers.parentalConsentAccepted === true,
-    photoReleaseAccepted: registration?.answers.photoReleaseAccepted === true,
     parentFirstName: getStoredParentField(registration, "parentFirstName"),
     parentLastName: getStoredParentField(registration, "parentLastName"),
     parentEmail: getStoredParentField(registration, "parentEmail"),
@@ -355,15 +342,7 @@ export function RegistrationEditor({
     return days;
   }, [event.startDate, event.endDate, supportsParticipatingDays]);
   const isMinorParticipant = isMinorBirthDate(values.birthDate);
-  const eventRequiresParental = event.requiresParentalConsent && isMinorParticipant;
-  const eventRequiresPhotoRelease = event.requiresPhotoRelease;
-  const useNewConsentFlow = eventRequiresParental || eventRequiresPhotoRelease;
-  const requiresParentConsent =
-    !eventRequiresParental &&
-    enabledStandardFields.includes("parentConfirmed") &&
-    isMinorParticipant;
-
-  // Nuovo flusso magic-link: scatta solo per minori in attivita' rafforzate.
+  // Unico flusso genitore supportato: magic-link via email per minori.
   const eventRequiresParentAuthorization = Boolean(
     event.requiresParentAuthorization && isMinorParticipant,
   );
@@ -378,7 +357,6 @@ export function RegistrationEditor({
   const showAdultPhotoConsent = Boolean(
     event.requiresImageConsent && !isMinorParticipant && values.birthDate,
   );
-  const [openConsentModal, setOpenConsentModal] = useState<ConsentKind | null>(null);
   const isAuthenticatedAccount = Boolean(session?.isAuthenticated && !session.isAnonymous);
   const shouldAskNameFields = !(
     isAuthenticatedAccount &&
@@ -432,22 +410,12 @@ export function RegistrationEditor({
             return false;
           }
 
-          if (field.key === "parentConfirmed") {
-            return requiresParentConsent;
-          }
-
-          if (
-            (field.key === "photoInternalConsent" ||
-              field.key === "photoPublicConsent") &&
-            eventRequiresPhotoRelease
-          ) {
-            return false;
-          }
+          if (field.key === "parentConfirmed") return false;
 
           return true;
         },
       ),
-    [activeStandardFields, eventRequiresPhotoRelease, requiresParentConsent],
+    [activeStandardFields],
   );
   const hasPhotoConsentFields = stepDetailFields.some(
     (field) => field.key === "photoInternalConsent" || field.key === "photoPublicConsent",
@@ -461,7 +429,6 @@ export function RegistrationEditor({
   const detailStepHasContent =
     stepDetailFields.length > 0 ||
     formConfig.customFields.length > 0 ||
-    useNewConsentFlow ||
     showAdultPhotoConsent;
   const hasVisibleQuestions =
     identityStepHasContent || profileStepHasContent || detailStepHasContent;
@@ -734,7 +701,7 @@ export function RegistrationEditor({
   }
 
   function renderStandardField(field: (typeof activeStandardFields)[number]) {
-    if (field.key === "parentConfirmed" && !requiresParentConsent) {
+    if (field.key === "parentConfirmed") {
       return null;
     }
 
@@ -746,8 +713,7 @@ export function RegistrationEditor({
     const isRequired =
       field.key === "birthDate" ||
       field.key === "genderRoleCategory" ||
-      field.key === "unitName" ||
-      field.key === "parentConfirmed";
+      field.key === "unitName";
 
     if (field.key === "birthDate") {
       return (
@@ -904,31 +870,6 @@ export function RegistrationEditor({
     }
 
     if (field.inputType === "checkbox") {
-      if (field.key === "parentConfirmed") {
-        const hasUploadedDocument = Boolean(initialRegistration?.parentConsentDocumentUrl);
-        const sessionCanUpload = Boolean(session?.isAuthenticated && !session.isAnonymous);
-
-        return (
-          <div key={field.key} className="surface-panel surface-panel--subtle form-subsection">
-            <h3>{field.label}</h3>
-            <p>
-              {hasUploadedDocument
-                ? "Il modulo firmato e gia stato collegato a questa iscrizione."
-                : "Dopo l'invio dell'iscrizione il genitore riceve un'email con il modulo ufficiale da firmare direttamente online. In alternativa potrai scaricare il modulo, farlo firmare e caricarne una foto dalla pagina dell'attivita."}
-            </p>
-            <p className="subtle-text">
-              Non blocca l&apos;invio dell&apos;iscrizione: gli admin vedono chiaramente se manca.
-            </p>
-            {!sessionCanUpload && !hasUploadedDocument ? (
-              <p className="subtle-text">
-                Ti stai iscrivendo senza account: potrai caricare il modulo dopo aver creato il
-                profilo.
-              </p>
-            ) : null}
-          </div>
-        );
-      }
-
       return (
         <label
           key={field.key}
@@ -1056,33 +997,10 @@ export function RegistrationEditor({
       return;
     }
 
-    if (useNewConsentFlow) {
-      const missingParental = eventRequiresParental && !values.parentalConsentAccepted;
-      const missingPhoto = eventRequiresPhotoRelease && !values.photoReleaseAccepted;
-
-      if (missingParental || missingPhoto) {
-        const missingLabels = [
-          missingParental ? "consenso del genitore" : null,
-          missingPhoto ? "liberatoria immagini" : null,
-        ]
-          .filter(Boolean)
-          .join(" e ");
-
-        const proceed = window.confirm(
-          `Manca: ${missingLabels}.\n\nPer poter partecipare il genitore o tutore deve completare l'autorizzazione (anche dopo l'iscrizione, dalla scheda dell'attivita). Se non riesci, rivolgiti al tuo dirigente.\n\nVuoi continuare comunque?`,
-        );
-
-        if (!proceed) {
-          return;
-        }
-      }
-    }
-
     const fullName = `${values.firstName.trim()} ${values.lastName.trim()}`.trim();
     const category = getGenderRoleCategory(values.category);
     const youthGroup = getYouthGroupLabel(category);
     const consentAcceptedAt = new Date().toISOString();
-    const trimmedSignerName = values.consentSignerName.trim();
 
     // Quando l'attivita' richiede autorizzazione magic-link al genitore e il
     // partecipante e' minorenne, raccogliamo i dati del genitore qui e settiamo
@@ -1141,28 +1059,6 @@ export function RegistrationEditor({
         genderRoleCategory: category,
         youthGroup,
         unitName: values.unitName.trim(),
-        parentConfirmed:
-          requiresParentConsent &&
-          (values.answers.parentConfirmed === true ||
-            Boolean(initialRegistration?.parentConsentDocumentUrl)),
-        ...(eventRequiresParental
-          ? {
-              parentalConsentAccepted: values.parentalConsentAccepted,
-              parentalConsentAcceptedAt: values.parentalConsentAccepted
-                ? consentAcceptedAt
-                : null,
-              parentalConsentSignerName: trimmedSignerName,
-            }
-          : {}),
-        ...(eventRequiresPhotoRelease
-          ? {
-              photoReleaseAccepted: values.photoReleaseAccepted,
-              photoReleaseAcceptedAt: values.photoReleaseAccepted
-                ? consentAcceptedAt
-                : null,
-              photoReleaseSignerName: trimmedSignerName,
-            }
-          : {}),
         ...(parentAuthRequestPayload
           ? {
               parentAuthorizationRequest:
@@ -1188,9 +1084,6 @@ export function RegistrationEditor({
 
   return (
     <form className="form-stack" onSubmit={handleSubmit}>
-      {openConsentModal ? (
-        <ConsentTextModal kind={openConsentModal} onClose={() => setOpenConsentModal(null)} />
-      ) : null}
       <div className="form-stepper form-stepper--registration">
         <div className="form-stepper__progress">
           <div className="form-stepper__progress-meta">
@@ -1434,100 +1327,6 @@ export function RegistrationEditor({
                 </div>
               ) : null}
 
-              {useNewConsentFlow ? (
-                <div className="surface-panel surface-panel--subtle form-subsection">
-                  <h3>Autorizzazioni</h3>
-                  <p className="subtle-text">
-                    Spuntale ora se puoi. Se manca qualcosa puoi completare anche
-                    dopo l&apos;iscrizione (firma del genitore inclusa).
-                  </p>
-
-                  {eventRequiresParental ? (
-                    <label
-                      className={
-                        fieldErrors.parentalConsentAccepted
-                          ? "toggle-field toggle-field--error"
-                          : "toggle-field"
-                      }
-                    >
-                      <input
-                        checked={values.parentalConsentAccepted}
-                        onChange={(eventInput) => {
-                          clearFieldError("parentalConsentAccepted");
-                          setValues((current) => ({
-                            ...current,
-                            parentalConsentAccepted: eventInput.target.checked,
-                          }));
-                        }}
-                        type="checkbox"
-                      />
-                      <span>
-                        <strong>Consenso del genitore o tutore (per minori)</strong>
-                        <small>
-                          Accetto il consenso a nome del genitore o tutore.{" "}
-                          <button
-                            className="link-button"
-                            onClick={() => setOpenConsentModal("parental")}
-                            type="button"
-                          >
-                            Leggi il documento
-                          </button>
-                        </small>
-                      </span>
-                    </label>
-                  ) : null}
-
-                  {eventRequiresPhotoRelease ? (
-                    <label className="toggle-field">
-                      <input
-                        checked={values.photoReleaseAccepted}
-                        onChange={(eventInput) =>
-                          setValues((current) => ({
-                            ...current,
-                            photoReleaseAccepted: eventInput.target.checked,
-                          }))
-                        }
-                        type="checkbox"
-                      />
-                      <span>
-                        <strong>Liberatoria per l&apos;uso delle immagini</strong>
-                        <small>
-                          Accetto la liberatoria immagini.{" "}
-                          <button
-                            className="link-button"
-                            onClick={() => setOpenConsentModal("photo")}
-                            type="button"
-                          >
-                            Leggi il documento
-                          </button>
-                        </small>
-                      </span>
-                    </label>
-                  ) : null}
-
-                  <label className="field">
-                    <span className="field__label">
-                      Nome del firmatario {eventRequiresParental ? "(genitore o tutore)" : ""}
-                    </span>
-                    <input
-                      className="input"
-                      onChange={(eventInput) =>
-                        setValues((current) => ({
-                          ...current,
-                          consentSignerName: eventInput.target.value,
-                        }))
-                      }
-                      placeholder="Es. Mario Rossi"
-                      type="text"
-                      value={values.consentSignerName}
-                    />
-                    <small>
-                      Firma digitale e documento d&apos;identita opzionali si
-                      caricano dopo l&apos;iscrizione, dalla scheda dell&apos;attivita.
-                    </small>
-                  </label>
-                </div>
-              ) : null}
             </div>
           ) : null}
 

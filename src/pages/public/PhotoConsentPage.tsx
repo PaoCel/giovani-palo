@@ -59,15 +59,15 @@ export function PhotoConsentPage() {
 
       <SectionCard
         title="Attenzione particolare ai minori"
-        description="Per i minori abbiamo aggiunto anche un caricamento dedicato del consenso del genitore o tutore."
+        description="Per i minori il consenso viene raccolto dal genitore o tutore tramite email."
       >
         <div className="stack">
           <div className="surface-panel surface-panel--subtle">
             <p>
-              Per i partecipanti minorenni gli admin possono richiedere anche una foto del foglio
-              firmato dal genitore o tutore. Questo documento viene gestito separatamente
-              dall&apos;iscrizione e puo essere caricato anche in un secondo momento da chi ha un
-              account.
+              Per i partecipanti minorenni gli admin possono richiedere l&apos;autorizzazione
+              del genitore o tutore tramite link inviato via email. Il genitore completa
+              consensi e firma dalla pagina dedicata; lo stato viene poi mostrato agli
+              organizzatori.
             </p>
           </div>
 

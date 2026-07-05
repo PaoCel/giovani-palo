@@ -12,8 +12,8 @@ import { unitTransportNotesService } from "@/services/firestore/unitTransportNot
 import type { CampPatrolRole, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { isCampPackingActivity } from "@/utils/campPacking";
+import { getParentAuthorizationBadge } from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
-import { hasConfirmedParentConsent } from "@/utils/registrationConsents";
 import {
   getRegistrationStatusLabel,
   getRegistrationStatusTone,
@@ -94,10 +94,17 @@ function TransportBadge({
   );
 }
 
-function ConsentCell({ registration }: { registration: Registration }) {
+function ConsentCell({
+  registration,
+  requiresParentAuthorization,
+}: {
+  registration: Registration;
+  requiresParentAuthorization: boolean;
+}) {
   const hasPhoto = registration.answers.photoInternalConsent === true;
   const isMinor = isMinorBirthDate(registration.birthDate);
-  const hasParent = hasConfirmedParentConsent(registration);
+  const parentBadge = getParentAuthorizationBadge(registration, requiresParentAuthorization);
+  const hasParent = parentBadge.tone === "success";
 
   return (
     <div className="unit-consent-cell">
@@ -108,10 +115,10 @@ function ConsentCell({ registration }: { registration: Registration }) {
         <AppIcon name={hasPhoto ? "check" : "x"} />
         Foto
       </span>
-      {isMinor && (
+      {isMinor && requiresParentAuthorization ? (
         <span
           className={hasParent ? "unit-consent-ok" : "unit-consent-missing"}
-          title={hasParent ? "Modulo genitore OK" : "Modulo genitore mancante"}
+          title={`Autorizzazione genitore: ${parentBadge.label}`}
         >
           {registration.parentConsentDocumentUrl ? (
             <a
@@ -127,7 +134,7 @@ function ConsentCell({ registration }: { registration: Registration }) {
           )}
           Genitore
         </span>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -176,11 +183,13 @@ function RegistrationRow({
   registration,
   isTransportResolved,
   campAssignment,
+  requiresParentAuthorization,
   onToggleTransport,
 }: {
   registration: Registration;
   isTransportResolved: boolean;
   campAssignment: UnitCampAssignment | null;
+  requiresParentAuthorization: boolean;
   onToggleTransport: () => void;
 }) {
   const categoryLabel = getGenderRoleCategoryLabel(registration.genderRoleCategory);
@@ -204,7 +213,10 @@ function RegistrationRow({
         />
       </td>
       <td className="unit-table__cell">
-        <ConsentCell registration={registration} />
+        <ConsentCell
+          registration={registration}
+          requiresParentAuthorization={requiresParentAuthorization}
+        />
       </td>
       <td className="unit-table__cell">
         <CampAssignmentCell registration={registration} assignment={campAssignment} />
@@ -597,6 +609,7 @@ export function UnitActivityPage() {
                     key={r.id}
                     registration={r}
                     campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
+                    requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
                     isTransportResolved={resolvedSet.has(r.id)}
                     onToggleTransport={() => void handleToggleTransport(r.id)}
                   />

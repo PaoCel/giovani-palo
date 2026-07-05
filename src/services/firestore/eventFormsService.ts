@@ -28,6 +28,10 @@ const defaultEnabledStandardFields: StandardFieldKey[] = [
   "unitName",
 ];
 
+function normalizeEnabledStandardFields(keys: readonly StandardFieldKey[]) {
+  return normalizeStandardFieldKeys(keys).filter((key) => key !== "parentConfirmed");
+}
+
 function sanitizeCustomField(field: Partial<CustomField>, index: number): CustomField {
   return {
     id: field.id || `custom-field-${index + 1}`,
@@ -68,7 +72,7 @@ export function getDefaultEventFormConfig(
     requireLoginForEdit: defaults?.requireLoginForEdit ?? true,
     enabledStandardFields:
       defaults?.enabledStandardFields?.length
-        ? normalizeStandardFieldKeys(defaults.enabledStandardFields)
+        ? normalizeEnabledStandardFields(defaults.enabledStandardFields)
         : defaultEnabledStandardFields,
     customFields: [],
   };
@@ -101,7 +105,7 @@ function mapFormConfig(
         : true,
     enabledStandardFields:
       enabledStandardFields.length > 0
-        ? normalizeStandardFieldKeys(enabledStandardFields)
+        ? normalizeEnabledStandardFields(enabledStandardFields)
         : defaultEnabledStandardFields,
     customFields: normalizedFields.filter((field) => field.presetOrigin !== "standard"),
   };
@@ -126,7 +130,7 @@ export const eventFormsService = {
               ? data.requireLoginForEdit
               : true,
           enabledStandardFields: Array.isArray(data.enabledStandardFields)
-            ? normalizeStandardFieldKeys(
+            ? normalizeEnabledStandardFields(
                 data.enabledStandardFields.filter(
                   (value): value is StandardFieldKey => typeof value === "string",
                 ),
@@ -159,7 +163,7 @@ export const eventFormsService = {
     const normalizedConfig: EventFormConfig = {
       allowGuestRegistration: formConfig.allowGuestRegistration,
       requireLoginForEdit: formConfig.requireLoginForEdit,
-      enabledStandardFields: normalizeStandardFieldKeys(formConfig.enabledStandardFields),
+      enabledStandardFields: normalizeEnabledStandardFields(formConfig.enabledStandardFields),
       customFields: formConfig.customFields.map((field, index) =>
         sanitizeCustomField(field, index),
       ),

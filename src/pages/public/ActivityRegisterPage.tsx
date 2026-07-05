@@ -3,8 +3,6 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
-import { ConsentSection } from "@/components/ConsentSection";
-import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { RegistrationEditor } from "@/components/RegistrationEditor";
@@ -28,7 +26,6 @@ import type {
 } from "@/types";
 import { formatDateTime } from "@/utils/formatters";
 import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
-import { isMinorBirthDate } from "@/utils/age";
 import {
   getAudienceRestrictionMessage,
   getEventAudienceLabel,
@@ -543,15 +540,6 @@ export function ActivityRegisterPage() {
     !accountBlockedForGuest &&
     (!isParentSession || Boolean(selectedChild)) &&
     (canEditExisting || availability === "open" || availability === "guest-allowed");
-  const showRegisteredMinorConsentUpload =
-    Boolean(
-      data.registration &&
-        session?.isAuthenticated &&
-        !session.isAnonymous &&
-        formConfig?.enabledStandardFields.includes("parentConfirmed") &&
-        isMinorBirthDate(data.registration.birthDate),
-    );
-
   return (
     <div className="page">
       <PageHero
@@ -675,19 +663,6 @@ export function ActivityRegisterPage() {
               </p>
             ) : null}
 
-            {formConfig?.enabledStandardFields.includes("parentConfirmed") &&
-            isMinorBirthDate(anonymousCompletion.birthDate) &&
-            !anonymousCompletion.parentConsentDocumentUrl ? (
-              <div className="notice notice--warning">
-                <div>
-                  <h3>Consenso genitore ancora da caricare</h3>
-                  <p>
-                    Per allegare la foto del foglio firmato ti conviene creare un account e poi
-                    aprire di nuovo questa attivita dalla tua area personale.
-                  </p>
-                </div>
-              </div>
-            ) : null}
           </div>
         </SectionCard>
       ) : null}
@@ -881,26 +856,6 @@ export function ActivityRegisterPage() {
         </SectionCard>
       ) : null}
 
-      {showRegisteredMinorConsentUpload && data.registration && session ? (
-        <ParentConsentUploadCard
-          eventId={data.event?.id || ""}
-          exampleImageUrl={organization?.minorConsentExampleImageUrl}
-          onRegistrationUpdated={(updatedRegistration) =>
-            setData((current) =>
-              current
-                ? {
-                    ...current,
-                    registration: updatedRegistration,
-                  }
-                : current,
-            )
-          }
-          registration={data.registration}
-          sessionUid={session.firebaseUser.uid}
-          stakeId={data.stakeId}
-        />
-      ) : null}
-
       {event?.questionsEnabled && data.registration && session ? (
         <QuestionsSection
           eventId={event.id}
@@ -910,34 +865,6 @@ export function ActivityRegisterPage() {
         />
       ) : null}
 
-      {event &&
-      (event.requiresParentalConsent || event.requiresPhotoRelease) &&
-      data.registration &&
-      session ? (
-        <SectionCard
-          title="Autorizzazioni e firma"
-          description="Completa firma digitale, consensi e (se vuoi) carica un documento del genitore."
-        >
-          <ConsentSection
-            event={event}
-            isMinor={isMinorBirthDate(data.registration.birthDate)}
-            onRegistrationUpdated={(updated) =>
-              setData((current) =>
-                current
-                  ? {
-                      ...current,
-                      registration: updated,
-                    }
-                  : current,
-              )
-            }
-            persistImmediately
-            registration={data.registration}
-            sessionUid={session.firebaseUser.uid}
-            stakeId={data.stakeId}
-          />
-        </SectionCard>
-      ) : null}
     </div>
   );
 }

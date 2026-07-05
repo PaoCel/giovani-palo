@@ -2,18 +2,14 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
-import { ConsentSection } from "@/components/ConsentSection";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
-import { ParentConsentUploadCard } from "@/components/ParentConsentUploadCard";
 import { AppIcon } from "@/components/AppIcon";
 import { QuestionsSection } from "@/components/QuestionsSection";
-import { SectionCard } from "@/components/SectionCard";
 import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
-import { organizationService } from "@/services/firestore/organizationService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import type { CampPublicMember, Registration } from "@/types";
@@ -22,7 +18,7 @@ import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
 import { isCampPackingActivity } from "@/utils/campPacking";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import { getEventAudienceLabel } from "@/utils/events";
-import { hasConfirmedParentConsent } from "@/utils/registrationConsents";
+import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
 import {
   getRegistrationAnswerEntries,
   getRegistrationStatusLabel,
@@ -89,7 +85,7 @@ function getRegistrationStatusDisplay(registration: Registration) {
   if (
     registration.registrationStatus === "draft" &&
     isMinorBirthDate(registration.birthDate) &&
-    !hasConfirmedParentConsent(registration)
+    !isParentAuthorizationAuthorized(registration)
   ) {
     return {
       label: "Autorizzazione genitore mancante",
@@ -126,11 +122,6 @@ export function MyActivityDetailPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<YouthActivityTab>("registration");
-  const { data: organization } = useAsyncData(
-    () => organizationService.getProfile(stakeId),
-    [stakeId],
-    null,
-  );
 
   const { data, loading, error, setData } = useAsyncData(
     async () => {
@@ -338,13 +329,6 @@ export function MyActivityDetailPage() {
     ? getRegistrationAnswerEntries(data.formConfig, data.registration)
     : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
-  const showParentConsentCard = Boolean(
-    data &&
-    session?.isAuthenticated &&
-    !session.isAnonymous &&
-    data.formConfig.enabledStandardFields.includes("parentConfirmed") &&
-    isMinorBirthDate(data.registration.birthDate),
-  );
   const registrationStatusDisplay = data
     ? getRegistrationStatusDisplay(data.registration)
     : null;
@@ -592,51 +576,6 @@ export function MyActivityDetailPage() {
                       ) : null}
                     </dl>
                   </section>
-                ) : null}
-
-                {(data.event.requiresParentalConsent ||
-                  data.event.requiresPhotoRelease) &&
-                session ? (
-                  <SectionCard title="Autorizzazioni e firma">
-                    <ConsentSection
-                      event={data.event}
-                      isMinor={isMinorBirthDate(data.registration.birthDate)}
-                      onRegistrationUpdated={(updated) =>
-                        setData((current) =>
-                          current
-                            ? {
-                                ...current,
-                                registration: updated,
-                              }
-                            : current,
-                        )
-                      }
-                      persistImmediately
-                      registration={data.registration}
-                      sessionUid={session.firebaseUser.uid}
-                      stakeId={stakeId}
-                    />
-                  </SectionCard>
-                ) : null}
-
-                {showParentConsentCard && session ? (
-                  <ParentConsentUploadCard
-                    eventId={data.event.id}
-                    exampleImageUrl={organization?.minorConsentExampleImageUrl}
-                    onRegistrationUpdated={(updatedRegistration) =>
-                      setData((current) =>
-                        current
-                          ? {
-                              ...current,
-                              registration: updatedRegistration,
-                            }
-                          : current,
-                      )
-                    }
-                    registration={data.registration}
-                    sessionUid={session.firebaseUser.uid}
-                    stakeId={stakeId}
-                  />
                 ) : null}
 
                 {data.event.questionsEnabled ? (
