@@ -32,10 +32,6 @@ export function ProtectedRoute() {
     return <Navigate replace to="/family" />;
   }
 
-  if (session.isAdmin) {
-    return <Navigate replace to="/admin" />;
-  }
-
   return <Outlet />;
 }
 

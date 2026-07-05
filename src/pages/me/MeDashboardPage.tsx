@@ -10,7 +10,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { surveysService } from "@/services/firestore/surveysService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
-import { getAbsoluteUrl, getActivitiesPath, getMyActivityPath } from "@/utils/activityLinks";
+import {
+  getAbsoluteUrl,
+  getActivitiesPath,
+  getActivityRegistrationPath,
+  getMyActivityPath,
+} from "@/utils/activityLinks";
 import { formatEventWindow } from "@/utils/formatters";
 import {
   getEventAudienceLabel,
@@ -28,12 +33,17 @@ export function MeDashboardPage() {
     [sessionKey],
     [],
   );
-  const featuredActivities = feed.filter(
-    ({ event, registration }) =>
-      Boolean(registration) &&
-      registration?.registrationStatus !== "cancelled" &&
-      !isPastEvent(event),
-  );
+  const featuredActivities = feed.filter(({ event, registration }) => {
+    if (isPastEvent(event)) {
+      return false;
+    }
+
+    if (registration && registration.registrationStatus !== "cancelled") {
+      return true;
+    }
+
+    return event.status === "registrations_open";
+  });
   const pastEvents = feed.filter(({ event }) => isPastEvent(event)).slice(0, 6);
   const pastIdsKey = pastEvents.map(({ event }) => event.id).join(",");
   const stakeIdKey = session?.profile.stakeId ?? "";
@@ -131,63 +141,68 @@ export function MeDashboardPage() {
             <h2>La tua prossima attività</h2>
           </div>
           <div className="stack">
-            {featuredActivities.slice(0, 2).map(({ event }, index) => (
-              <article
-                key={event.id}
-                className={
-                  index === 0
-                    ? "user-event-feature user-event-feature--hero"
-                    : "user-event-feature"
-                }
-              >
-                <Link
-                  aria-label={`Apri dettagli attività: ${event.title}`}
-                  className="user-event-feature__media"
-                  to={getMyActivityPath(event.id)}
+            {featuredActivities.slice(0, 2).map(({ event, registration }, index) => {
+              const hasActiveRegistration =
+                Boolean(registration) && registration?.registrationStatus !== "cancelled";
+              const primaryTo = hasActiveRegistration
+                ? getMyActivityPath(event.id)
+                : getActivityRegistrationPath(event.id, session?.profile.stakeId);
+              const primaryLabel = hasActiveRegistration ? "Dettagli attività" : "Iscriviti";
+
+              return (
+                <article
+                  key={event.id}
+                  className={
+                    index === 0
+                      ? "user-event-feature user-event-feature--hero"
+                      : "user-event-feature"
+                  }
                 >
-                  {event.heroImageUrl ? (
-                    <div
-                      className="user-event-feature__poster"
-                      style={{ backgroundImage: `url(${event.heroImageUrl})` }}
-                    />
-                  ) : (
-                    <div className="user-event-feature__poster user-event-feature__poster--fallback">
-                      <AppIcon name="ticket" />
-                    </div>
-                  )}
-                </Link>
-
-                <div className="user-event-feature__body">
-                  <div className="chip-row">
-                    <StatusBadge
-                      label={getEventStatusLabel(event.status)}
-                      tone={getEventStatusTone(event.status)}
-                    />
-                    <span className="surface-chip">{getEventAudienceLabel(event.audience)}</span>
-                    <span className="surface-chip">Iscritto</span>
-                  </div>
-
                   <Link
-                    className="user-event-feature__title"
-                    to={getMyActivityPath(event.id)}
+                    aria-label={`${primaryLabel}: ${event.title}`}
+                    className="user-event-feature__media"
+                    to={primaryTo}
                   >
-                    <h3>{event.title}</h3>
+                    {event.heroImageUrl ? (
+                      <div
+                        className="user-event-feature__poster"
+                        style={{ backgroundImage: `url(${event.heroImageUrl})` }}
+                      />
+                    ) : (
+                      <div className="user-event-feature__poster user-event-feature__poster--fallback">
+                        <AppIcon name="ticket" />
+                      </div>
+                    )}
                   </Link>
 
-                  <p className="user-event-feature__meta">{formatEventWindow(event)}</p>
-                  <p className="user-event-feature__meta">{event.location}</p>
+                  <div className="user-event-feature__body">
+                    <div className="chip-row">
+                      <StatusBadge
+                        label={getEventStatusLabel(event.status)}
+                        tone={getEventStatusTone(event.status)}
+                      />
+                      <span className="surface-chip">{getEventAudienceLabel(event.audience)}</span>
+                      <span className="surface-chip">
+                        {hasActiveRegistration ? "Iscritto" : "Da iscrivere"}
+                      </span>
+                    </div>
 
-                  <div className="user-event-feature__actions">
-                    <Link
-                      className="button button--primary button--small"
-                      to={getMyActivityPath(event.id)}
-                    >
-                      Dettagli attività
+                    <Link className="user-event-feature__title" to={primaryTo}>
+                      <h3>{event.title}</h3>
                     </Link>
+
+                    <p className="user-event-feature__meta">{formatEventWindow(event)}</p>
+                    <p className="user-event-feature__meta">{event.location}</p>
+
+                    <div className="user-event-feature__actions">
+                      <Link className="button button--primary button--small" to={primaryTo}>
+                        {primaryLabel}
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}
