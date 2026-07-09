@@ -97,6 +97,10 @@ function getRoleHome(session: NonNullable<ReturnType<typeof useAuth>["session"]>
         : "/me";
 }
 
+function isCampManagementAdminPath(pathname: string) {
+  return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
+}
+
 function isCompatibleRedirect(
   session: NonNullable<ReturnType<typeof useAuth>["session"]>,
   redirect: string,
@@ -104,7 +108,9 @@ function isCompatibleRedirect(
   // Aree role-specific: redirect verso un'area altrui (residuo del logout
   // di un utente con ruolo diverso) viene ignorato. Path neutri pubblici
   // o legati a /activities restano onorati.
-  if (redirect.startsWith("/admin")) return session.isAdmin;
+  if (redirect.startsWith("/admin")) {
+    return session.isAdmin || (session.isUnitLeader && isCampManagementAdminPath(redirect));
+  }
   if (redirect.startsWith("/unit")) return session.isUnitLeader;
   if (redirect.startsWith("/family")) return session.isParent;
   if (redirect.startsWith("/me"))

@@ -373,6 +373,9 @@ export function AdminEventDetailPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
   const stakeId = session?.profile.stakeId ?? "roma-est";
+  const routeTab = getAdminEventTabFromPath(location.pathname);
+  const isCampManagerOnly =
+    routeTab === "committees" && Boolean(session?.isUnitLeader && !session.isAdmin);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [busy, setBusy] = useState<
@@ -436,6 +439,24 @@ export function AdminEventDetailPage() {
         return null;
       }
 
+      if (isCampManagerOnly) {
+        const [workspace, campManagement] = await Promise.all([
+          adminEventsService.getAdminEventWorkspace(stakeId, eventId),
+          campManagementService.getCampManagement(stakeId, eventId),
+        ]);
+
+        if (!workspace) {
+          return null;
+        }
+
+        return {
+          workspace,
+          organization: null,
+          registrationsPerEvent: [],
+          campManagement,
+        };
+      }
+
       const [workspace, organization, allEvents, campManagement] =
         await Promise.all([
           adminEventsService.getAdminEventWorkspace(stakeId, eventId),
@@ -465,11 +486,12 @@ export function AdminEventDetailPage() {
         campManagement,
       };
     },
-    [eventId, refreshKey, stakeId],
+    [eventId, isCampManagerOnly, refreshKey, stakeId],
     null,
   );
 
-  const questionsEnabled = data?.workspace.event.questionsEnabled === true;
+  const questionsEnabled =
+    !isCampManagerOnly && data?.workspace.event.questionsEnabled === true;
   const [questionsRefreshKey, setQuestionsRefreshKey] = useState(0);
   const {
     data: questions,
@@ -490,7 +512,6 @@ export function AdminEventDetailPage() {
   const event = data?.workspace.event ?? null;
   const formConfig = data?.workspace.formConfig ?? null;
   const registrations = data?.workspace.registrations ?? [];
-  const routeTab = getAdminEventTabFromPath(location.pathname);
   const campManagement = useMemo(
     () =>
       data?.campManagement ?? campManagementService.getDefaultCampManagement(),
@@ -879,9 +900,10 @@ export function AdminEventDetailPage() {
             10,
         ) / 10
       : 0;
-  const activeTab =
-    (!resolvedEvent.overnight && routeTab === "overnight") ||
-    (!resolvedEvent.questionsEnabled && routeTab === "questions")
+  const activeTab = isCampManagerOnly
+    ? "committees"
+    : (!resolvedEvent.overnight && routeTab === "overnight") ||
+        (!resolvedEvent.questionsEnabled && routeTab === "questions")
       ? "details"
       : routeTab;
   const subtabsCountClass = (() => {
@@ -1893,11 +1915,12 @@ export function AdminEventDetailPage() {
         </article>
       </section>
 
-      <div
-        className={subtabsCountClass}
-        aria-label="Sezioni attività"
-        role="tablist"
-      >
+      {!isCampManagerOnly ? (
+        <div
+          className={subtabsCountClass}
+          aria-label="Sezioni attività"
+          role="tablist"
+        >
         <button
           aria-pressed={activeTab === "details"}
           className={
@@ -2019,7 +2042,8 @@ export function AdminEventDetailPage() {
           <AppIcon name="chart" />
           <span>Statistiche</span>
         </button>
-      </div>
+        </div>
+      ) : null}
 
       {activeTab === "details" ? (
         <section className="admin-detail-grid">

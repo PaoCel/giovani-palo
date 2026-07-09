@@ -74,6 +74,11 @@ service cloud.firestore {
         && currentUser().unitId == unitId;
     }
 
+    function isCampManagementActivity(stakeId, activityId) {
+      return exists(activityDocPath(stakeId, activityId))
+        && get(activityDocPath(stakeId, activityId)).data.activityType == 'camp';
+    }
+
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -1144,7 +1149,8 @@ service cloud.firestore {
             || isOwnRegistration(resource.data)
             || isUnitLeaderOfUnit(stakeId, resource.data.unitId);
           allow list: if isStakeAdmin(stakeId)
-            || isUnitLeaderOfUnit(stakeId, resource.data.unitId);
+            || isUnitLeaderOfUnit(stakeId, resource.data.unitId)
+            || (isUnitLeaderOfStake(stakeId) && isCampManagementActivity(stakeId, activityId));
           allow create: if isStakeAdmin(stakeId)
             || validRegistrationCreate(stakeId, activityId, registrationId);
           allow update: if isStakeAdmin(stakeId) || validCampAssignmentUpdate(stakeId) || validRegistrationUpdate();
