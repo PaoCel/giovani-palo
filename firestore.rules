@@ -79,6 +79,32 @@ service cloud.firestore {
         && get(activityDocPath(stakeId, activityId)).data.activityType == 'camp';
     }
 
+    function isAdultCampRoleCategory(value) {
+      return value in ['dirigente', 'accompagnatore'];
+    }
+
+    function hasOwnAdultCampRegistration(stakeId, activityId) {
+      return isSignedIn()
+        && exists(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid))
+        && isAdultCampRoleCategory(
+          get(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid)).data.genderRoleCategory
+        )
+        && get(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid)).data.registrationStatus != 'cancelled';
+    }
+
+    function isCampStaffOfActivity(stakeId, activityId) {
+      return isCampManagementActivity(stakeId, activityId)
+        && (
+          isStakeAdmin(stakeId)
+          || isUnitLeaderOfStake(stakeId)
+          || (
+            currentUserExists()
+            && currentUser().stakeId == stakeId
+            && hasOwnAdultCampRegistration(stakeId, activityId)
+          )
+        );
+    }
+
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -445,8 +471,8 @@ service cloud.firestore {
         );
     }
 
-    function validCampAssignmentUpdate(stakeId) {
-      return isUnitLeaderOfStake(stakeId)
+    function validCampAssignmentUpdate(stakeId, activityId) {
+      return isCampStaffOfActivity(stakeId, activityId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'assignedPatrolId',
           'assignedPatrolName',
@@ -1113,13 +1139,13 @@ service cloud.firestore {
 
         match /management/{managementId} {
           allow get, list: if isStakeAdmin(stakeId)
-            || isUnitLeaderOfStake(stakeId)
+            || (managementId == 'camp' && isCampStaffOfActivity(stakeId, activityId))
             || (
               managementId == 'camp'
               && isNonAnonymousSignedIn()
               && hasOwnRegistration(stakeId, activityId)
             );
-          allow create, update: if (isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId))
+          allow create, update: if isCampStaffOfActivity(stakeId, activityId)
             && managementId == 'camp'
             && request.resource.data.keys().hasOnly([
               'committees',
@@ -1132,7 +1158,7 @@ service cloud.firestore {
             && request.resource.data.patrols is list
             && request.resource.data.manualLeaders is list
             && request.resource.data.updatedAt is string;
-          allow delete: if (isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId))
+          allow delete: if isCampStaffOfActivity(stakeId, activityId)
             && managementId == 'camp';
         }
 
@@ -1147,13 +1173,14 @@ service cloud.firestore {
           allow get: if isStakeAdmin(stakeId)
             || isExpectedOwnRegistrationId(registrationId)
             || isOwnRegistration(resource.data)
-            || isUnitLeaderOfUnit(stakeId, resource.data.unitId);
+            || isUnitLeaderOfUnit(stakeId, resource.data.unitId)
+            || isCampStaffOfActivity(stakeId, activityId);
           allow list: if isStakeAdmin(stakeId)
             || isUnitLeaderOfUnit(stakeId, resource.data.unitId)
-            || (isUnitLeaderOfStake(stakeId) && isCampManagementActivity(stakeId, activityId));
+            || isCampStaffOfActivity(stakeId, activityId);
           allow create: if isStakeAdmin(stakeId)
             || validRegistrationCreate(stakeId, activityId, registrationId);
-          allow update: if isStakeAdmin(stakeId) || validCampAssignmentUpdate(stakeId) || validRegistrationUpdate();
+          allow update: if isStakeAdmin(stakeId) || validCampAssignmentUpdate(stakeId, activityId) || validRegistrationUpdate();
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
 

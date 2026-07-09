@@ -7,6 +7,23 @@ function isCampManagementAdminPath(pathname: string) {
   return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
 }
 
+function isAdultCampStaffSession(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
+  return (
+    session.profile.genderRoleCategory === "dirigente" ||
+    session.profile.genderRoleCategory === "accompagnatore"
+  );
+}
+
+function canAccessCampManagementPath(
+  session: NonNullable<ReturnType<typeof useAuth>["session"]>,
+  pathname: string,
+) {
+  return (
+    isCampManagementAdminPath(pathname) &&
+    (session.isAdmin || session.isUnitLeader || isAdultCampStaffSession(session))
+  );
+}
+
 export function ProtectedRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
@@ -68,7 +85,7 @@ export function AdminRoute() {
     return <Navigate replace to="/family" />;
   }
 
-  if (!session.isAdmin && !(session.isUnitLeader && isCampManagementAdminPath(location.pathname))) {
+  if (!session.isAdmin && !canAccessCampManagementPath(session, location.pathname)) {
     return <Navigate replace to="/me" />;
   }
 

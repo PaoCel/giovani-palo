@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
@@ -9,7 +9,7 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { unitLeaderService } from "@/services/firestore/unitLeaderService";
 import { unitTransportNotesService } from "@/services/firestore/unitTransportNotesService";
-import type { CampPatrolRole, Registration, UserProfile } from "@/types";
+import type { CampPatrolRole, CampPublicMember, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { isCampPackingActivity } from "@/utils/campPacking";
 import { getParentAuthorizationBadge } from "@/utils/parentAuthorization";
@@ -254,6 +254,7 @@ type CampGroup =
       registrations: Registration[];
       roles: Record<string, CampPatrolRole>;
       manualLeaderNames: string[];
+      publicMembers: CampPublicMember[];
     }
   | {
       kind: "committee";
@@ -262,6 +263,7 @@ type CampGroup =
       registrations: Registration[];
       roles: Record<string, "leader" | "member">;
       manualLeaderNames: string[];
+      publicMembers: CampPublicMember[];
     };
 
 function getPatrolRoleShortLabel(role: CampPatrolRole | null) {
@@ -279,6 +281,37 @@ function getPatrolRoleShortLabel(role: CampPatrolRole | null) {
 
 function getCommitteeRoleShortLabel(role: "leader" | "member" | null) {
   return role === "leader" ? "Responsabile" : "Membro";
+}
+
+function getCampGroupMemberCount(group: CampGroup) {
+  return group.publicMembers.length + group.manualLeaderNames.length;
+}
+
+function getCampGroupPreview(group: CampGroup) {
+  return [
+    ...group.manualLeaderNames,
+    ...group.publicMembers.map((member) => member.fullName),
+  ]
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(", ");
+}
+
+function getCampPublicMemberSubtitle(member: CampPublicMember) {
+  return [
+    getGenderRoleCategoryLabel(member.genderRoleCategory),
+    member.unitName,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getCampPublicMemberRoleLabel(member: CampPublicMember, kind: CampGroup["kind"]) {
+  if (kind === "patrol") {
+    return getPatrolRoleShortLabel(member.role as CampPatrolRole);
+  }
+
+  return getCommitteeRoleShortLabel(member.role === "leader" ? "leader" : "member");
 }
 
 export function UnitActivityPage() {
@@ -410,6 +443,7 @@ export function UnitActivityPage() {
         registrations,
         roles,
         manualLeaderNames,
+        publicMembers: committee.publicMembers,
       });
     }
 
@@ -447,6 +481,7 @@ export function UnitActivityPage() {
         registrations,
         roles,
         manualLeaderNames: [],
+        publicMembers: patrol.publicMembers,
       });
     }
 
@@ -535,48 +570,51 @@ export function UnitActivityPage() {
           <div className="admin-section__head">
             <div>
               <h2>Organizzazione campeggio</h2>
-              <p className="subtle-text">Comitati e pattuglie dove compaiono ragazzi della tua unità</p>
+              <p className="subtle-text">Comitati e pattuglie completi del campeggio</p>
             </div>
+            <Link className="button button--ghost button--small" to={`/admin/events/${eventId}/comitati`}>
+              Gestisci
+            </Link>
           </div>
           <div className="camp-ios-grid">
-            {campGroups.map((group) => (
-              <button
-                className={
-                  group.kind === "committee"
-                    ? "camp-ios-card camp-ios-card--committee"
-                    : "camp-ios-card camp-ios-card--patrol"
-                }
-                key={`${group.kind}:${group.id}`}
-                onClick={() => setSelectedCampGroupKey(`${group.kind}:${group.id}`)}
-                type="button"
-              >
-                <span className="camp-ios-card__icon" aria-hidden="true">
-                  {group.kind === "committee" ? "◌" : "🧭"}
-                </span>
-                  <span className="camp-ios-card__body">
-                  <strong>{group.title}</strong>
-                  <small>
-                    {group.kind === "committee" ? "Comitato" : "Pattuglia"} ·{" "}
-                    {group.registrations.length} della tua unità
-                  </small>
-                  <span className="camp-ios-card__preview">
-                    {[
-                      ...group.manualLeaderNames,
-                      ...group.registrations.map((registration) => registration.fullName),
-                    ]
-                      .slice(0, 3)
-                      .join(", ") || "Nessun iscritto della tua unità assegnato"}
+            {campGroups.map((group) => {
+              const memberCount = getCampGroupMemberCount(group);
+              const preview = getCampGroupPreview(group);
+
+              return (
+                <button
+                  className={
+                    group.kind === "committee"
+                      ? "camp-ios-card camp-ios-card--committee"
+                      : "camp-ios-card camp-ios-card--patrol"
+                  }
+                  key={`${group.kind}:${group.id}`}
+                  onClick={() => setSelectedCampGroupKey(`${group.kind}:${group.id}`)}
+                  type="button"
+                >
+                  <span className="camp-ios-card__icon" aria-hidden="true">
+                    {group.kind === "committee" ? "◌" : "🧭"}
                   </span>
-                </span>
-                <AppIcon name="arrow-right" />
-              </button>
-            ))}
+                  <span className="camp-ios-card__body">
+                    <strong>{group.title}</strong>
+                    <small>
+                      {group.kind === "committee" ? "Comitato" : "Pattuglia"} ·{" "}
+                      {memberCount} {memberCount === 1 ? "persona" : "persone"}
+                    </small>
+                    <span className="camp-ios-card__preview">
+                      {preview || "Nessuna persona assegnata"}
+                    </span>
+                  </span>
+                  <AppIcon name="arrow-right" />
+                </button>
+              );
+            })}
           </div>
         </section>
       ) : null}
 
       {data.event && session?.firebaseUser.uid && isCampPackingActivity(data.event) ? (
-        <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} />
+        <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} variant="unit" />
       ) : null}
 
       <section className="activity-ios-panel admin-section">
@@ -660,24 +698,16 @@ export function UnitActivityPage() {
                 <StatusBadge label="Responsabile" tone="info" />
               </article>
             ))}
-            {selectedCampGroup.registrations.map((registration) => (
-              <article className="camp-person-row" key={registration.id}>
+            {selectedCampGroup.publicMembers.map((member) => (
+              <article className="camp-person-row" key={member.registrationId}>
                 <span>
-                  <strong>{registration.fullName}</strong>
-                  <small>{getGenderRoleCategoryLabel(registration.genderRoleCategory)}</small>
+                  <strong>{member.fullName}</strong>
+                  <small>{getCampPublicMemberSubtitle(member)}</small>
                 </span>
-                {selectedCampGroup.kind === "patrol" ? (
-                  <StatusBadge
-                    label={getPatrolRoleShortLabel(selectedCampGroup.roles[registration.id] ?? null)}
-                    tone="info"
-                  />
-                ) : null}
-                {selectedCampGroup.kind === "committee" ? (
-                  <StatusBadge
-                    label={getCommitteeRoleShortLabel(selectedCampGroup.roles[registration.id] ?? null)}
-                    tone="info"
-                  />
-                ) : null}
+                <StatusBadge
+                  label={getCampPublicMemberRoleLabel(member, selectedCampGroup.kind)}
+                  tone="info"
+                />
               </article>
             ))}
           </div>

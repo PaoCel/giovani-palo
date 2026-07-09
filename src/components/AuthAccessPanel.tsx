@@ -101,6 +101,15 @@ function isCampManagementAdminPath(pathname: string) {
   return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
 }
 
+function isAdultCampStaffSession(
+  session: NonNullable<ReturnType<typeof useAuth>["session"]>,
+) {
+  return (
+    session.profile.genderRoleCategory === "dirigente" ||
+    session.profile.genderRoleCategory === "accompagnatore"
+  );
+}
+
 function isCompatibleRedirect(
   session: NonNullable<ReturnType<typeof useAuth>["session"]>,
   redirect: string,
@@ -109,7 +118,11 @@ function isCompatibleRedirect(
   // di un utente con ruolo diverso) viene ignorato. Path neutri pubblici
   // o legati a /activities restano onorati.
   if (redirect.startsWith("/admin")) {
-    return session.isAdmin || (session.isUnitLeader && isCampManagementAdminPath(redirect));
+    return (
+      session.isAdmin ||
+      (isCampManagementAdminPath(redirect) &&
+        (session.isUnitLeader || isAdultCampStaffSession(session)))
+    );
   }
   if (redirect.startsWith("/unit")) return session.isUnitLeader;
   if (redirect.startsWith("/family")) return session.isParent;
