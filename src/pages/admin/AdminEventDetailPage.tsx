@@ -873,12 +873,8 @@ export function AdminEventDetailPage() {
   const assignedRoomCount = activeRegistrations.filter((registration) =>
     Boolean(registration.assignedRoomId),
   ).length;
-  const assignedPatrolCount = activeRegistrations.filter((registration) =>
-    Boolean(registration.assignedPatrolId),
-  ).length;
-  const assignedCommitteeCount = activeRegistrations.filter(
-    (registration) => registration.assignedCommittees.length > 0,
-  ).length;
+  const assignedPatrolCount = patrolAssignmentByRegistrationId.size;
+  const assignedCommitteeCount = committeeAssignmentByRegistrationId.size;
   const averageAge = getAverageAge(activeRegistrations);
   const comparisonCounts = (data?.registrationsPerEvent ?? [])
     .map((item) => ({

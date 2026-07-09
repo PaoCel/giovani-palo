@@ -553,7 +553,11 @@ export const campManagementService = {
       { merge: true },
     );
 
-    await syncRegistrationCampAssignments(linked.registrationsSnapshot, publicPlan, timestamp);
+    void syncRegistrationCampAssignments(linked.registrationsSnapshot, publicPlan, timestamp).catch(
+      (error) => {
+        console.warn("Camp management saved, but assignment sync failed.", error);
+      },
+    );
 
     return publicPlan;
   },
