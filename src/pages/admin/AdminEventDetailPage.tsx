@@ -426,6 +426,7 @@ export function AdminEventDetailPage() {
   const [campDraft, setCampDraft] = useState<CampManagementPlan>(
     campManagementService.getDefaultCampManagement(),
   );
+  const [campDraftDirty, setCampDraftDirty] = useState(false);
   const [manualLeaderName, setManualLeaderName] = useState("");
   const [selectedCampCommitteeId, setSelectedCampCommitteeId] =
     useState<CampCommitteeId | null>(null);
@@ -520,6 +521,7 @@ export function AdminEventDetailPage() {
 
   useEffect(() => {
     setCampDraft(campManagement);
+    setCampDraftDirty(false);
   }, [campManagement]);
 
   const sortedRegistrations = useMemo(
@@ -976,6 +978,7 @@ export function AdminEventDetailPage() {
     registrationId: string,
     role: "leader" | "member",
   ) {
+    setCampDraftDirty(true);
     setCampDraft((current) => {
       const target = current.committees.find(
         (committee) => committee.id === committeeId,
@@ -1023,6 +1026,7 @@ export function AdminEventDetailPage() {
     committeeId: CampCommitteeId,
     manualLeaderId: string,
   ) {
+    setCampDraftDirty(true);
     setCampDraft((current) => {
       const target = current.committees.find(
         (committee) => committee.id === committeeId,
@@ -1059,6 +1063,7 @@ export function AdminEventDetailPage() {
     if (!fullName) return;
 
     const timestamp = new Date().toISOString();
+    setCampDraftDirty(true);
     setCampDraft((current) => ({
       ...current,
       manualLeaders: [
@@ -1076,6 +1081,7 @@ export function AdminEventDetailPage() {
   }
 
   function removeManualLeader(manualLeaderId: string) {
+    setCampDraftDirty(true);
     setCampDraft((current) => ({
       ...current,
       manualLeaders: current.manualLeaders.filter(
@@ -1093,6 +1099,7 @@ export function AdminEventDetailPage() {
   function addPatrol() {
     const timestamp = new Date().toISOString();
 
+    setCampDraftDirty(true);
     setCampDraft((current) => ({
       ...current,
       patrols: [
@@ -1110,21 +1117,12 @@ export function AdminEventDetailPage() {
     }));
   }
 
-  function removePatrol(patrolId: string) {
-    const confirmed = window.confirm("Rimuovere questa pattuglia?");
-    if (!confirmed) return;
-
-    setCampDraft((current) => ({
-      ...current,
-      patrols: current.patrols.filter((patrol) => patrol.id !== patrolId),
-    }));
-  }
-
   function updatePatrolField<Key extends keyof CampPatrolPlan>(
     patrolId: string,
     key: Key,
     value: CampPatrolPlan[Key],
   ) {
+    setCampDraftDirty(true);
     setCampDraft((current) => ({
       ...current,
       patrols: current.patrols.map((patrol) =>
@@ -1153,6 +1151,7 @@ export function AdminEventDetailPage() {
   }
 
   function setPatrolLeader(patrolId: string, registrationId: string) {
+    setCampDraftDirty(true);
     setCampDraft((current) => ({
       ...current,
       patrols: current.patrols.map((patrol) => {
@@ -1172,6 +1171,7 @@ export function AdminEventDetailPage() {
     key: "supervisorRegistrationIds" | "memberRegistrationIds",
     registrationId: string,
   ) {
+    setCampDraftDirty(true);
     setCampDraft((current) => {
       const targetPatrol = current.patrols.find(
         (patrol) => patrol.id === patrolId,
@@ -1198,7 +1198,10 @@ export function AdminEventDetailPage() {
     });
   }
 
-  async function handleSaveCampManagement() {
+  async function handleSaveCampManagement(options?: {
+    closeModal?: boolean;
+    draftOverride?: CampManagementPlan;
+  }) {
     setBusy("saveCampManagement");
     setActionError(null);
     setActionInfo(null);
@@ -1207,10 +1210,15 @@ export function AdminEventDetailPage() {
       const saved = await campManagementService.saveCampManagement(
         stakeId,
         resolvedEventId,
-        campDraft,
+        options?.draftOverride ?? campDraft,
       );
       setCampDraft(saved);
+      setCampDraftDirty(false);
       setActionInfo("Comitati e pattuglie salvati.");
+      if (options?.closeModal) {
+        setSelectedCampCommitteeId(null);
+        setSelectedCampPatrolId(null);
+      }
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
       setActionError(
@@ -1221,6 +1229,19 @@ export function AdminEventDetailPage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function handleRemovePatrolAndSave(patrolId: string) {
+    const confirmed = window.confirm("Rimuovere questa pattuglia e salvare?");
+    if (!confirmed) return;
+
+    const nextDraft = {
+      ...campDraft,
+      patrols: campDraft.patrols.filter((patrol) => patrol.id !== patrolId),
+    };
+    setCampDraftDirty(true);
+    setCampDraft(nextDraft);
+    await handleSaveCampManagement({ closeModal: true, draftOverride: nextDraft });
   }
 
   async function handleDownloadCampManagementExcel() {
@@ -2201,11 +2222,22 @@ export function AdminEventDetailPage() {
                 >
                   <AppIcon name="check" />
                   <span>
-                    {busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}
+                    {busy === "saveCampManagement"
+                      ? "Salvataggio..."
+                      : campDraftDirty
+                        ? "Salva modifiche"
+                        : "Salvato"}
                   </span>
                 </button>
               </div>
             </div>
+
+            {campDraftDirty ? (
+              <div className="camp-save-state" role="status">
+                <AppIcon name="bell" />
+                <span>Modifiche non ancora salvate</span>
+              </div>
+            ) : null}
 
             <div className="form-stack form-stack--compact">
               <label className="field">
@@ -3469,20 +3501,29 @@ export function AdminEventDetailPage() {
                 onClick={() => setSelectedCampCommitteeId(null)}
                 type="button"
               >
-                Chiudi
+                {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
               </button>
               <button
                 className="button button--primary"
                 disabled={busy === "saveCampManagement" || loading}
-                onClick={() => void handleSaveCampManagement()}
+                onClick={() =>
+                  void handleSaveCampManagement({ closeModal: true })
+                }
                 type="button"
               >
-                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}
+                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva e chiudi"}
               </button>
             </>
           }
         >
           <div className="camp-modal-stack">
+            {campDraftDirty ? (
+              <div className="camp-save-state camp-save-state--modal" role="status">
+                <AppIcon name="bell" />
+                <span>Modifiche non ancora salvate</span>
+              </div>
+            ) : null}
+
             <div className="camp-ios-summary">
               <article>
                 <span>Dirigenti</span>
@@ -3654,30 +3695,39 @@ export function AdminEventDetailPage() {
                 onClick={() => setSelectedCampPatrolId(null)}
                 type="button"
               >
-                Chiudi
+                {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
               </button>
               <button
                 className="button button--ghost button--danger"
-                onClick={() => {
-                  removePatrol(selectedCampPatrol.id);
-                  setSelectedCampPatrolId(null);
-                }}
+                disabled={busy === "saveCampManagement" || loading}
+                onClick={() =>
+                  void handleRemovePatrolAndSave(selectedCampPatrol.id)
+                }
                 type="button"
               >
-                Elimina
+                Elimina e salva
               </button>
               <button
                 className="button button--primary"
                 disabled={busy === "saveCampManagement" || loading}
-                onClick={() => void handleSaveCampManagement()}
+                onClick={() =>
+                  void handleSaveCampManagement({ closeModal: true })
+                }
                 type="button"
               >
-                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva"}
+                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva e chiudi"}
               </button>
             </>
           }
         >
           <div className="camp-modal-stack">
+            {campDraftDirty ? (
+              <div className="camp-save-state camp-save-state--modal" role="status">
+                <AppIcon name="bell" />
+                <span>Modifiche non ancora salvate</span>
+              </div>
+            ) : null}
+
             <label className="field">
               <span className="field__label">Nome pattuglia</span>
               <input

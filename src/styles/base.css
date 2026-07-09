@@ -8508,6 +8508,33 @@ button {
   gap: 1rem;
 }
 
+.camp-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(180, 112, 28, 0.22);
+  background: rgba(255, 248, 236, 0.96);
+  color: #6d4512;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.camp-save-state svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.camp-save-state--modal {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  width: 100%;
+  justify-content: center;
+}
+
 .camp-ios-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
