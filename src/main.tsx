@@ -16,6 +16,19 @@ updateDisplayModeFlag();
 const displayModeQuery = window.matchMedia("(display-mode: standalone)");
 displayModeQuery.addEventListener("change", updateDisplayModeFlag);
 
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  try {
+    if (sessionStorage.getItem("gugd-chunk-reload")) {
+      return;
+    }
+    sessionStorage.setItem("gugd-chunk-reload", "1");
+  } catch {
+    // sessionStorage non disponibile: proviamo comunque il reload.
+  }
+  window.location.reload();
+});
+
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => undefined);

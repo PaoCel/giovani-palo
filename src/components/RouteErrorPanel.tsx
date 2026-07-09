@@ -11,7 +11,7 @@ export function RouteErrorPanel() {
     error instanceof Error ? error.message : "Si è verificato un errore inatteso.";
   const isChunkError =
     error instanceof Error &&
-    /dynamically imported module|Loading chunk|Importing a module script failed/i.test(
+    /dynamically imported module|Loading chunk|Importing a module script failed|valid JavaScript MIME type|module script.*MIME type|text\/html/i.test(
       message,
     );
 
