@@ -374,8 +374,9 @@ export function AdminEventDetailPage() {
   const navigate = useNavigate();
   const stakeId = session?.profile.stakeId ?? "roma-est";
   const routeTab = getAdminEventTabFromPath(location.pathname);
+  const isCampManagementTab = routeTab === "committees";
   const isCampManagerOnly =
-    routeTab === "committees" && Boolean(session?.isUnitLeader && !session.isAdmin);
+    isCampManagementTab && Boolean(session?.isUnitLeader && !session.isAdmin);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [busy, setBusy] = useState<
@@ -440,7 +441,7 @@ export function AdminEventDetailPage() {
         return null;
       }
 
-      if (isCampManagerOnly) {
+      if (isCampManagementTab) {
         const [workspace, campManagement] = await Promise.all([
           adminEventsService.getAdminEventWorkspace(stakeId, eventId),
           campManagementService.getCampManagement(stakeId, eventId),
@@ -487,12 +488,12 @@ export function AdminEventDetailPage() {
         campManagement,
       };
     },
-    [eventId, isCampManagerOnly, refreshKey, stakeId],
+    [eventId, isCampManagementTab, refreshKey, stakeId],
     null,
   );
 
   const questionsEnabled =
-    !isCampManagerOnly && data?.workspace.event.questionsEnabled === true;
+    !isCampManagementTab && data?.workspace.event.questionsEnabled === true;
   const [questionsRefreshKey, setQuestionsRefreshKey] = useState(0);
   const {
     data: questions,
