@@ -6515,6 +6515,74 @@ button {
   background: rgba(248, 250, 253, 0.86);
 }
 
+.page--unit-activity .camp-youth-screen--unit {
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid rgba(18, 33, 59, 0.08);
+  border-radius: 1.45rem;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(251, 253, 255, 0.95)
+  );
+  box-shadow:
+    0 18px 44px rgba(18, 33, 59, 0.07),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
+}
+
+.page--unit-activity .camp-youth-screen--unit .camp-section-eyebrow,
+.page--unit-activity .camp-youth-screen--unit .camp-cat-head h3 {
+  color: #235d90;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+}
+
+.page--unit-activity .camp-youth-screen--unit .camp-section-title {
+  margin: -0.2rem 0 0;
+  color: #081735;
+  font-family: "Manrope", sans-serif;
+  font-size: 1.1rem;
+}
+
+.page--unit-activity .camp-youth-screen--unit .packing-journey-card {
+  border: 1px solid rgba(18, 33, 59, 0.08);
+  border-radius: 1.15rem;
+  background: rgba(248, 250, 253, 0.88);
+  color: #12213b;
+  box-shadow: 0 12px 28px rgba(18, 33, 59, 0.05);
+}
+
+.page--unit-activity .camp-youth-screen--unit .packing-journey-card::after {
+  display: none;
+}
+
+.page--unit-activity .camp-youth-screen--unit .packing-journey-card__top strong {
+  color: #235d90;
+}
+
+.page--unit-activity .camp-youth-screen--unit .packing-journey-card__foot {
+  color: #52617a;
+}
+
+.page--unit-activity .camp-youth-screen--unit .camp-trail-bar {
+  background: rgba(18, 33, 59, 0.08);
+}
+
+.page--unit-activity .camp-youth-screen--unit .camp-pill-btn {
+  border-color: rgba(18, 33, 59, 0.08);
+  border-radius: 1rem;
+  box-shadow: 0 10px 22px rgba(18, 33, 59, 0.04);
+}
+
+.page--unit-activity .camp-youth-screen--unit .camp-cat-card {
+  margin-bottom: 0;
+  border-color: rgba(18, 33, 59, 0.08);
+  border-radius: 1.15rem;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(18, 33, 59, 0.04);
+}
+
 @media (max-width: 760px) {
   .page--activity-ios {
     width: min(100% - 18px, 44rem);

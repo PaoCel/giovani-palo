@@ -375,8 +375,8 @@ export function AdminEventDetailPage() {
   const stakeId = session?.profile.stakeId ?? "roma-est";
   const routeTab = getAdminEventTabFromPath(location.pathname);
   const isCampManagementTab = routeTab === "committees";
-  const isCampManagerOnly =
-    isCampManagementTab && Boolean(session?.isUnitLeader && !session.isAdmin);
+  const isStatsTab = routeTab === "stats";
+  const isCampManagerOnly = isCampManagementTab && Boolean(session && !session.isAdmin);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [busy, setBusy] = useState<
@@ -459,27 +459,34 @@ export function AdminEventDetailPage() {
         };
       }
 
-      const [workspace, organization, allEvents, campManagement] =
-        await Promise.all([
-          adminEventsService.getAdminEventWorkspace(stakeId, eventId),
-          organizationService.getProfile(stakeId),
-          adminEventsService.listAdminEvents(stakeId),
-          campManagementService.getCampManagement(stakeId, eventId),
-        ]);
+      const [workspace, organization, campManagement] = await Promise.all([
+        adminEventsService.getAdminEventWorkspace(stakeId, eventId),
+        organizationService.getProfile(stakeId),
+        campManagementService.getCampManagement(stakeId, eventId),
+      ]);
 
       if (!workspace) {
         return null;
       }
 
-      const registrationsPerEvent = await Promise.all(
-        allEvents.map(async (event) => ({
-          eventId: event.id,
-          registrations: await registrationsService.listRegistrationsByEvent(
-            stakeId,
-            event.id,
-          ),
-        })),
-      );
+      // Le statistiche di confronto (rank + media iscritti tra eventi) vivono
+      // solo nella tab "stats". Caricare le iscrizioni di TUTTI gli eventi ad
+      // ogni apertura della scheda era un N+1 che rallentava ogni visita:
+      // ora si paga solo quando serve davvero.
+      const registrationsPerEvent = isStatsTab
+        ? await Promise.all(
+            (await adminEventsService.listAdminEvents(stakeId)).map(
+              async (event) => ({
+                eventId: event.id,
+                registrations:
+                  await registrationsService.listRegistrationsByEvent(
+                    stakeId,
+                    event.id,
+                  ),
+              }),
+            ),
+          )
+        : [];
 
       return {
         workspace,
@@ -488,7 +495,7 @@ export function AdminEventDetailPage() {
         campManagement,
       };
     },
-    [eventId, isCampManagementTab, refreshKey, stakeId],
+    [eventId, isCampManagementTab, isStatsTab, refreshKey, stakeId],
     null,
   );
 

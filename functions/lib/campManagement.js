@@ -356,7 +356,7 @@ function linkManualLeadersByName(registrationsSnapshot, plan) {
   };
 }
 
-async function assertCampManager(db, request, stakeId) {
+async function assertCampManager(db, request, stakeId, activityId) {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Login richiesto.");
   }
@@ -368,11 +368,25 @@ async function assertCampManager(db, request, stakeId) {
 
   const user = userDoc.data() || {};
   const sameStake = user.role === "super_admin" || user.stakeId === stakeId;
-  const canManage =
-    sameStake &&
-    (user.role === "admin" || user.role === "super_admin" || user.role === "unit_leader");
+  const hasManagerRole =
+    user.role === "admin" || user.role === "super_admin" || user.role === "unit_leader";
 
-  if (!canManage) {
+  if (sameStake && hasManagerRole) {
+    return user;
+  }
+
+  const registrationDoc = await db
+    .doc(`stakes/${stakeId}/activities/${activityId}/registrations/user_${request.auth.uid}`)
+    .get();
+  const registration = registrationDoc.exists ? registrationDoc.data() || {} : {};
+  const registrationStatus = asString(registration.registrationStatus) || asString(registration.status);
+  const isActiveAdultCampRegistration =
+    registrationDoc.exists &&
+    sameStake &&
+    isAdultCategory(registration.genderRoleCategory) &&
+    registrationStatus !== "cancelled";
+
+  if (!isActiveAdultCampRegistration) {
     throw new HttpsError("permission-denied", "Servono privilegi comitato/pattuglia.");
   }
 
@@ -417,7 +431,7 @@ const campManagementSave = onCall(
       throw new HttpsError("invalid-argument", "stakeId e activityId sono obbligatori.");
     }
 
-    await assertCampManager(db, request, stakeId);
+    await assertCampManager(db, request, stakeId, activityId);
 
     const activityRef = db.doc(`stakes/${stakeId}/activities/${activityId}`);
     const activitySnapshot = await activityRef.get();

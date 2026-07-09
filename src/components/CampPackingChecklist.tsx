@@ -7,11 +7,13 @@ import { buildCampPackingSections } from "@/utils/campPacking";
 interface CampPackingChecklistProps {
   event: Event;
   userId: string;
+  variant?: "youth" | "unit";
 }
 
 export function CampPackingChecklist({
   event,
   userId,
+  variant = "youth",
 }: CampPackingChecklistProps) {
   const sections = useMemo(
     () => buildCampPackingSections(event.whatToBring),
@@ -98,7 +100,13 @@ export function CampPackingChecklist({
   }
 
   return (
-    <section className="camp-youth-screen camp-youth-screen--packing">
+    <section
+      className={
+        variant === "unit"
+          ? "camp-youth-screen camp-youth-screen--packing camp-youth-screen--unit"
+          : "camp-youth-screen camp-youth-screen--packing"
+      }
+    >
       <span className="camp-section-eyebrow">Preparazione campeggio</span>
       <h2 className="camp-section-title">Cosa portare nello zaino</h2>
 
