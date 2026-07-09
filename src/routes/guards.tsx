@@ -3,6 +3,10 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { AppLoader } from "@/components/AppLoader";
 import { useAuth } from "@/hooks/useAuth";
 
+function isCampManagementAdminPath(pathname: string) {
+  return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
+}
+
 export function ProtectedRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
@@ -24,7 +28,7 @@ export function ProtectedRoute() {
     return <Navigate replace to="/password-reset" />;
   }
 
-  if (session.isUnitLeader) {
+  if (session.isUnitLeader && !isCampManagementAdminPath(location.pathname)) {
     return <Navigate replace to="/unit" />;
   }
 
@@ -56,7 +60,7 @@ export function AdminRoute() {
     return <Navigate replace to="/password-reset" />;
   }
 
-  if (session.isUnitLeader) {
+  if (session.isUnitLeader && !isCampManagementAdminPath(location.pathname)) {
     return <Navigate replace to="/unit" />;
   }
 
@@ -64,7 +68,7 @@ export function AdminRoute() {
     return <Navigate replace to="/family" />;
   }
 
-  if (!session.isAdmin) {
+  if (!session.isAdmin && !(session.isUnitLeader && isCampManagementAdminPath(location.pathname))) {
     return <Navigate replace to="/me" />;
   }
 
