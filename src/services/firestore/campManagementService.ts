@@ -3,12 +3,11 @@ import {
   doc,
   getDoc,
   getDocs,
-  serverTimestamp,
-  setDoc,
   writeBatch,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
-import { db } from "@/services/firebase/app";
+import { db, functions } from "@/services/firebase/app";
 import type {
   CampCommitteeAssignment,
   CampCommitteeId,
@@ -32,6 +31,17 @@ const COMMITTEE_DEFINITIONS: Array<{
   { id: "games", title: "Giochi e Attività", emoji: "🛝" },
   { id: "spiritual", title: "Pensieri Spirituali e Serate", emoji: "ℹ️" },
 ];
+
+interface CampManagementSaveResult {
+  ok: boolean;
+  plan: CampManagementPlan;
+  registrationsSynced: number;
+}
+
+const campManagementSaveCallable = httpsCallable<
+  { stakeId: string; activityId: string; plan: CampManagementPlan },
+  CampManagementSaveResult
+>(functions, "campManagementSave");
 
 function nowIso() {
   return new Date().toISOString();
@@ -513,52 +523,12 @@ export const campManagementService = {
     eventId: string,
     input: CampManagementPlan,
   ): Promise<CampManagementPlan> {
-    const timestamp = nowIso();
-    const normalized = normalizeCampManagement({
-      ...input,
-      updatedAt: timestamp,
-      committees: input.committees.map((committee) => ({
-        ...committee,
-        title: committee.title.trim(),
-        leaderRegistrationIds: uniqueStrings(committee.leaderRegistrationIds),
-        manualLeaderIds: uniqueStrings(committee.manualLeaderIds),
-        memberRegistrationIds: uniqueStrings(committee.memberRegistrationIds),
-        updatedAt: timestamp,
-      })),
-      patrols: input.patrols.map((patrol, index) => ({
-        ...patrol,
-        id: patrol.id.trim() || `patrol-${index + 1}`,
-        name: patrol.name.trim() || `Pattuglia ${index + 1}`,
-        supervisorRegistrationIds: uniqueStrings(patrol.supervisorRegistrationIds),
-        memberRegistrationIds: uniqueStrings(patrol.memberRegistrationIds),
-        updatedAt: timestamp,
-      })),
-      manualLeaders: input.manualLeaders.map((leader, index) => ({
-        ...leader,
-        id: leader.id.trim() || `manual-leader-${index + 1}`,
-        fullName: leader.fullName.trim(),
-        updatedAt: timestamp,
-      })),
+    const result = await campManagementSaveCallable({
+      stakeId,
+      activityId: eventId,
+      plan: input,
     });
-    const linked = await linkManualLeadersByName(stakeId, eventId, normalized);
 
-    const publicPlan = attachPublicMembers(linked.registrationsSnapshot, linked.plan);
-
-    await setDoc(
-      getCampManagementReference(stakeId, eventId),
-      {
-        ...publicPlan,
-        savedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
-
-    void syncRegistrationCampAssignments(linked.registrationsSnapshot, publicPlan, timestamp).catch(
-      (error) => {
-        console.warn("Camp management saved, but assignment sync failed.", error);
-      },
-    );
-
-    return publicPlan;
+    return normalizeCampManagement(result.data.plan as unknown as Record<string, unknown>);
   },
 };
