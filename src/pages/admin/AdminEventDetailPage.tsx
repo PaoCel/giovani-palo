@@ -647,6 +647,22 @@ export function AdminEventDetailPage() {
 
     return map;
   }, [campDraft.patrols]);
+  const patrolAssignmentByManualSupervisorId = useMemo(() => {
+    const map = new Map<string, { patrolId: string; patrolName: string }>();
+
+    for (const patrol of campDraft.patrols) {
+      for (const manualSupervisorId of patrol.manualSupervisorIds) {
+        if (!map.has(manualSupervisorId)) {
+          map.set(manualSupervisorId, {
+            patrolId: patrol.id,
+            patrolName: patrol.name,
+          });
+        }
+      }
+    }
+
+    return map;
+  }, [campDraft.patrols]);
   const organizationDistribution = useMemo(
     () =>
       buildDistribution(
@@ -1101,6 +1117,12 @@ export function AdminEventDetailPage() {
           (value) => value !== manualLeaderId,
         ),
       })),
+      patrols: current.patrols.map((patrol) => ({
+        ...patrol,
+        manualSupervisorIds: patrol.manualSupervisorIds.filter(
+          (value) => value !== manualLeaderId,
+        ),
+      })),
     }));
   }
 
@@ -1117,6 +1139,7 @@ export function AdminEventDetailPage() {
           name: `Pattuglia ${current.patrols.length + 1}`,
           leaderRegistrationId: "",
           supervisorRegistrationIds: [],
+          manualSupervisorIds: [],
           memberRegistrationIds: [],
           publicMembers: [],
           updatedAt: timestamp,
@@ -1200,6 +1223,43 @@ export function AdminEventDetailPage() {
           return {
             ...withoutRegistration,
             [key]: [...withoutRegistration[key], registrationId],
+          };
+        }),
+      };
+    });
+  }
+
+  function togglePatrolManualSupervisor(
+    patrolId: string,
+    manualSupervisorId: string,
+  ) {
+    setCampDraftDirty(true);
+    setCampDraft((current) => {
+      const target = current.patrols.find((patrol) => patrol.id === patrolId);
+      const isRemoving = Boolean(
+        target?.manualSupervisorIds.includes(manualSupervisorId),
+      );
+
+      return {
+        ...current,
+        patrols: current.patrols.map((patrol) => {
+          const withoutSupervisor = {
+            ...patrol,
+            manualSupervisorIds: patrol.manualSupervisorIds.filter(
+              (value) => value !== manualSupervisorId,
+            ),
+          };
+
+          if (patrol.id !== patrolId || isRemoving) {
+            return withoutSupervisor;
+          }
+
+          return {
+            ...withoutSupervisor,
+            manualSupervisorIds: [
+              ...withoutSupervisor.manualSupervisorIds,
+              manualSupervisorId,
+            ],
           };
         }),
       };
@@ -2379,6 +2439,10 @@ export function AdminEventDetailPage() {
                     ...patrol.supervisorRegistrationIds.map((registrationId) =>
                       getRegistrationName(registrationId),
                     ),
+                    ...patrol.manualSupervisorIds.map(
+                      (manualSupervisorId) =>
+                        manualLeaderById.get(manualSupervisorId)?.fullName ?? "",
+                    ),
                     ...patrol.memberRegistrationIds.map((registrationId) =>
                       getRegistrationName(registrationId),
                     ),
@@ -2401,7 +2465,9 @@ export function AdminEventDetailPage() {
                             ? "Capo assegnato"
                             : "Capo mancante"}
                           {" · "}
-                          {patrol.supervisorRegistrationIds.length} supervisori
+                          {patrol.supervisorRegistrationIds.length +
+                            patrol.manualSupervisorIds.length}{" "}
+                          supervisori
                           {" · "}
                           {patrol.memberRegistrationIds.length} membri
                         </small>
@@ -3827,6 +3893,53 @@ export function AdminEventDetailPage() {
                     </label>
                   );
                 })}
+              </div>
+            </section>
+
+            <section className="camp-modal-section">
+              <h3>Supervisori manuali</h3>
+              <div className="patrol-checkbox-list">
+                {campDraft.manualLeaders.length === 0 ? (
+                  <p className="subtle-text">
+                    Aggiungi i dirigenti manuali dalla schermata comitati.
+                  </p>
+                ) : (
+                  campDraft.manualLeaders.map((leader) => {
+                    const assignment =
+                      patrolAssignmentByManualSupervisorId.get(leader.id);
+                    const checked =
+                      selectedCampPatrol.manualSupervisorIds.includes(leader.id);
+                    const unavailable =
+                      assignment !== undefined &&
+                      assignment.patrolId !== selectedCampPatrol.id &&
+                      !checked;
+
+                    return (
+                      <label className="toggle-field" key={leader.id}>
+                        <input
+                          checked={checked}
+                          disabled={unavailable}
+                          onChange={() =>
+                            togglePatrolManualSupervisor(
+                              selectedCampPatrol.id,
+                              leader.id,
+                            )
+                          }
+                          type="checkbox"
+                        />
+                        <span>
+                          {leader.fullName}
+                          <small>
+                            {leader.linkedRegistrationId ? "Collegato" : "Manuale"}
+                          </small>
+                          {unavailable ? (
+                            <small>Già in {assignment.patrolName}</small>
+                          ) : null}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
               </div>
             </section>
 

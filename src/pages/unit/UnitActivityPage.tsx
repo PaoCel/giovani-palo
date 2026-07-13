@@ -480,7 +480,9 @@ export function UnitActivityPage() {
         title: patrol.name,
         registrations,
         roles,
-        manualLeaderNames: [],
+        manualLeaderNames: patrol.manualSupervisorIds
+          .map((leaderId) => manualLeaderById.get(leaderId))
+          .filter((value): value is string => Boolean(value)),
         publicMembers: patrol.publicMembers,
       });
     }

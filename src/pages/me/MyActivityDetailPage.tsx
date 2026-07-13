@@ -193,6 +193,26 @@ export function MyActivityDetailPage() {
       : patrolFromPlan || data.registration.assignedPatrolName
         ? [{ ...selfPublicMember, role: patrolRole ?? "member" }]
         : [];
+    const patrolManualSupervisors: CampPublicMember[] = (
+      patrolFromPlan?.manualSupervisorIds ?? []
+    ).flatMap((manualSupervisorId): CampPublicMember[] => {
+      const fullName = manualLeaderById.get(manualSupervisorId);
+      return fullName
+        ? [
+            {
+              registrationId: `manual-supervisor-${manualSupervisorId}`,
+              fullName,
+              genderRoleCategory: "dirigente",
+              unitName: "",
+              role: "supervisor",
+            },
+          ]
+        : [];
+    });
+    const patrolDisplayMembers = [
+      ...patrolPublicMembers,
+      ...patrolManualSupervisors,
+    ];
     const patrol = patrolFromPlan
       ? {
           id: patrolFromPlan.id,
@@ -201,8 +221,9 @@ export function MyActivityDetailPage() {
           assignedCount:
             patrolFromPlan.memberRegistrationIds.length +
             patrolFromPlan.supervisorRegistrationIds.length +
+            patrolFromPlan.manualSupervisorIds.length +
             (patrolFromPlan.leaderRegistrationId ? 1 : 0),
-          publicMembers: patrolPublicMembers,
+          publicMembers: patrolDisplayMembers,
         }
       : data.registration.assignedPatrolName
         ? {
@@ -210,7 +231,7 @@ export function MyActivityDetailPage() {
             name: data.registration.assignedPatrolName,
             role: data.registration.assignedPatrolRole,
             assignedCount: 1,
-            publicMembers: patrolPublicMembers,
+            publicMembers: patrolDisplayMembers,
           }
         : null;
 
