@@ -86,6 +86,7 @@ export interface CampPatrolPlan {
   name: string;
   leaderRegistrationId: string;
   supervisorRegistrationIds: string[];
+  manualSupervisorIds: string[];
   memberRegistrationIds: string[];
   publicMembers: CampPublicMember[];
   updatedAt: string;

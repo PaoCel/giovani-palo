@@ -346,6 +346,15 @@ export async function downloadCampManagementExcel(
     for (const registrationId of patrol.supervisorRegistrationIds) {
       pushRegistration(registrationId, "Supervisore");
     }
+    for (const manualSupervisorId of patrol.manualSupervisorIds) {
+      const supervisor = manualLeaderById.get(manualSupervisorId);
+      rows.push({
+        Pattuglia: patrol.name,
+        Ruolo: "Supervisore",
+        Nome: supervisor?.fullName ?? "",
+        "Rione/Ramo": "",
+      });
+    }
     for (const registrationId of patrol.memberRegistrationIds) {
       pushRegistration(registrationId, "Membro");
     }

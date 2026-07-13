@@ -211,6 +211,7 @@ function normalizePatrol(
   source: unknown,
   index: number,
   claimedRegistrationIds: Set<string>,
+  claimedManualSupervisorIds: Set<string>,
 ): CampPatrolPlan {
   const data =
     source && typeof source === "object" && !Array.isArray(source)
@@ -219,6 +220,7 @@ function normalizePatrol(
   const timestamp = asString(data.updatedAt) || nowIso();
   const leaderRegistrationId = asString(data.leaderRegistrationId);
   const supervisorRegistrationIds: string[] = [];
+  const manualSupervisorIds: string[] = [];
   const memberRegistrationIds: string[] = [];
   const roleByRegistrationId = new Map<string, CampPublicMember["role"]>();
   const safeLeaderRegistrationId =
@@ -238,6 +240,12 @@ function normalizePatrol(
     roleByRegistrationId.set(registrationId, "supervisor");
   }
 
+  for (const manualSupervisorId of uniqueStrings(asStringArray(data.manualSupervisorIds))) {
+    if (claimedManualSupervisorIds.has(manualSupervisorId)) continue;
+    claimedManualSupervisorIds.add(manualSupervisorId);
+    manualSupervisorIds.push(manualSupervisorId);
+  }
+
   for (const registrationId of uniqueStrings(asStringArray(data.memberRegistrationIds))) {
     if (claimedRegistrationIds.has(registrationId)) continue;
     claimedRegistrationIds.add(registrationId);
@@ -250,6 +258,7 @@ function normalizePatrol(
     name: asString(data.name) || `Pattuglia ${index + 1}`,
     leaderRegistrationId: safeLeaderRegistrationId,
     supervisorRegistrationIds,
+    manualSupervisorIds,
     memberRegistrationIds,
     publicMembers: normalizePublicMembers(data.publicMembers, roleByRegistrationId),
     updatedAt: timestamp,
@@ -280,6 +289,7 @@ function normalizeCampManagement(data: Record<string, unknown> | null): CampMana
   const claimedCommitteeRegistrationIds = new Set<string>();
   const claimedManualLeaderIds = new Set<string>();
   const claimedPatrolRegistrationIds = new Set<string>();
+  const claimedPatrolManualSupervisorIds = new Set<string>();
 
   return {
     committees: COMMITTEE_DEFINITIONS.map((definition) =>
@@ -291,7 +301,12 @@ function normalizeCampManagement(data: Record<string, unknown> | null): CampMana
       ),
     ),
     patrols: rawPatrols.map((patrol, index) =>
-      normalizePatrol(patrol, index, claimedPatrolRegistrationIds),
+      normalizePatrol(
+        patrol,
+        index,
+        claimedPatrolRegistrationIds,
+        claimedPatrolManualSupervisorIds,
+      ),
     ),
     manualLeaders: rawManualLeaders
       .map((leader, index) => normalizeManualLeader(leader, index))
