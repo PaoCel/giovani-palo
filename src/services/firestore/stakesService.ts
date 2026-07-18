@@ -1,6 +1,7 @@
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, query, setDoc, where } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   OrganizationRegistrationDefaults,
   OrganizationProfile,
@@ -335,7 +336,7 @@ function mapLegacyOrganizationProfile(
 }
 
 async function getLegacyOrganizationProfile() {
-  const snapshot = await getDoc(doc(db, "settings", "organization"));
+  const snapshot = await getDocCacheFirst(doc(db, "settings", "organization"));
 
   if (!snapshot.exists()) {
     return null;
@@ -362,7 +363,7 @@ export const stakesService = {
   },
 
   async listActiveStakesUncached() {
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(collection(db, "stakes"), where("isActive", "==", true)),
     );
 
@@ -416,7 +417,7 @@ export const stakesService = {
       return this.getDefaultStake();
     }
 
-    const snapshot = await getDoc(doc(db, "stakes", stakeId));
+    const snapshot = await getDocCacheFirst(doc(db, "stakes", stakeId));
 
     if (snapshot.exists()) {
       return mapStakeSummary(snapshot.id, snapshot.data());
@@ -449,7 +450,7 @@ export const stakesService = {
       return this.getStakeProfileById(defaultStake.id);
     }
 
-    const snapshot = await getDoc(doc(db, "stakes", stakeId));
+    const snapshot = await getDocCacheFirst(doc(db, "stakes", stakeId));
 
     if (snapshot.exists()) {
       return mapStakeProfileDocument(snapshot.id, snapshot.data());

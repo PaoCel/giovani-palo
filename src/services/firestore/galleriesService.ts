@@ -2,8 +2,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
-  getDocs,
   increment,
   onSnapshot,
   orderBy,
@@ -17,6 +15,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   Gallery,
   GalleryMedia,
@@ -143,7 +142,7 @@ export const galleriesService = {
 
   async listGalleries(stakeId: string): Promise<Gallery[]> {
     if (!stakeId) return [];
-    const snapshot = await getDocs(galleriesCollection(stakeId));
+    const snapshot = await getDocsCacheFirst(galleriesCollection(stakeId));
     return snapshot.docs
       .map((d) => mapGallery(stakeId, d.id, d.data()))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -151,7 +150,7 @@ export const galleriesService = {
 
   async listPublishedGalleries(stakeId: string): Promise<Gallery[]> {
     if (!stakeId) return [];
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(galleriesCollection(stakeId), where("published", "==", true)),
     );
     return snapshot.docs
@@ -161,7 +160,7 @@ export const galleriesService = {
 
   async getGallery(stakeId: string, galleryId: string): Promise<Gallery | null> {
     if (!stakeId || !galleryId) return null;
-    const snap = await getDoc(galleryDoc(stakeId, galleryId));
+    const snap = await getDocCacheFirst(galleryDoc(stakeId, galleryId));
     if (!snap.exists()) return null;
     return mapGallery(stakeId, snap.id, snap.data());
   },
@@ -225,7 +224,7 @@ export const galleriesService = {
     activityId: string,
   ): Promise<Gallery | null> {
     if (!stakeId || !activityId) return null;
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(galleriesCollection(stakeId), where("activityId", "==", activityId)),
     );
     if (snapshot.empty) return null;
@@ -292,7 +291,7 @@ export const galleriesService = {
     // media legacy (gallerie precedenti a questo flow) spesso non hanno
     // `order`. Risultato: listMedia tornava [] e la galleria appariva vuota.
     // Sortiamo client-side col fallback a 0 di mapMedia.
-    const snapshot = await getDocs(mediaCollection(stakeId, galleryId));
+    const snapshot = await getDocsCacheFirst(mediaCollection(stakeId, galleryId));
     return snapshot.docs
       .map((d) => mapMedia(stakeId, galleryId, d.id, d.data()))
       .sort(sortMedia);
@@ -356,7 +355,7 @@ export const galleriesService = {
     if (mediaIds.length === 0) return [];
     const fetched = await Promise.all(
       mediaIds.map(async (mediaId) => {
-        const snap = await getDoc(mediaDoc(stakeId, galleryId, mediaId));
+        const snap = await getDocCacheFirst(mediaDoc(stakeId, galleryId, mediaId));
         if (!snap.exists()) return null;
         return mapMedia(stakeId, galleryId, snap.id, snap.data());
       }),
@@ -495,13 +494,13 @@ export const galleriesService = {
     uid: string,
   ): Promise<GalleryMember | null> {
     if (!uid) return null;
-    const snap = await getDoc(memberDoc(stakeId, galleryId, uid));
+    const snap = await getDocCacheFirst(memberDoc(stakeId, galleryId, uid));
     if (!snap.exists()) return null;
     return mapMember(snap.id, snap.data());
   },
 
   async listMembers(stakeId: string, galleryId: string): Promise<GalleryMember[]> {
-    const snapshot = await getDocs(membersCollection(stakeId, galleryId));
+    const snapshot = await getDocsCacheFirst(membersCollection(stakeId, galleryId));
     return snapshot.docs.map((d) => mapMember(d.id, d.data()));
   },
 
@@ -546,7 +545,7 @@ export const galleriesService = {
   // Server-authoritative path is unlockGalleryWithCode callable.
   async listUnlockedForUser(uid: string): Promise<{ galleryId: string; stakeId: string }[]> {
     if (!uid) return [];
-    const snap = await getDocs(collection(db, "users", uid, "unlockedGalleries"));
+    const snap = await getDocsCacheFirst(collection(db, "users", uid, "unlockedGalleries"));
     return snap.docs
       .map((d) => {
         const data = d.data();

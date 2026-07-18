@@ -1,6 +1,7 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst } from "@/services/firestore/cacheFirst";
 
 function getPackingChecklistReference(stakeId: string, activityId: string, userId: string) {
   return doc(db, "stakes", stakeId, "activities", activityId, "packingChecklists", userId);
@@ -14,7 +15,7 @@ function normalizeCheckedItemIds(value: unknown) {
 
 export const packingChecklistService = {
   async getCheckedItemIds(stakeId: string, activityId: string, userId: string): Promise<string[]> {
-    const snapshot = await getDoc(getPackingChecklistReference(stakeId, activityId, userId));
+    const snapshot = await getDocCacheFirst(getPackingChecklistReference(stakeId, activityId, userId));
 
     if (!snapshot.exists()) {
       return [];
