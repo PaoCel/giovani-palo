@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { PageHero } from "@/components/PageHero";
+import { AppIcon } from "@/components/AppIcon";
 import { CampGallery } from "@/components/camp/CampGallery";
 import { SurveyAnswerView } from "@/components/survey/SurveyAnswerView";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,7 +31,7 @@ export function CampHubPage() {
 
   const [event, setEvent] = useState<Event | null>(null);
   const [hasSurvey, setHasSurvey] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [surveyChecked, setSurveyChecked] = useState(false);
 
   const initialTab: CampTab =
     searchParams.get("tab") === "sondaggio" ? "survey" : "gallery";
@@ -40,21 +40,24 @@ export function CampHubPage() {
   useEffect(() => {
     if (!eventId || !stakeId) return;
     let cancelled = false;
-    setLoading(true);
-    Promise.all([
-      eventsService.getEventById(stakeId, eventId),
-      surveysService
-        .listActiveQuestions(stakeId, eventId)
-        .then((questions) => questions.length > 0)
-        .catch(() => false),
-    ])
-      .then(([eventData, surveyExists]) => {
-        if (cancelled) return;
-        setEvent(eventData);
-        setHasSurvey(surveyExists);
+    // Evento e presenza sondaggio non bloccano la galleria: quest'ultima si
+    // carica per conto suo (cache-first). Qui solo titolo + tab sondaggio.
+    eventsService
+      .getEventById(stakeId, eventId)
+      .then((eventData) => {
+        if (!cancelled) setEvent(eventData);
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch(() => undefined);
+    surveysService
+      .listActiveQuestions(stakeId, eventId)
+      .then((questions) => {
+        if (!cancelled) {
+          setHasSurvey(questions.length > 0);
+          setSurveyChecked(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSurveyChecked(true);
       });
     return () => {
       cancelled = true;
@@ -70,11 +73,11 @@ export function CampHubPage() {
   }
 
   const heroTitle = useMemo(() => event?.title ?? "Campeggio", [event]);
+  const cover = event?.coverImageUrl || event?.heroImageUrl || "";
 
   if (!eventId) {
     return (
       <div className="page">
-        <PageHero className="hero--compact" eyebrow="Campeggio" title="Campeggio" />
         <p className="subtle-text">Campeggio non trovato.</p>
         <Link className="button button--ghost" to={homeHref}>
           Torna alla home
@@ -85,38 +88,47 @@ export function CampHubPage() {
 
   return (
     <div className="page camp-hub">
-      <PageHero
-        className="hero--compact"
-        eyebrow="Ricordi del campeggio"
-        title={heroTitle}
-        description={event ? formatEventWindow(event) : undefined}
-        actions={
-          <Link className="button button--ghost" to={homeHref}>
-            Torna alla home
+      <header className={`camp-hero${cover ? "" : " camp-hero--plain"}`}>
+        {cover ? (
+          <div
+            className="camp-hero__bg"
+            style={{ backgroundImage: `url(${cover})` }}
+            aria-hidden="true"
+          />
+        ) : null}
+        <div className="camp-hero__scrim" aria-hidden="true" />
+        <div className="camp-hero__top">
+          <Link className="camp-hero__back" to={homeHref} aria-label="Torna alla home">
+            <AppIcon name="arrow-left" />
           </Link>
-        }
-      />
+        </div>
+        <div className="camp-hero__content">
+          <span className="camp-hero__eyebrow">Ricordi del campeggio</span>
+          <h1 className="camp-hero__title">{heroTitle}</h1>
+          {event ? <p className="camp-hero__meta">{formatEventWindow(event)}</p> : null}
+        </div>
 
-      <div className="camp-hub__tabs" role="tablist" aria-label="Sezioni campeggio">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "gallery"}
-          className={`camp-hub__tab${tab === "gallery" ? " camp-hub__tab--active" : ""}`}
-          onClick={() => selectTab("gallery")}
-        >
-          Galleria
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "survey"}
-          className={`camp-hub__tab${tab === "survey" ? " camp-hub__tab--active" : ""}`}
-          onClick={() => selectTab("survey")}
-        >
-          Sondaggio
-        </button>
-      </div>
+        <div className="camp-hub__tabs" role="tablist" aria-label="Sezioni campeggio">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "gallery"}
+            className={`camp-hub__tab${tab === "gallery" ? " camp-hub__tab--active" : ""}`}
+            onClick={() => selectTab("gallery")}
+          >
+            Galleria
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "survey"}
+            className={`camp-hub__tab${tab === "survey" ? " camp-hub__tab--active" : ""}`}
+            onClick={() => selectTab("survey")}
+          >
+            Sondaggio
+          </button>
+        </div>
+      </header>
 
       {tab === "gallery" ? (
         <section className="camp-hub__panel">
@@ -124,10 +136,11 @@ export function CampHubPage() {
         </section>
       ) : (
         <section className="camp-hub__panel">
-          {!loading && !hasSurvey ? (
-            <p className="subtle-text">
-              Il sondaggio del campeggio non è ancora disponibile. Torna più tardi.
-            </p>
+          {surveyChecked && !hasSurvey ? (
+            <div className="camp-empty">
+              <span className="camp-empty__emoji" aria-hidden="true">📝</span>
+              <p>Il sondaggio del campeggio non è ancora disponibile. Torna più tardi.</p>
+            </div>
           ) : (
             <SurveyAnswerView
               stakeId={stakeId}

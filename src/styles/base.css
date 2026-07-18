@@ -10897,67 +10897,412 @@ button {
  * Post-campeggio: hub condiviso, galleria collaborativa, card home
  * ========================================================================== */
 
-/* --- Hub campeggio (/campeggio/:id) — tab galleria/sondaggio condivisi ---- */
-.camp-hub__tabs {
-  display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
+/* --- Hub campeggio (/campeggio/:id): hero immersivo + tab ---------------- */
+.camp-hub {
+  gap: 0.9rem;
+  padding-top: 0;
+}
+
+.camp-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 12.5rem;
+  padding: 1rem;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  background: linear-gradient(135deg, #235d90, #14314f 72%);
+}
+
+.camp-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.03);
+}
+
+.camp-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    rgba(9, 20, 34, 0.12) 0%,
+    rgba(9, 20, 34, 0.34) 46%,
+    rgba(9, 20, 34, 0.82) 100%
+  );
+}
+
+.camp-hero__top {
+  display: flex;
+}
+
+.camp-hero__back {
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.06);
-  margin: 0.25rem 0 1rem;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(8px);
+}
+
+.camp-hero__content {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+
+.camp-hero__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.camp-hero__title {
+  margin: 0;
+  font-size: clamp(1.5rem, 6vw, 2.1rem);
+  line-height: 1.05;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.32);
+}
+
+.camp-hero__meta {
+  margin: 0.12rem 0 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.camp-hub__tabs {
+  display: flex;
+  gap: 0.3rem;
+  width: fit-content;
+  margin-top: 0.9rem;
+  padding: 0.28rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
 }
 
 .camp-hub__tab {
   border: 0;
   background: transparent;
-  padding: 0.45rem 1.1rem;
+  padding: 0.5rem 1.3rem;
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.9rem;
-  color: var(--color-text-soft, #55617a);
+  color: rgba(255, 255, 255, 0.92);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 140ms ease, color 140ms ease;
 }
 
 .camp-hub__tab--active {
   background: #fff;
-  color: var(--color-text, #14203a);
-  box-shadow: 0 1px 3px rgba(16, 28, 48, 0.16);
+  color: #14314f;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 .camp-hub__panel {
-  margin-top: 0.5rem;
+  margin-top: 0.2rem;
 }
 
-/* --- Galleria collaborativa (CampGallery) -------------------------------- */
+/* --- Toolbar galleria: filtri scorrevoli + upload ----------------------- */
 .camp-gallery__toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.9rem;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.camp-filter-scroll {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.camp-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.camp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 28, 48, 0.12);
+  background: #fff;
+  color: var(--heading, #14203a);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.camp-chip--active {
+  background: var(--primary, #235d90);
+  border-color: transparent;
+  color: #fff;
+}
+
+.camp-chip__count {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.05rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(16, 28, 48, 0.08);
+  color: inherit;
+}
+
+.camp-chip--active .camp-chip__count {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .camp-gallery__upload {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.camp-gallery__upload-hint {
-  font-size: 0.8rem;
-}
-
-.camp-gallery .camp-filter-row {
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.camp-gallery .camp-filter-chip {
+.camp-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(135deg, var(--primary, #235d90), var(--primary-strong, #123b5f));
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(35, 93, 144, 0.22);
+}
+
+.camp-upload-btn--ghost {
+  background: #fff;
+  color: var(--primary, #235d90);
+  border: 1px solid rgba(35, 93, 144, 0.28);
+  box-shadow: none;
+}
+
+.camp-upload-btn span {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+/* --- Masonry: nessun crop (aspect ratio preservato) --------------------- */
+.camp-masonry {
+  column-count: 2;
+  column-gap: 0.6rem;
+}
+
+@media (min-width: 560px) {
+  .camp-masonry {
+    column-count: 3;
+  }
+}
+
+@media (min-width: 900px) {
+  .camp-masonry {
+    column-count: 4;
+    column-gap: 0.75rem;
+  }
+}
+
+.camp-masonry__item {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  break-inside: avoid;
+  background: rgba(16, 28, 48, 0.06);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 28, 48, 0.08);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.camp-masonry__item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(16, 28, 48, 0.16);
+}
+
+.camp-masonry__item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.camp-masonry__ph {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  font-size: 1.6rem;
+  color: rgba(16, 28, 48, 0.4);
+}
+
+.camp-masonry__play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  padding-left: 0.15rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1rem;
+  backdrop-filter: blur(2px);
+}
+
+.camp-masonry__likes {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  backdrop-filter: blur(2px);
+}
+
+.camp-masonry__item--upload {
+  cursor: default;
+}
+
+.camp-masonry__item--upload img {
+  opacity: 0.55;
+}
+
+.camp-upload-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(9, 20, 34, 0.28);
+}
+
+.camp-upload-overlay__ring {
+  min-width: 3rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.camp-upload-overlay__cancel {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.camp-upload-overlay__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.camp-upload-overlay__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.camp-upload-overlay__actions button {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* --- Stati vuoti + skeleton di caricamento ------------------------------ */
+.camp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: 2.4rem 1.2rem;
+  border-radius: 1.2rem;
+  background: rgba(16, 28, 48, 0.03);
+  border: 1px dashed rgba(16, 28, 48, 0.14);
+  color: var(--muted, #55617a);
+}
+
+.camp-empty__emoji {
+  font-size: 2.4rem;
+}
+
+.camp-empty p {
+  margin: 0;
+  max-width: 28rem;
+}
+
+.camp-skeleton {
+  break-inside: avoid;
+  margin: 0 0 0.6rem;
+  border-radius: 1rem;
+  background: linear-gradient(
+    100deg,
+    rgba(16, 28, 48, 0.06) 30%,
+    rgba(16, 28, 48, 0.12) 50%,
+    rgba(16, 28, 48, 0.06) 70%
+  );
+  background-size: 200% 100%;
+  animation: camp-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes camp-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camp-skeleton {
+    animation: none;
+  }
 }
 
 /* Pulsante elimina nel lightbox (visibile solo per autore/admin) */
