@@ -3,13 +3,13 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   orderBy,
   query,
   setDoc,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   GenderRoleCategory,
   SurveyAnswerEntry,
@@ -130,7 +130,7 @@ function generateId() {
 
 export const surveysService = {
   async listQuestions(stakeId: string, eventId: string): Promise<SurveyQuestion[]> {
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(getQuestionsCollection(stakeId, eventId), orderBy("order", "asc")),
     );
     return snapshot.docs.map((document) =>
@@ -183,7 +183,7 @@ export const surveysService = {
     eventId: string,
     responseId: string,
   ): Promise<SurveyResponse | null> {
-    const snapshot = await getDoc(getResponseRef(stakeId, eventId, responseId));
+    const snapshot = await getDocCacheFirst(getResponseRef(stakeId, eventId, responseId));
     if (!snapshot.exists()) return null;
     return mapResponse(stakeId, eventId, snapshot.id, snapshot.data());
   },
@@ -226,7 +226,7 @@ export const surveysService = {
     stakeId: string,
     eventId: string,
   ): Promise<SurveyResponse[]> {
-    const snapshot = await getDocs(getResponsesCollection(stakeId, eventId));
+    const snapshot = await getDocsCacheFirst(getResponsesCollection(stakeId, eventId));
     return snapshot.docs
       .map((document) => mapResponse(stakeId, eventId, document.id, document.data()))
       .filter((response) => !response.isDraft);

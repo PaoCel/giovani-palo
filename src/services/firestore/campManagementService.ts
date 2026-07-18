@@ -1,13 +1,13 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   writeBatch,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
 import { db, functions } from "@/services/firebase/app";
+import { getDocCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   CampCommitteeAssignment,
   CampCommitteeId,
@@ -529,7 +529,7 @@ export const campManagementService = {
   },
 
   async getCampManagement(stakeId: string, eventId: string): Promise<CampManagementPlan> {
-    const snapshot = await getDoc(getCampManagementReference(stakeId, eventId));
+    const snapshot = await getDocCacheFirst(getCampManagementReference(stakeId, eventId));
     return normalizeCampManagement(snapshot.exists() ? snapshot.data() : null);
   },
 

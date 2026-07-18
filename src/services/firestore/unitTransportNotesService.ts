@@ -2,15 +2,15 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   setDoc,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 
 export const unitTransportNotesService = {
   async listResolved(stakeId: string, activityId: string): Promise<string[]> {
-    const snap = await getDocs(
+    const snap = await getDocsCacheFirst(
       collection(db, "stakes", stakeId, "activities", activityId, "transportNotes"),
     );
     return snap.docs.map((d) => d.id);

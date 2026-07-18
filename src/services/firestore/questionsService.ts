@@ -3,7 +3,6 @@ import {
   collectionGroup,
   deleteDoc,
   doc,
-  getDocs,
   query,
   setDoc,
   updateDoc,
@@ -11,6 +10,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   Question,
   QuestionStatus,
@@ -113,7 +113,7 @@ export const questionsService = {
     }
 
     const registrationId = getRegistrationDocId(lookup);
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       getQuestionsCollection(stakeId, eventId, registrationId),
     );
 
@@ -126,7 +126,7 @@ export const questionsService = {
   // iscrizione): richiede l'indice composito su stakeId+eventId definito in
   // firestore.indexes.json e la rule di collection group per gli admin.
   async listAllForEvent(stakeId: string, eventId: string): Promise<Question[]> {
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(
         collectionGroup(db, "questions"),
         where("stakeId", "==", stakeId),

@@ -2,7 +2,6 @@ import {
   arrayUnion,
   collection,
   doc,
-  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -12,6 +11,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type { Alert, Registration } from "@/types";
 
 function nowIso() {
@@ -81,7 +81,7 @@ export const alertsService = {
   },
 
   async listActiveAlerts(stakeId: string, maxItems = 12): Promise<Alert[]> {
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(getAlertsCollection(stakeId), orderBy("createdAt", "desc"), limit(maxItems)),
     );
 
