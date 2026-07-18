@@ -218,6 +218,35 @@ export function MediaLightbox({
     }
   }
 
+  async function handleDownload() {
+    if (!current) return;
+    const url =
+      current.type === "image"
+        ? current.storageUrl ?? current.optimizedUrl ?? current.thumbnailUrl
+        : current.storageUrl ?? current.originalUrl ?? current.optimizedUrl;
+    if (!url) return;
+    const ext = current.type === "image" ? "jpg" : "mp4";
+    const name = current.filename || `campeggio-${current.id}.${ext}`;
+    try {
+      // Fetch → blob → download: forza il salvataggio anche su URL cross-origin
+      // (l'attributo download da solo verrebbe ignorato). Firebase Storage
+      // espone gli URL di download con CORS permissivo.
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+    } catch {
+      // Fallback: apri in una nuova scheda, l'utente salva con tap lungo.
+      window.open(url, "_blank", "noopener");
+    }
+  }
+
   if (!current) return null;
 
   const currentComments = comments[current.id] ?? [];
@@ -287,6 +316,14 @@ export function MediaLightbox({
           <span className="media-lightbox__counter">
             {index + 1} / {media.length}
           </span>
+          <button
+            type="button"
+            className="media-lightbox__download"
+            onClick={handleDownload}
+            aria-label="Scarica"
+          >
+            ⬇ Scarica
+          </button>
           {showDelete ? (
             <button
               type="button"
