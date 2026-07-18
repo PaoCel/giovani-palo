@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   FeedPost,
   FeedPostType,
@@ -109,7 +110,7 @@ function buildPayload(
 export const feedService = {
   async listPublishedPosts(stakeId: string): Promise<FeedPost[]> {
     if (!stakeId) return [];
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(feedPostsCollection(stakeId), where("published", "==", true)),
     );
     return snapshot.docs
@@ -124,7 +125,7 @@ export const feedService = {
 
   async listAllPosts(stakeId: string): Promise<FeedPost[]> {
     if (!stakeId) return [];
-    const snapshot = await getDocs(feedPostsCollection(stakeId));
+    const snapshot = await getDocsCacheFirst(feedPostsCollection(stakeId));
     return snapshot.docs
       .map((d) => mapFeedPost(stakeId, d.id, d.data()))
       .sort((a, b) =>

@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import { organizationService } from "@/services/firestore/organizationService";
 import { stakesService } from "@/services/firestore/stakesService";
 import type { GenderRoleCategory, UserProfile, UserRole } from "@/types";
@@ -251,7 +252,9 @@ export const usersService = {
   },
 
   async getProfile(uid: string) {
-    const snapshot = await getDoc(doc(db, "users", uid));
+    // Cache-first: dopo una mutazione il documento locale riflette già la
+    // scrittura, quindi i `return this.getProfile()` post-update restano corretti.
+    const snapshot = await getDocCacheFirst(doc(db, "users", uid));
 
     if (!snapshot.exists()) {
       return null;
@@ -277,7 +280,7 @@ export const usersService = {
       return [];
     }
 
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(collection(db, "users"), where("stakeId", "==", stakeId)),
     );
 
@@ -293,7 +296,7 @@ export const usersService = {
       return [];
     }
 
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(
         collection(db, "users"),
         where("stakeId", "==", stakeId),

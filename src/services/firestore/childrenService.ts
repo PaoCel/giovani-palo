@@ -2,13 +2,12 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
-  getDocs,
   setDoc,
   updateDoc,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type { ChildProfile, GenderRoleCategory } from "@/types";
 
 function nowIso() {
@@ -78,7 +77,7 @@ export const childrenService = {
       return [];
     }
 
-    const snapshot = await getDocs(getChildrenCollection(parentUid));
+    const snapshot = await getDocsCacheFirst(getChildrenCollection(parentUid));
 
     return snapshot.docs
       .map((item) => mapChild(item.id, item.data()))
@@ -86,7 +85,7 @@ export const childrenService = {
   },
 
   async getChild(parentUid: string, childId: string): Promise<ChildProfile | null> {
-    const snapshot = await getDoc(getChildReference(parentUid, childId));
+    const snapshot = await getDocCacheFirst(getChildReference(parentUid, childId));
     return snapshot.exists() ? mapChild(snapshot.id, snapshot.data()) : null;
   },
 

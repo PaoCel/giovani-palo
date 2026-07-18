@@ -2,12 +2,12 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   setDoc,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   CustomField,
   EventFormConfig,
@@ -114,12 +114,12 @@ function mapFormConfig(
 export const eventFormsService = {
   async getFormConfig(stakeId: string, eventId: string): Promise<EventFormConfig> {
     const [settingsSnapshot, fieldsSnapshot] = await Promise.all([
-      getDoc(getSettingsReference(stakeId, eventId)),
-      getDocs(getFieldsCollection(stakeId, eventId)),
+      getDocCacheFirst(getSettingsReference(stakeId, eventId)),
+      getDocsCacheFirst(getFieldsCollection(stakeId, eventId)),
     ]);
 
     if (!settingsSnapshot.exists() && fieldsSnapshot.empty && stakeId === "roma-est") {
-      const legacySnapshot = await getDoc(doc(db, "events", eventId, "config", "form"));
+      const legacySnapshot = await getDocCacheFirst(doc(db, "events", eventId, "config", "form"));
 
       if (legacySnapshot.exists()) {
         const data = legacySnapshot.data();
