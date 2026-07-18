@@ -2,11 +2,11 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   setDoc,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type { GalleryComment } from "@/types";
 
 const MAX_BODY = 2000;
@@ -54,7 +54,7 @@ export const galleryCommentsService = {
     mediaId: string,
   ): Promise<GalleryComment[]> {
     if (!stakeId || !galleryId || !mediaId) return [];
-    const snap = await getDocs(commentsCollection(stakeId, galleryId, mediaId));
+    const snap = await getDocsCacheFirst(commentsCollection(stakeId, galleryId, mediaId));
     return snap.docs
       .map((d) => mapComment(d.id, d.data()))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));

@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { usersService } from "@/services/firestore/usersService";
@@ -258,6 +259,20 @@ function getRegistrationDocId(lookup: RegistrationLookup) {
   throw new Error("Serve una sessione valida per salvare la registrazione.");
 }
 
+// Lettura server-first per i path read-modify-write (merge di `answers` /
+// consenso genitore): una cache stale qui rischierebbe di riscrivere campi
+// vecchi sopra dati più recenti. Usata solo prima di una scrittura.
+async function readRegistrationFresh(
+  stakeId: string,
+  eventId: string,
+  registrationId: string,
+): Promise<Registration | null> {
+  const snapshot = await getDoc(getRegistrationReference(stakeId, eventId, registrationId));
+  return snapshot.exists()
+    ? mapRegistration(eventId, stakeId, snapshot.id, snapshot.data())
+    : null;
+}
+
 function getUnitName(answers: RegistrationWriteInput["answers"]) {
   return typeof answers.unitName === "string" ? answers.unitName.trim() : "";
 }
@@ -345,7 +360,7 @@ export const registrationsService = {
       return [];
     }
 
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(getEventRegistrationsCollection(stakeId, eventId), where("unitId", "==", unitId)),
     );
 
@@ -394,7 +409,7 @@ export const registrationsService = {
       return [];
     }
 
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(collectionGroup(db, "registrations"), where("parentUid", "==", parentUid)),
     );
 
@@ -411,7 +426,11 @@ export const registrationsService = {
   },
 
   async getRegistrationById(stakeId: string, eventId: string, registrationId: string) {
-    const snapshot = await getDoc(getRegistrationReference(stakeId, eventId, registrationId));
+    // Cache-first: path di visualizzazione (dettaglio attività, feed utente).
+    // Dopo una scrittura il doc locale riflette già la modifica, quindi i
+    // `return this.getRegistrationById()` post-mutazione restano corretti. I
+    // path read-modify-write usano invece readRegistrationFresh (server-first).
+    const snapshot = await getDocCacheFirst(getRegistrationReference(stakeId, eventId, registrationId));
 
     if (!snapshot.exists()) {
       return null;
@@ -598,7 +617,7 @@ export const registrationsService = {
     registrationId: string,
     parentEmail: string,
   ) {
-    const existingRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
+    const existingRegistration = await readRegistrationFresh(stakeId, eventId, registrationId);
 
     if (!existingRegistration) {
       throw new Error("Registrazione non trovata per aggiornare l'email del genitore.");
@@ -767,7 +786,7 @@ export const registrationsService = {
       url: string;
     },
   ) {
-    const existingRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
+    const existingRegistration = await readRegistrationFresh(stakeId, eventId, registrationId);
 
     if (!existingRegistration) {
       throw new Error("Registrazione non trovata per salvare il consenso.");
@@ -855,7 +874,7 @@ export const registrationsService = {
   },
 
   async clearParentConsentDocument(stakeId: string, eventId: string, registrationId: string) {
-    const existingRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
+    const existingRegistration = await readRegistrationFresh(stakeId, eventId, registrationId);
 
     if (!existingRegistration) {
       throw new Error("Registrazione non trovata per rimuovere il consenso.");

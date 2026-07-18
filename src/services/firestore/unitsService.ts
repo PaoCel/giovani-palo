@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
   query,
   setDoc,
   updateDoc,
@@ -10,6 +9,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type { Unit } from "@/types";
 import { slugify } from "@/utils/slugify";
 
@@ -43,7 +43,7 @@ export const unitsService = {
       return [];
     }
 
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       options?.includeInactive
         ? getUnitCollection(stakeId)
         : query(getUnitCollection(stakeId), where("isActive", "==", true)),
@@ -64,7 +64,7 @@ export const unitsService = {
   },
 
   async getUnitById(stakeId: string, unitId: string) {
-    const snapshot = await getDoc(doc(db, "stakes", stakeId, "units", unitId));
+    const snapshot = await getDocCacheFirst(doc(db, "stakes", stakeId, "units", unitId));
 
     if (!snapshot.exists()) {
       return null;

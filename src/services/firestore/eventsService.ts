@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import {
   eventFormsService,
   getDefaultEventFormConfig,
@@ -234,7 +235,7 @@ function getActivityCollection(stakeId: string) {
 }
 
 async function getLegacyEventById(eventId: string) {
-  const snapshot = await getDoc(doc(db, "events", eventId));
+  const snapshot = await getDocCacheFirst(doc(db, "events", eventId));
 
   if (!snapshot.exists()) {
     return null;
@@ -245,10 +246,10 @@ async function getLegacyEventById(eventId: string) {
 
 export const eventsService = {
   async listAllEvents(stakeId: string) {
-    const snapshot = await getDocs(getActivityCollection(stakeId));
+    const snapshot = await getDocsCacheFirst(getActivityCollection(stakeId));
 
     if (snapshot.empty && stakeId === "roma-est") {
-      const legacySnapshot = await getDocs(collection(db, "events"));
+      const legacySnapshot = await getDocsCacheFirst(collection(db, "events"));
       return legacySnapshot.docs
         .map((item) => mapEvent(item.id, item.data(), "roma-est"))
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -269,7 +270,7 @@ export const eventsService = {
   },
 
   async listPublicEventsUncached(stakeId: string) {
-    const snapshot = await getDocs(
+    const snapshot = await getDocsCacheFirst(
       query(
         getActivityCollection(stakeId),
         where("isPublic", "==", true),
@@ -278,7 +279,7 @@ export const eventsService = {
     );
 
     if (snapshot.empty && stakeId === "roma-est") {
-      const legacySnapshot = await getDocs(
+      const legacySnapshot = await getDocsCacheFirst(
         query(collection(db, "events"), where("isPublic", "==", true)),
       );
 
@@ -301,7 +302,9 @@ export const eventsService = {
   },
 
   async getEventById(stakeId: string, eventId: string) {
-    const snapshot = await getDoc(doc(db, "stakes", stakeId, "activities", eventId));
+    // Cache-first: le mutazioni (update/publish) aggiornano il doc locale prima
+    // dell'ack server, quindi i `return this.getEventById()` restano corretti.
+    const snapshot = await getDocCacheFirst(doc(db, "stakes", stakeId, "activities", eventId));
 
     if (snapshot.exists()) {
       return mapEvent(snapshot.id, snapshot.data(), stakeId);
