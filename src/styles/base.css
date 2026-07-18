@@ -10892,3 +10892,154 @@ button {
 .admin-detail-stack > .survey-results {
   width: 100%;
 }
+
+/* ==========================================================================
+ * Post-campeggio: hub condiviso, galleria collaborativa, card home
+ * ========================================================================== */
+
+/* --- Hub campeggio (/campeggio/:id) — tab galleria/sondaggio condivisi ---- */
+.camp-hub__tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(16, 28, 48, 0.06);
+  margin: 0.25rem 0 1rem;
+}
+
+.camp-hub__tab {
+  border: 0;
+  background: transparent;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text-soft, #55617a);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.camp-hub__tab--active {
+  background: #fff;
+  color: var(--color-text, #14203a);
+  box-shadow: 0 1px 3px rgba(16, 28, 48, 0.16);
+}
+
+.camp-hub__panel {
+  margin-top: 0.5rem;
+}
+
+/* --- Galleria collaborativa (CampGallery) -------------------------------- */
+.camp-gallery__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.camp-gallery__upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.camp-gallery__upload-hint {
+  font-size: 0.8rem;
+}
+
+.camp-gallery .camp-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.camp-gallery .camp-filter-chip {
+  cursor: pointer;
+}
+
+/* Pulsante elimina nel lightbox (visibile solo per autore/admin) */
+.media-lightbox__delete {
+  border: 0;
+  background: rgba(220, 38, 38, 0.92);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.32rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.media-lightbox__delete:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- Card home campeggio (tutti i ruoli) --------------------------------- */
+.camp-highlight-card {
+  display: flex;
+  gap: 1rem;
+  align-items: stretch;
+  border-radius: 1.1rem;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(16, 28, 48, 0.08);
+  box-shadow: 0 6px 18px rgba(16, 28, 48, 0.06);
+}
+
+.camp-highlight-card__media {
+  flex: 0 0 40%;
+  max-width: 12rem;
+  display: block;
+}
+
+.camp-highlight-card__poster {
+  width: 100%;
+  height: 100%;
+  min-height: 8.5rem;
+  background-size: cover;
+  background-position: center;
+  background-color: rgba(16, 28, 48, 0.06);
+}
+
+.camp-highlight-card__poster--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.4rem;
+}
+
+.camp-highlight-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 1rem 1rem 0;
+  min-width: 0;
+}
+
+.camp-highlight-card__body h3 {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 520px) {
+  .camp-highlight-card {
+    flex-direction: column;
+  }
+
+  .camp-highlight-card__media {
+    flex-basis: auto;
+    max-width: none;
+  }
+
+  .camp-highlight-card__poster {
+    min-height: 9.5rem;
+  }
+
+  .camp-highlight-card__body {
+    padding: 0 1rem 1rem;
+  }
+}

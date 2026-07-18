@@ -17,6 +17,10 @@ interface MediaLightboxProps {
   isMediaLiked: (mediaId: string) => boolean;
   onClose: () => void;
   onToggleMediaLike: (media: GalleryMedia) => Promise<void>;
+  /** Se passato e true per il media corrente, mostra il pulsante elimina. */
+  canDeleteMedia?: (media: GalleryMedia) => boolean;
+  /** Elimina il media corrente. Il chiamante aggiorna la lista e chiude. */
+  onDeleteMedia?: (media: GalleryMedia) => Promise<void>;
 }
 
 const SWIPE_THRESHOLD = 50;
@@ -56,9 +60,12 @@ export function MediaLightbox({
   isMediaLiked,
   onClose,
   onToggleMediaLike,
+  canDeleteMedia,
+  onDeleteMedia,
 }: MediaLightboxProps) {
   const { session } = useAuth();
   const [index, setIndex] = useState(initialIndex);
+  const [deleting, setDeleting] = useState(false);
   const [comments, setComments] = useState<Record<string, GalleryComment[]>>({});
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentInput, setCommentInput] = useState("");
@@ -196,9 +203,25 @@ export function MediaLightbox({
     }
   }
 
+  async function handleDeleteMedia() {
+    if (!current || !onDeleteMedia) return;
+    if (!window.confirm("Eliminare definitivamente questo contenuto dalla galleria?")) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await onDeleteMedia(current);
+      // Il chiamante rimuove il media dalla lista; chiudiamo il lightbox.
+      onClose();
+    } catch {
+      setDeleting(false);
+    }
+  }
+
   if (!current) return null;
 
   const currentComments = comments[current.id] ?? [];
+  const showDelete = Boolean(onDeleteMedia && canDeleteMedia?.(current));
   const isLast = index === media.length - 1;
   const isFirst = index === 0;
 
@@ -264,6 +287,17 @@ export function MediaLightbox({
           <span className="media-lightbox__counter">
             {index + 1} / {media.length}
           </span>
+          {showDelete ? (
+            <button
+              type="button"
+              className="media-lightbox__delete"
+              onClick={handleDeleteMedia}
+              disabled={deleting}
+              aria-label="Elimina contenuto"
+            >
+              {deleting ? "Elimino…" : "Elimina"}
+            </button>
+          ) : null}
         </div>
 
         <section className="media-comments">

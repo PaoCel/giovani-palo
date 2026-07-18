@@ -34,6 +34,7 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftQuestion>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +87,19 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
       setError(err instanceof Error ? err.message : "Errore salvataggio.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function seedCampTemplate() {
+    setSeeding(true);
+    setError(null);
+    try {
+      await surveysService.seedCampSurveyTemplate(stakeId, eventId);
+      await refresh();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Errore creazione sondaggio.");
+    } finally {
+      setSeeding(false);
     }
   }
 
@@ -201,7 +215,21 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
         <h3>Domande del sondaggio ({questions.length})</h3>
         {loading ? <p className="subtle-text">Caricamento...</p> : null}
         {!loading && questions.length === 0 ? (
-          <p className="subtle-text">Nessuna domanda configurata.</p>
+          <div className="surface-panel surface-panel--subtle">
+            <p className="subtle-text">
+              Nessuna domanda configurata. Per un campeggio puoi partire dal
+              sondaggio post-campeggio standard (valutazioni + cosa migliorare) e
+              poi modificarlo.
+            </p>
+            <button
+              type="button"
+              className="button button--primary button--small"
+              disabled={seeding}
+              onClick={seedCampTemplate}
+            >
+              {seeding ? "Creazione..." : "Crea sondaggio post-campeggio"}
+            </button>
+          </div>
         ) : null}
         {questions.map((question) => (
           <article key={question.id} className="surface-panel surface-panel--subtle">

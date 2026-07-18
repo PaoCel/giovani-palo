@@ -231,7 +231,51 @@ export const surveysService = {
       .map((document) => mapResponse(stakeId, eventId, document.id, document.data()))
       .filter((response) => !response.isDraft);
   },
+
+  /**
+   * Semina il sondaggio post-campeggio standard sull'evento indicato. Non fa
+   * nulla se ci sono gia' domande (evita doppioni se l'admin ci riclicca sopra).
+   * Ritorna l'elenco domande risultante. Solo admin lato rules.
+   */
+  async seedCampSurveyTemplate(
+    stakeId: string,
+    eventId: string,
+  ): Promise<SurveyQuestion[]> {
+    const existing = await this.listQuestions(stakeId, eventId);
+    if (existing.length > 0) {
+      return existing;
+    }
+    const created: SurveyQuestion[] = [];
+    for (const [index, template] of CAMP_SURVEY_TEMPLATE.entries()) {
+      const question = await this.upsertQuestion(stakeId, eventId, null, {
+        text: template.text,
+        type: template.type,
+        fieldCount: template.type === "fields" ? template.fieldCount ?? 2 : 0,
+        order: index + 1,
+        status: "active",
+      });
+      created.push(question);
+    }
+    return created;
+  },
 };
+
+/**
+ * Domande di default del "sondaggio post-campeggio". Feedback anonimo, uguale
+ * per tutti i ruoli. L'admin puo' poi modificarle/aggiungerne dal SurveyEditor.
+ */
+export const CAMP_SURVEY_TEMPLATE: ReadonlyArray<{
+  text: string;
+  type: SurveyQuestionType;
+  fieldCount?: number;
+}> = [
+  { text: "Come valuti il campeggio nel complesso?", type: "rating" },
+  { text: "Come valuti il cibo?", type: "rating" },
+  { text: "Come valuti le attività e i giochi?", type: "rating" },
+  { text: "Come valuti l'organizzazione e la logistica?", type: "rating" },
+  { text: "Cosa ti è piaciuto di più?", type: "open" },
+  { text: "Cosa possiamo migliorare per il prossimo campeggio?", type: "open" },
+];
 
 export function generateSurveyResponseId() {
   return generateId();

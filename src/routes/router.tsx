@@ -13,7 +13,7 @@ import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { HomePage } from "@/pages/public/HomePage";
 import { LoginPage } from "@/pages/auth/LoginPage";
-import { AdminRoute, ParentRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
+import { AdminRoute, CampRoute, ParentRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
 
 // Le pagine pubbliche "calde" (home, lista attività, dettaglio, login)
 // restano nel bundle principale per il primo paint istantaneo. Tutto il
@@ -130,6 +130,21 @@ export const router = createBrowserRouter([
             element: lazyPage(() => import("@/pages/me/MyProfilePage"), "MyProfilePage"),
           },
         ],
+      },
+    ],
+  },
+  {
+    // Area campeggio condivisa: raggiungibile da tutti i ruoli autenticati.
+    element: <CampRoute />,
+    errorElement: <RouteErrorPanel />,
+    children: [
+      {
+        path: "/campeggio",
+        element: lazyPage(() => import("@/pages/camp/CampIndexPage"), "CampIndexPage"),
+      },
+      {
+        path: "/campeggio/:eventId",
+        element: lazyPage(() => import("@/pages/camp/CampHubPage"), "CampHubPage"),
       },
     ],
   },

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
 import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -168,6 +169,8 @@ export function UnitDashboardPage() {
           <span className="unit-stat unit-stat--danger"><AppIcon name="badge" /> Autorizzazione genitore mancante</span>
         </div>
       </section>
+
+      <CampHighlightCard />
 
       <section className="user-dashboard-section">
         <div className="user-section-heading">
