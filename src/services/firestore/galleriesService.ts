@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   increment,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -12,6 +13,7 @@ import {
   updateDoc,
   where,
   writeBatch,
+  type Unsubscribe,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
@@ -27,6 +29,11 @@ const GALLERY_BATCH_SIZE = 30;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sortMedia(left: GalleryMedia, right: GalleryMedia) {
+  if (left.order !== right.order) return left.order - right.order;
+  return left.createdAt.localeCompare(right.createdAt);
 }
 
 function galleriesCollection(stakeId: string) {
@@ -288,10 +295,57 @@ export const galleriesService = {
     const snapshot = await getDocs(mediaCollection(stakeId, galleryId));
     return snapshot.docs
       .map((d) => mapMedia(stakeId, galleryId, d.id, d.data()))
-      .sort((left, right) => {
-        if (left.order !== right.order) return left.order - right.order;
-        return left.createdAt.localeCompare(right.createdAt);
-      });
+      .sort(sortMedia);
+  },
+
+  // Sottoscrizioni cache-first (onSnapshot + persistentLocalCache): la prima
+  // emissione arriva SUBITO dalla cache IndexedDB (niente attesa del round-trip
+  // di rete che faceva "girare" la galleria all'infinito su connessioni lente),
+  // poi il server aggiorna in background. In piu' i nuovi upload di chiunque
+  // compaiono in tempo reale senza refresh.
+  subscribeGalleryByActivity(
+    stakeId: string,
+    activityId: string,
+    onData: (gallery: Gallery | null) => void,
+    onError?: (error: Error) => void,
+  ): Unsubscribe {
+    if (!stakeId || !activityId) {
+      onData(null);
+      return () => {};
+    }
+    return onSnapshot(
+      query(galleriesCollection(stakeId), where("activityId", "==", activityId)),
+      (snapshot) => {
+        if (snapshot.empty) {
+          onData(null);
+          return;
+        }
+        const sorted = snapshot.docs
+          .map((d) => mapGallery(stakeId, d.id, d.data()))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        onData(sorted[0] ?? null);
+      },
+      (error) => onError?.(error),
+    );
+  },
+
+  subscribeMedia(
+    stakeId: string,
+    galleryId: string,
+    onData: (media: GalleryMedia[]) => void,
+    onError?: (error: Error) => void,
+  ): Unsubscribe {
+    return onSnapshot(
+      mediaCollection(stakeId, galleryId),
+      (snapshot) => {
+        onData(
+          snapshot.docs
+            .map((d) => mapMedia(stakeId, galleryId, d.id, d.data()))
+            .sort(sortMedia),
+        );
+      },
+      (error) => onError?.(error),
+    );
   },
 
   async listMediaByIds(

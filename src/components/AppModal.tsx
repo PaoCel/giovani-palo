@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 
@@ -30,7 +31,7 @@ export function AppModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  return (
+  const modal = (
     <div
       className={
         size === "compact"
@@ -73,4 +74,13 @@ export function AppModal({
       </section>
     </div>
   );
+
+  // Portale su <body>: fuori dal sottoalbero della pagina, così il modale
+  // (position: fixed, z-index alto) resta sempre sopra la bottom-nav fissa
+  // e non finisce mai intrappolato in uno stacking context della pagina.
+  if (typeof document === "undefined") {
+    return modal;
+  }
+
+  return createPortal(modal, document.body);
 }
