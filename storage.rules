@@ -91,12 +91,22 @@ service firebase.storage {
       allow write: if false;
     }
 
-    // Galleria foto/video: accesso aperto a chiunque sia loggato. Niente
-    // piu' codice galleria richiesto (vedi firestore.rules /galleries/...
-    // per il commento di contesto).
+    // Galleria foto/video: lettura aperta a chiunque sia loggato. Upload
+    // (create/update) aperto a tutti i loggati per la galleria collaborativa
+    // del campeggio, con tetti anti-abuso su dimensione e tipo. La cancellazione
+    // dei binari resta agli admin (i doc Firestore del proprio media sono invece
+    // cancellabili dall'autore; eventuali binari orfani li ripulisce l'admin).
     match /protected/stakes/{stakeId}/galleries/{galleryId}/media/{mediaId}/{fileName=**} {
       allow read: if isSignedIn();
-      allow write: if isStakeAdmin(stakeId);
+      allow write: if isStakeAdmin(stakeId)
+        || (
+          isSignedIn()
+          && request.resource != null
+          && (
+            (request.resource.contentType.matches('image/.*') && request.resource.size < 30 * 1024 * 1024)
+            || (request.resource.contentType.matches('video/.*') && request.resource.size < 600 * 1024 * 1024)
+          )
+        );
     }
 
     match /{allPaths=**} {

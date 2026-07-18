@@ -1035,9 +1035,19 @@ service cloud.firestore {
       // Galleria foto/video: accesso aperto a chiunque sia loggato (anche
       // ospite anon). Il flusso a codice via Cloud Function rimane disponibile
       // per gallerie storiche ma non e' piu' richiesto per leggere i media.
+      // Upload aperto a tutti i loggati (galleria collaborativa del campeggio):
+      // ogni utente puo' aggiungere media e cancellare SOLO i propri; gli admin
+      // gestiscono tutto. La creazione/pubblicazione della galleria resta admin.
       match /galleries/{galleryId} {
         allow get, list: if true;
-        allow create, update, delete: if isStakeAdmin(stakeId);
+        allow create, delete: if isStakeAdmin(stakeId);
+        // Update: admin liberi; i loggati possono solo aggiornare il contatore
+        // media (increment su upload/delete del proprio media).
+        allow update: if isStakeAdmin(stakeId)
+          || (
+            isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mediaCount', 'updatedAt'])
+          );
 
         match /media/{mediaId} {
           allow get, list: if isSignedIn();
@@ -1046,7 +1056,18 @@ service cloud.firestore {
               isSignedIn()
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
             );
-          allow create, delete: if isStakeAdmin(stakeId);
+          // Create: qualsiasi loggato, ma deve marcarsi come autore e caricare
+          // solo foto/video, senza gonfiare i like all'origine.
+          allow create: if isStakeAdmin(stakeId)
+            || (
+              isSignedIn()
+              && request.resource.data.uploadedBy == request.auth.uid
+              && (request.resource.data.type == 'image' || request.resource.data.type == 'video')
+              && request.resource.data.likeCount == 0
+            );
+          // Delete: admin qualsiasi media, l'autore solo il proprio.
+          allow delete: if isStakeAdmin(stakeId)
+            || (isSignedIn() && resource.data.uploadedBy == request.auth.uid);
 
           match /likes/{uid} {
             allow get: if isStakeAdmin(stakeId)
@@ -1253,7 +1274,19 @@ service cloud.firestore {
           // sono anonime (no userId/anonymousUid). list resta solo admin.
           allow get: if isStakeAdmin(stakeId) || isSignedIn();
           allow list: if isStakeAdmin(stakeId);
-          allow create, update: if isSignedIn()
+          allow create: if isSignedIn()
+            && request.resource.data.eventId == activityId
+            && request.resource.data.stakeId == stakeId
+            && validGenderRoleCategory(request.resource.data.category)
+            && !('userId' in request.resource.data)
+            && !('anonymousUid' in request.resource.data);
+          // Update consentito solo finche' la risposta e' ancora una bozza:
+          // una volta inviata (isDraft == false) non e' piu' sovrascrivibile,
+          // cosi' nessun altro loggato puo' distruggere un invio definitivo
+          // conoscendone l'id casuale. L'anonimato resta intatto (nessuna
+          // identita' e' tracciata sul documento).
+          allow update: if isSignedIn()
+            && resource.data.isDraft == true
             && request.resource.data.eventId == activityId
             && request.resource.data.stakeId == stakeId
             && validGenderRoleCategory(request.resource.data.category)

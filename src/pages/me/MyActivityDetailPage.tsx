@@ -791,8 +791,8 @@ export function MyActivityDetailPage() {
                 <span className="camp-section-eyebrow">Ricordi</span>
                 <h2 className="camp-section-title">Galleria foto e video</h2>
                 <p className="camp-section-sub">
-                  Quando la galleria dell'attività sarà disponibile, la troverai
-                  qui.
+                  Foto e video del campeggio: guardali, mettici un like e carica
+                  anche i tuoi. Filtra tra foto e video nella galleria.
                 </p>
                 <div className="camp-filter-row" aria-hidden="true">
                   <span className="camp-filter-chip camp-filter-chip--active">
@@ -809,9 +809,9 @@ export function MyActivityDetailPage() {
                 </div>
                 <Link
                   className="camp-youth-primary-action camp-youth-primary-action--full"
-                  to={`/me/galleria/per-attivita/${data.event.id}`}
+                  to={`/campeggio/${data.event.id}`}
                 >
-                  Apri galleria attività
+                  Apri galleria del campeggio
                 </Link>
               </div>
             ) : null}
@@ -821,8 +821,8 @@ export function MyActivityDetailPage() {
                 <span className="camp-section-eyebrow">Post evento</span>
                 <h2 className="camp-section-title">Sondaggio</h2>
                 <p className="camp-section-sub">
-                  Dopo il campeggio potrai lasciare un feedback veloce per
-                  aiutarci a migliorare.
+                  Lascia un feedback anonimo sul campeggio: ci aiuta a migliorare
+                  le prossime edizioni.
                 </p>
                 <div className="camp-survey-progress" aria-hidden="true">
                   <span className="camp-survey-progress__step camp-survey-progress__step--active" />
@@ -833,12 +833,11 @@ export function MyActivityDetailPage() {
                   <span>Domande rapide</span>
                   <h3>Raccontaci com'è andata</h3>
                   <p>
-                    Il sondaggio sarà disponibile qui quando sarà il momento di
-                    compilarlo.
+                    Il sondaggio è anonimo e si compila in un minuto.
                   </p>
                   <Link
                     className="camp-join-btn"
-                    to={`/me/sondaggi/${data.event.id}`}
+                    to={`/campeggio/${data.event.id}?tab=sondaggio`}
                   >
                     Vai al sondaggio
                   </Link>

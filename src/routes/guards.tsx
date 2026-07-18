@@ -125,6 +125,35 @@ export function UnitLeaderRoute() {
   return <Outlet />;
 }
 
+/**
+ * Guardia dell'area campeggio condivisa (/campeggio): la vedono TUTTI i ruoli
+ * autenticati non anonimi (giovani, genitori, dirigenti, admin) senza redirect
+ * per ruolo. Serve ad allineare galleria + sondaggio del campeggio tra i ruoli.
+ */
+export function CampRoute() {
+  const { loading, session } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <AppLoader label="Apertura campeggio..." />;
+  }
+
+  if (!session?.isAuthenticated) {
+    const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate replace to={`/login?redirect=${redirect}`} />;
+  }
+
+  if (session.isAnonymous) {
+    return <Navigate replace to="/activities" />;
+  }
+
+  if (session.profile.mustChangePassword) {
+    return <Navigate replace to="/password-reset" />;
+  }
+
+  return <Outlet />;
+}
+
 export function ParentRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();

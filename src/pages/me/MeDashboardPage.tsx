@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { ShareButton } from "@/components/ShareButton";
+import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UserPageIntro } from "@/components/UserPageIntro";
@@ -90,6 +91,8 @@ export function MeDashboardPage() {
           </div>
         </div>
       ) : null}
+
+      <CampHighlightCard />
 
       {surveyCandidates.length > 0 ? (
         <section className="user-dashboard-section user-dashboard-section--priority">
