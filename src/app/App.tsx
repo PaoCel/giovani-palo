@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RouterProvider } from "react-router-dom";
 
 import { AuthProvider } from "@/app/providers/AuthProvider";
+import { UploadManagerProvider } from "@/app/providers/UploadManagerProvider";
 import { AdminPushSync } from "@/components/AdminPushSync";
 import { AppLoader } from "@/components/AppLoader";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,10 +38,10 @@ function AuthGate() {
   }
 
   return (
-    <>
+    <UploadManagerProvider>
       <AdminPushSync />
       <RouterProvider router={router} />
-    </>
+    </UploadManagerProvider>
   );
 }
 

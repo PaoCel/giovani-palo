@@ -9,7 +9,7 @@ import {
 
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
 import { useAuth } from "@/hooks/useAuth";
-import { useGalleryUploader } from "@/components/admin/gallery/useGalleryUploader";
+import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { deleteMediaPath } from "@/services/firebase/galleryUploadService";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
@@ -26,6 +26,7 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
   const { session } = useAuth();
   const uid = session?.firebaseUser.uid ?? "";
   const isAdmin = Boolean(session?.isAdmin);
+  const { pickPhotos, pickVideo } = useUploadApi();
 
   const [gallery, setGallery] = useState<Gallery | null>(null);
   const [media, setMedia] = useState<GalleryMedia[]>([]);
@@ -67,7 +68,7 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
   const galleryId = gallery?.id ?? "";
 
   // Sottoscrizione cache-first ai media: live per tutti (i nuovi upload
-  // compaiono da soli) e istantanea dalla cache.
+  // compaiono da soli, anche quando un altro utente carica) e istantanea.
   useEffect(() => {
     if (!stakeId || !galleryId) return;
     const unsubscribe = galleriesService.subscribeMedia(
@@ -85,29 +86,6 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
     return unsubscribe;
   }, [stakeId, galleryId]);
 
-  const handleUploaded = useCallback((created: GalleryMedia) => {
-    // Feedback immediato; la sottoscrizione riconcilia subito dopo.
-    setMedia((prev) => {
-      if (prev.some((entry) => entry.id === created.id)) return prev;
-      return [...prev, created];
-    });
-  }, []);
-
-  const {
-    queue,
-    pickerError,
-    pickPhotos,
-    pickVideo,
-    cancel,
-    retry,
-    remove,
-  } = useGalleryUploader({
-    gallery,
-    uploadedBy: uid,
-    startOrder: media.length,
-    onUploaded: handleUploaded,
-  });
-
   const counts = useMemo(() => {
     let images = 0;
     let videos = 0;
@@ -118,14 +96,9 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
     return { all: media.length, image: images, video: videos };
   }, [media]);
 
-  const sortedMedia = media; // già ordinati dalla sottoscrizione
-
   const filteredMedia = useMemo(
-    () =>
-      filter === "all"
-        ? sortedMedia
-        : sortedMedia.filter((item) => item.type === filter),
-    [sortedMedia, filter],
+    () => (filter === "all" ? media : media.filter((item) => item.type === filter)),
+    [media, filter],
   );
 
   const lightboxIndex = useMemo(() => {
@@ -168,7 +141,6 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
       await deleteMediaPath(
         `protected/stakes/${stakeId}/galleries/${item.galleryId}/media/${item.id}/`,
       ).catch(() => undefined);
-      // La sottoscrizione aggiornerà la lista; togliamo subito per reattività.
       setMedia((prev) => prev.filter((entry) => entry.id !== item.id));
     },
     [stakeId],
@@ -177,16 +149,14 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
   function onPhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    pickPhotos(files);
+    if (gallery) pickPhotos(files, gallery, media.length);
   }
 
   function onVideoChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    pickVideo(files);
+    if (gallery) pickVideo(files, gallery, media.length);
   }
-
-  const activeQueue = queue.filter((item) => item.status !== "done");
 
   const filters: { key: MediaFilter; label: string; count: number }[] = [
     { key: "all", label: "Tutti", count: counts.all },
@@ -234,6 +204,7 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
           <button
             type="button"
             className="camp-upload-btn"
+            disabled={!gallery}
             onClick={() => photoInputRef.current?.click()}
           >
             <span aria-hidden="true">＋</span> Foto
@@ -241,6 +212,7 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
           <button
             type="button"
             className="camp-upload-btn camp-upload-btn--ghost"
+            disabled={!gallery}
             onClick={() => videoInputRef.current?.click()}
           >
             <span aria-hidden="true">＋</span> Video
@@ -248,7 +220,6 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
         </div>
       </div>
 
-      {pickerError ? <p className="field-error">{pickerError}</p> : null}
       {error ? (
         <div className="notice notice--warning">
           <div>
@@ -276,7 +247,7 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
             responsabile la crea, potrai caricare qui le tue foto e i tuoi video.
           </p>
         </div>
-      ) : activeQueue.length === 0 && filteredMedia.length === 0 ? (
+      ) : filteredMedia.length === 0 ? (
         <div className="camp-empty">
           <span className="camp-empty__emoji" aria-hidden="true">🏕️</span>
           <p>
@@ -287,42 +258,6 @@ export function CampGallery({ stakeId, eventId }: CampGalleryProps) {
         </div>
       ) : (
         <div className="camp-masonry">
-          {activeQueue.map((item) => (
-            <div
-              key={item.id}
-              className={`camp-masonry__item camp-masonry__item--upload is-${item.status}`}
-            >
-              {item.previewUrl ? (
-                <img src={item.previewUrl} alt="" />
-              ) : (
-                <div className="camp-masonry__ph">{item.mode === "video" ? "▶" : "◇"}</div>
-              )}
-              <div className="camp-upload-overlay">
-                {item.status === "error" || item.status === "cancelled" ? (
-                  <div className="camp-upload-overlay__error">
-                    <span>{item.status === "error" ? "Errore" : "Annullato"}</span>
-                    <div className="camp-upload-overlay__actions">
-                      <button type="button" onClick={() => retry(item.id)} aria-label="Riprova">↻</button>
-                      <button type="button" onClick={() => remove(item.id)} aria-label="Rimuovi">×</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="camp-upload-overlay__ring">{item.progress}%</div>
-                    <button
-                      type="button"
-                      className="camp-upload-overlay__cancel"
-                      onClick={() => cancel(item.id)}
-                      aria-label="Annulla upload"
-                    >
-                      ×
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-
           {filteredMedia.map((item, index) => {
             const previewUrl =
               item.type === "image"
