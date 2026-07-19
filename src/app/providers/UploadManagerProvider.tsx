@@ -283,7 +283,7 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
             kind: "original",
             filename: file.name,
             contentType: file.type || "video/mp4",
-            uploadedBy: gallery.createdBy,
+            uploadedBy: item.uploadedByUid,
           },
           (percent) => {
             updateItem(item.id, {
@@ -359,7 +359,7 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
         newItems.push({
           id: newItemId(),
           gallery,
-          uploadedByUid: gallery.createdBy,
+          uploadedByUid: uidRef.current,
           file,
           mode: "image",
           mediaId: galleriesService.reserveMediaId(gallery.stakeId, gallery.id),
