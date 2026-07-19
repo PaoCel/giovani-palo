@@ -31,10 +31,11 @@ export function CampHighlightCard() {
     gallery.mediaCount === 1 ? "1 contenuto" : `${gallery.mediaCount} contenuti`;
 
   return (
-    <section className="user-dashboard-section user-dashboard-section--priority">
-      <div className="user-section-heading">
-        <h2>Campeggio</h2>
-        <p className="subtle-text">Le foto e i video del campeggio sono disponibili.</p>
+    <section className="dash-section">
+      <div className="dash-section__head">
+        <span className="dash-section__eyebrow">Ricordi</span>
+        <h2 className="dash-section__title">Campeggio</h2>
+        <p className="dash-section__sub">Le foto e i video del campeggio sono disponibili.</p>
       </div>
 
       <article className="camp-highlight-card">
