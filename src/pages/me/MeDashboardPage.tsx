@@ -6,7 +6,6 @@ import { ShareButton } from "@/components/ShareButton";
 import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
-import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { surveysService } from "@/services/firestore/surveysService";
@@ -24,6 +23,18 @@ import {
   getEventStatusTone,
   isPastEvent,
 } from "@/utils/events";
+
+function getFirstName(session: ReturnType<typeof useAuth>["session"]): string {
+  const full = session?.profile.fullName?.trim();
+  if (full && full !== "Partecipante" && full !== "Ospite anonimo") {
+    return full.split(/\s+/)[0];
+  }
+  const display = session?.firebaseUser.displayName?.trim();
+  if (display) return display.split(/\s+/)[0];
+  const email = session?.firebaseUser.email || session?.profile.email;
+  if (email) return email.split("@")[0];
+  return "";
+}
 
 export function MeDashboardPage() {
   const { session } = useAuth();
@@ -69,19 +80,33 @@ export function MeDashboardPage() {
   );
 
   const surveyCandidates = pastEvents.filter(({ event }) => surveyableIds.has(event.id));
+  const firstName = getFirstName(session);
 
   return (
-    <div className="page page--user-dashboard">
-      <UserPageIntro />
-      <div className="chip-row">
+    <div className="page dash">
+      <header className="dash-head">
+        <div className="dash-head__text">
+          <span className="dash-head__eyebrow">La tua area giovani</span>
+          <h1 className="dash-head__title">
+            {firstName ? (
+              <>
+                Ciao, <span className="dash-head__name">{firstName}</span>
+              </>
+            ) : (
+              "La tua area"
+            )}
+          </h1>
+          <p className="dash-head__sub">Le tue attività, i ricordi e i sondaggi — tutto qui.</p>
+        </div>
         <ShareButton
-          className="button button--soft button--small"
-          label="Condividi sito"
+          iconOnly
+          className="dash-head__share"
+          label="Condividi il sito"
           text="Apri il sito delle attività giovani."
           title="Attività giovani"
           url={getAbsoluteUrl(getActivitiesPath(session?.profile.stakeId))}
         />
-      </div>
+      </header>
 
       {error ? (
         <div className="notice notice--warning">
@@ -92,58 +117,29 @@ export function MeDashboardPage() {
         </div>
       ) : null}
 
-      <CampHighlightCard />
+      {/* Focus principale: la prossima attività (un solo hero immersivo). */}
+      <section className="dash-section">
+        <div className="dash-section__head">
+          <span className="dash-section__eyebrow">In evidenza</span>
+          <h2 className="dash-section__title">La tua prossima attività</h2>
+        </div>
 
-      {surveyCandidates.length > 0 ? (
-        <section className="user-dashboard-section user-dashboard-section--priority">
-          <div className="user-section-heading">
-            <h2>Sondaggi delle attività passate</h2>
-            <p className="subtle-text">
-              Lasciaci un feedback anonimo: ci aiuta a migliorare le prossime attività.
-            </p>
+        {loading ? (
+          <div className="dash-card dash-card--placeholder">
+            <p className="subtle-text">Sto caricando le prossime attività…</p>
           </div>
-          <div className="stack">
-            {surveyCandidates.map(({ event }) => (
-              <article key={event.id} className="surface-panel surface-panel--subtle">
-                <strong>{event.title}</strong>
-                <p className="subtle-text">{formatEventWindow(event)}</p>
-                <div className="chip-row">
-                  <Link
-                    className="button button--primary button--small"
-                    to={`/me/sondaggi/${event.id}`}
-                  >
-                    Compila sondaggio
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {loading ? (
-        <section className="user-dashboard-section">
-          <div className="user-section-heading">
-            <h2>La tua prossima attività</h2>
-          </div>
-          <p className="subtle-text">Sto caricando le prossime attività...</p>
-        </section>
-      ) : featuredActivities.length === 0 ? (
-        <EmptyState
-          title="Nessuna attività in evidenza"
-          description="Quando avrai una prossima attività programmata la troverai qui."
-          action={
-            <Link className="button button--primary" to="/me/activities">
-              Apri attività
-            </Link>
-          }
-        />
-      ) : (
-        <section className="user-dashboard-section">
-          <div className="user-section-heading">
-            <h2>La tua prossima attività</h2>
-          </div>
-          <div className="stack">
+        ) : featuredActivities.length === 0 ? (
+          <EmptyState
+            title="Nessuna attività in evidenza"
+            description="Quando avrai una prossima attività programmata la troverai qui."
+            action={
+              <Link className="button button--primary" to="/me/activities">
+                Apri attività
+              </Link>
+            }
+          />
+        ) : (
+          <div className="dash-feature-stack">
             {featuredActivities.slice(0, 2).map(({ event, registration }, index) => {
               const hasActiveRegistration =
                 Boolean(registration) && registration?.registrationStatus !== "cancelled";
@@ -207,15 +203,43 @@ export function MeDashboardPage() {
               );
             })}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
-      <section className="user-dashboard-section">
-        <div className="user-section-heading">
-          <h2>Dalle attività</h2>
-          <p className="subtle-text">
-            Ultime novità e gallerie dello stake.
-          </p>
+      {/* Campeggio (foto/video) — card calma, gestisce da sé la visibilità. */}
+      <CampHighlightCard />
+
+      {surveyCandidates.length > 0 ? (
+        <section className="dash-section">
+          <div className="dash-section__head">
+            <span className="dash-section__eyebrow">Feedback</span>
+            <h2 className="dash-section__title">Sondaggi delle attività passate</h2>
+            <p className="dash-section__sub">Un feedback anonimo ci aiuta a migliorare le prossime.</p>
+          </div>
+          <div className="dash-list">
+            {surveyCandidates.map(({ event }) => (
+              <article key={event.id} className="dash-list-row">
+                <div className="dash-list-row__text">
+                  <strong>{event.title}</strong>
+                  <span className="subtle-text">{formatEventWindow(event)}</span>
+                </div>
+                <Link
+                  className="button button--soft button--small"
+                  to={`/me/sondaggi/${event.id}`}
+                >
+                  Compila
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="dash-section">
+        <div className="dash-section__head">
+          <span className="dash-section__eyebrow">Novità</span>
+          <h2 className="dash-section__title">Dalle attività</h2>
+          <p className="dash-section__sub">Ultime novità e gallerie dello stake.</p>
         </div>
         <HomeFeed />
       </section>

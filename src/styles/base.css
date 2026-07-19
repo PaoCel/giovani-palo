@@ -9715,6 +9715,9 @@ button {
   display: grid;
   gap: 0.65rem;
   position: relative;
+  /* Ingresso all'apertura; le varianti --slide-* (più sotto) lo sovrascrivono
+     quando si sfoglia in avanti/indietro. */
+  animation: polaroid-pop 0.34s cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
 .polaroid--slide-left {
@@ -11582,4 +11585,432 @@ button {
   margin: 0.4rem 0 0;
   font-size: 0.75rem;
   color: var(--muted, #55617a);
+}
+
+/* ==========================================================================
+ * Landing pubblica (/) + Dashboard loggati (/me): redesign editoriale
+ * ========================================================================== */
+
+/* --- Landing pubblica ---------------------------------------------------- */
+.landing {
+  gap: 1.7rem;
+}
+
+.landing-hero {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+  padding: clamp(1.4rem, 6vw, 3rem) 0 0.4rem;
+}
+
+.landing-hero__eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.landing-hero__title {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-weight: 500;
+  font-size: clamp(2.2rem, 9vw, 3.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  color: var(--heading);
+}
+
+.landing-hero__title-accent {
+  color: var(--primary);
+}
+
+.landing-hero__sub {
+  margin: 0;
+  max-width: 32rem;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 1.02rem;
+}
+
+.landing-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .landing-hero__actions .button {
+    width: 100%;
+  }
+}
+
+.landing-steps {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 720px) {
+  .landing-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.landing-step {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  padding: 1.2rem 1.15rem 1.3rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.landing-step__index {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.landing-step__icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  background: var(--primary-soft);
+  color: var(--primary);
+  margin: 0.1rem 0 0.25rem;
+}
+
+.landing-step__icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.landing-step__title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--heading);
+}
+
+.landing-step__body {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.landing-foot {
+  display: grid;
+  gap: 0.7rem;
+  padding-top: 0.3rem;
+}
+
+.landing-foot__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.landing-foot__note {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* --- Dashboard loggati --------------------------------------------------- */
+.dash {
+  gap: 1.5rem;
+}
+
+.dash-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.4rem;
+}
+
+.dash-head__text {
+  display: grid;
+  gap: 0.24rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dash-head__eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dash-head__title {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-weight: 500;
+  font-size: clamp(1.9rem, 7vw, 2.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--heading);
+}
+
+.dash-head__name {
+  color: var(--primary);
+}
+
+.dash-head__sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.dash-head__share {
+  flex: 0 0 auto;
+  width: 2.7rem;
+  height: 2.7rem;
+  min-height: 0;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border-strong);
+  background: var(--surface-strong);
+  color: var(--primary);
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.dash-head__share:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.dash-head__share svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.dash-section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.dash-section__head {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.dash-section__eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.dash-section__title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--heading);
+}
+
+.dash-section__sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.dash-feature-stack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.dash-card--placeholder {
+  padding: 1.4rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+  border: 1px solid var(--surface-border);
+}
+
+.dash-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.dash-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+}
+
+.dash-list-row__text {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.dash-list-row__text strong {
+  color: var(--heading);
+  font-size: 0.95rem;
+}
+
+.dash-list-row .button {
+  flex: 0 0 auto;
+}
+
+/* ==========================================================================
+ * Loader brandizzato + transizioni lightbox
+ * ========================================================================== */
+
+.app-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 58vh;
+  padding: 2rem 1rem;
+  text-align: center;
+  animation: app-loader-enter 0.4s ease both;
+}
+
+@keyframes app-loader-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.app-loader__mark {
+  position: relative;
+  width: 5.4rem;
+  height: 5.4rem;
+  display: grid;
+  place-items: center;
+}
+
+/* Anello "cometa" in conic-gradient, ritagliato ad anello via mask e ruotato. */
+.app-loader__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 28%,
+    var(--primary) 82%,
+    var(--accent) 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: app-loader-spin 1.15s cubic-bezier(0.55, 0.15, 0.4, 0.9) infinite;
+}
+
+@keyframes app-loader-spin {
+  to { transform: rotate(360deg); }
+}
+
+.app-loader__logo {
+  width: 3.15rem;
+  height: 3.15rem;
+  object-fit: contain;
+  animation: app-loader-breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes app-loader-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+.app-loader__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.app-loader__bar {
+  position: relative;
+  width: 9rem;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(35, 93, 144, 0.12);
+  overflow: hidden;
+}
+
+.app-loader__bar-fill {
+  position: absolute;
+  top: 0;
+  left: -42%;
+  height: 100%;
+  width: 42%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation: app-loader-slide 1.25s ease-in-out infinite;
+}
+
+@keyframes app-loader-slide {
+  0% { left: -42%; }
+  100% { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loader,
+  .app-loader__ring,
+  .app-loader__logo,
+  .app-loader__bar-fill {
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* --- Lightbox: apertura + sfoglio foto ----------------------------------- */
+.media-lightbox {
+  animation: lightbox-fade 0.26s ease both;
+}
+
+@keyframes lightbox-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes polaroid-pop {
+  from { transform: rotate(-1.2deg) scale(0.94); opacity: 0; }
+  to { transform: rotate(-1.2deg) scale(1); opacity: 1; }
+}
+
+/* Blur-up della foto a ogni cambio (la polaroid rimonta con key=id). */
+.polaroid__media img {
+  animation: photo-reveal 0.55s ease both;
+}
+
+@keyframes photo-reveal {
+  from { opacity: 0; transform: scale(1.05); filter: blur(10px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-lightbox,
+  .polaroid,
+  .polaroid__media img {
+    animation-duration: 0.001ms;
+  }
 }
