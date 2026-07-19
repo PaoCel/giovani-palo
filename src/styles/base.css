@@ -11867,6 +11867,7 @@ button {
 .dash-list-row__text {
   display: grid;
   gap: 0.12rem;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -11875,8 +11876,11 @@ button {
   font-size: 0.95rem;
 }
 
+/* Il bottone resta compatto: annulla la regola mobile globale .button{width:100%}
+   che altrimenti lo forzerebbe a piena larghezza schiacciando il testo. */
 .dash-list-row .button {
   flex: 0 0 auto;
+  width: auto;
 }
 
 /* ==========================================================================
