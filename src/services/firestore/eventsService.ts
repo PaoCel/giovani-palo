@@ -417,9 +417,13 @@ export const eventsService = {
   },
 
   async publishEvent(stakeId: string, eventId: string) {
+    // isVisible viaggia insieme a isPublic nel filtro di listPublicEvents:
+    // se resta false da un salvataggio bozza precedente, l'attività
+    // sparisce dai feed pubblici anche dopo questa pubblicazione.
     await updateDoc(doc(db, "stakes", stakeId, "activities", eventId), {
       status: "registrations_open",
       isPublic: true,
+      isVisible: true,
       updatedAt: nowIso(),
     });
     invalidateCache("events:public");
