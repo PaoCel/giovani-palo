@@ -148,6 +148,16 @@ export function AdminEventEditorModal({
         nextConfig,
         standardFieldDefinitions,
       );
+
+      // Il wizard di creazione salva sempre come bozza allo step "Attività"
+      // (vedi EventEditorForm statusMode="simplified"): completare lo step
+      // "Modulo" è il segnale che l'attività è pronta, quindi la pubblica.
+      // Non tocca eventi esistenti in modifica: lì resta l'azione esplicita
+      // "Pubblica" per evitare di ripubblicare a sorpresa una bozza salvata.
+      if (!initialEvent && savedEvent?.status !== "cancelled") {
+        await eventsService.publishEvent(stakeId, eventId);
+      }
+
       onCompleted?.(eventId);
       onClose();
     } catch (caughtError) {
