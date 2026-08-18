@@ -50,10 +50,21 @@ export const standardFieldDefinitions: StandardFieldDefinition[] = [
   },
   {
     key: "transportMode",
-    label: "Come arriverai",
-    helpText: "Indica come pensi di raggiungere l'attività.",
+    // "Passaggio" da solo non diceva se lo si chiede o lo si offre: le voci
+    // ora sono in prima persona, così l'organizzazione sa subito chi deve
+    // caricare in auto e chi ha un posto libero.
+    label: "Come arrivi?",
+    helpText: "Se ti serve un passaggio scrivilo qui: organizziamo noi le auto.",
     inputType: "select",
-    options: ["Da definire", "Auto propria", "Passaggio", "Pullman", "Treno", "Altro"],
+    options: [
+      "Non lo so ancora",
+      "Vengo con la mia famiglia",
+      "Ho bisogno di un passaggio",
+      "Posso dare un passaggio ad altri",
+      "Pullman organizzato",
+      "Treno",
+      "Altro",
+    ],
   },
   {
     key: "roomPreference1Name",

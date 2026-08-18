@@ -12018,3 +12018,82 @@ button {
     animation-duration: 0.001ms;
   }
 }
+
+/* Campo preferenza stanza: ricerca fra chi ha già partecipato.
+   La ricerca gira sul server, quindi lo stato "sto cercando" deve essere
+   sempre visibile: senza, chi scrive resta a fissare un campo muto. */
+.roommate-field__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.roommate-field__status svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.roommate-field__status--ok {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.roommate-field__status--free {
+  color: var(--muted);
+}
+
+.roommate-field__spinner {
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 2px solid rgba(16, 28, 48, 0.16);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: roommate-spin 0.7s linear infinite;
+}
+
+@keyframes roommate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roommate-field__spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.roommate-field__panel {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(16, 28, 48, 0.08);
+  border-radius: 0.9rem;
+  background: var(--primary-soft);
+}
+
+.roommate-field__question {
+  margin: 0;
+  color: var(--heading);
+  font-weight: 700;
+}
+
+.roommate-field__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.roommate-field__option {
+  min-height: 2.6rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+}
+
+.roommate-field__option--deny {
+  background: transparent;
+  color: var(--muted);
+}

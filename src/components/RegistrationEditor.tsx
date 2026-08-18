@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { RoomMateField } from "@/components/RoomMateField";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
 import type {
   AuthSession,
@@ -33,6 +34,9 @@ interface RegistrationEditorProps {
   event: Event;
   formConfig: EventFormConfig;
   initialRegistration?: Registration | null;
+  // Iscrizione precedente dello stesso partecipante: da qui arrivano i
+  // contatti del genitore già noti, che l'utente deve solo confermare.
+  parentDetailsSource?: Registration | null;
   session: AuthSession | null;
   unitOptions?: string[];
   standardFieldDefinitions?: StandardFieldDefinition[];
@@ -83,6 +87,11 @@ const profileFieldKeys = new Set<StandardFieldKey>([
   "roomPreference1Name",
   "roomPreference2Name",
 ]);
+const STICKY_ANSWER_KEYS: StandardFieldKey[] = [
+  "allergies",
+  "dietaryNotes",
+  "medicalNotes",
+];
 const detailFieldKeys = new Set<StandardFieldKey>([
   "roomNotes",
   "allergies",
@@ -116,7 +125,13 @@ function getInitialValues(
   session: AuthSession | null,
   formConfig: EventFormConfig,
   registration?: Registration | null,
+  parentDetailsSource?: Registration | null,
 ): RegistrationEditorValues {
+  // I campi genitore/sanitari ricadono sull'ultima iscrizione del
+  // partecipante quando questa è nuova: si conferma, non si ridigita.
+  const parentField = (key: string) =>
+    getStoredParentField(registration, key) ||
+    getStoredParentField(parentDetailsSource, key);
   const registrationNames = splitFullName(registration?.fullName);
   const sessionNames = splitFullName(session?.profile.fullName);
   const answers: RegistrationAnswers = {};
@@ -126,6 +141,23 @@ function getInitialValues(
 
     if (existingValue !== undefined) {
       answers[standardFieldKey] = existingValue;
+      continue;
+    }
+
+    // Allergie e note sanitarie non cambiano tra un'attività e l'altra: si
+    // ripresentano già compilate dall'ultima iscrizione, da confermare o
+    // correggere. Le preferenze stanza no: quelle si scelgono ogni volta.
+    const stickyValue = STICKY_ANSWER_KEYS.includes(standardFieldKey)
+      ? // Nelle iscrizioni con autorizzazione genitore questi campi finiscono
+        // nel blocco genitore invece che fra le risposte: si guarda in
+        // entrambi i posti, altrimenti l'allergia già dichiarata si perde.
+        (parentDetailsSource?.answers[standardFieldKey] ??
+          getStoredParentField(parentDetailsSource, standardFieldKey) ??
+          undefined)
+      : undefined;
+
+    if (stickyValue !== undefined && stickyValue !== "") {
+      answers[standardFieldKey] = stickyValue;
       continue;
     }
 
@@ -178,17 +210,17 @@ function getInitialValues(
       "",
     unitName: registration?.unitNameSnapshot || session?.profile.unitName || "",
     answers,
-    parentFirstName: getStoredParentField(registration, "parentFirstName"),
-    parentLastName: getStoredParentField(registration, "parentLastName"),
-    parentEmail: getStoredParentField(registration, "parentEmail"),
-    parentPhone: getStoredParentField(registration, "parentPhone"),
-    emergencyContactName: getStoredParentField(registration, "emergencyContactName"),
-    emergencyContactPhone: getStoredParentField(registration, "emergencyContactPhone"),
-    emergencyContactRelation: getStoredParentField(registration, "emergencyContactRelation"),
-    allergies: getStoredParentField(registration, "allergies"),
-    medications: getStoredParentField(registration, "medications"),
-    medicalNotes: getStoredParentField(registration, "medicalNotes"),
-    dietaryNotes: getStoredParentField(registration, "dietaryNotes"),
+    parentFirstName: parentField("parentFirstName"),
+    parentLastName: parentField("parentLastName"),
+    parentEmail: parentField("parentEmail"),
+    parentPhone: parentField("parentPhone"),
+    emergencyContactName: parentField("emergencyContactName"),
+    emergencyContactPhone: parentField("emergencyContactPhone"),
+    emergencyContactRelation: parentField("emergencyContactRelation"),
+    allergies: parentField("allergies"),
+    medications: parentField("medications"),
+    medicalNotes: parentField("medicalNotes"),
+    dietaryNotes: parentField("dietaryNotes"),
     participatingDays: Array.isArray(registration?.participatingDays)
       ? [...registration.participatingDays]
       : [],
@@ -254,6 +286,7 @@ export function RegistrationEditor({
   event,
   formConfig,
   initialRegistration,
+  parentDetailsSource,
   session,
   unitOptions = [],
   standardFieldDefinitions,
@@ -264,7 +297,7 @@ export function RegistrationEditor({
 }: RegistrationEditorProps) {
   const cityOptionsListId = useId();
   const [values, setValues] = useState<RegistrationEditorValues>(
-    getInitialValues(session, formConfig, initialRegistration),
+    getInitialValues(session, formConfig, initialRegistration, parentDetailsSource),
   );
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -349,6 +382,7 @@ export function RegistrationEditor({
   const eventRequiresEmergencyContacts = Boolean(event.requiresEmergencyContacts);
   const eventRequiresMedicalNotes = Boolean(event.requiresMedicalNotes);
   const showParentStep = eventRequiresParentAuthorization;
+  const hasPrefilledParentContacts = hasFilledText(values.parentEmail);
 
   // Foto/video consent per MAGGIORENNI: per i minori il consenso lo da' il
   // genitore via magic-link (parentAuthorization.photoConsent). Per gli
@@ -489,7 +523,7 @@ export function RegistrationEditor({
       nextSteps.push({
         id: "details",
         title: "Conferma",
-        description: "Useremo i dati gia presenti nel tuo account.",
+        description: "Rivedi e conferma l'iscrizione.",
         icon: "check",
       });
     }
@@ -508,10 +542,10 @@ export function RegistrationEditor({
   ]);
 
   useEffect(() => {
-    setValues(getInitialValues(session, formConfig, initialRegistration));
+    setValues(getInitialValues(session, formConfig, initialRegistration, parentDetailsSource));
     setFieldErrors({});
     setCurrentStepIndex(0);
-  }, [formConfig, initialRegistration, session]);
+  }, [formConfig, initialRegistration, parentDetailsSource, session]);
 
   useEffect(() => {
     setCurrentStepIndex((current) => Math.min(current, registrationSteps.length - 1));
@@ -799,6 +833,26 @@ export function RegistrationEditor({
           </select>
           {renderFieldHint(field.key, field.helpText)}
         </label>
+      );
+    }
+
+    if (isRoomRelatedStandardFieldKey(field.key) && field.key !== "roomNotes") {
+      return (
+        <RoomMateField
+          key={field.key}
+          label={field.label}
+          helpText={field.helpText}
+          placeholder={field.placeholder}
+          value={typeof value === "string" ? value : ""}
+          stakeId={event.stakeId}
+          inputClassName={getInputClass(field.key)}
+          labelNode={renderFieldLabel(field.label, field.key)}
+          errorNode={fieldErrors[field.key] ? renderFieldHint(field.key, field.helpText) : null}
+          onChange={(nextValue) => {
+            clearFieldError(field.key);
+            updateAnswer(field.key, nextValue);
+          }}
+        />
       );
     }
 
@@ -1250,10 +1304,8 @@ export function RegistrationEditor({
               ) : null}
               {!hasVisibleQuestions ? (
                 <div className="surface-panel surface-panel--subtle form-subsection">
-                  <h3>Pronto per inviare</h3>
-                  <p>
-                    Per questa attivita useremo direttamente i dati gia presenti nel tuo account.
-                  </p>
+                  <h3>Tutto pronto</h3>
+                  <p>Conferma qui sotto per iscriverti.</p>
                 </div>
               ) : null}
               {hasPhotoConsentFields ? (
@@ -1333,7 +1385,11 @@ export function RegistrationEditor({
           {currentStep.id === "parent" ? (
             <div className="form-stack">
               <div className="form-info-banner">
-                <strong>Dati genitore o tutore richiesti</strong>
+                <strong>
+                  {hasPrefilledParentContacts
+                    ? "Controlla i dati del genitore o tutore"
+                    : "Dati genitore o tutore richiesti"}
+                </strong>
                 <span>
                   Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
                   per autorizzare la partecipazione. L&apos;iscrizione sara&apos; in stato
