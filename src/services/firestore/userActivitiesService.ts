@@ -19,7 +19,13 @@ export const userActivitiesService = {
       return [];
     }
 
-    const events = await eventsService.listAllEvents(session.profile.stakeId);
+    // Solo admin e dirigenti possono elencare TUTTE le attività: per gli
+    // altri le regole Firestore rifiutano la query non filtrata non appena
+    // esiste una bozza (una sola attività privata fa fallire l'intera lista).
+    const events =
+      session.isAdmin || session.isUnitLeader
+        ? await eventsService.listAllEvents(session.profile.stakeId)
+        : await eventsService.listPublicEvents(session.profile.stakeId);
     const lookup = getRegistrationLookupFromSession(session);
     const activityItems = await Promise.all(
       events.map(async (event) => ({
