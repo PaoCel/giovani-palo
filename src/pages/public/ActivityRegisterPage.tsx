@@ -44,6 +44,9 @@ interface RegisterPageData {
   event: Awaited<ReturnType<typeof eventsService.getPublicEventById>>;
   formConfig: Awaited<ReturnType<typeof eventFormsService.getFormConfig>> | null;
   registration: Awaited<ReturnType<typeof registrationsService.getRegistrationById>>;
+  // Iscrizione precedente dello stesso partecipante da cui recuperare i
+  // contatti del genitore: lo step genitore parte compilato, da confermare.
+  parentDetailsSource: Registration | null;
   children: ChildProfile[];
 }
 
@@ -53,6 +56,7 @@ const initialData: RegisterPageData = {
   event: null,
   formConfig: null,
   registration: null,
+  parentDetailsSource: null,
   children: [],
 };
 
@@ -200,12 +204,23 @@ export function ActivityRegisterPage() {
         };
       }
 
+      // Solo quando servono davvero (attività con autorizzazione genitore) e
+      // solo se questa iscrizione non li ha già: sono get sulla propria
+      // iscrizione, serviti dalla cache locale nella quasi totalità dei casi.
+      const parentDetailsSource =
+        event.requiresParentAuthorization && hasLookup && !registration
+          ? await registrationsService
+              .findLatestParentDetails(stakeId, lookup, eventId)
+              .catch(() => null)
+          : null;
+
       return {
         stakeId,
         organization,
         event,
         formConfig,
         registration,
+        parentDetailsSource,
         children,
       };
     },
@@ -844,6 +859,7 @@ export function ActivityRegisterPage() {
             initialRegistration={
               data.registration ?? (selectedChild ? buildChildPrefill(selectedChild) : null)
             }
+            parentDetailsSource={data.parentDetailsSource}
             session={session}
             standardFieldDefinitions={getVisibleStandardFieldDefinitions(
               organization?.registrationDefaults.fieldOverrides,

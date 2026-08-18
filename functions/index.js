@@ -12,6 +12,7 @@ const db = getFirestore();
 // Cloud Functions per autorizzazione genitoriale (Brevo magic link).
 const parentAuthorization = require("./lib/parentAuthorization");
 const campManagement = require("./lib/campManagement");
+const roomMates = require("./lib/roomMates");
 
 exports.onRegistrationPendingParentAuth = parentAuthorization.onRegistrationPendingParentAuth;
 exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationGetContext;
@@ -25,6 +26,7 @@ exports.parentAuthorizationGetSignedConsentUrl =
 exports.parentAuthorizationDownloadSignedConsentsZip =
   parentAuthorization.parentAuthorizationDownloadSignedConsentsZip;
 exports.campManagementSave = campManagement.campManagementSave;
+exports.roomMateSuggestions = roomMates.roomMateSuggestions;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";

@@ -338,6 +338,25 @@ async function getRegistrationCategory(
   return getGenderFromAnswers(input.answers);
 }
 
+
+// Un'iscrizione è utile come sorgente di precompilazione solo se contiene
+// davvero i contatti del genitore (raw al submit o confermati dal genitore).
+function hasStoredParentDetails(registration: Registration) {
+  const authorization = registration.parentAuthorization as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const request = registration.answers?.parentAuthorizationRequest as unknown as
+    | Record<string, unknown>
+    | undefined;
+
+  const email =
+    (typeof authorization?.parentEmail === "string" ? authorization.parentEmail : "") ||
+    (typeof request?.parentEmail === "string" ? request.parentEmail : "");
+
+  return Boolean(email.trim());
+}
+
 export const registrationsService = {
   async listRegistrationsByEvent(stakeId: string, eventId: string): Promise<Registration[]> {
     const snapshot = await getDocs(getEventRegistrationsCollection(stakeId, eventId));
@@ -399,6 +418,35 @@ export const registrationsService = {
     }
 
     return this.getRegistrationById(stakeId, eventId, getRegistrationDocId(lookup));
+  },
+
+  // Dati del genitore già forniti dallo stesso partecipante su un'altra
+  // attività: servono a precompilare lo step genitore invece di farglieli
+  // ridigitare ogni volta. Le rules consentono il `get` diretto della propria
+  // iscrizione (id `user_<uid>`) su qualsiasi attività, quindi basta scorrere
+  // le attività pubbliche — già in cache di sessione — e leggere le proprie.
+  async findLatestParentDetails(
+    stakeId: string,
+    lookup: RegistrationLookup,
+    excludeEventId: string,
+  ): Promise<Registration | null> {
+    if (!stakeId || (!lookup.userId && !lookup.parentUid && !lookup.anonymousUid)) {
+      return null;
+    }
+
+    const events = await eventsService.listPublicEvents(stakeId);
+    const candidates = await Promise.all(
+      events
+        .filter((event) => event.id !== excludeEventId)
+        .map((event) =>
+          this.getRegistrationByActor(stakeId, event.id, lookup).catch(() => null),
+        ),
+    );
+
+    return candidates
+      .filter((registration): registration is Registration => Boolean(registration))
+      .filter((registration) => hasStoredParentDetails(registration))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
   },
 
   // Tutte le iscrizioni gestite da un genitore, su qualunque attività.
