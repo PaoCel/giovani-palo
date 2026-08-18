@@ -5,6 +5,7 @@ import { LikeButton } from "@/components/feed/LikeButton";
 import { GalleryUnlockForm } from "@/components/feed/GalleryUnlockForm";
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
 import { useAuth } from "@/hooks/useAuth";
+import { onCacheRevalidated } from "@/services/firestore/cacheFirst";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import { galleryUnlockService } from "@/services/firestore/galleryUnlockService";
@@ -58,13 +59,17 @@ export function HomeFeed(_: HomeFeedProps) {
     { galleryId: string; media: GalleryMedia[]; index: number } | null
   >(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!stakeId || !uid) {
       setPosts([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Il refresh silenzioso (revalidazione cache-first) non mostra lo
+    // skeleton: il feed già a schermo resta finché non arrivano i nuovi dati.
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [feedPosts, registeredActivities] = await Promise.all([
@@ -204,6 +209,10 @@ export function HomeFeed(_: HomeFeedProps) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Le letture cache-first possono dipingere un feed vecchio di una visita:
+  // quando il refresh in background trova dati diversi sul server, ricarica.
+  useEffect(() => onCacheRevalidated(() => void refresh({ silent: true })), [refresh]);
 
   const handleUnlock = useCallback(
     async (galleryId: string, code: string) => {
