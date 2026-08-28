@@ -928,6 +928,11 @@ export function AdminEventDetailPage() {
         (!resolvedEvent.questionsEnabled && routeTab === "questions")
       ? "details"
       : routeTab;
+  const isCampOvernight = resolvedEvent.activityType === "camp";
+  const overnightUnitSingular = isCampOvernight ? "tenda" : "stanza";
+  const overnightUnitSingularTitle = isCampOvernight ? "Tenda" : "Stanza";
+  const overnightUnitPlural = isCampOvernight ? "tende" : "stanze";
+  const overnightUnitPluralTitle = isCampOvernight ? "Tende" : "Stanze";
   const subtabsCountClass = (() => {
     let count = 5;
     if (resolvedEvent.overnight) count += 1;
@@ -965,7 +970,7 @@ export function AdminEventDetailPage() {
       : [];
   const modalSubtitle =
     registrationModalMode === "overnight"
-      ? "Preferenze tenda e dati inviati"
+      ? `Preferenze ${overnightUnitSingular} e dati inviati`
       : "Dettaglio registrazione";
   const selectedCampCommittee =
     selectedCampCommitteeId !== null
@@ -1824,7 +1829,9 @@ export function AdminEventDetailPage() {
       );
 
       if (result.processedRequestsCount === 0) {
-        setActionInfo("Nessuna richiesta tenda da normalizzare.");
+        setActionInfo(
+          `Nessuna richiesta ${overnightUnitSingular} da normalizzare.`,
+        );
       } else {
         setActionInfo(
           `Normalizzazione completata: ${result.matchedCount} richieste abbinate, ${result.unmatchedCount} senza match su ${result.processedRequestsCount} richieste analizzate.`,
@@ -1836,7 +1843,7 @@ export function AdminEventDetailPage() {
       setActionError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Impossibile normalizzare le richieste tenda.",
+          : `Impossibile normalizzare le richieste ${overnightUnitSingular}.`,
       );
     } finally {
       setNormalizingRoomPreferences(false);
@@ -2070,7 +2077,7 @@ export function AdminEventDetailPage() {
             type="button"
           >
             <AppIcon name="building" />
-            <span>Tende</span>
+            <span>{overnightUnitPluralTitle}</span>
           </button>
         ) : null}
         {resolvedEvent.questionsEnabled ? (
@@ -2221,7 +2228,7 @@ export function AdminEventDetailPage() {
 
           {resolvedEvent.roomsInfo ? (
             <article className="surface-panel surface-panel--subtle">
-              <h3>Tende e logistica</h3>
+              <h3>{overnightUnitPluralTitle} e logistica</h3>
               <p>{resolvedEvent.roomsInfo}</p>
             </article>
           ) : null}
@@ -3219,7 +3226,7 @@ export function AdminEventDetailPage() {
               <h3>Compagni più richiesti</h3>
               {roomRequestDistribution.length === 0 ? (
                 <p className="subtle-text">
-                  Ancora nessuna preferenza tenda raccolta.
+                  Ancora nessuna preferenza {overnightUnitSingular} raccolta.
                 </p>
               ) : (
                 <ul className="plain-list plain-list--compact">
@@ -3245,10 +3252,10 @@ export function AdminEventDetailPage() {
             <article className="surface-panel surface-panel--subtle admin-roster">
               <div className="section-head admin-roster__head">
                 <div>
-                  <h3>Riepilogo tende</h3>
+                  <h3>Riepilogo {overnightUnitPlural}</h3>
                   <p>
-                    Tocca una riga per vedere preferenze tenda e risposte
-                    complete.
+                    Tocca una riga per vedere preferenze {overnightUnitSingular}
+                    e risposte complete.
                   </p>
                 </div>
                 <div className="admin-section-actions">
@@ -3303,7 +3310,7 @@ export function AdminEventDetailPage() {
                         <small>
                           {roomPreview
                             ? roomPreview.value
-                            : "Nessuna preferenza tenda"}
+                            : `Nessuna preferenza ${overnightUnitSingular}`}
                         </small>
                       </div>
                       <div className="admin-roster-row__side">
@@ -4074,7 +4081,7 @@ export function AdminEventDetailPage() {
                 registrationModalRoomEntries.length > 0
                   ? [
                       {
-                        label: "Tenda",
+                        label: overnightUnitSingularTitle,
                         value:
                           registrationModal.assignedRoomId || "Da assegnare",
                       },
@@ -4090,7 +4097,7 @@ export function AdminEventDetailPage() {
 
             {registrationModalRoomEntries.length > 0 ? (
               <div className="registration-detail__answers">
-                <h4>Preferenze tenda</h4>
+                <h4>Preferenze {overnightUnitSingular}</h4>
                 <div className="admin-answer-grid">
                   {registrationModalRoomEntries.map((entry) => (
                     <article
