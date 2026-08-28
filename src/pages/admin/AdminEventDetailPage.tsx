@@ -3254,7 +3254,7 @@ export function AdminEventDetailPage() {
                 <div>
                   <h3>Riepilogo {overnightUnitPlural}</h3>
                   <p>
-                    Tocca una riga per vedere preferenze {overnightUnitSingular}
+                    Tocca una riga per vedere preferenze {overnightUnitSingular}{" "}
                     e risposte complete.
                   </p>
                 </div>
