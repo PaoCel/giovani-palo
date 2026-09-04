@@ -176,6 +176,40 @@ function readParentAuthorizationRequest(registrationData) {
   return request;
 }
 
+async function syncPendingParticipantDetails(registrationRef, registration) {
+  const request = readParentAuthorizationRequest(registration);
+  const state = registration.parentAuthorization;
+  if (!request || !state || typeof state !== "object") return false;
+
+  const editableKeys = [
+    "emergencyContactName",
+    "emergencyContactPhone",
+    "emergencyContactRelation",
+    "allergies",
+    "medications",
+    "medicalNotes",
+    "dietaryNotes",
+  ];
+  const nextDetails = Object.fromEntries(
+    editableKeys.map((key) => [key, asString(request[key]).trim()]),
+  );
+  const changed = editableKeys.some((key) => asString(state[key]) !== nextDetails[key]);
+  if (!changed) return false;
+
+  await registrationRef.set(
+    {
+      parentAuthorization: {
+        ...state,
+        ...nextDetails,
+        updatedAt: nowIso(),
+      },
+      updatedAt: nowIso(),
+    },
+    { merge: true },
+  );
+  return true;
+}
+
 function emptyParentAuthorizationState({ parentEmail, parentName, parentPhone, expiresAt }) {
   return {
     status: "pending_parent_authorization",
@@ -780,6 +814,11 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
       after.parentAuthorization.tokenId &&
       after.parentAuthorization.status !== "email_error"
     ) {
+      const { stakeId, activityId, registrationId } = event.params;
+      const registrationRef = getFirestore().doc(
+        `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
+      );
+      await syncPendingParticipantDetails(registrationRef, after);
       return;
     }
 

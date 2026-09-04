@@ -451,6 +451,15 @@ export function RegistrationEditor({
       ),
     [activeStandardFields],
   );
+  const hasStandardAllergiesField = stepDetailFields.some(
+    (field) => field.key === "allergies",
+  );
+  const hasStandardMedicalNotesField = stepDetailFields.some(
+    (field) => field.key === "medicalNotes",
+  );
+  const hasStandardDietaryNotesField = stepDetailFields.some(
+    (field) => field.key === "dietaryNotes",
+  );
   const hasPhotoConsentFields = stepDetailFields.some(
     (field) => field.key === "photoInternalConsent" || field.key === "photoPublicConsent",
   );
@@ -1055,6 +1064,10 @@ export function RegistrationEditor({
     const category = getGenderRoleCategory(values.category);
     const youthGroup = getYouthGroupLabel(category);
     const consentAcceptedAt = new Date().toISOString();
+    const medicalText = (key: StandardFieldKey, fallback: string) => {
+      const answer = values.answers[key];
+      return (typeof answer === "string" ? answer : fallback).trim();
+    };
 
     // Quando l'attivita' richiede autorizzazione magic-link al genitore e il
     // partecipante e' minorenne, raccogliamo i dati del genitore qui e settiamo
@@ -1070,10 +1083,10 @@ export function RegistrationEditor({
           emergencyContactName: values.emergencyContactName.trim(),
           emergencyContactPhone: values.emergencyContactPhone.trim(),
           emergencyContactRelation: values.emergencyContactRelation.trim(),
-          allergies: values.allergies.trim(),
+          allergies: medicalText("allergies", values.allergies),
           medications: values.medications.trim(),
-          medicalNotes: values.medicalNotes.trim(),
-          dietaryNotes: values.dietaryNotes.trim(),
+          medicalNotes: medicalText("medicalNotes", values.medicalNotes),
+          dietaryNotes: medicalText("dietaryNotes", values.dietaryNotes),
           submittedAt: consentAcceptedAt,
         }
       : null;
@@ -1530,7 +1543,7 @@ export function RegistrationEditor({
                 </div>
               ) : null}
 
-              {eventRequiresMedicalNotes ? (
+              {eventRequiresMedicalNotes || eventRequiresParentAuthorization ? (
                 <div className="surface-panel surface-panel--subtle form-subsection">
                   <h3>Note mediche e alimentari</h3>
                   <p className="subtle-text">
@@ -1538,21 +1551,23 @@ export function RegistrationEditor({
                     sicurezza del minore. Le informazioni sono visibili solo agli admin.
                   </p>
                   <div className="form-stack">
-                    <label className="field">
-                      {renderFieldLabel("Allergie", "allergies")}
-                      <textarea
-                        className="input input--textarea"
-                        rows={2}
-                        value={values.allergies}
-                        onChange={(eventInput) =>
-                          setValues((current) => ({
-                            ...current,
-                            allergies: eventInput.target.value,
-                          }))
-                        }
-                        placeholder="Es. arachidi, polline. Lascia vuoto se non rilevanti."
-                      />
-                    </label>
+                    {eventRequiresMedicalNotes && !hasStandardAllergiesField ? (
+                      <label className="field">
+                        {renderFieldLabel("Allergie", "allergies")}
+                        <textarea
+                          className="input input--textarea"
+                          rows={2}
+                          value={values.allergies}
+                          onChange={(eventInput) =>
+                            setValues((current) => ({
+                              ...current,
+                              allergies: eventInput.target.value,
+                            }))
+                          }
+                          placeholder="Es. arachidi, polline. Lascia vuoto se non rilevanti."
+                        />
+                      </label>
+                    ) : null}
 
                     <label className="field">
                       {renderFieldLabel("Farmaci assunti", "medications")}
@@ -1570,37 +1585,41 @@ export function RegistrationEditor({
                       />
                     </label>
 
-                    <label className="field">
-                      {renderFieldLabel("Note mediche o logistiche", "medicalNotes")}
-                      <textarea
-                        className="input input--textarea"
-                        rows={2}
-                        value={values.medicalNotes}
-                        onChange={(eventInput) =>
-                          setValues((current) => ({
-                            ...current,
-                            medicalNotes: eventInput.target.value,
-                          }))
-                        }
-                        placeholder="Patologie, supporti necessari, intolleranze gravi."
-                      />
-                    </label>
+                    {eventRequiresMedicalNotes && !hasStandardMedicalNotesField ? (
+                      <label className="field">
+                        {renderFieldLabel("Note mediche o logistiche", "medicalNotes")}
+                        <textarea
+                          className="input input--textarea"
+                          rows={2}
+                          value={values.medicalNotes}
+                          onChange={(eventInput) =>
+                            setValues((current) => ({
+                              ...current,
+                              medicalNotes: eventInput.target.value,
+                            }))
+                          }
+                          placeholder="Patologie, supporti necessari, intolleranze gravi."
+                        />
+                      </label>
+                    ) : null}
 
-                    <label className="field">
-                      {renderFieldLabel("Note alimentari", "dietaryNotes")}
-                      <textarea
-                        className="input input--textarea"
-                        rows={2}
-                        value={values.dietaryNotes}
-                        onChange={(eventInput) =>
-                          setValues((current) => ({
-                            ...current,
-                            dietaryNotes: eventInput.target.value,
-                          }))
-                        }
-                        placeholder="Es. vegetariano, intolleranza lattosio, dieta specifica."
-                      />
-                    </label>
+                    {eventRequiresMedicalNotes && !hasStandardDietaryNotesField ? (
+                      <label className="field">
+                        {renderFieldLabel("Note alimentari", "dietaryNotes")}
+                        <textarea
+                          className="input input--textarea"
+                          rows={2}
+                          value={values.dietaryNotes}
+                          onChange={(eventInput) =>
+                            setValues((current) => ({
+                              ...current,
+                              dietaryNotes: eventInput.target.value,
+                            }))
+                          }
+                          placeholder="Es. vegetariano, intolleranza lattosio, dieta specifica."
+                        />
+                      </label>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
