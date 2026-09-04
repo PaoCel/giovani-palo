@@ -7681,6 +7681,31 @@ button {
   height: 0.85rem;
 }
 
+.unit-consent-resend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.48rem;
+  border: 1px solid rgba(15, 77, 128, 0.2);
+  border-radius: 0.55rem;
+  background: rgba(15, 77, 128, 0.07);
+  color: #0f4d80;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.unit-consent-resend:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.unit-consent-resend svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
 .unit-transport-cell {
   display: inline-flex;
   align-items: center;

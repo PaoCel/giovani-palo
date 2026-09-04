@@ -138,7 +138,7 @@ export const parentAuthorizationService = {
     await rejectCallable(input);
   },
 
-  async resendByAdmin(input: ResendInput) {
+  async resend(input: ResendInput) {
     const result = await resendCallable(input);
     return result.data;
   },

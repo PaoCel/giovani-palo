@@ -1497,7 +1497,7 @@ export function AdminEventDetailPage() {
     setActionError(null);
     setActionInfo(null);
     try {
-      const result = await parentAuthorizationService.resendByAdmin({
+      const result = await parentAuthorizationService.resend({
         stakeId,
         activityId: resolvedEventId,
         registrationId: registration.id,

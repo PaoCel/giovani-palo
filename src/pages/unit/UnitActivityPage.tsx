@@ -7,6 +7,7 @@ import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
+import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
 import { unitLeaderService } from "@/services/firestore/unitLeaderService";
 import { unitTransportNotesService } from "@/services/firestore/unitTransportNotesService";
 import type { CampPatrolRole, CampPublicMember, Registration, UserProfile } from "@/types";
@@ -97,14 +98,33 @@ function TransportBadge({
 function ConsentCell({
   registration,
   requiresParentAuthorization,
+  isResending,
+  onResend,
 }: {
   registration: Registration;
   requiresParentAuthorization: boolean;
+  isResending: boolean;
+  onResend: () => void;
 }) {
   const hasPhoto = registration.answers.photoInternalConsent === true;
   const isMinor = isMinorBirthDate(registration.birthDate);
   const parentBadge = getParentAuthorizationBadge(registration, requiresParentAuthorization);
   const hasParent = parentBadge.tone === "success";
+  const parentRequest = registration.answers.parentAuthorizationRequest;
+  const requestEmail =
+    parentRequest && typeof parentRequest === "object" && !Array.isArray(parentRequest)
+      ? (parentRequest as unknown as Record<string, unknown>).parentEmail
+      : null;
+  const hasParentEmail = Boolean(
+    registration.parentAuthorization?.parentEmail ||
+      (typeof requestEmail === "string" && requestEmail.trim()),
+  );
+  const canResend =
+    isMinor &&
+    requiresParentAuthorization &&
+    hasParentEmail &&
+    registration.parentAuthorization?.status !== "authorized" &&
+    registration.parentAuthorization?.status !== "rejected_by_parent";
 
   return (
     <div className="unit-consent-cell">
@@ -116,24 +136,37 @@ function ConsentCell({
         Foto
       </span>
       {isMinor && requiresParentAuthorization ? (
-        <span
-          className={hasParent ? "unit-consent-ok" : "unit-consent-missing"}
-          title={`Autorizzazione genitore: ${parentBadge.label}`}
-        >
-          {registration.parentConsentDocumentUrl ? (
-            <a
-              href={registration.parentConsentDocumentUrl}
-              onClick={(e) => e.stopPropagation()}
-              rel="noreferrer"
-              target="_blank"
+        <>
+          <span
+            className={hasParent ? "unit-consent-ok" : "unit-consent-missing"}
+            title={`Autorizzazione genitore: ${parentBadge.label}`}
+          >
+            {registration.parentConsentDocumentUrl ? (
+              <a
+                href={registration.parentConsentDocumentUrl}
+                onClick={(e) => e.stopPropagation()}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <AppIcon name="download" />
+              </a>
+            ) : (
+              <AppIcon name={hasParent ? "check" : "x"} />
+            )}
+            Genitore
+          </span>
+          {canResend ? (
+            <button
+              className="unit-consent-resend"
+              disabled={isResending}
+              onClick={onResend}
+              type="button"
             >
-              <AppIcon name="download" />
-            </a>
-          ) : (
-            <AppIcon name={hasParent ? "check" : "x"} />
-          )}
-          Genitore
-        </span>
+              <AppIcon name={isResending ? "refresh" : "mail"} />
+              {isResending ? "Invio..." : "Reinvia email"}
+            </button>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -185,12 +218,16 @@ function RegistrationRow({
   campAssignment,
   requiresParentAuthorization,
   onToggleTransport,
+  isResending,
+  onResendParentAuthorization,
 }: {
   registration: Registration;
   isTransportResolved: boolean;
   campAssignment: UnitCampAssignment | null;
   requiresParentAuthorization: boolean;
   onToggleTransport: () => void;
+  isResending: boolean;
+  onResendParentAuthorization: () => void;
 }) {
   const categoryLabel = getGenderRoleCategoryLabel(registration.genderRoleCategory);
   const statusTone = getRegistrationStatusTone(registration.registrationStatus);
@@ -216,6 +253,8 @@ function RegistrationRow({
         <ConsentCell
           registration={registration}
           requiresParentAuthorization={requiresParentAuthorization}
+          isResending={isResending}
+          onResend={onResendParentAuthorization}
         />
       </td>
       <td className="unit-table__cell">
@@ -320,8 +359,11 @@ export function UnitActivityPage() {
   const stakeId = session?.profile.stakeId ?? "roma-est";
   const unitId = session?.profile.unitId ?? "";
   const [selectedCampGroupKey, setSelectedCampGroupKey] = useState<string | null>(null);
+  const [resendingRegistrationId, setResendingRegistrationId] = useState<string | null>(null);
+  const [actionInfo, setActionInfo] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data, loading, error } = useAsyncData(
+  const { data, loading, error, reload } = useAsyncData(
     () => unitLeaderService.getUnitActivityDetail(stakeId, eventId, unitId),
     [stakeId, eventId, unitId],
     initialData,
@@ -349,6 +391,35 @@ export function UnitActivityPage() {
         registrationId,
         session?.firebaseUser.uid ?? "",
       );
+    }
+  }
+
+  async function handleResendParentAuthorization(registration: Registration) {
+    setResendingRegistrationId(registration.id);
+    setActionInfo(null);
+    setActionError(null);
+
+    try {
+      const result = await parentAuthorizationService.resend({
+        stakeId,
+        activityId: eventId,
+        registrationId: registration.id,
+      });
+
+      if (!result.sent) {
+        throw new Error("L'email non è partita. Riprova o contatta la presidenza di palo.");
+      }
+
+      setActionInfo(`Email di autorizzazione reinviata per ${registration.fullName}.`);
+      reload();
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile reinviare l'email di autorizzazione.",
+      );
+    } finally {
+      setResendingRegistrationId(null);
     }
   }
 
@@ -542,6 +613,24 @@ export function UnitActivityPage() {
         </div>
       ) : null}
 
+      {actionInfo ? (
+        <div className="notice notice--info">
+          <div>
+            <h3>Email inviata</h3>
+            <p>{actionInfo}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {actionError ? (
+        <div className="notice notice--warning">
+          <div>
+            <h3>Reinvio non riuscito</h3>
+            <p>{actionError}</p>
+          </div>
+        </div>
+      ) : null}
+
       {!loading && (
         <section className="activity-ios-metrics activity-ios-metrics--four">
           <article className="activity-ios-metric">
@@ -652,6 +741,10 @@ export function UnitActivityPage() {
                     requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
                     isTransportResolved={resolvedSet.has(r.id)}
                     onToggleTransport={() => void handleToggleTransport(r.id)}
+                    isResending={resendingRegistrationId === r.id}
+                    onResendParentAuthorization={() =>
+                      void handleResendParentAuthorization(r)
+                    }
                   />
                 ))}
               </tbody>
