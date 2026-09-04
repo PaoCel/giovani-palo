@@ -550,7 +550,7 @@ export const registrationsService = {
       input.answers,
     );
 
-    await setDoc(reference, {
+    const registrationPayload = {
       userId: lookup.userId ?? null,
       anonymousUid: lookup.userId || lookup.parentUid ? null : (lookup.anonymousUid ?? null),
       parentUid: lookup.parentUid ?? null,
@@ -601,23 +601,54 @@ export const registrationsService = {
       assignedCommittees: existing?.assignedCommittees ?? [],
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
-    });
+    };
+
+    if (snapshot.exists()) {
+      // Aggiorna solo i campi gestiti dal partecipante. Riscrivere l'intero
+      // documento poteva includere una copia stale di parentAuthorization,
+      // aggiornata in parallelo dalla Cloud Function, e le rules rifiutavano
+      // correttamente il salvataggio con permission-denied.
+      await updateDoc(reference, {
+        firstName: registrationPayload.firstName,
+        lastName: registrationPayload.lastName,
+        fullName: registrationPayload.fullName,
+        email: registrationPayload.email,
+        phone: registrationPayload.phone,
+        birthDate: registrationPayload.birthDate,
+        genderRoleCategory: registrationPayload.genderRoleCategory,
+        unitNameSnapshot: registrationPayload.unitNameSnapshot,
+        answers: registrationPayload.answers,
+        roomPreferenceMatches: registrationPayload.roomPreferenceMatches,
+        participatingDays: registrationPayload.participatingDays,
+        registrationStatus: registrationPayload.registrationStatus,
+        updatedAt: registrationPayload.updatedAt,
+      });
+    } else {
+      await setDoc(reference, registrationPayload);
+    }
 
     if (lookup.userId && guestSnapshot?.exists() && guestReference) {
       await deleteDoc(guestReference);
     }
 
     if (lookup.userId) {
-      await usersService.syncProfileFromRegistration(lookup.userId, {
-        fullName,
-        email: input.email.trim(),
-        phone: input.phone.trim(),
-        stakeId,
-        birthDate: getBirthDate(input.answers),
-        genderRoleCategory,
-        unitName: resolvedUnit?.name ?? unitName,
-        unitId: resolvedUnit?.id,
-      });
+      // Il salvataggio dell'iscrizione è l'operazione primaria. Un eventuale
+      // errore nel riallineamento del profilo non deve far credere all'utente
+      // che i dati dell'attività siano andati persi.
+      try {
+        await usersService.syncProfileFromRegistration(lookup.userId, {
+          fullName,
+          email: input.email.trim(),
+          phone: input.phone.trim(),
+          stakeId,
+          birthDate: getBirthDate(input.answers),
+          genderRoleCategory,
+          unitName: resolvedUnit?.name ?? unitName,
+          unitId: resolvedUnit?.id,
+        });
+      } catch (profileSyncError) {
+        console.warn("Profilo non riallineato dopo il salvataggio dell'iscrizione.", profileSyncError);
+      }
     }
 
     const savedRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
