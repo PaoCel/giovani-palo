@@ -296,6 +296,13 @@ export function RegistrationEditor({
   onSubmit,
 }: RegistrationEditorProps) {
   const cityOptionsListId = useId();
+  const editorIdentityKey = [
+    event.stakeId,
+    event.id,
+    initialRegistration?.id ?? "new",
+    parentDetailsSource?.id ?? "no-parent-source",
+    session?.firebaseUser.uid ?? "no-session",
+  ].join(":");
   const [values, setValues] = useState<RegistrationEditorValues>(
     getInitialValues(session, formConfig, initialRegistration, parentDetailsSource),
   );
@@ -551,10 +558,15 @@ export function RegistrationEditor({
   ]);
 
   useEffect(() => {
+    // Le letture cache-first possono sostituire formConfig, registration e
+    // session con nuovi oggetti equivalenti mentre l'utente sta compilando.
+    // Resettare su ogni cambio di riferimento cancellava la bozza e riportava
+    // al primo passo. Si riparte solo quando cambia davvero il soggetto del
+    // modulo (attivita', iscrizione, sorgente genitore o sessione).
     setValues(getInitialValues(session, formConfig, initialRegistration, parentDetailsSource));
     setFieldErrors({});
     setCurrentStepIndex(0);
-  }, [formConfig, initialRegistration, parentDetailsSource, session]);
+  }, [editorIdentityKey]);
 
   useEffect(() => {
     setCurrentStepIndex((current) => Math.min(current, registrationSteps.length - 1));
