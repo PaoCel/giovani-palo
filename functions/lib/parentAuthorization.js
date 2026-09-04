@@ -135,6 +135,37 @@ async function assertAdminForStake(db, request, stakeId) {
   return user;
 }
 
+async function assertCanResendParentAuthorization(db, request, stakeId, registration) {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Login richiesto.");
+  }
+
+  const userDoc = await db.doc(`users/${request.auth.uid}`).get();
+  if (!userDoc.exists) {
+    throw new HttpsError("permission-denied", "Profilo utente non trovato.");
+  }
+
+  const user = userDoc.data() || {};
+  const isAdmin =
+    (user.role === "admin" && user.stakeId === stakeId) ||
+    user.role === "super_admin";
+  const isUnitLeaderForRegistration =
+    user.role === "unit_leader" &&
+    user.stakeId === stakeId &&
+    typeof user.unitId === "string" &&
+    user.unitId.length > 0 &&
+    registration.unitId === user.unitId;
+
+  if (!isAdmin && !isUnitLeaderForRegistration) {
+    throw new HttpsError(
+      "permission-denied",
+      "Puoi reinviare autorizzazioni solo per la tua unita'.",
+    );
+  }
+
+  return user;
+}
+
 async function getTemporaryDownloadUrl(file, filename, expiresInMinutes = 15) {
   const expiresAtMs = Date.now() + expiresInMinutes * 60 * 1000;
   const [exists] = await file.exists();
@@ -1467,7 +1498,7 @@ const parentAuthorizationReject = onCall(
 );
 
 // =============================================================================
-// Cloud Function: reinvio admin
+// Cloud Function: reinvio admin o dirigente della stessa unita'
 // =============================================================================
 
 const parentAuthorizationResend = onCall(
@@ -1488,12 +1519,17 @@ const parentAuthorizationResend = onCall(
     const db = getFirestore();
     const storage = getStorage();
 
-    await assertAdminForStake(db, request, stakeId);
-
     const registration = await loadRegistration(db, stakeId, activityId, registrationId);
     if (!registration) {
       throw new HttpsError("not-found", "Iscrizione non trovata.");
     }
+
+    await assertCanResendParentAuthorization(
+      db,
+      request,
+      stakeId,
+      registration,
+    );
 
     const activity = await loadActivity(db, stakeId, activityId);
     if (!activity) {
