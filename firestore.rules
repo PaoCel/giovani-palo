@@ -381,17 +381,15 @@ service cloud.firestore {
     }
 
     function validRegistrationUpdate() {
+      let delta = request.resource.data.diff(resource.data);
       return validRegistrationPayload(request.resource.data)
         && isOwnRegistration(resource.data)
         && registrationBelongsToCaller(request.resource.data)
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.anonymousUid == resource.data.anonymousUid
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.submittedByMode == resource.data.submittedByMode
-        && request.resource.data.unitId == resource.data.unitId
-        && request.resource.data.assignedRoomId == resource.data.assignedRoomId
-        && request.resource.data.assignedTempleShiftId == resource.data.assignedTempleShiftId
-        && request.resource.data.assignedServiceTeamIds == resource.data.assignedServiceTeamIds
+        && delta.unchangedKeys().hasAll([
+          'userId', 'anonymousUid', 'createdAt', 'submittedByMode', 'unitId',
+          'assignedRoomId', 'assignedTempleShiftId', 'assignedServiceTeamIds',
+          'linkedLaterToUserId'
+        ])
         && request.resource.data.assignedPatrolId == resource.data.get('assignedPatrolId', null)
         && request.resource.data.assignedPatrolName == resource.data.get('assignedPatrolName', null)
         && request.resource.data.assignedPatrolRole == resource.data.get('assignedPatrolRole', null)
@@ -408,17 +406,8 @@ service cloud.firestore {
             && request.resource.data.assignedCommittees == resource.data.assignedCommittees
           )
         )
-        && request.resource.data.linkedLaterToUserId == resource.data.linkedLaterToUserId
-        && (
-          ('parentUid' in resource.data && resource.data.parentUid != null)
-            ? ('parentUid' in request.resource.data && request.resource.data.parentUid == resource.data.parentUid)
-            : (!('parentUid' in request.resource.data) || request.resource.data.parentUid == null)
-        )
-        && (
-          ('childId' in resource.data && resource.data.childId != null)
-            ? ('childId' in request.resource.data && request.resource.data.childId == resource.data.childId)
-            : (!('childId' in request.resource.data) || request.resource.data.childId == null)
-        )
+        && request.resource.data.get('parentUid', null) == resource.data.get('parentUid', null)
+        && request.resource.data.get('childId', null) == resource.data.get('childId', null)
         && (
           request.resource.data.anonymousTokenId == resource.data.anonymousTokenId
           || (
@@ -461,14 +450,7 @@ service cloud.firestore {
           || request.resource.data.registrationStatus == 'cancelled'
         )
         && manualConsentFieldsUnchanged()
-        && (
-          (!('parentAuthorization' in request.resource.data) && !('parentAuthorization' in resource.data))
-          || (
-            'parentAuthorization' in request.resource.data
-            && 'parentAuthorization' in resource.data
-            && request.resource.data.parentAuthorization == resource.data.parentAuthorization
-          )
-        );
+        && !delta.affectedKeys().hasAny(['parentAuthorization']);
     }
 
     function validCampAssignmentUpdate(stakeId, activityId) {
