@@ -1,4 +1,4 @@
-const CACHE_NAME = "gugd-shell-v6";
+const CACHE_NAME = "gugd-shell-v7";
 const CORE_ASSETS = [
   "/",
   "/manifest.webmanifest",

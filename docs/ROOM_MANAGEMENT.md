@@ -58,7 +58,7 @@ server è 200 stanze, 2.000 iscrizioni e 900 KiB per richiesta.
 Test del core, dell'importazione e del modulo Foresteria:
 
 ```sh
-node --test functions/tests/roomPlannerCore.test.mjs tests/roomImport.test.mjs tests/foresteriaModule.test.mjs
+node --test functions/tests/roomPlannerCore.test.mjs tests/roomImport.test.mjs tests/foresteriaModule.test.mjs tests/roomLayout.test.mjs
 ```
 
 Rules, Auth e callable (solo emulatori, progetto `demo-room-planner`):
@@ -120,6 +120,30 @@ e rules con utenti autenticati nell'Auth Emulator, trigger di cleanup, browser
 admin con importazione del file ricevuto (20 stanze, 80 posti), ricaricamento,
 spostamenti senza duplicati, blocchi manuali, coppia esplicitamente confermata
 e layout mobile 390 px senza overflow. Nessuna scrittura di collaudo in produzione.
+
+## Pianta della struttura
+
+La vista Pianta mostra le stanze della bozza sulla piantina della struttura. La
+pianta vive in `stakes/{stakeId}/roomLayouts/{layoutId}` e contiene solo
+geometria: piani, stanze (numero e rettangolo), spazi di servizio, zone con altre
+funzioni, corte e segnaposto. Nessun dato personale. La leggono e la salvano
+solo gli admin del palo e i `super_admin`; la cancellazione dal client è negata.
+Le rules controllano l'id (`[a-z0-9-]`), le chiavi `version`, `name`, `floors`,
+`updatedAt`, la versione 1, da 1 a 6 piani e `updatedAt` impostato dal server; la
+forma di piani e stanze la valida `src/utils/roomLayout.ts` prima del
+salvataggio. La lettura è la collection del palo senza filtri: nessun indice.
+
+Le stanze si abbinano per numero: il nome della stanza nella bozza è il numero
+sulla pianta. Le stanze della pianta assenti dalla bozza appaiono come “non
+prenotata”; quelle della bozza assenti dalla pianta sono elencate sotto.
+Toccando una persona si accendono solo le stanze compatibili, con le stesse
+regole dell'assegnazione manuale; toccando la stanza la persona viene assegnata
+e bloccata. La modifica resta nella bozza fino a Salva bozza.
+
+La pianta si carica da un file `.json` (versione 1: `id`, `name`, `floors` con
+`id`, `name`, `width`, `height`, `outline`, `rooms`, `spaces`, `markers`). Il file
+della Foresteria del Tempio è privato: non va nel repository pubblico e si carica
+con Carica pianta dalla vista Pianta.
 
 ## Pubblicazione
 

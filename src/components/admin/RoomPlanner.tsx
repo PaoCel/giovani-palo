@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
+import { RoomMap } from "@/components/admin/RoomMap";
 import type { Registration } from "@/types";
 import { fillForesteriaModule } from "@/utils/foresteriaModule";
 import { readRoomFile, type RoomImport } from "@/utils/roomImport";
+import { pickLayout, readRoomLayoutFile, type RoomLayout } from "@/utils/roomLayout";
 import {
   ageAt, assignmentProblem, buildPreferenceLinks, categoryLabels, eligibleRegistrations,
   proposeRoomPlan, roomSummary, validateRoomPlan, type Room, type RoomPlan,
@@ -17,6 +19,10 @@ interface Props {
   onSave: (plan: RoomPlan) => Promise<RoomPlan>;
   onDirtyChange?: (dirty: boolean) => void;
   onReload: () => void;
+  layouts: RoomLayout[];
+  unreadableLayouts: string[];
+  layoutsFailed: boolean;
+  onSaveLayout: (layout: RoomLayout) => Promise<void>;
 }
 
 const isAdult = (person: Registration) => ["dirigente", "accompagnatore"].includes(person.genderRoleCategory);
@@ -30,13 +36,18 @@ function CategorySelect({ value, onChange, label }: { value: Room["category"]; o
   </select>;
 }
 
+const VIEW_KEY = "gugd-room-planner-view";
+function savedView(): "list" | "map" {
+  try { return localStorage.getItem(VIEW_KEY) === "map" ? "map" : "list"; } catch { return "list"; }
+}
+
 function downloadFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave, onDirtyChange, onReload }: Props) {
+export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave, onDirtyChange, onReload, layouts, unreadableLayouts, layoutsFailed, onSaveLayout }: Props) {
   const [plan, setPlan] = useState(() => copy(initialPlan));
   const [savedPlan, setSavedPlan] = useState(() => copy(initialPlan));
   const [history, setHistory] = useState<RoomPlan[]>([]);
@@ -58,8 +69,12 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   const [recalculate, setRecalculate] = useState(false);
   const [partnerId, setPartnerId] = useState("");
   const [coupleConfirmed, setCoupleConfirmed] = useState(false);
+  const [view, setView] = useState(savedView);
+  const [armedId, setArmedId] = useState<string | null>(null);
+  const [layoutList, setLayoutList] = useState(layouts);
   const fileInput = useRef<HTMLInputElement>(null);
   const moduleInput = useRef<HTMLInputElement>(null);
+  const layoutInput = useRef<HTMLInputElement>(null);
   const people = useMemo(() => eligibleRegistrations(registrations) as Registration[], [registrations]);
   const peopleById = useMemo(() => new Map(registrations.map((person) => [person.id, person])), [registrations]);
   const links = useMemo(() => buildPreferenceLinks(people), [people]);
@@ -74,6 +89,8 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "it"));
   const visibleRooms = plan.rooms.filter((room) => (category === "all" || room.category === category) && (floor === "all" || room.floor === floor));
   const floors = [...new Set(plan.rooms.map((room) => room.floor).filter(Boolean))];
+  const layoutMatch = pickLayout(layoutList, plan.rooms);
+  const armedPerson = armedId ? peopleById.get(armedId) : undefined;
 
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => {
@@ -195,6 +212,40 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     finally { setBusy(false); if (moduleInput.current) moduleInput.current.value = ""; }
   }
 
+  function changeView(next: "list" | "map") {
+    setView(next); setArmedId(null);
+    try { localStorage.setItem(VIEW_KEY, next); } catch { /* The chosen view is only a per-viewer convenience. */ }
+  }
+
+  async function importLayout(file?: File) {
+    if (layoutInput.current) layoutInput.current.value = "";
+    if (!file) return;
+    setBusy(true); setError(""); setMessage(""); setWarning("");
+    try {
+      const layout = await readRoomLayoutFile(file);
+      await onSaveLayout(layout);
+      setLayoutList((current) => [...current.filter((item) => item.id !== layout.id), layout]);
+      const rooms = layout.floors.reduce((sum, item) => sum + item.rooms.length, 0);
+      setMessage(`Pianta “${layout.name}” salvata: ${layout.floors.length} ${layout.floors.length === 1 ? "piano" : "piani"} e ${rooms} stanze. La vedono solo gli admin del palo.`);
+    } catch (cause) {
+      const code = (cause as { code?: string }).code;
+      if (code === "permission-denied") setError("Accesso non autorizzato. Accedi con un account amministratore.");
+      else if (code) setError("Salvataggio non riuscito. Controlla la connessione e riprova.");
+      else setError(cause instanceof Error ? cause.message : "Impossibile leggere il file della pianta.");
+    } finally { setBusy(false); }
+  }
+
+  function mapRoom(room: Room) {
+    if (armedPerson) {
+      const reason = assignmentProblem(armedPerson, room, plan, registrations, referenceDate);
+      if (reason) { setError(reason); return; }
+      movePerson(armedPerson, room); setArmedId(null); return;
+    }
+    const taken = Object.values(plan.assignments).filter((id) => id === room.id).length;
+    setError("");
+    if (taken < room.capacity && room.category !== "unassigned") setPickerRoomId(room.id); else setRoomEditor({ ...room });
+  }
+
   function recordCouple() {
     if (!selectedPerson || !partnerId || !coupleConfirmed) return;
     const next = copy(plan);
@@ -211,6 +262,22 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
 
   const errorNotice = error ? <div className="rp-notice rp-notice--error" role="alert">{error}</div> : null;
   const selectedPair = selectedPerson ? plan.couples.find((pair) => [pair.firstId, pair.secondId].includes(selectedPerson.id)) : undefined;
+  const mapView = <div className="rp-map-view">
+    {layoutsFailed ? <p className="rp-notice rp-notice--error" role="alert">Impossibile caricare le piante del palo. Controlla la connessione e riprova.</p> : null}
+    {unreadableLayouts.length ? <p className="rp-notice rp-notice--warning">Una pianta salvata non si legge più ({unreadableLayouts.join(", ")}): caricala di nuovo.</p> : null}
+    {armedPerson ? <div className="rp-armed" role="status"><span><strong>{nameOf(armedPerson)}</strong>Tocca una stanza evidenziata per assegnarla.</span>
+      <div className="rp-actions"><button type="button" className="button button--ghost button--small" onClick={() => { setSelectedPersonId(armedPerson.id); setArmedId(null); }}>Apri scheda</button>
+        <button type="button" className="button button--ghost button--small" onClick={() => setArmedId(null)}>Annulla</button></div></div> : null}
+    {!plan.rooms.length ? <p className="rp-empty-small">Importa prima le stanze: la pianta mostra quelle della bozza.</p>
+      : layoutMatch ? <RoomMap layout={layoutMatch.layout} plan={plan} peopleById={peopleById} nameOf={nameOf}
+        problemFor={armedPerson ? (room) => assignmentProblem(armedPerson, room, plan, registrations, referenceDate) : undefined}
+        onRoom={mapRoom} onPerson={(id) => { setArmedId(null); setSelectedPersonId(id); }} />
+      : <div className="rp-empty"><span><AppIcon name="map-pin" /></span><h3>{layoutList.length ? "La pianta non corrisponde" : "Nessuna pianta"}</h3>
+        <p>{layoutList.length ? "Le piante salvate non contengono le stanze di questa bozza. Carica quella della struttura giusta." : "Carica il file della pianta della struttura. Si prepara una volta e la vedono solo gli admin del palo."}</p>
+        <button type="button" className="button button--primary" onClick={() => layoutInput.current?.click()}>Carica pianta</button><small>File .json con piani, stanze e spazi.</small></div>}
+    {layoutMatch ? <div className="rp-map-footer"><small>{layoutMatch.layout.name}</small><button type="button" className="button button--ghost button--small" onClick={() => layoutInput.current?.click()}><AppIcon name="refresh" />Aggiorna pianta</button></div> : null}
+    <input ref={layoutInput} type="file" accept=".json,application/json" hidden aria-label="File della pianta" onChange={(event) => void importLayout(event.target.files?.[0])} />
+  </div>;
 
   return <section className="room-planner" aria-label="Gestione stanze">
     <header className="rp-header">
@@ -254,7 +321,8 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
           <label className="rp-search"><span>Cerca partecipante</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome e cognome" type="search" /></label>
           <label className="rp-checkbox"><input type="checkbox" checked={showAssigned} onChange={(event) => setShowAssigned(event.target.checked)} />Mostra anche gli assegnati</label>
           <div className="rp-people__list">
-            {shownPeople.map((person) => <button className="rp-person" key={person.id} onClick={() => setSelectedPersonId(person.id)}>
+            {shownPeople.map((person) => <button className={`rp-person${armedId === person.id ? " is-armed" : ""}`} key={person.id} aria-pressed={view === "map" ? armedId === person.id : undefined}
+              onClick={() => (view === "map" ? setArmedId(armedId === person.id ? null : person.id) : setSelectedPersonId(person.id))}>
               <span className={`rp-avatar rp-avatar--${person.genderRoleCategory}`}>{nameOf(person).split(/\s+/).map((word) => word[0]).slice(0, 2).join("")}</span>
               <span><strong>{nameOf(person)}</strong><small>{isAdult(person) ? "Accompagnatore" : person.genderRoleCategory === "giovane_donna" ? "Ragazza" : person.genderRoleCategory === "giovane_uomo" ? "Ragazzo" : "Categoria da verificare"}{ageAt(person.birthDate, referenceDate) !== null ? ` · ${ageAt(person.birthDate, referenceDate)} anni` : ""}</small>
                 {person.answers?.roomNotes ? <em>Nota stanza da leggere</em> : null}
@@ -263,13 +331,16 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
             </button>)}
             {!shownPeople.length ? <p className="rp-empty-small">{search ? "Nessun partecipante trovato." : "Tutti i partecipanti sono assegnati."}</p> : null}
           </div>
-          <p className="rp-aside-note">Le assegnazioni manuali vengono bloccate, così il calcolo automatico le conserva.</p>
+          <p className="rp-aside-note">{view === "map" ? "Sulla pianta: tocca una persona, poi una stanza evidenziata. " : ""}Le assegnazioni manuali vengono bloccate, così il calcolo automatico le conserva.</p>
         </aside>
         <div className="rp-rooms">
-          <div className="rp-filters"><h3>Le stanze</h3><select aria-label="Filtra per categoria" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Tutte le categorie</option>{Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-            {floors.length > 1 ? <select aria-label="Filtra per piano" value={floor} onChange={(event) => setFloor(event.target.value)}><option value="all">Tutti i piani</option>{floors.map((item) => <option key={item}>{item}</option>)}</select> : null}
+          <div className="rp-filters"><h3>Le stanze</h3>
+            <div className="rp-view" role="group" aria-label="Vista delle stanze"><button type="button" className={view === "list" ? "is-on" : ""} aria-pressed={view === "list"} onClick={() => changeView("list")}><AppIcon name="list" />Elenco</button>
+              <button type="button" className={view === "map" ? "is-on" : ""} aria-pressed={view === "map"} onClick={() => changeView("map")}><AppIcon name="map-pin" />Pianta</button></div>
+            {view === "list" ? <><select aria-label="Filtra per categoria" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Tutte le categorie</option>{Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+            {floors.length > 1 ? <select aria-label="Filtra per piano" value={floor} onChange={(event) => setFloor(event.target.value)}><option value="all">Tutti i piani</option>{floors.map((item) => <option key={item}>{item}</option>)}</select> : null}</> : null}
           </div>
-          {!plan.rooms.length ? <div className="rp-empty"><span><AppIcon name="building" /></span><h3>Partiamo dalle stanze.</h3><p>Importa il file dell’ostello. Troverai qui ogni stanza con i suoi letti, pronta da organizzare.</p><button className="button button--primary" onClick={() => fileInput.current?.click()}>Importa file Excel o CSV</button><small>Compatibile con il modulo della Foresteria del Tempio di Roma.</small></div> : null}
+          {view === "map" ? mapView : <>{!plan.rooms.length ? <div className="rp-empty"><span><AppIcon name="building" /></span><h3>Partiamo dalle stanze.</h3><p>Importa il file dell’ostello. Troverai qui ogni stanza con i suoi letti, pronta da organizzare.</p><button className="button button--primary" onClick={() => fileInput.current?.click()}>Importa file Excel o CSV</button><small>Compatibile con il modulo della Foresteria del Tempio di Roma.</small></div> : null}
           {plan.rooms.length > 0 && !visibleRooms.length ? <p className="rp-empty-small">Nessuna stanza per questi filtri.</p> : null}
           <div className="rp-room-grid">{visibleRooms.map((room) => {
             const ids = Object.keys(plan.assignments).filter((id) => plan.assignments[id] === room.id);
@@ -287,7 +358,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
               })}</div>
               {ids.length < room.capacity ? <button className="rp-add-person" onClick={() => { if (room.category === "unassigned") setRoomEditor({ ...room }); else setPickerRoomId(room.id); }}><AppIcon name="plus" />{room.capacity - ids.length} {room.capacity - ids.length === 1 ? "posto libero" : "posti liberi"}</button> : <div className="rp-full"><AppIcon name="check" />Stanza completa</div>}
             </article>;
-          })}</div>
+          })}</div></>}
         </div>
       </div>
       <div className="rp-savebar"><div><strong>{dirty ? "La bozza ha modifiche non salvate" : "Bozza visibile solo agli admin"}</strong><small>{busy ? "Operazione in corso..." : "Nessuna assegnazione viene comunicata ai partecipanti."}</small></div><div className="rp-actions"><button className="button button--ghost" disabled={!history.length} onClick={() => { const previous = history[history.length - 1]; setPlan(previous); setHistory(history.slice(0, -1)); setError(""); setMessage("Ultima modifica annullata."); }}>Annulla ultima modifica</button><button className="button button--primary" disabled={!dirty || problems.length > 0 || conflict} onClick={() => void savePlan()}>{busy ? "Salvataggio..." : "Salva bozza"}</button></div></div>
