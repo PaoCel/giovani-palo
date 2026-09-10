@@ -11,6 +11,7 @@ import {
   getDocFromServer,
   getDocsFromServer,
   getFirestore,
+  serverTimestamp,
   setDoc,
   updateDoc,
 } from "firebase/firestore";
@@ -52,6 +53,10 @@ const campPayload = { committees: [], patrols: [], manualLeaders: [], updatedAt:
 const rooms = (firestore) => doc(firestore, `${activityPath}/management/rooms`);
 const camp = (firestore) => doc(firestore, `${activityPath}/management/camp`);
 const registrations = (firestore) => collection(firestore, `${activityPath}/registrations`);
+const layoutFloor = { id: "piano-terra", name: "Piano terra", width: 900, height: 600, outline: null, rooms: [{ number: "104", x: 10, y: 10, w: 60, h: 140 }], spaces: [], markers: [] };
+const layoutDoc = (extra = {}) => ({ version: 1, name: "Foresteria test", floors: [layoutFloor], updatedAt: serverTimestamp(), ...extra });
+const layout = (firestore, id = "foresteria") => doc(firestore, `stakes/${stakeId}/roomLayouts/${id}`);
+const layouts = (firestore) => collection(firestore, `stakes/${stakeId}/roomLayouts`);
 
 // [description, actor, allowed, operation with the same shape used by the client]
 const CASES = [
@@ -81,6 +86,21 @@ const CASES = [
   ["dirigente di unità legge il documento campo", "unitLeader", true, (db) => getDocFromServer(camp(db))],
   ["giovane iscritto legge il documento campo", "youth", true, (db) => getDocFromServer(camp(db))],
   ["adulto staff salva il documento campo", "adultStaff", true, (db) => setDoc(camp(db), campPayload)],
+  // Stake floor plans: roomLayoutService.list and roomLayoutService.save
+  ["admin del palo elenca le piante", "admin", true, (db) => getDocsFromServer(layouts(db))],
+  ["super_admin di altro palo legge la pianta", "superAdmin", true, (db) => getDocFromServer(layout(db))],
+  ["admin di altro palo non elenca le piante", "otherAdmin", false, (db) => getDocsFromServer(layouts(db))],
+  ["dirigente di unità non legge la pianta", "unitLeader", false, (db) => getDocFromServer(layout(db))],
+  ["giovane iscritto non legge la pianta", "youth", false, (db) => getDocFromServer(layout(db))],
+  ["utente non autenticato non legge la pianta", "signedOut", false, (db) => getDocFromServer(layout(db))],
+  ["admin del palo salva una pianta valida", "admin", true, (db) => setDoc(layout(db), layoutDoc())],
+  ["admin non aggiunge campi fuori elenco alla pianta", "admin", false, (db) => setDoc(layout(db), layoutDoc({ updatedBy: "admin" }))],
+  ["admin non salva la pianta con l'ora del client", "admin", false, (db) => setDoc(layout(db), layoutDoc({ updatedAt: new Date() }))],
+  ["admin non salva la pianta con un id non valido", "admin", false, (db) => setDoc(layout(db, "Foresteria Roma"), layoutDoc())],
+  ["admin non salva una pianta senza piani", "admin", false, (db) => setDoc(layout(db), layoutDoc({ floors: [] }))],
+  ["admin non cancella la pianta", "admin", false, (db) => deleteDoc(layout(db))],
+  ["admin di altro palo non salva la pianta", "otherAdmin", false, (db) => setDoc(layout(db), layoutDoc())],
+  ["dirigente di unità non salva la pianta", "unitLeader", false, (db) => setDoc(layout(db), layoutDoc())],
 ];
 
 before(async () => {
@@ -128,6 +148,7 @@ before(async () => {
       updatedAt: "",
     }),
     adminDb.doc(`${activityPath}/management/camp`).set({ committees: [], patrols: [], manualLeaders: [], updatedAt: "" }),
+    adminDb.doc(`stakes/${stakeId}/roomLayouts/foresteria`).set({ version: 1, name: "Foresteria test", floors: [layoutFloor], updatedAt: new Date() }),
   ]);
 
   for (const [actor, name, provider] of ACTORS) {

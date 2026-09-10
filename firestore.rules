@@ -1121,6 +1121,26 @@ service cloud.firestore {
           || (isSignedIn() && resource.data.userId == request.auth.uid);
       }
 
+      // Piante delle strutture (es. Foresteria): geometria e numeri di stanza, nessun
+      // dato personale. Le vedono e le salvano solo gli admin del palo; la forma di
+      // piani e stanze la valida il client prima di salvare (limite 1 MiB per documento).
+      match /roomLayouts/{layoutId} {
+        allow get, list: if isStakeAdmin(stakeId);
+        allow create, update: if isStakeAdmin(stakeId)
+          && layoutId.matches('^[a-z0-9-]{1,60}$')
+          && request.resource.data.keys().hasOnly(['version', 'name', 'floors', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['version', 'name', 'floors', 'updatedAt'])
+          && request.resource.data.version == 1
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.floors is list
+          && request.resource.data.floors.size() > 0
+          && request.resource.data.floors.size() <= 6
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+
       match /activities/{activityId} {
         allow get: if isStakeAdmin(stakeId)
           || isPublicActivityDoc(resource.data)
