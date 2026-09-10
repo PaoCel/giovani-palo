@@ -66,10 +66,14 @@ Rules, Auth e callable (solo emulatori, progetto `demo-room-planner`):
 ```sh
 firebase emulators:exec --config firebase.room-test.json \
   --project demo-room-planner \
-  'node --test functions/tests/roomManagementEmulator.test.mjs'
+  'node --test functions/tests/roomManagementEmulator.test.mjs functions/tests/roomManagementRulesEmulator.test.mjs'
 ```
 
-Il test rifiuta l'esecuzione se host o project ID non indicano emulatori locali.
+I test rifiutano l'esecuzione se host o project ID non indicano emulatori locali.
+`roomManagementRulesEmulator.test.mjs` prova ruolo per ruolo, con letture e
+scritture identiche al client, che il piano lo leggono solo admin del palo e
+`super_admin` e che nessun client lo scrive, nemmeno staff del campo, dirigenti
+di unità o iscritti. Controlla anche che `management/camp` resti invariato.
 
 ## Interfaccia e importazione
 
