@@ -1,3 +1,4 @@
+import { RoomManagementPanel } from "@/components/admin/RoomManagementPanel";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -39,10 +40,7 @@ import {
 } from "@/utils/registrationExcel";
 import {
   getRegistrationDisplayName,
-  getRegistrationTextAnswer,
   getRoomPreferenceEntries,
-  getRoomPreferenceResolvedName,
-  roomPreferenceKeys,
 } from "@/utils/roomPreferences";
 import {
   getEffectiveEventStatus,
@@ -693,20 +691,6 @@ export function AdminEventDetailPage() {
       ),
     [activeRegistrations],
   );
-  const roomRequestDistribution = useMemo(() => {
-    const requests = activeRegistrations.flatMap((registration) =>
-      roomPreferenceKeys.map((key) =>
-        getRoomPreferenceResolvedName(registration, key),
-      ),
-    );
-    const filteredRequests = requests.filter(Boolean);
-
-    if (filteredRequests.length === 0) {
-      return [];
-    }
-
-    return buildDistribution(filteredRequests, (request) => request, "");
-  }, [activeRegistrations]);
   const registrationFilterCounts = useMemo(
     () =>
       registrationCategoryFilterOptions.reduce<
@@ -872,32 +856,6 @@ export function AdminEventDetailPage() {
         registration.answers.parentalConsentAccepted === true
       );
     },
-  ).length;
-  const withRoomPreferencesCount = activeRegistrations.filter((registration) =>
-    roomPreferenceKeys.some((key) =>
-      Boolean(getRegistrationTextAnswer(registration, key)),
-    ),
-  ).length;
-  const normalizedRoomPreferencesCount = activeRegistrations.reduce(
-    (total, registration) => {
-      return (
-        total +
-        roomPreferenceKeys.filter(
-          (key) =>
-            registration.roomPreferenceMatches[key]?.status === "matched" &&
-            Boolean(
-              registration.roomPreferenceMatches[key]?.matchedRegistrationId,
-            ),
-        ).length
-      );
-    },
-    0,
-  );
-  const withRoomNotesCount = activeRegistrations.filter((registration) =>
-    Boolean(getRegistrationTextAnswer(registration, "roomNotes")),
-  ).length;
-  const assignedRoomCount = activeRegistrations.filter((registration) =>
-    Boolean(registration.assignedRoomId),
   ).length;
   const assignedPatrolCount = patrolAssignmentByRegistrationId.size;
   const assignedCommitteeCount = committeeAssignmentByRegistrationId.size;
@@ -1851,7 +1809,7 @@ export function AdminEventDetailPage() {
   }
 
   return (
-    <div className="page page--activity-ios page--admin-activity-detail">
+    <div className={`page page--activity-ios page--admin-activity-detail${activeTab === "overnight" ? " page--room-planner" : ""}`}>
       {error ? (
         <div className="notice notice--warning">
           <div>
@@ -3189,151 +3147,25 @@ export function AdminEventDetailPage() {
       ) : null}
 
       {activeTab === "overnight" && resolvedEvent.overnight ? (
-        <section className="admin-detail-stack">
-          <div className="admin-inline-metrics admin-inline-metrics--five">
-            <article className="admin-inline-metric">
-              <strong>{withRoomPreferencesCount}</strong>
-              <span>Preferenze</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{normalizedRoomPreferencesCount}</strong>
-              <span>Abbinate</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{withRoomNotesCount}</strong>
-              <span>Note</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{assignedRoomCount}</strong>
-              <span>Assegnati</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{currentCount - assignedRoomCount}</strong>
-              <span>Da fare</span>
-            </article>
+        <><RoomManagementPanel
+          stakeId={stakeId}
+          activityId={resolvedEventId}
+          registrations={sortedRegistrations}
+          referenceDate={resolvedEvent.startDate}
+        />
+        <details className="surface-panel">
+          <summary>Preferenze originali e note</summary>
+          <div className="admin-section-actions">
+            <button className="button button--secondary button--small" disabled={normalizingRoomPreferences || loading} onClick={() => void handleNormalizeRoomPreferences()} type="button">
+              {normalizingRoomPreferences ? "Normalizzazione..." : "Normalizza richieste"}
+            </button>
+            <button className="button button--ghost button--small" disabled={downloadingExcel || loading} onClick={openExcelExportModal} type="button">Scarica Excel</button>
           </div>
-
-          <div className="admin-overnight-stack">
-            <article className="surface-panel surface-panel--subtle">
-              <h3>Logistica pernottamento</h3>
-              <p>
-                {resolvedEvent.roomsInfo ||
-                  "Nessuna nota logistica salvata per il pernottamento in questa attività."}
-              </p>
-            </article>
-
-            <article className="surface-panel surface-panel--subtle">
-              <h3>Compagni più richiesti</h3>
-              {roomRequestDistribution.length === 0 ? (
-                <p className="subtle-text">
-                  Ancora nessuna preferenza {overnightUnitSingular} raccolta.
-                </p>
-              ) : (
-                <ul className="plain-list plain-list--compact">
-                  {roomRequestDistribution.slice(0, 5).map((item) => (
-                    <li key={`room-request-${item.label}`}>
-                      <strong>{item.label}</strong>
-                      <span>
-                        {item.count} • {item.percent}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </article>
-          </div>
-
-          {activeRegistrations.length === 0 ? (
-            <EmptyState
-              title="Nessun partecipante attivo"
-              description="Le preferenze pernottamento appariranno qui appena arrivano iscrizioni valide."
-            />
-          ) : (
-            <article className="surface-panel surface-panel--subtle admin-roster">
-              <div className="section-head admin-roster__head">
-                <div>
-                  <h3>Riepilogo {overnightUnitPlural}</h3>
-                  <p>
-                    Tocca una riga per vedere preferenze {overnightUnitSingular}{" "}
-                    e risposte complete.
-                  </p>
-                </div>
-                <div className="admin-section-actions">
-                  <button
-                    className="button button--ghost button--small"
-                    disabled={downloadingExcel || loading}
-                    onClick={openExcelExportModal}
-                    type="button"
-                  >
-                    <AppIcon name="download" />
-                    <span>
-                      {downloadingExcel ? "Preparazione..." : "Scarica Excel"}
-                    </span>
-                  </button>
-                  <button
-                    className="button button--secondary button--small"
-                    disabled={normalizingRoomPreferences || loading}
-                    onClick={() => void handleNormalizeRoomPreferences()}
-                    type="button"
-                  >
-                    <AppIcon name="sparkles" />
-                    <span>
-                      {normalizingRoomPreferences
-                        ? "Normalizzazione..."
-                        : "Normalizza richieste"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="admin-roster__list" role="list">
-                {activeRegistrations.map((registration) => {
-                  const roomEntries = getRoomPreferenceEntries(registration);
-                  const roomPreview =
-                    roomEntries.find((entry) => entry.key !== "roomNotes") ??
-                    roomEntries[0] ??
-                    null;
-
-                  return (
-                    <button
-                      key={registration.id}
-                      className="admin-roster-row admin-roster-row--overnight"
-                      onClick={() =>
-                        openRegistrationModal(registration.id, "overnight")
-                      }
-                      type="button"
-                    >
-                      <div className="admin-roster-row__content">
-                        <strong>
-                          {getRegistrationDisplayName(registration)}
-                        </strong>
-                        <small>
-                          {roomPreview
-                            ? roomPreview.value
-                            : `Nessuna preferenza ${overnightUnitSingular}`}
-                        </small>
-                      </div>
-                      <div className="admin-roster-row__side">
-                        <span className="admin-roster-row__type">
-                          {getCategoryShortLabel(registration)}
-                        </span>
-                        <span
-                          className={
-                            registration.assignedRoomId
-                              ? "admin-roster-row__flag admin-roster-row__flag--success"
-                              : "admin-roster-row__flag"
-                          }
-                        >
-                          {registration.assignedRoomId ? "OK" : "--"}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </article>
-          )}
-        </section>
+          <div className="admin-roster__list">{activeRegistrations.map((registration) => <button key={registration.id} className="admin-roster-row" type="button" onClick={() => openRegistrationModal(registration.id, "overnight")}>
+            <strong>{getRegistrationDisplayName(registration)}</strong>
+            <small>{getRoomPreferenceEntries(registration).map((entry) => entry.value).join(" · ") || "Nessuna preferenza stanza"}</small>
+          </button>)}</div>
+        </details></>
       ) : null}
 
       {activeTab === "questions" && resolvedEvent.questionsEnabled ? (

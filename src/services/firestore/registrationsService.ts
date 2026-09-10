@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   setDoc,
   updateDoc,
   collection,
@@ -358,8 +359,9 @@ function hasStoredParentDetails(registration: Registration) {
 }
 
 export const registrationsService = {
-  async listRegistrationsByEvent(stakeId: string, eventId: string): Promise<Registration[]> {
-    const snapshot = await getDocs(getEventRegistrationsCollection(stakeId, eventId));
+  async listRegistrationsByEvent(stakeId: string, eventId: string, fromServer = false): Promise<Registration[]> {
+    const read = fromServer ? getDocsFromServer : getDocs;
+    const snapshot = await read(getEventRegistrationsCollection(stakeId, eventId));
 
     return snapshot.docs
       .map((document) =>
