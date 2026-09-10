@@ -111,8 +111,9 @@ e layout mobile 390 px senza overflow. Nessuna scrittura di collaudo in produzio
 
 ## Pubblicazione
 
-Serve conferma esplicita per deploy da main pulito: prima Firestore Rules,
-poi solo `roomManagementSave`, `onRoomRegistrationDeleted`,
-`onRoomActivityDeleted`, infine hosting. Versione service worker preparata:
-`gugd-shell-v5` (live verificato v4). Nessuna assegnazione dei ragazzi reali
-è stata eseguita durante l'implementazione.
+In produzione dal 2026-09-10: Firestore Rules (ruleset live identico a `main`),
+`roomManagementSave`, `onRoomRegistrationDeleted`, `onRoomActivityDeleted` e
+hosting con service worker `gugd-shell-v5`, verificato con curl su
+gugditalia.it e giovani-palo.web.app. I deploy successivi richiedono conferma
+esplicita, da main pulito, nello stesso ordine: rules, functions, hosting.
+Nessuna assegnazione dei ragazzi reali è stata eseguita durante l'implementazione.
