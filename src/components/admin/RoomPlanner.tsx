@@ -268,7 +268,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     {armedPerson ? <div className="rp-armed" role="status"><span><strong>{nameOf(armedPerson)}</strong>Tocca una stanza evidenziata per assegnarla.</span>
       <div className="rp-actions"><button type="button" className="button button--ghost button--small" onClick={() => { setSelectedPersonId(armedPerson.id); setArmedId(null); }}>Apri scheda</button>
         <button type="button" className="button button--ghost button--small" onClick={() => setArmedId(null)}>Annulla</button></div></div> : null}
-    {!plan.rooms.length ? <p className="rp-empty-small">Importa prima le stanze: la pianta mostra quelle della bozza.</p>
+    {!plan.rooms.length ? <p className="rp-empty-small">Importa prima le stanze: la pianta mostra quelle della bozza.{!layoutList.length ? <> <button type="button" className="button button--ghost button--small" onClick={() => layoutInput.current?.click()}>Carica pianta</button></> : null}</p>
       : layoutMatch ? <RoomMap layout={layoutMatch.layout} plan={plan} peopleById={peopleById} nameOf={nameOf}
         problemFor={armedPerson ? (room) => assignmentProblem(armedPerson, room, plan, registrations, referenceDate) : undefined}
         onRoom={mapRoom} onPerson={(id) => { setArmedId(null); setSelectedPersonId(id); }} />
