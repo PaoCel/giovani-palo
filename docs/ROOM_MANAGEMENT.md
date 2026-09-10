@@ -151,6 +151,8 @@ In produzione dal 2026-09-10: Firestore Rules (ruleset live identico a `main`),
 `roomManagementSave`, `onRoomRegistrationDeleted`, `onRoomActivityDeleted` e
 hosting. Compila modulo Foresteria è online dallo stesso giorno con service
 worker `gugd-shell-v6`, verificato con curl su gugditalia.it e
-giovani-palo.web.app. I deploy successivi richiedono conferma esplicita, da main
+giovani-palo.web.app. La vista Pianta è online dallo stesso giorno: rules con
+`roomLayouts` (ruleset live identico a `main`) e hosting con `gugd-shell-v7`; la
+pianta della Foresteria è già salvata nel palo, caricata da "Cammino con te". I deploy successivi richiedono conferma esplicita, da main
 pulito, nello stesso ordine: rules, functions, hosting.
 Nessuna assegnazione dei ragazzi reali è stata eseguita durante l'implementazione.
