@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import type { Registration } from "@/types";
+import { fillForesteriaModule } from "@/utils/foresteriaModule";
 import { readRoomFile, type RoomImport } from "@/utils/roomImport";
 import {
   ageAt, assignmentProblem, buildPreferenceLinks, categoryLabels, eligibleRegistrations,
@@ -29,6 +30,12 @@ function CategorySelect({ value, onChange, label }: { value: Room["category"]; o
   </select>;
 }
 
+function downloadFile(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave, onDirtyChange, onReload }: Props) {
   const [plan, setPlan] = useState(() => copy(initialPlan));
   const [savedPlan, setSavedPlan] = useState(() => copy(initialPlan));
@@ -36,6 +43,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [conflict, setConflict] = useState(false);
   const [search, setSearch] = useState("");
   const [showAssigned, setShowAssigned] = useState(false);
@@ -51,6 +59,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   const [partnerId, setPartnerId] = useState("");
   const [coupleConfirmed, setCoupleConfirmed] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const moduleInput = useRef<HTMLInputElement>(null);
   const people = useMemo(() => eligibleRegistrations(registrations) as Registration[], [registrations]);
   const peopleById = useMemo(() => new Map(registrations.map((person) => [person.id, person])), [registrations]);
   const links = useMemo(() => buildPreferenceLinks(people), [people]);
@@ -75,7 +84,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
 
   function change(next: RoomPlan, notice = "") {
     setHistory((previous) => [...previous.slice(-19), copy(plan)]);
-    setPlan(next); setError(""); setMessage(notice);
+    setPlan(next); setError(""); setWarning(""); setMessage(notice);
   }
 
   function addRoom() {
@@ -112,7 +121,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   }
 
   async function savePlan() {
-    setBusy(true); setError(""); setMessage("");
+    setBusy(true); setError(""); setWarning(""); setMessage("");
     try {
       const saved = await onSave(plan);
       setPlan(copy(saved)); setSavedPlan(copy(saved)); setHistory([]); setConflict(false);
@@ -162,9 +171,28 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
       for (const person of occupants) rows.push([room.name, room.floor, categoryLabels[room.category], room.capacity, nameOf(person), plan.lockedIds.includes(person.id) ? "Sì" : "No"]);
     }
     for (const person of unassigned) rows.push(["Da assegnare", "", "", "", nameOf(person), ""]);
-    const url = URL.createObjectURL(new Blob(["\uFEFF", rows.map((row) => row.map(cell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "bozza-stanze.csv"; anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadFile(new Blob(["\uFEFF", rows.map((row) => row.map(cell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }), "bozza-stanze.csv");
+  }
+
+  function chooseModule() {
+    setMessage(""); setWarning("");
+    if (dirty) { setError("Salva la bozza prima di compilare il modulo della Foresteria."); return; }
+    if (problems.length) { setError("Sistema prima i problemi segnalati nella bozza."); return; }
+    if (!Object.keys(plan.assignments).length) { setError("Assegna prima le persone alle stanze."); return; }
+    setError(""); moduleInput.current?.click();
+  }
+
+  async function fillModule(file?: File) {
+    if (!file) return;
+    setBusy(true); setError(""); setMessage(""); setWarning("");
+    try {
+      const namesForRoom = (roomId: string) => people.filter((person) => plan.assignments[person.id] === roomId).map(nameOf).sort((a, b) => a.localeCompare(b, "it"));
+      const result = await fillForesteriaModule(file, plan, namesForRoom);
+      downloadFile(result.blob, result.fileName);
+      setMessage(`Modulo compilato: ${result.people} ${result.people === 1 ? "persona" : "persone"} in ${result.rooms} ${result.rooms === 1 ? "stanza" : "stanze"}${result.nights > 1 ? ` per ${result.nights} notti` : ""}. Controllalo prima di inviarlo alla Foresteria.`);
+      if (result.night && result.night !== referenceDate.slice(0, 10)) setWarning(`Il file si riferisce alla notte del ${result.night}, mentre l\u2019attivit\u00E0 inizia il ${referenceDate.slice(0, 10)}. Verifica di aver scelto il modulo giusto.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Impossibile compilare il modulo."); }
+    finally { setBusy(false); if (moduleInput.current) moduleInput.current.value = ""; }
   }
 
   function recordCouple() {
@@ -197,6 +225,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     </div>
     {errorNotice}
     {message ? <p className="rp-notice" role="status">{message}</p> : null}
+    {warning ? <p className="rp-notice rp-notice--warning" role="status">{warning}</p> : null}
     {problems.length ? <div className="rp-notice rp-notice--warning"><strong>Da sistemare prima del salvataggio</strong><ul>{problems.slice(0, 8).map((problem, index) => <li key={index}>{problem}</li>)}</ul>
       {Object.keys(plan.assignments).some((id) => !people.some((person) => person.id === id)) ? <button className="button button--ghost button--small" onClick={() => {
         const next = copy(plan); const activeIds = new Set(people.map((person) => person.id));
@@ -214,7 +243,10 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
           <button className="button button--ghost" onClick={addRoom}><AppIcon name="plus" />Aggiungi stanza</button>
           <input ref={fileInput} type="file" accept=".xlsx,.xls,.csv" hidden aria-label="File delle stanze" onChange={(event) => void importFile(event.target.files?.[0])} />
         </div>
-        <button className="button button--ghost button--small" onClick={exportCsv} disabled={!plan.rooms.length}><AppIcon name="download" />Esporta bozza</button>
+        <div className="rp-actions"><button className="button button--ghost button--small" onClick={exportCsv} disabled={!plan.rooms.length}><AppIcon name="download" />Esporta bozza</button>
+          <button className="button button--ghost button--small" onClick={chooseModule} disabled={!plan.rooms.length}><AppIcon name="download" />Compila modulo Foresteria</button>
+          <input ref={moduleInput} type="file" accept=".xlsx" hidden aria-label="Modulo della Foresteria" onChange={(event) => void fillModule(event.target.files?.[0])} />
+        </div>
       </div>
       <div className="rp-board">
         <aside className="rp-people">

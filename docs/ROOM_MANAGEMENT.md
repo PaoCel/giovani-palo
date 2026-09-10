@@ -55,10 +55,10 @@ server è 200 stanze, 2.000 iscrizioni e 900 KiB per richiesta.
 
 ## Verifica locale
 
-Test del core:
+Test del core, dell'importazione e del modulo Foresteria:
 
 ```sh
-node --test functions/tests/roomPlannerCore.test.mjs
+node --test functions/tests/roomPlannerCore.test.mjs tests/roomImport.test.mjs tests/foresteriaModule.test.mjs
 ```
 
 Rules, Auth e callable (solo emulatori, progetto `demo-room-planner`):
@@ -79,7 +79,8 @@ di unità o iscritti. Controlla anche che `management/camp` resti invariato.
 
 La tab Stanze dell'attività offre importazione Excel/CSV, schede per stanza,
 filtri, preferenze originali, proposta automatica da applicare, spostamento
-manuale, blocchi, annullamento dell'ultima modifica ed esportazione CSV.
+manuale, blocchi, annullamento dell'ultima modifica, esportazione CSV e
+compilazione del modulo della Foresteria.
 Le modifiche restano locali fino a Salva bozza; l'uscita richiede di salvare
 oppure scartare esplicitamente. Il CSV contiene la bozza, inclusi i non assegnati.
 
@@ -89,6 +90,17 @@ da C3. Ogni riga letto conta la quantità indicata: una matrimoniale con valore
 consente di scegliere le categorie prima di importare; un duplicato di stanza
 interrompe l'operazione senza modifiche parziali. I file originali sono letti
 localmente, mai caricati in Storage o inclusi nel repository pubblico.
+
+Compila modulo Foresteria restituisce alla Foresteria il suo stesso modulo con i
+nomi. L'admin sceglie il file `.xlsx` ricevuto; il browser scrive nome e cognome
+di chi occupa ogni letto nella colonna di ogni notte indicata accanto a Num.
+Stanza (una riga per letto, anche nelle matrimoniali), svuota i letti liberi e
+scarica una copia `- compilato.xlsx`. Cambiano solo quelle celle: logo,
+formattazione e le altre parti del file restano come ricevute, e il file non
+viene caricato da nessuna parte. Serve la bozza salvata e senza problemi. Se una
+stanza con persone assegnate manca dal modulo o ha più persone che posti,
+l'operazione si ferma senza produrre file. Il nome è ripetuto in tutte le notti:
+chi partecipa solo ad alcune va corretto a mano nel file.
 
 Per il collaudo UI isolato:
 

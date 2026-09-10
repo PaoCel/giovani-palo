@@ -1,3 +1,4 @@
+import type { Range } from "xlsx";
 import type { Room } from "../../functions/lib/roomPlannerCore.mjs";
 
 export interface RoomImport {
@@ -6,6 +7,14 @@ export interface RoomImport {
   warnings: string[];
 }
 
+export interface RoomSheet {
+  name: string;
+  rows: unknown[][];
+  merges: Range[];
+}
+
+export const MAX_ROOM_FILE_BYTES = 5 * 1024 * 1024;
+
 const text = (value: unknown) => String(value ?? "").trim();
 const normalize = (value: unknown) => text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const newRoom = (name: string): Room => ({
@@ -13,19 +22,31 @@ const newRoom = (name: string): Room => ({
   accessible: false, notes: "", minAge: null, maxAge: null,
 });
 
+// Shared by the import and by "Compila modulo Foresteria", so both read the template the same way.
+export const foresteriaHeaderRow = (rows: unknown[][]) => rows.findIndex((row) => normalize(row[2]).includes("num. stanza"));
+export const isForesteriaTotal = (label: unknown) => normalize(label).startsWith("totale");
+export const foresteriaRoomNumber = (label: unknown) => /^(\d+)\s+(?:piano terra|primo piano)\b/i.exec(text(label))?.[1] ?? null;
+
+export function foresteriaNight(rows: unknown[][]): string | null {
+  const date = rows.find((row) => normalize(row[2]) === "dal:")?.[7];
+  if (!(date instanceof Date)) return null;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 // Pure parser: both the supplied Foresteria template and a simple header table.
 export function parseRoomRows(rows: unknown[][]): RoomImport {
   const rooms: Room[] = [];
   let night: string | null = null;
   const warnings: string[] = [];
-  const templateHeader = rows.findIndex((row) => normalize(row[2]).includes("num. stanza"));
+  const templateHeader = foresteriaHeaderRow(rows);
   if (templateHeader >= 0) {
     let current: Room | null = null;
     for (const row of rows.slice(templateHeader + 1)) {
       const label = text(row[2]);
-      if (normalize(label).startsWith("totale")) break;
-      if (/^\d+\s+(?:piano terra|primo piano)\b/i.test(label)) {
-        current = newRoom(label.match(/^\d+/)![0]);
+      if (isForesteriaTotal(label)) break;
+      const number = foresteriaRoomNumber(label);
+      if (number) {
+        current = newRoom(number);
         current.floor = /primo piano/i.test(label) ? "Primo piano" : "Piano terra";
         current.accessible = /handicap|accessibil/i.test(label);
         if (/matrimoniale/i.test(label)) current.category = "couple";
@@ -39,11 +60,7 @@ export function parseRoomRows(rows: unknown[][]): RoomImport {
         current.capacity += beds;
       }
     }
-    const dateRow = rows.find((row) => normalize(row[2]) === "dal:");
-    if (dateRow?.[7] instanceof Date) {
-      const date = dateRow[7];
-      night = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    }
+    night = foresteriaNight(rows);
     const totalRow = rows.find((row) => normalize(row[2]).startsWith("totale posti"));
     if (totalRow && Number(totalRow[6]) !== rooms.reduce((sum, room) => sum + room.capacity, 0)) {
       throw new Error("Il totale dei posti non coincide con le stanze del file. Controlla il modulo prima di importarlo.");
@@ -96,18 +113,25 @@ export function parseRoomRows(rows: unknown[][]): RoomImport {
   return { rooms, night, warnings };
 }
 
-export async function readRoomFile(file: File): Promise<RoomImport> {
-  if (file.size > 5 * 1024 * 1024) throw new Error("Il file deve essere più piccolo di 5 MB.");
-  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) throw new Error("Scegli un file Excel o CSV.");
+// Reads the ITALIANO sheet of the Foresteria template, or the first sheet of any other file.
+export async function readRoomSheet(data: ArrayBuffer): Promise<RoomSheet> {
   const XLSX = await import("xlsx");
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, sheetRows: 3000 });
-  const sheet = workbook.Sheets[workbook.SheetNames.find((name) => name.toUpperCase() === "ITALIANO") ?? workbook.SheetNames[0]];
+  const workbook = XLSX.read(data, { type: "array", cellDates: true, sheetRows: 3000 });
+  const name = workbook.SheetNames.find((sheetName) => sheetName.toUpperCase() === "ITALIANO") ?? workbook.SheetNames[0];
+  const sheet = name === undefined ? undefined : workbook.Sheets[name];
   if (!sheet) throw new Error("Il file non contiene fogli leggibili.");
   const bounds = XLSX.utils.decode_range(sheet["!fullref"] || sheet["!ref"] || "A1");
   if (bounds.e.r >= 3000 || bounds.e.c >= 100) throw new Error("Il foglio supera le dimensioni supportate: 3000 righe e 100 colonne.");
   // The Foresteria template starts at C3. Preserve absolute column positions,
   // otherwise sheet_to_json shifts C into index 0 and the room labels disappear.
-  return parseRoomRows(XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1, defval: "", blankrows: true, range: { s: { r: 0, c: 0 }, e: bounds.e },
-  }));
+  });
+  return { name, rows, merges: sheet["!merges"] ?? [] };
+}
+
+export async function readRoomFile(file: File): Promise<RoomImport> {
+  if (file.size > MAX_ROOM_FILE_BYTES) throw new Error("Il file deve essere più piccolo di 5 MB.");
+  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) throw new Error("Scegli un file Excel o CSV.");
+  return parseRoomRows((await readRoomSheet(await file.arrayBuffer())).rows);
 }
