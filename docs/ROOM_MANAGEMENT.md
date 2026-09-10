@@ -125,7 +125,8 @@ e layout mobile 390 px senza overflow. Nessuna scrittura di collaudo in produzio
 
 In produzione dal 2026-09-10: Firestore Rules (ruleset live identico a `main`),
 `roomManagementSave`, `onRoomRegistrationDeleted`, `onRoomActivityDeleted` e
-hosting con service worker `gugd-shell-v5`, verificato con curl su
-gugditalia.it e giovani-palo.web.app. I deploy successivi richiedono conferma
-esplicita, da main pulito, nello stesso ordine: rules, functions, hosting.
+hosting. Compila modulo Foresteria è online dallo stesso giorno con service
+worker `gugd-shell-v6`, verificato con curl su gugditalia.it e
+giovani-palo.web.app. I deploy successivi richiedono conferma esplicita, da main
+pulito, nello stesso ordine: rules, functions, hosting.
 Nessuna assegnazione dei ragazzi reali è stata eseguita durante l'implementazione.
