@@ -1141,6 +1141,9 @@ service cloud.firestore {
         }
 
         match /management/{managementId} {
+          // Il piano camere `rooms` contiene solo ID delle iscrizioni: lettura
+          // admin del palo, scrittura esclusivamente tramite callable Admin SDK.
+          // I permessi di scrittura client qui sotto restano limitati a `camp`.
           allow get, list: if isStakeAdmin(stakeId)
             || (managementId == 'camp' && isCampStaffOfActivity(stakeId, activityId))
             || (

@@ -13,6 +13,7 @@ const db = getFirestore();
 const parentAuthorization = require("./lib/parentAuthorization");
 const campManagement = require("./lib/campManagement");
 const roomMates = require("./lib/roomMates");
+const roomManagement = require("./lib/roomManagement");
 
 exports.onRegistrationPendingParentAuth = parentAuthorization.onRegistrationPendingParentAuth;
 exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationGetContext;
@@ -27,6 +28,9 @@ exports.parentAuthorizationDownloadSignedConsentsZip =
   parentAuthorization.parentAuthorizationDownloadSignedConsentsZip;
 exports.campManagementSave = campManagement.campManagementSave;
 exports.roomMateSuggestions = roomMates.roomMateSuggestions;
+exports.roomManagementSave = roomManagement.roomManagementSave;
+exports.onRoomRegistrationDeleted = roomManagement.onRoomRegistrationDeleted;
+exports.onRoomActivityDeleted = roomManagement.onRoomActivityDeleted;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
