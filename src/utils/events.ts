@@ -175,6 +175,15 @@ export function getRegistrationAvailability(
   return formConfig.allowGuestRegistration ? "guest-allowed" : "login-required";
 }
 
+/**
+ * Un evento e' un "campeggio" solo con activityType camp. Pattuglie, comitati,
+ * checklist zaino e area /campeggio esistono solo per questi eventi: un viaggio
+ * con pernottamento (activityType trip, overnight true) non deve vederli.
+ */
+export function isCampEvent(event: Pick<Event, "activityType">) {
+  return event.activityType === "camp";
+}
+
 export function isPastEvent(event: Event) {
   return new Date(event.endDate).getTime() < Date.now();
 }

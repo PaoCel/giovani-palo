@@ -1,16 +1,11 @@
 import { eventsService } from "@/services/firestore/eventsService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery } from "@/types";
-import { isPastEvent } from "@/utils/events";
+import { isCampEvent, isPastEvent } from "@/utils/events";
 
 export interface CampHighlight {
   event: Event;
   gallery: Gallery;
-}
-
-/** Un evento e' un "campeggio" quando ha activityType camp. */
-export function isCampEvent(event: Pick<Event, "activityType">) {
-  return event.activityType === "camp";
 }
 
 // Quante gallerie al massimo controlliamo partendo dal campeggio piu' recente.

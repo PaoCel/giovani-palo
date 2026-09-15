@@ -12,7 +12,7 @@ import { unitLeaderService } from "@/services/firestore/unitLeaderService";
 import { unitTransportNotesService } from "@/services/firestore/unitTransportNotesService";
 import type { CampPatrolRole, CampPublicMember, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
-import { isCampPackingActivity } from "@/utils/campPacking";
+import { isCampEvent } from "@/utils/events";
 import { getParentAuthorizationBadge } from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
@@ -216,6 +216,7 @@ function RegistrationRow({
   registration,
   isTransportResolved,
   campAssignment,
+  showCampAssignment,
   requiresParentAuthorization,
   onToggleTransport,
   isResending,
@@ -224,6 +225,7 @@ function RegistrationRow({
   registration: Registration;
   isTransportResolved: boolean;
   campAssignment: UnitCampAssignment | null;
+  showCampAssignment: boolean;
   requiresParentAuthorization: boolean;
   onToggleTransport: () => void;
   isResending: boolean;
@@ -257,17 +259,19 @@ function RegistrationRow({
           onResend={onResendParentAuthorization}
         />
       </td>
-      <td className="unit-table__cell">
-        <CampAssignmentCell registration={registration} assignment={campAssignment} />
-      </td>
+      {showCampAssignment ? (
+        <td className="unit-table__cell">
+          <CampAssignmentCell registration={registration} assignment={campAssignment} />
+        </td>
+      ) : null}
     </tr>
   );
 }
 
-function NotRegisteredRow({ youth }: { youth: UserProfile }) {
+function NotRegisteredRow({ youth, columns }: { youth: UserProfile; columns: number }) {
   return (
     <tr className="unit-table__row unit-table__row--unregistered">
-      <td className="unit-table__cell unit-table__cell--name" colSpan={5}>
+      <td className="unit-table__cell unit-table__cell--name" colSpan={columns}>
         <strong>{youth.fullName}</strong>
         <small className="subtle-text">
           {getGenderRoleCategoryLabel(youth.genderRoleCategory)} · Non iscritto/a
@@ -565,8 +569,10 @@ export function UnitActivityPage() {
     selectedCampGroupKey !== null
       ? campGroups.find((group) => `${group.kind}:${group.id}` === selectedCampGroupKey) ?? null
       : null;
-  const showCampOrganization =
-    Boolean(data.event && isCampPackingActivity(data.event)) && campGroups.length > 0;
+  // Checklist zaino, pattuglie e comitati esistono solo per i campeggi: un
+  // viaggio con pernottamento (activityType trip) non li mostra.
+  const isCamp = Boolean(data.event && isCampEvent(data.event));
+  const showCampOrganization = isCamp && campGroups.length > 0;
 
   return (
     <div className="page page--activity-ios page--unit-activity">
@@ -704,7 +710,7 @@ export function UnitActivityPage() {
         </section>
       ) : null}
 
-      {data.event && session?.firebaseUser.uid && isCampPackingActivity(data.event) ? (
+      {data.event && session?.firebaseUser.uid && isCamp ? (
         <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} variant="unit" />
       ) : null}
 
@@ -729,7 +735,7 @@ export function UnitActivityPage() {
                   <th>Stato</th>
                   <th>Trasporto</th>
                   <th>Consensi</th>
-                  <th>Campeggio</th>
+                  {isCamp ? <th>Campeggio</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -738,6 +744,7 @@ export function UnitActivityPage() {
                     key={r.id}
                     registration={r}
                     campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
+                    showCampAssignment={isCamp}
                     requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
                     isTransportResolved={resolvedSet.has(r.id)}
                     onToggleTransport={() => void handleToggleTransport(r.id)}
@@ -768,7 +775,7 @@ export function UnitActivityPage() {
             <table className="unit-table unit-table--unregistered">
               <tbody>
                 {notRegistered.map((y) => (
-                  <NotRegisteredRow key={y.id} youth={y} />
+                  <NotRegisteredRow columns={isCamp ? 5 : 4} key={y.id} youth={y} />
                 ))}
               </tbody>
             </table>

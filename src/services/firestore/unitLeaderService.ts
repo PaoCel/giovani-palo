@@ -4,6 +4,7 @@ import { registrationsService } from "@/services/firestore/registrationsService"
 import { usersService } from "@/services/firestore/usersService";
 import type { CampManagementPlan, Event, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
+import { isCampEvent } from "@/utils/events";
 import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
 
 export interface UnitActivityStats {
@@ -103,12 +104,20 @@ export const unitLeaderService = {
     campManagement: CampManagementPlan;
     stats: UnitActivityStats;
   }> {
-    const [event, registrations, unitYouth, campManagement] = await Promise.all([
+    const [event, registrations, unitYouth] = await Promise.all([
       eventsService.getEventById(stakeId, activityId),
       unitLeaderService.listUnitRegistrationsForEvent(stakeId, activityId, unitId),
       usersService.listUnitYouth(stakeId, unitId),
-      campManagementService.getCampManagement(stakeId, activityId),
     ]);
+
+    // Pattuglie e comitati esistono solo per i campeggi, e le rules concedono
+    // management/camp al dirigente di unità solo se activityType == 'camp':
+    // leggerlo su un viaggio (es. tempio) rispondeva permission-denied e faceva
+    // fallire l'intera pagina, iscritti compresi.
+    const campManagement =
+      event && isCampEvent(event)
+        ? await campManagementService.getCampManagement(stakeId, activityId)
+        : campManagementService.getDefaultCampManagement();
 
     return { event, registrations, unitYouth, campManagement, stats: computeStats(registrations, event) };
   },
