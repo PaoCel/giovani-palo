@@ -260,6 +260,7 @@ service cloud.firestore {
           'registrationStatus',
           'submittedByMode',
           'assignedRoomId',
+          'assignedRoomName',
           'assignedTempleShiftId',
           'assignedServiceTeamIds',
           'assignedPatrolId',
@@ -307,6 +308,9 @@ service cloud.firestore {
         && validRegistrationStatus(data.registrationStatus)
         && data.submittedByMode in ['authenticated', 'anonymous', 'parent']
         && (data.assignedRoomId == null || data.assignedRoomId is string)
+        // Scritto solo dalla callable roomManagementSave; assente nei documenti
+        // precedenti alla pubblicazione delle stanze.
+        && (!('assignedRoomName' in data) || data.assignedRoomName == null || data.assignedRoomName is string)
         && (data.assignedTempleShiftId == null || data.assignedTempleShiftId is string)
         && data.assignedServiceTeamIds is list
         && (data.assignedPatrolId == null || data.assignedPatrolId is string)
@@ -356,6 +360,7 @@ service cloud.firestore {
         && request.resource.data.parentIdUploadedAt == null
         && (!('parentAuthorization' in request.resource.data) || request.resource.data.parentAuthorization == null)
         && request.resource.data.assignedRoomId == null
+        && request.resource.data.get('assignedRoomName', null) == null
         && request.resource.data.assignedTempleShiftId == null
         && request.resource.data.assignedServiceTeamIds.size() == 0
         && request.resource.data.assignedPatrolId == null
@@ -380,11 +385,15 @@ service cloud.firestore {
         && request.resource.data.get('parentIdUploadedAt', null) == resource.data.get('parentIdUploadedAt', null);
     }
 
+    // Budget: Firestore valuta al massimo 1000 espressioni per richiesta e il
+    // salvataggio completo di un'iscrizione ci arriva vicino. I controlli di
+    // ownership (pochi) vengono prima del payload (molti), così chi non è
+    // proprietario esce subito e il ramo staff campo non paga questo costo.
     function validRegistrationUpdate() {
       let delta = request.resource.data.diff(resource.data);
-      return validRegistrationPayload(request.resource.data)
-        && isOwnRegistration(resource.data)
+      return isOwnRegistration(resource.data)
         && registrationBelongsToCaller(request.resource.data)
+        && validRegistrationPayload(request.resource.data)
         && delta.unchangedKeys().hasAll([
           'userId', 'anonymousUid', 'createdAt', 'submittedByMode', 'unitId',
           'assignedRoomId', 'assignedTempleShiftId', 'assignedServiceTeamIds',
@@ -393,6 +402,7 @@ service cloud.firestore {
         && request.resource.data.assignedPatrolId == resource.data.get('assignedPatrolId', null)
         && request.resource.data.assignedPatrolName == resource.data.get('assignedPatrolName', null)
         && request.resource.data.assignedPatrolRole == resource.data.get('assignedPatrolRole', null)
+        && request.resource.data.get('assignedRoomName', null) == resource.data.get('assignedRoomName', null)
         && (
           (
             !('assignedCommittees' in resource.data)
@@ -1206,7 +1216,9 @@ service cloud.firestore {
             || isCampStaffOfActivity(stakeId, activityId);
           allow create: if isStakeAdmin(stakeId)
             || validRegistrationCreate(stakeId, activityId, registrationId);
-          allow update: if isStakeAdmin(stakeId) || validCampAssignmentUpdate(stakeId, activityId) || validRegistrationUpdate();
+          // Ordine per costo: il proprietario non deve pagare le letture del
+          // ramo staff campo (attività, iscrizione adulta) prima del proprio.
+          allow update: if isStakeAdmin(stakeId) || validRegistrationUpdate() || validCampAssignmentUpdate(stakeId, activityId);
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
 

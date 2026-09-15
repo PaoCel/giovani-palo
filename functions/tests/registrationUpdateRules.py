@@ -86,8 +86,8 @@ registration = {key: None for key in [
     'parentConsentDocumentName', 'parentConsentDocumentUrl', 'parentConsentDocumentPath',
     'parentConsentUploadedAt', 'consentSignatureUrl', 'consentSignaturePath', 'consentSignatureSetAt',
     'parentIdDocumentName', 'parentIdDocumentUrl', 'parentIdDocumentPath', 'parentIdUploadedAt',
-    'linkedLaterToUserId', 'assignedRoomId', 'assignedTempleShiftId', 'assignedPatrolId',
-    'assignedPatrolName', 'assignedPatrolRole',
+    'linkedLaterToUserId', 'assignedRoomId', 'assignedRoomName', 'assignedTempleShiftId',
+    'assignedPatrolId', 'assignedPatrolName', 'assignedPatrolRole',
 ]}
 registration.update({
     'firstName': 'Test', 'lastName': 'Child', 'fullName': 'Test Child',
@@ -115,7 +115,8 @@ print('PASS: parent read, family query and full client save')
 protected = {
     'userId': 'test-participant', 'anonymousUid': 'outsider', 'createdAt': 'changed',
     'submittedByMode': 'authenticated', 'unitId': 'other-unit',
-    'assignedRoomId': 'room', 'assignedTempleShiftId': 'shift', 'assignedServiceTeamIds': ['team'],
+    'assignedRoomId': 'room', 'assignedRoomName': 'Stanza 12', 'assignedTempleShiftId': 'shift',
+    'assignedServiceTeamIds': ['team'],
     'linkedLaterToUserId': 'test-participant', 'parentUid': 'outsider', 'childId': 'other-child',
     'parentAuthorization': {'status': 'authorized'}, 'parentConsentDocumentPath': 'forged.pdf',
     'registrationStatus': 'confirmed',
@@ -144,3 +145,16 @@ save(participant_path, {**legacy, 'parentAuthorization': None}, actor='test-part
 save(path, {**registration, 'registrationStatus': 'cancelled'}, actor='test-parent')
 save(path, {**registration, 'assignedRoomId': 'admin-room'}, actor='test-admin')
 print('PASS: participant and legacy saves, parent cancellation, admin update')
+
+# Stanza comunicata dal server (callable roomManagementSave): il proprietario la
+# legge e la rimanda invariata, ma non può cambiarla né toglierla.
+published = {**registration, 'registrationStatus': 'cancelled', 'assignedRoomId': 'admin-room',
+             'assignedRoomName': 'Stanza 12'}
+save(path, published, actor='test-admin')
+assert call(path, actor='test-parent')['fields']['assignedRoomName']['stringValue'] == 'Stanza 12'
+save(path, {**published, 'phone': '3333333333'}, actor='test-parent')
+save(path, {**published, 'assignedRoomName': 'Stanza 13'}, actor='test-parent', expected=403)
+without_room = copy.deepcopy(published)
+del without_room['assignedRoomName']
+save(path, without_room, actor='test-parent', expected=403)
+print('PASS: published room name readable by owner, immutable and non-removable')
