@@ -2,7 +2,7 @@ import { campManagementService } from "@/services/firestore/campManagementServic
 import { eventsService } from "@/services/firestore/eventsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import type { AuthSession, Event, Registration } from "@/types";
-import { isEventAudienceEligible } from "@/utils/events";
+import { isCampEvent, isEventAudienceEligible } from "@/utils/events";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 
 export interface UserActivityItem {
@@ -72,9 +72,13 @@ export const userActivitiesService = {
       return null;
     }
 
-    const campManagement = await campManagementService
-      .getCampManagement(session.profile.stakeId, eventId)
-      .catch(() => campManagementService.getDefaultCampManagement());
+    // Pattuglie e comitati esistono solo per i campeggi: per un viaggio o
+    // un'attività standard non si legge nemmeno management/camp.
+    const campManagement = isCampEvent(event)
+      ? await campManagementService
+          .getCampManagement(session.profile.stakeId, eventId)
+          .catch(() => campManagementService.getDefaultCampManagement())
+      : campManagementService.getDefaultCampManagement();
 
     return {
       event,

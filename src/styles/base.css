@@ -6126,6 +6126,12 @@ button {
   margin-bottom: 0;
 }
 
+.camp-registration-card__text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
 .camp-youth-data-list {
   display: grid;
   gap: 0.55rem;

@@ -107,6 +107,7 @@ function buildChildPrefill(child: ChildProfile): Registration {
     registrationStatus: "active",
     submittedByMode: "parent",
     assignedRoomId: null,
+    assignedRoomName: null,
     assignedTempleShiftId: null,
     assignedServiceTeamIds: [],
     assignedPatrolId: null,

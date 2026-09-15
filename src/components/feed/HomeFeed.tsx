@@ -11,8 +11,7 @@ import { galleriesService } from "@/services/firestore/galleriesService";
 import { galleryUnlockService } from "@/services/firestore/galleryUnlockService";
 import { userActivitiesService, type UserActivityItem } from "@/services/firestore/userActivitiesService";
 import type { FeedPost, Gallery, GalleryMedia } from "@/types";
-import { isCampPackingActivity } from "@/utils/campPacking";
-import { isPastEvent } from "@/utils/events";
+import { isCampEvent, isPastEvent } from "@/utils/events";
 import { formatEventWindow } from "@/utils/formatters";
 import { eventsService } from "@/services/firestore/eventsService";
 
@@ -91,7 +90,7 @@ export function HomeFeed(_: HomeFeedProps) {
         ({ event, registration }) =>
           Boolean(registration) &&
           registration?.registrationStatus !== "cancelled" &&
-          isCampPackingActivity(event) &&
+          isCampEvent(event) &&
           !isPastEvent(event),
       );
 

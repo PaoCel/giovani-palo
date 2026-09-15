@@ -1,5 +1,3 @@
-import type { Event } from "@/types";
-
 export interface PackingItem {
   id: string;
   label: string;
@@ -9,10 +7,6 @@ export interface PackingSection {
   id: string;
   title: string;
   items: PackingItem[];
-}
-
-export function isCampPackingActivity(event: Pick<Event, "activityType" | "overnight">) {
-  return event.activityType === "camp" || event.activityType === "overnight" || event.overnight;
 }
 
 export const defaultCampPackingSections: PackingSection[] = [

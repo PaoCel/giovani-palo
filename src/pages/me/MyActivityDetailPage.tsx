@@ -15,9 +15,8 @@ import { userActivitiesService } from "@/services/firestore/userActivitiesServic
 import type { CampPublicMember, Registration } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
-import { isCampPackingActivity } from "@/utils/campPacking";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
-import { getEventAudienceLabel } from "@/utils/events";
+import { getEventAudienceLabel, isCampEvent } from "@/utils/events";
 import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
 import {
   getRegistrationAnswerEntries,
@@ -350,6 +349,13 @@ export function MyActivityDetailPage() {
     ? getRegistrationAnswerEntries(data.formConfig, data.registration)
     : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
+  // Solo un campeggio ha checklist zaino, pattuglie, comitati e area
+  // /campeggio: per un viaggio (es. tempio) o un'attività standard la pagina
+  // mostra cosa portare e la stanza, se comunicate, e il riepilogo iscrizione.
+  const isCamp = data ? isCampEvent(data.event) : false;
+  const whatToBring = data?.event.whatToBring.trim() ?? "";
+  const assignedRoomName =
+    data && !isCancelled ? data.registration.assignedRoomName : null;
   const registrationStatusDisplay = data
     ? getRegistrationStatusDisplay(data.registration)
     : null;
@@ -475,6 +481,7 @@ export function MyActivityDetailPage() {
 
       {data ? (
         <>
+          {isCamp ? (
           <section className="camp-trail-nav" aria-label="Menu attività">
             <div className="camp-trail-track" role="tablist">
               {tabDefinitions.map((tab) => (
@@ -498,16 +505,39 @@ export function MyActivityDetailPage() {
               ))}
             </div>
           </section>
+          ) : null}
 
           <section className="camp-youth-tab-panel" role="tabpanel">
             {activeTab === "registration" ? (
               <div className="camp-youth-stack">
-                {session?.firebaseUser.uid &&
-                isCampPackingActivity(data.event) ? (
+                {session?.firebaseUser.uid && isCamp ? (
                   <CampPackingChecklist
                     event={data.event}
                     userId={session.firebaseUser.uid}
                   />
+                ) : null}
+
+                {!isCamp && whatToBring ? (
+                  <section className="camp-cat-card camp-registration-card">
+                    <div className="camp-cat-head">
+                      <h3>Cosa portare</h3>
+                    </div>
+                    <p className="camp-registration-card__text">{whatToBring}</p>
+                  </section>
+                ) : null}
+
+                {assignedRoomName ? (
+                  <section className="camp-cat-card camp-registration-card">
+                    <div className="camp-cat-head">
+                      <h3>La tua stanza</h3>
+                    </div>
+                    <dl className="camp-youth-data-list">
+                      <div>
+                        <dt>Stanza</dt>
+                        <dd>{assignedRoomName}</dd>
+                      </div>
+                    </dl>
+                  </section>
                 ) : null}
 
                 <section className="camp-cat-card camp-registration-card">
@@ -574,7 +604,7 @@ export function MyActivityDetailPage() {
                 data.event.allergiesInfo?.trim() ? (
                   <section className="camp-cat-card camp-registration-card">
                     <div className="camp-cat-head">
-                      <h3>Info campeggio</h3>
+                      <h3>{isCamp ? "Info campeggio" : "Informazioni utili"}</h3>
                     </div>
                     <dl className="camp-youth-data-list">
                       {data.event.menuInfo?.trim() ? (

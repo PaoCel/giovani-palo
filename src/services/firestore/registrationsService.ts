@@ -203,6 +203,10 @@ function mapRegistration(
         : "authenticated",
     assignedRoomId:
       typeof data.assignedRoomId === "string" ? data.assignedRoomId : null,
+    assignedRoomName:
+      typeof data.assignedRoomName === "string" && data.assignedRoomName.trim()
+        ? data.assignedRoomName
+        : null,
     assignedTempleShiftId:
       typeof data.assignedTempleShiftId === "string"
         ? data.assignedTempleShiftId

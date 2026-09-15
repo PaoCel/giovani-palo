@@ -388,6 +388,9 @@ export interface Registration {
   registrationStatus: RegistrationStatus;
   submittedByMode: RegistrationSubmittedByMode;
   assignedRoomId: string | null;
+  // Nome della stanza comunicata al partecipante: lo scrive solo la callable
+  // roomManagementSave quando l'admin pubblica il piano stanze.
+  assignedRoomName: string | null;
   assignedTempleShiftId: string | null;
   assignedServiceTeamIds: string[];
   assignedPatrolId: string | null;
