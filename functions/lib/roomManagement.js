@@ -99,11 +99,16 @@ function parseIdMap(value, label, valueParser) {
 }
 
 function parsePlan(source) {
+  // `published` è opzionale: i piani salvati prima della pubblicazione non
+  // ce l'hanno e il client può rimandarli così come li ha letti.
   assertExactKeys(
     source,
-    ["rooms", "assignments", "lockedIds", "adultGenders", "couples", "revision", "updatedAt"],
+    ["rooms", "assignments", "lockedIds", "adultGenders", "couples", "published", "revision", "updatedAt"],
     "Piano stanze",
   );
+  if (source.published !== undefined && typeof source.published !== "boolean") {
+    throw new HttpsError("invalid-argument", "Il flag di pubblicazione deve essere true o false.");
+  }
   if (!Array.isArray(source.rooms) || source.rooms.length > MAX_ROOMS) {
     throw new HttpsError("invalid-argument", `Il piano può contenere al massimo ${MAX_ROOMS} stanze.`);
   }
@@ -155,9 +160,29 @@ function parsePlan(source) {
     lockedIds,
     adultGenders: { ...adultGenders },
     couples,
+    published: source.published === true,
     revision: source.revision,
     updatedAt: source.updatedAt,
   };
+}
+
+// Campi stanza da scrivere sull'iscrizione per allinearla al piano, o null se
+// è già allineata. Con il piano pubblicato ogni iscrizione assegnata riceve id
+// e nome della stanza; con il piano in bozza vengono azzerati solo dove una
+// pubblicazione precedente li aveva scritti (un assignedRoomId legacy senza
+// nome non viene toccato).
+function registrationRoomPatch(registration, plan) {
+  const currentId = typeof registration.assignedRoomId === "string" ? registration.assignedRoomId : null;
+  const currentName = typeof registration.assignedRoomName === "string" ? registration.assignedRoomName : null;
+  if (!plan.published && currentName === null) return null;
+  const roomId = plan.published && Object.hasOwn(plan.assignments, registration.id)
+    ? plan.assignments[registration.id]
+    : undefined;
+  const room = roomId ? plan.rooms.find((item) => item.id === roomId) : undefined;
+  const assignedRoomId = room ? room.id : null;
+  const assignedRoomName = room ? room.name : null;
+  if (currentId === assignedRoomId && currentName === assignedRoomName) return null;
+  return { assignedRoomId, assignedRoomName };
 }
 
 function payloadSize(value) {
@@ -249,18 +274,30 @@ function createRoomManagementSaveHandler({ db, clock = () => new Date() } = {}) 
       const updatedAt = clock().toISOString();
       const next = { ...incoming, revision: currentRevision + 1, updatedAt };
       transaction.set(planRef, { ...next, savedAt: FieldValue.serverTimestamp() });
-      return next;
+      // Stanze comunicate ai partecipanti nella stessa transazione del piano:
+      // piano e iscrizioni non possono divergere. Le rules bloccano queste
+      // chiavi al client, quindi l'unico scrittore è questa callable.
+      let synced = 0;
+      for (const document of registrationsSnapshot.docs) {
+        const patch = registrationRoomPatch({ ...document.data(), id: document.id }, next);
+        if (!patch) continue;
+        transaction.update(document.ref, patch);
+        synced += 1;
+      }
+      return { plan: next, synced };
     });
 
     logger.info("Room management saved.", {
       stakeId,
       activityId,
       uid: request.auth.uid,
-      rooms: savedPlan.rooms.length,
-      assignments: Object.keys(savedPlan.assignments).length,
-      revision: savedPlan.revision,
+      rooms: savedPlan.plan.rooms.length,
+      assignments: Object.keys(savedPlan.plan.assignments).length,
+      published: savedPlan.plan.published,
+      registrationsSynced: savedPlan.synced,
+      revision: savedPlan.plan.revision,
     });
-    return { plan: savedPlan };
+    return { plan: savedPlan.plan };
   };
 }
 
@@ -348,4 +385,5 @@ module.exports = {
   cleanupRegistrationReferences,
   cleanupDeletedRegistration,
   parsePlan,
+  registrationRoomPatch,
 };

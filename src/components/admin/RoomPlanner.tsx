@@ -142,7 +142,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     try {
       const saved = await onSave(plan);
       setPlan(copy(saved)); setSavedPlan(copy(saved)); setHistory([]); setConflict(false);
-      setMessage("Bozza salvata. Visibile solo agli amministratori.");
+      setMessage(saved.published ? "Stanze salvate e comunicate ai partecipanti." : "Bozza salvata. Visibile solo agli amministratori.");
     } catch (cause) {
       const code = (cause as { code?: string }).code;
       if (code === "functions/aborted") {
@@ -361,7 +361,8 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
           })}</div></>}
         </div>
       </div>
-      <div className="rp-savebar"><div><strong>{dirty ? "La bozza ha modifiche non salvate" : "Bozza visibile solo agli admin"}</strong><small>{busy ? "Operazione in corso..." : "Nessuna assegnazione viene comunicata ai partecipanti."}</small></div><div className="rp-actions"><button className="button button--ghost" disabled={!history.length} onClick={() => { const previous = history[history.length - 1]; setPlan(previous); setHistory(history.slice(0, -1)); setError(""); setMessage("Ultima modifica annullata."); }}>Annulla ultima modifica</button><button className="button button--primary" disabled={!dirty || problems.length > 0 || conflict} onClick={() => void savePlan()}>{busy ? "Salvataggio..." : "Salva bozza"}</button></div></div>
+      <div className="rp-savebar"><div><strong>{dirty ? "La bozza ha modifiche non salvate" : plan.published ? "Stanze comunicate ai partecipanti" : "Bozza visibile solo agli admin"}</strong><small>{busy ? "Operazione in corso..." : plan.published ? "Ogni iscritto vede solo il nome della propria stanza nella sua pagina." : "Nessuna assegnazione viene comunicata ai partecipanti."}</small>
+        <label className="rp-checkbox rp-checkbox--inline"><input type="checkbox" checked={plan.published === true} onChange={(event) => change({ ...copy(plan), published: event.target.checked }, event.target.checked ? "Al salvataggio ogni iscritto assegnato vedrà la propria stanza." : "Al salvataggio le stanze non saranno più visibili agli iscritti.")} />Comunica le stanze ai partecipanti</label></div><div className="rp-actions"><button className="button button--ghost" disabled={!history.length} onClick={() => { const previous = history[history.length - 1]; setPlan(previous); setHistory(history.slice(0, -1)); setError(""); setMessage("Ultima modifica annullata."); }}>Annulla ultima modifica</button><button className="button button--primary" disabled={!dirty || problems.length > 0 || conflict} onClick={() => void savePlan()}>{busy ? "Salvataggio..." : "Salva bozza"}</button></div></div>
     </fieldset>
     {conflict ? <button className="button button--secondary" onClick={onReload}>Ricarica la bozza condivisa</button> : null}
 

@@ -39,6 +39,9 @@ export function emptyRoomPlan() {
     lockedIds: [],
     adultGenders: {},
     couples: [],
+    // Finché è false il piano resta una bozza per soli admin; con true la
+    // callable scrive a ogni iscrizione assegnata il nome della sua stanza.
+    published: false,
     revision: 0,
     updatedAt: "",
   };
@@ -370,6 +373,7 @@ function roomPlanClone(plan) {
     lockedIds: [...new Set(Array.isArray(plan?.lockedIds) ? plan.lockedIds : [])],
     adultGenders: { ...objectOrEmpty(plan?.adultGenders) },
     couples: (Array.isArray(plan?.couples) ? plan.couples : []).map((couple) => ({ ...couple })),
+    published: plan?.published === true,
     revision: Number.isInteger(plan?.revision) ? plan.revision : 0,
     updatedAt: text(plan?.updatedAt),
   };

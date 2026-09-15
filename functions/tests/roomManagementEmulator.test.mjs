@@ -132,10 +132,26 @@ test("callable, trigger e rules applicano auth, revisione e payload stretto", as
     /permission|insufficient/i,
   );
 
+  // Pubblicazione: la stanza arriva sull'iscrizione solo con published true,
+  // nella stessa transazione del piano, e torna null quando il piano è bozza.
+  const published = await admin.save({ ...request, expectedRevision: 1, plan: { ...roomPlan(1), published: true } });
+  assert.equal(published.data.plan.published, true);
+  assert.equal(published.data.plan.revision, 2);
+  let boy = await adminDb.doc(`${activityPath}/registrations/boy`).get();
+  assert.equal(boy.data().assignedRoomId, "boys");
+  assert.equal(boy.data().assignedRoomName, "Ragazzi");
+  assert.equal((await adminDb.doc(`${activityPath}/management/rooms`).get()).data().published, true);
+  await expectCode(admin.save({ ...request, expectedRevision: 2, plan: { ...roomPlan(2), published: "yes" } }), "invalid-argument");
+  const withdrawn = await admin.save({ ...request, expectedRevision: 2, plan: roomPlan(2) });
+  assert.equal(withdrawn.data.plan.published, false);
+  boy = await adminDb.doc(`${activityPath}/registrations/boy`).get();
+  assert.equal(boy.data().assignedRoomId, null);
+  assert.equal(boy.data().assignedRoomName, null);
+
   await adminDb.doc(`${activityPath}/registrations/boy`).delete();
   const cleaned = await waitFor(
     () => adminDb.doc(`${activityPath}/management/rooms`).get(),
-    (snapshot) => snapshot.data()?.revision === 2,
+    (snapshot) => snapshot.data()?.revision === 4,
     "pulizia riferimenti alla registrazione",
   );
   assert.deepEqual(cleaned.data().assignments, {});

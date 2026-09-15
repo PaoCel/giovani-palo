@@ -34,6 +34,7 @@
 .room-planner button:focus-visible, .rp-form button:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 .rp-checkbox { display: flex !important; align-items: center; gap: .55rem; font-size: .74rem; color: var(--muted); line-height: 1.5; margin: .8rem 0; }
 .rp-checkbox input { width: 1rem; height: 1rem; flex-shrink: 0; accent-color: var(--primary); }
+.rp-checkbox--inline { margin: .25rem 0 0; color: var(--heading); }
 .rp-people__list { max-height: 535px; overflow-y: auto; margin-top: .8rem; }
 .rp-person { display: flex; align-items: center; width: 100%; gap: .65rem; padding: .8rem .2rem; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--surface-border); color: var(--text); }
 .rp-person > span:nth-child(2) { flex: 1; min-width: 0; display: grid; gap: .2rem; }

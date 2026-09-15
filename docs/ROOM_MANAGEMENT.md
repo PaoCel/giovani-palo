@@ -1,10 +1,19 @@
 # Piano stanze
 
 Il piano stanze è una bozza operativa per attività con `overnight: true`. Vive in
-`stakes/{stakeId}/activities/{activityId}/management/rooms` e non viene pubblicato
-ai partecipanti. Il documento contiene stanze, ID delle iscrizioni assegnate,
-blocchi manuali, sesso dichiarato dallo staff e coppie confermate. Non copia nomi,
-note o altri dati dei partecipanti e non scrive `assignedRoomId` nelle iscrizioni.
+`stakes/{stakeId}/activities/{activityId}/management/rooms` e resta leggibile solo
+dagli admin. Il documento contiene stanze, ID delle iscrizioni assegnate, blocchi
+manuali, sesso dichiarato dallo staff, coppie confermate e il flag `published`.
+Non copia nomi, note o altri dati dei partecipanti.
+
+Con `published: true` (spunta "Comunica le stanze ai partecipanti" nella barra
+di salvataggio) la callable scrive su ogni iscrizione assegnata `assignedRoomId`
+e `assignedRoomName`, nella stessa transazione del piano; quando il piano torna
+bozza li riporta a `null`. Il partecipante vede solo il nome della propria stanza
+nella sua pagina attività (`MyActivityDetailPage`, card "La tua stanza"); il piano
+completo non esce mai dal server. Le rules vietano al client di scrivere o
+modificare questi due campi; i piani salvati prima della funzione non hanno il
+flag e valgono come bozza.
 
 ## Ownership e accesso
 
@@ -14,6 +23,9 @@ note o altri dati dei partecipanti e non scrive `assignedRoomId` nelle iscrizion
   dell'attività, di tutte le iscrizioni e della revisione nella stessa transazione.
 - Dirigenti di unità, staff, partecipanti e account anonimi non possono leggere il
   piano.
+- `assignedRoomName` sull'iscrizione: scritto solo dalla callable; il proprietario
+  lo legge con la propria iscrizione e non può cambiarlo né rimuoverlo
+  (`validRegistrationUpdate`). Test: `functions/tests/registrationUpdateRules.py`.
 
 Il salvataggio usa optimistic concurrency: il client invia `expectedRevision` e
 il server incrementa `revision`. Un salvataggio basato su una versione superata

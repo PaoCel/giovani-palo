@@ -19,6 +19,8 @@ export interface RoomPlan {
   lockedIds: string[];
   adultGenders: Record<string, AdultGender>;
   couples: Array<{ firstId: string; secondId: string; confirmed: boolean }>;
+  /** Con true ogni iscritto assegnato vede il nome della propria stanza. Assente nei piani salvati prima della funzione. */
+  published?: boolean;
   revision: number;
   updatedAt: string;
 }
