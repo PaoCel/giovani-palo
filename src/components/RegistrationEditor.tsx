@@ -296,6 +296,11 @@ export function RegistrationEditor({
   onSubmit,
 }: RegistrationEditorProps) {
   const cityOptionsListId = useId();
+  // Un account genitore riceve anche una Registration sintetica che precompila
+  // i dati del figlio scelto (buildChildPrefill): ha id vuoto e stato "active".
+  // Non è un'iscrizione esistente, e trattarla come tale faceva saltare la
+  // richiesta di autorizzazione al genitore per un minore (2026-09-17).
+  const existingRegistration = initialRegistration?.id ? initialRegistration : null;
   const editorIdentityKey = [
     event.stakeId,
     event.id,
@@ -1105,12 +1110,12 @@ export function RegistrationEditor({
 
     const nextRegistrationStatus = (() => {
       if (
-        initialRegistration?.registrationStatus
-        && initialRegistration.registrationStatus !== "cancelled"
+        existingRegistration?.registrationStatus
+        && existingRegistration.registrationStatus !== "cancelled"
       ) {
         // Update di iscrizione esistente: preservo lo stato (la Cloud Function
         // lo cambia solo dopo conferma/rifiuto del genitore).
-        return initialRegistration.registrationStatus;
+        return existingRegistration.registrationStatus;
       }
       // Iscrizione annullata risalvata: vale come nuova iscrizione, altrimenti
       // il modulo si salvava restando "annullata" senza dirlo a nessuno.
@@ -1738,7 +1743,7 @@ export function RegistrationEditor({
                 </button>
               </div>
 
-              {initialRegistration ? (
+              {existingRegistration ? (
                 <p className="subtle-text">
                   Hai gia&apos; inviato l&apos;iscrizione: le domande gia&apos; salvate
                   in precedenza puoi gestirle dalla pagina dell&apos;attivita&apos; nella

@@ -15,6 +15,7 @@ export type RegistrationStatusSource = Pick<
 export function resolveRegistrationStatusOnSave(
   existing: RegistrationStatusSource | null,
   requested: RegistrationStatus,
+  options: { parentAuthorizationRequested?: boolean } = {},
 ): RegistrationStatus {
   if (requested === "cancelled") {
     return "cancelled";
@@ -24,7 +25,10 @@ export function resolveRegistrationStatusOnSave(
     return existing.registrationStatus;
   }
 
-  if (requested === "pending_parent_authorization") {
+  // I dati del genitore nel payload valgono quanto lo stato richiesto: se il
+  // modulo li ha raccolti, l'autorizzazione serve e non è ancora arrivata. Un
+  // client che chiedeva "active" saltava in silenzio il consenso di un minore.
+  if (requested === "pending_parent_authorization" || options.parentAuthorizationRequested) {
     // Autorizzazione già firmata prima dell'annullamento: non si ricomincia
     // dal genitore, l'iscrizione torna direttamente attiva.
     return existing?.parentAuthorization?.status === "authorized"

@@ -540,6 +540,9 @@ export const registrationsService = {
     const registrationStatus: RegistrationStatus = resolveRegistrationStatusOnSave(
       existing,
       input.registrationStatus,
+      {
+        parentAuthorizationRequested: Boolean(input.answers?.parentAuthorizationRequest),
+      },
     );
     const roomPreferenceMatches = preserveRoomPreferenceMatchesOnSave(
       existing?.roomPreferenceMatches ?? {},

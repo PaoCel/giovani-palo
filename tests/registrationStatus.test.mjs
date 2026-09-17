@@ -56,3 +56,36 @@ test("l'annullamento richiesto vince su qualsiasi stato precedente", () => {
   assert.equal(resolveRegistrationStatusOnSave(existing("confirmed"), "cancelled"), "cancelled");
   assert.equal(resolveRegistrationStatusOnSave(null, "cancelled"), "cancelled");
 });
+
+test("i dati del genitore nel modulo impongono l'autorizzazione", () => {
+  // buildChildPrefill passa al modulo una Registration sintetica "active":
+  // senza questa guardia il minore risultava iscritto senza consenso.
+  assert.equal(
+    resolveRegistrationStatusOnSave(null, "active", { parentAuthorizationRequested: true }),
+    "pending_parent_authorization",
+  );
+  assert.equal(
+    resolveRegistrationStatusOnSave(existing("cancelled"), "active", {
+      parentAuthorizationRequested: true,
+    }),
+    "pending_parent_authorization",
+  );
+});
+
+test("un consenso già firmato non viene richiesto una seconda volta", () => {
+  assert.equal(
+    resolveRegistrationStatusOnSave(existing("cancelled", "authorized"), "active", {
+      parentAuthorizationRequested: true,
+    }),
+    "active",
+  );
+});
+
+test("un'iscrizione già confermata non torna indietro", () => {
+  assert.equal(
+    resolveRegistrationStatusOnSave(existing("confirmed", "authorized"), "active", {
+      parentAuthorizationRequested: true,
+    }),
+    "confirmed",
+  );
+});
