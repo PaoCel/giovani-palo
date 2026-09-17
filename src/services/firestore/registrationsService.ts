@@ -30,6 +30,7 @@ import type {
 } from "@/types";
 import { getAudienceRestrictionMessage, isEventAudienceEligible } from "@/utils/events";
 import { getGenderRoleCategory, getYouthGroupLabel } from "@/utils/profile";
+import { resolveRegistrationStatusOnSave } from "@/utils/registrationStatus";
 import {
   findRoomPreferenceMatch,
   parseRoomPreferenceMatches,
@@ -536,21 +537,10 @@ export const registrationsService = {
     const genderRoleCategory = getGenderFromAnswers(input.answers);
     const recoveryCode =
       existing?.recoveryCode ?? (lookup.anonymousUid ? createRecoveryCode() : null);
-    const registrationStatus: RegistrationStatus = (() => {
-      if (input.registrationStatus === "cancelled") {
-        return "cancelled";
-      }
-
-      if (existing) {
-        return existing.registrationStatus;
-      }
-
-      if (input.registrationStatus === "pending_parent_authorization") {
-        return "pending_parent_authorization";
-      }
-
-      return "active";
-    })();
+    const registrationStatus: RegistrationStatus = resolveRegistrationStatusOnSave(
+      existing,
+      input.registrationStatus,
+    );
     const roomPreferenceMatches = preserveRoomPreferenceMatchesOnSave(
       existing?.roomPreferenceMatches ?? {},
       input.answers,

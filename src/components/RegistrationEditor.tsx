@@ -1104,11 +1104,16 @@ export function RegistrationEditor({
       : null;
 
     const nextRegistrationStatus = (() => {
-      if (initialRegistration?.registrationStatus) {
+      if (
+        initialRegistration?.registrationStatus
+        && initialRegistration.registrationStatus !== "cancelled"
+      ) {
         // Update di iscrizione esistente: preservo lo stato (la Cloud Function
         // lo cambia solo dopo conferma/rifiuto del genitore).
         return initialRegistration.registrationStatus;
       }
+      // Iscrizione annullata risalvata: vale come nuova iscrizione, altrimenti
+      // il modulo si salvava restando "annullata" senza dirlo a nessuno.
       if (eventRequiresParentAuthorization) {
         return "pending_parent_authorization" as const;
       }
@@ -1146,7 +1151,8 @@ export function RegistrationEditor({
           : {}),
       },
       registrationStatus: nextRegistrationStatus,
-      status: initialRegistration?.status === "cancelled" ? "cancelled" : "active",
+      // Il modulo non annulla mai: l'annullamento passa da cancelRegistration.
+      status: "active",
       participatingDays: supportsParticipatingDays
         ? values.participatingDays.filter((day) => availableEventDays.includes(day))
         : undefined,
