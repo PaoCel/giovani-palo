@@ -241,6 +241,112 @@ async function syncPendingParticipantDetails(registrationRef, registration) {
   return true;
 }
 
+// Stati in cui l'autorizzazione non e' ancora stata decisa dal genitore: solo
+// qui ha senso spostare la richiesta su un altro indirizzo.
+const REISSUABLE_PARENT_AUTH_STATUSES = [
+  "pending_request",
+  "pending_parent_authorization",
+  "email_sent",
+  "expired",
+];
+
+function shouldReissueParentAuthorization(registration) {
+  const state = registration.parentAuthorization;
+  const request = readParentAuthorizationRequest(registration);
+  if (!request || !state || typeof state !== "object") return false;
+  if (!REISSUABLE_PARENT_AUTH_STATUSES.includes(asString(state.status))) return false;
+
+  const nextEmail = normalizeEmail(request.parentEmail);
+  if (!nextEmail) return false;
+
+  return nextEmail !== normalizeEmail(state.parentEmail);
+}
+
+// Stessa sequenza della callable di reinvio (invalida token, azzera tokenId,
+// rimanda), ma innescata dal modulo invece che da un admin.
+async function reissueParentAuthorizationForNewParentEmail({
+  db,
+  storage,
+  stakeId,
+  activityId,
+  registrationId,
+  registration,
+}) {
+  const activity = await loadActivity(db, stakeId, activityId);
+  if (!activity) {
+    logger.warn("Attivita' non trovata per reissue parent auth.", {
+      stakeId,
+      activityId,
+      registrationId,
+    });
+    return;
+  }
+
+  const state = registration.parentAuthorization || {};
+  const oldTokenId = state.tokenId || null;
+
+  if (oldTokenId) {
+    await db.doc(`parentAuthorizationTokens/${oldTokenId}`).set(
+      {
+        status: "invalidated",
+        invalidatedAt: nowIso(),
+      },
+      { merge: true },
+    );
+
+    await writeAuditLog(db, stakeId, activityId, registrationId, {
+      tokenId: oldTokenId,
+      event: "token_invalidated",
+      actorUserId: null,
+    });
+  }
+
+  const registrationRef = db.doc(
+    `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
+  );
+
+  await registrationRef.set(
+    {
+      parentAuthorization: {
+        ...state,
+        tokenId: null,
+        status: "pending_parent_authorization",
+        updatedAt: nowIso(),
+      },
+    },
+    { merge: true },
+  );
+
+  const snapshot = await registrationRef.get();
+  const refreshed = { id: registrationId, ...(snapshot.data() || {}) };
+
+  try {
+    const result = await sendInitialAuthorizationEmail({
+      db,
+      storage,
+      stakeId,
+      activityId,
+      registrationId,
+      registration: refreshed,
+      activity,
+    });
+
+    await writeAuditLog(db, stakeId, activityId, registrationId, {
+      tokenId: result.tokenId || null,
+      event: "email_resent",
+      actorUserId: null,
+      emailProvider: "brevo",
+    });
+  } catch (error) {
+    logger.error("Reinvio autorizzazione al nuovo genitore fallito.", {
+      stakeId,
+      activityId,
+      registrationId,
+      detail: error.message,
+    });
+  }
+}
+
 function emptyParentAuthorizationState({ parentEmail, parentName, parentPhone, expiresAt }) {
   return {
     status: "pending_parent_authorization",
@@ -846,9 +952,28 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
       after.parentAuthorization.status !== "email_error"
     ) {
       const { stakeId, activityId, registrationId } = event.params;
-      const registrationRef = getFirestore().doc(
+      const db = getFirestore();
+      const registrationRef = db.doc(
         `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
       );
+
+      // Il modulo puo' correggere il genitore (mail sbagliata, altro genitore).
+      // Finche' nessuno ha firmato, il token vecchio va invalidato e la mail
+      // rispedita al nuovo indirizzo: sincronizzare solo i campi sanitari
+      // lasciava l'autorizzazione appesa alla casella sbagliata, senza errori
+      // e senza modo di accorgersene (2026-09-17).
+      if (shouldReissueParentAuthorization(after)) {
+        await reissueParentAuthorizationForNewParentEmail({
+          db,
+          storage: getStorage(),
+          stakeId,
+          activityId,
+          registrationId,
+          registration: after,
+        });
+        return;
+      }
+
       await syncPendingParticipantDetails(registrationRef, after);
       return;
     }
@@ -2082,6 +2207,9 @@ const parentAuthorizationDownloadSignedConsentsZip = onCall(
 );
 
 module.exports = {
+  // Esportata per il test: decide se la richiesta va spostata su un'altra
+  // casella (functions/tests/parentAuthorizationReissue.test.mjs).
+  shouldReissueParentAuthorization,
   onRegistrationPendingParentAuth,
   parentAuthorizationGetContext,
   parentAuthorizationConfirm,
