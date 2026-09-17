@@ -20,6 +20,8 @@ exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationG
 exports.parentAuthorizationConfirm = parentAuthorization.parentAuthorizationConfirm;
 exports.parentAuthorizationReject = parentAuthorization.parentAuthorizationReject;
 exports.parentAuthorizationResend = parentAuthorization.parentAuthorizationResend;
+exports.parentAuthorizationIssueOwnToken =
+  parentAuthorization.parentAuthorizationIssueOwnToken;
 exports.parentAuthorizationBackfillLegacyApprovals =
   parentAuthorization.parentAuthorizationBackfillLegacyApprovals;
 exports.parentAuthorizationGetSignedConsentUrl =

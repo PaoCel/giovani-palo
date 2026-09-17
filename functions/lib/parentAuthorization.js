@@ -52,6 +52,10 @@ const { sanitizeSignaturePng } = require("./signatureImage");
 
 const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
 
+// Tetto ai riprovi automatici di invio della mail di autorizzazione: oltre,
+// resta il reinvio manuale dell'admin.
+const MAX_EMAIL_RETRIES = 3;
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -697,6 +701,13 @@ async function sendInitialAuthorizationEmail({
     return { skipped: true, reason: "missing_request_payload" };
   }
 
+  // Un'autorizzazione gia' firmata (o rifiutata) non si tocca: un invio
+  // arrivato in ritardo ne cancellerebbe firma, PDF e consensi.
+  const statoCorrente = registration.parentAuthorization?.status;
+  if (statoCorrente === "authorized" || statoCorrente === "rejected_by_parent") {
+    return { skipped: true, reason: "already_decided" };
+  }
+
   const parentEmail = normalizeEmail(request.parentEmail);
   if (!parentEmail) {
     logger.warn("Parent email vuota, salto invio.", {
@@ -765,7 +776,9 @@ async function sendInitialAuthorizationEmail({
     dietaryNotes: asString(request.dietaryNotes).trim(),
     emailSentAt: nowIso(),
     emailLastError: null,
-    emailRetryCount: 0,
+    // Conservato: il pre-set avviene prima dell'invio, azzerarlo qui rimetteva
+    // a zero i tentativi a ogni giro e rendeva il tetto inefficace.
+    emailRetryCount: Number(registration.parentAuthorization?.emailRetryCount ?? 0),
     emailProvider: "brevo",
     brevoMessageId: null,
     authorizedAt: null,
@@ -870,6 +883,7 @@ async function sendInitialAuthorizationEmail({
       parentAuthorization: {
         ...stateBase,
         brevoMessageId: brevoResult.messageId || null,
+        emailRetryCount: 0,
         updatedAt: nowIso(),
       },
       updatedAt: nowIso(),
@@ -943,6 +957,27 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
       return;
     }
 
+    // Un invio fallito lascia status email_error, e ogni scrittura successiva
+    // sul documento rientra qui: senza tetto, un disservizio del provider mette
+    // il trigger in rincorsa su se stesso (visto in emulatore il 2026-09-17,
+    // un token nuovo per ogni giro). Dopo qualche tentativo si fermano i
+    // riprovi automatici: resta il reinvio manuale dell'admin.
+    const tentativiInvio = Number(after.parentAuthorization?.emailRetryCount ?? 0);
+    if (
+      after.parentAuthorization &&
+      typeof after.parentAuthorization === "object" &&
+      after.parentAuthorization.status === "email_error" &&
+      tentativiInvio >= MAX_EMAIL_RETRIES
+    ) {
+      logger.warn("Invio autorizzazione sospeso: troppi tentativi falliti.", {
+        stakeId: event.params.stakeId,
+        activityId: event.params.activityId,
+        registrationId: event.params.registrationId,
+        tentativi: tentativiInvio,
+      });
+      return;
+    }
+
     // Se gia' c'e' un sub-object parentAuthorization con tokenId, non re-inviare.
     // Il reinvio passa da resendParentAuthorization callable.
     if (
@@ -1011,6 +1046,162 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
         error: error.message,
       });
     }
+  },
+);
+
+// =============================================================================
+// Cloud Function: firma dall'app per il genitore gia' autenticato
+// =============================================================================
+
+// Il magic-link nasce per il genitore senza account. Chi ha un account
+// famiglia e' gia' identificato: gli emettiamo un token a vita breve, senza
+// mandare nessuna mail, e lo mandiamo alla stessa pagina di firma. Cosi'
+// modulo, PDF ufficiale, log di consenso e copia firmata restano una sola
+// implementazione.
+const PARENT_SELF_TOKEN_TTL_MINUTES = 60;
+
+const parentAuthorizationIssueOwnToken = onCall(
+  {
+    region: REGION,
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Login richiesto.");
+    }
+
+    const stakeId = asString(request.data?.stakeId).trim();
+    const activityId = asString(request.data?.activityId).trim();
+    const registrationId = asString(request.data?.registrationId).trim();
+
+    if (!stakeId || !activityId || !registrationId) {
+      throw new HttpsError("invalid-argument", "Parametri mancanti.");
+    }
+
+    const db = getFirestore();
+    const registration = await loadRegistration(db, stakeId, activityId, registrationId);
+
+    if (!registration) {
+      throw new HttpsError("not-found", "Iscrizione non trovata.");
+    }
+
+    // Solo il genitore che gestisce quell'iscrizione.
+    if (registration.parentUid !== request.auth.uid) {
+      throw new HttpsError(
+        "permission-denied",
+        "Puoi firmare solo le iscrizioni dei tuoi figli.",
+      );
+    }
+
+    if (
+      registration.status === "cancelled" ||
+      registration.registrationStatus === "cancelled"
+    ) {
+      throw new HttpsError("failed-precondition", "L'iscrizione e' annullata.");
+    }
+
+    const state =
+      registration.parentAuthorization && typeof registration.parentAuthorization === "object"
+        ? registration.parentAuthorization
+        : null;
+
+    if (state?.status === "authorized") {
+      throw new HttpsError("failed-precondition", "L'autorizzazione e' gia' stata firmata.");
+    }
+
+    const req = readParentAuthorizationRequest(registration);
+    if (!req) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Mancano i dati del genitore: riapri il modulo di iscrizione e salvalo.",
+      );
+    }
+
+    const activity = await loadActivity(db, stakeId, activityId);
+    if (!activity) {
+      throw new HttpsError("not-found", "Attivita' non trovata.");
+    }
+
+    // Un solo link vivo per iscrizione: si invalidano tutti quelli pendenti,
+    // non solo l'ultimo annotato sull'iscrizione. Gli invii falliti ne lasciano
+    // indietro di orfani, e due link validi nella stessa casella sono un modo
+    // sicuro di far firmare la cosa sbagliata.
+    const pendenti = await db
+      .collection("parentAuthorizationTokens")
+      .where("registrationId", "==", registrationId)
+      .where("status", "==", "pending")
+      .get();
+
+    for (const vecchio of pendenti.docs) {
+      await vecchio.ref.set({ status: "invalidated", invalidatedAt: nowIso() }, { merge: true });
+      await writeAuditLog(db, stakeId, activityId, registrationId, {
+        tokenId: vecchio.id,
+        event: "token_invalidated",
+        actorUserId: request.auth.uid,
+      });
+    }
+
+    const rawToken = generateRawToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(
+      Date.now() + PARENT_SELF_TOKEN_TTL_MINUTES * 60 * 1000,
+    ).toISOString();
+    const parentEmail = normalizeEmail(req.parentEmail);
+    const parentFirstName = asString(req.parentFirstName).trim();
+    const parentLastName = asString(req.parentLastName).trim();
+
+    await db.doc(`parentAuthorizationTokens/${tokenHash}`).set({
+      id: tokenHash,
+      tokenHash,
+      stakeId,
+      activityId,
+      registrationId,
+      parentEmail,
+      participantName: asString(registration.fullName).trim(),
+      activityTitle: asString(activity.title).trim(),
+      activityStartDate: asString(activity.startDate),
+      activityEndDate: asString(activity.endDate) || asString(activity.startDate),
+      status: "pending",
+      createdAt: nowIso(),
+      expiresAt,
+      usedAt: null,
+      invalidatedAt: null,
+      createdByUserId: request.auth.uid,
+      createdByMode: "self",
+    });
+
+    await db
+      .doc(`stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`)
+      .set(
+        {
+          parentAuthorization: {
+            ...(state || emptyParentAuthorizationState({
+              parentEmail,
+              parentName: `${parentFirstName} ${parentLastName}`.trim(),
+              parentPhone: asString(req.parentPhone).trim(),
+              expiresAt,
+            })),
+            tokenId: tokenHash,
+            status: "pending_parent_authorization",
+            parentEmail,
+            parentFirstName,
+            parentLastName,
+            expiresAt,
+            emailLastError: null,
+            updatedAt: nowIso(),
+          },
+        },
+        { merge: true },
+      );
+
+    await writeAuditLog(db, stakeId, activityId, registrationId, {
+      tokenId: tokenHash,
+      event: "token_issued_in_app",
+      parentEmail,
+      actorUserId: request.auth.uid,
+    });
+
+    return { ok: true, token: rawToken, expiresAt };
   },
 );
 
@@ -2215,6 +2406,7 @@ module.exports = {
   parentAuthorizationConfirm,
   parentAuthorizationReject,
   parentAuthorizationResend,
+  parentAuthorizationIssueOwnToken,
   parentAuthorizationBackfillLegacyApprovals,
   parentAuthorizationGetSignedConsentUrl,
   parentAuthorizationDownloadSignedConsentsZip,
