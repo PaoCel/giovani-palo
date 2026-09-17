@@ -92,9 +92,3 @@ firebase-debug.*.log
 output/
 outputs/
 tmp/
-
-# Local working notes, not part of the project
-CLAUDE.md
-AGENTS.md
-.claude/
-.codex/
