@@ -458,6 +458,14 @@ service cloud.firestore {
         && (
           request.resource.data.registrationStatus == resource.data.registrationStatus
           || request.resource.data.registrationStatus == 'cancelled'
+          // Riattivazione: chi ha annullato puo' reiscriversi risalvando il
+          // modulo. Senza questo ramo il salvataggio passava ma lo stato
+          // restava 'cancelled' e l'iscrizione era invisibile agli admin.
+          // 'confirmed' resta escluso: lo scrive solo il genitore che firma.
+          || (
+            resource.data.registrationStatus == 'cancelled'
+            && request.resource.data.registrationStatus in ['active', 'pending_parent_authorization']
+          )
         )
         && manualConsentFieldsUnchanged()
         && !delta.affectedKeys().hasAny(['parentAuthorization']);

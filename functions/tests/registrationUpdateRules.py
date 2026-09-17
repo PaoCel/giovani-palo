@@ -158,3 +158,16 @@ without_room = copy.deepcopy(published)
 del without_room['assignedRoomName']
 save(path, without_room, actor='test-parent', expected=403)
 print('PASS: published room name readable by owner, immutable and non-removable')
+
+# Riattivazione: un'iscrizione annullata torna attiva risalvando il modulo.
+# Non esiste una UI di riattivazione, quindi senza questo ramo il salvataggio
+# riusciva ma lo stato restava 'cancelled' e l'iscrizione spariva dagli elenchi.
+# 'confirmed' resta riservato alla firma del genitore.
+cancelled = {**published, 'phone': '3333333333'}
+save(path, {**cancelled, 'registrationStatus': 'confirmed'}, actor='test-parent', expected=403)
+save(path, {**cancelled, 'registrationStatus': 'pending_parent_authorization'}, actor='test-parent')
+pending = {**cancelled, 'registrationStatus': 'pending_parent_authorization'}
+save(path, {**pending, 'registrationStatus': 'active'}, actor='test-parent', expected=403)
+save(path, cancelled, actor='test-parent')
+save(path, {**cancelled, 'registrationStatus': 'active'}, actor='test-parent')
+print('PASS: cancelled registration reactivated by owner, confirmed and skipped states denied')
