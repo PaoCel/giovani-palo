@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { childrenService, type ChildWriteInput } from "@/services/firestore/childrenService";
 import { eventsService } from "@/services/firestore/eventsService";
+import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
@@ -69,12 +70,37 @@ const emptyChildForm: ChildFormState = {
 
 export function FamilyDashboardPage() {
   const { session } = useAuth();
+  const navigate = useNavigate();
   const parentUid = session?.firebaseUser.uid ?? "";
   const [childModalOpen, setChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<ChildProfile | null>(null);
   const [childForm, setChildForm] = useState<ChildFormState>(emptyChildForm);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Il genitore e' gia' autenticato: non ha senso farlo passare dalla mail per
+  // firmare. La callable emette un token a vita breve e apriamo la stessa
+  // pagina di firma del magic-link.
+  async function handleAuthorizeNow(registration: Registration) {
+    setBusy(true);
+    setActionError(null);
+
+    try {
+      const { token } = await parentAuthorizationService.issueOwnToken({
+        stakeId: registration.stakeId,
+        activityId: registration.eventId,
+        registrationId: registration.id,
+      });
+      navigate(`/parent-confirm/${token}`);
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile aprire il modulo di autorizzazione.",
+      );
+      setBusy(false);
+    }
+  }
 
   const { data, loading, error, setData, reload } = useAsyncData(
     async () => {
@@ -310,6 +336,16 @@ export function FamilyDashboardPage() {
                               <strong>{event?.title ?? "Attività"}</strong>
                               {event ? <span>{formatEventWindow(event)}</span> : null}
                             </div>
+                            {registration.registrationStatus === "pending_parent_authorization" ? (
+                              <button
+                                className="button button--primary button--small"
+                                disabled={busy}
+                                onClick={() => void handleAuthorizeNow(registration)}
+                                type="button"
+                              >
+                                {busy ? "Apertura..." : "Autorizza ora"}
+                              </button>
+                            ) : null}
                             <Link
                               className="button button--ghost button--small"
                               to={`${getActivityRegistrationPath(registration.eventId, registration.stakeId)}${getActivityRegistrationPath(registration.eventId, registration.stakeId).includes("?") ? "&" : "?"}child=${child.id}`}

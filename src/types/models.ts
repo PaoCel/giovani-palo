@@ -792,6 +792,7 @@ export type ConsentAuditEvent =
   | "email_failed"
   | "email_resent"
   | "token_invalidated"
+  | "token_issued_in_app"
   | "parent_opened_link"
   | "parent_authorized"
   | "parent_rejected"

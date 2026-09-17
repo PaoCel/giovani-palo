@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
+import { useAuth } from "@/hooks/useAuth";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import {
   PARENT_CONSENT_CHECKBOXES,
@@ -103,6 +104,10 @@ export function ParentConfirmPage() {
   useNoIndex();
 
   const { token } = useParams();
+  // Chi arriva dal magic-link non e' loggato; chi firma dall'app si', e merita
+  // una via di ritorno invece di "puoi chiudere questa pagina".
+  const { session } = useAuth();
+  const isParentSession = Boolean(session?.isParent);
   const [view, setView] = useState<ViewState>({ stage: "loading" });
   const [stepIndex, setStepIndex] = useState(0);
   const [consents, setConsents] = useState<ParentAuthorizationConsents>(INITIAL_CONSENTS);
@@ -281,6 +286,12 @@ export function ParentConfirmPage() {
               Una copia PDF dell'autorizzazione viene conservata in modo sicuro dagli admin.
               Se vuoi una copia per i tuoi archivi, contatta il dirigente della tua unita'.
             </p>
+            {isParentSession ? (
+              <Link className="button button--primary" to="/family">
+                <AppIcon name="home" />
+                <span>Torna alla tua famiglia</span>
+              </Link>
+            ) : null}
           </StatusPanel>
         ) : null}
 
@@ -372,6 +383,8 @@ function ConfirmationWizard({
   onConfirm,
   onOpenReject,
 }: ConfirmationWizardProps) {
+  const { session } = useAuth();
+  const isParentSession = Boolean(session?.isParent);
   const step = WIZARD_STEPS[stepIndex];
   const isLastStep = stepIndex === WIZARD_STEPS.length - 1;
   const nextDisabled = step.id === "conditions" && !allRequiredConsentsChecked;
@@ -514,8 +527,10 @@ function ConfirmationWizard({
             </div>
             <p className="parent-confirm-fineprint">
               Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
-              accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica con
-              link unico inviato all'indirizzo email che ci hai fornito.
+              accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica
+              {isParentSession
+                ? " dal tuo account genitore, autenticato su questa piattaforma."
+                : " con link unico inviato all'indirizzo email che ci hai fornito."}
             </p>
           </>
         ) : null}

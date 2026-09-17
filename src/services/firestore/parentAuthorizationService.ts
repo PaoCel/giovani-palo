@@ -109,6 +109,13 @@ const resendCallable = httpsCallable<
   { ok: boolean; sent: boolean; tokenId: string | null }
 >(functions, "parentAuthorizationResend");
 
+// Firma dall'app: il genitore autenticato ottiene un token a vita breve per la
+// stessa pagina di firma del magic-link, senza passare dalla mail.
+const issueOwnTokenCallable = httpsCallable<
+  { stakeId: string; activityId: string; registrationId: string },
+  { ok: true; token: string; expiresAt: string }
+>(functions, "parentAuthorizationIssueOwnToken");
+
 const getSignedConsentUrlCallable = httpsCallable<
   SignedConsentUrlInput,
   SignedConsentDownloadResult
@@ -125,6 +132,15 @@ const backfillLegacyApprovalsCallable = httpsCallable<
 >(functions, "parentAuthorizationBackfillLegacyApprovals");
 
 export const parentAuthorizationService = {
+  async issueOwnToken(input: {
+    stakeId: string;
+    activityId: string;
+    registrationId: string;
+  }): Promise<{ token: string; expiresAt: string }> {
+    const result = await issueOwnTokenCallable(input);
+    return { token: result.data.token, expiresAt: result.data.expiresAt };
+  },
+
   async getContext(token: string): Promise<ParentAuthorizationContext> {
     const result = await getContextCallable({ token });
     return result.data;
