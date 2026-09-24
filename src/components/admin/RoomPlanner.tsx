@@ -5,7 +5,7 @@ import { RoomMap } from "@/components/admin/RoomMap";
 import type { Registration } from "@/types";
 import { fillForesteriaModule } from "@/utils/foresteriaModule";
 import { readRoomFile, type RoomImport } from "@/utils/roomImport";
-import { pickLayout, readRoomLayoutFile, type RoomLayout } from "@/utils/roomLayout";
+import { pickLayout, readRoomLayoutFile, roomsWithLayoutFloors, type RoomLayout } from "@/utils/roomLayout";
 import {
   ageAt, assignmentProblem, buildPreferenceLinks, categoryLabels, eligibleRegistrations,
   proposeRoomPlan, roomSummary, validateRoomPlan, type Room, type RoomPlan,
@@ -67,6 +67,10 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   const [proposal, setProposal] = useState<RoomPlan | null>(null);
   const [autoOpen, setAutoOpen] = useState(false);
   const [recalculate, setRecalculate] = useState(false);
+  const [occupyAllRoomsFirst, setOccupyAllRoomsFirst] = useState(true);
+  const [separateFloors, setSeparateFloors] = useState(false);
+  const [boysFloor, setBoysFloor] = useState<string | null>(null);
+  const [girlsFloor, setGirlsFloor] = useState<string | null>(null);
   const [partnerId, setPartnerId] = useState("");
   const [coupleConfirmed, setCoupleConfirmed] = useState(false);
   const [view, setView] = useState(savedView);
@@ -90,6 +94,10 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   const visibleRooms = plan.rooms.filter((room) => (category === "all" || room.category === category) && (floor === "all" || room.floor === floor));
   const floors = [...new Set(plan.rooms.map((room) => room.floor).filter(Boolean))];
   const layoutMatch = pickLayout(layoutList, plan.rooms);
+  const roomsWithFloors = roomsWithLayoutFloors(plan.rooms, layoutMatch?.layout);
+  const automaticFloors = [...new Set(roomsWithFloors.map((room) => room.floor).filter(Boolean))];
+  const chosenBoysFloor = boysFloor ?? automaticFloors.find((value) => /^(piano terra|terra|pt|0)$/i.test(value)) ?? "";
+  const chosenGirlsFloor = girlsFloor ?? automaticFloors.find((value) => /^(primo piano|piano primo|1|1[°º]?( piano)?)$/i.test(value)) ?? "";
   const armedPerson = armedId ? peopleById.get(armedId) : undefined;
 
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -175,7 +183,15 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   }
 
   function generate() {
-    try { setProposal(proposeRoomPlan(plan, registrations, referenceDate, { recalculate })); setError(""); }
+    setProposal(null);
+    try {
+      const input = separateFloors ? { ...plan, rooms: roomsWithFloors } : plan;
+      setProposal(proposeRoomPlan(input, registrations, referenceDate, {
+        recalculate, occupyAllRoomsFirst,
+        ...(separateFloors ? { youthFloors: { boys: chosenBoysFloor, girls: chosenGirlsFloor } } : {}),
+      }));
+      setError("");
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Impossibile generare la proposta."); }
   }
 
@@ -420,13 +436,22 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
 
     {autoOpen ? <AppModal title="Proposta automatica" subtitle="Rivedi il risultato prima di applicarlo alla bozza" onClose={() => { setAutoOpen(false); setError(""); }}>
       {errorNotice}<div className="rp-form"><p>Il calcolo cerca di tenere insieme i compagni richiesti, rispettando capienza, separazione ragazzi/ragazze ed eventuali fasce d’età. Gli accompagnatori si sistemano a mano.</p>
+        <label className="rp-checkbox"><input type="checkbox" checked={occupyAllRoomsFirst} onChange={(event) => { setOccupyAllRoomsFirst(event.target.checked); setProposal(null); }} />Occupa prima tutte le stanze</label>
+        <p className="rp-aside-note">Prima una persona in ogni stanza compatibile, poi si aggiungono gli altri nei letti liberi seguendo le preferenze. Vanno bene anche stanze con una o due persone. Le stanze staff e coppia restano riservate.</p>
+        <label className="rp-checkbox"><input type="checkbox" checked={separateFloors} onChange={(event) => { setSeparateFloors(event.target.checked); setProposal(null); }} />Separa giovani uomini e giovani donne per piano</label>
+        {separateFloors ? <>
+          <div className="rp-form-row"><label>Piano giovani uomini<select value={chosenBoysFloor} onChange={(event) => { setBoysFloor(event.target.value); setProposal(null); }}><option value="">Scegli piano</option>{automaticFloors.map((value) => <option key={value}>{value}</option>)}</select></label>
+            <label>Piano giovani donne<select value={chosenGirlsFloor} onChange={(event) => { setGirlsFloor(event.target.value); setProposal(null); }}><option value="">Scegli piano</option>{automaticFloors.map((value) => <option key={value}>{value}</option>)}</select></label></div>
+          <p className="rp-aside-note">I piani sono ricavati dalla pianta, quando disponibile. Le stanze vuote dei giovani vengono destinate al gruppo del piano scelto.</p>
+          {roomsWithFloors.some((room) => !room.floor) ? <p className="rp-notice rp-notice--warning">Le stanze senza piano non verranno usate: indica il piano nella scheda della stanza o carica la pianta.</p> : null}
+        </> : null}
         <label className="rp-checkbox"><input type="checkbox" checked={recalculate} onChange={(event) => { setRecalculate(event.target.checked); setProposal(null); }} />Ricalcola anche le assegnazioni non bloccate</label>
         <p className="rp-aside-note">{recalculate ? "Le assegnazioni bloccate e quelle degli accompagnatori saranno conservate." : "Tutte le assegnazioni presenti saranno conservate. Il calcolo completa solo i posti mancanti."}</p>
         {notesCount > 0 ? <p className="rp-notice rp-notice--warning">{notesCount} partecipanti hanno note stanza da leggere: rimarranno da assegnare a mano.</p> : null}
         <button className="button button--secondary" onClick={generate}><AppIcon name="sparkles" />{proposal ? "Ricalcola proposta" : "Calcola proposta"}</button>
         {proposal ? (() => {
           const result = roomSummary(proposal, people); const remaining = people.filter((person) => !proposal.assignments[person.id]);
-          return <div className="rp-proposal"><div className="rp-stats"><div><strong>{result.assigned}</strong><span>assegnati</span></div><div><strong>{result.preferencesMet}<small>/{result.preferencesTotal}</small></strong><span>preferenze soddisfatte</span></div></div>
+          return <div className="rp-proposal"><div className="rp-stats"><div><strong>{result.assigned}</strong><span>assegnati</span></div><div><strong>{new Set(Object.values(proposal.assignments)).size}<small>/{proposal.rooms.length}</small></strong><span>stanze occupate</span></div><div><strong>{result.preferencesMet}<small>/{result.preferencesTotal}</small></strong><span>preferenze soddisfatte</span></div></div>
             {remaining.length ? <><h4>{remaining.length} partecipanti da sistemare a mano</h4><ul>{remaining.map((person) => <li key={person.id}>{nameOf(person)}<small>{isAdult(person) ? "Accompagnatore: assegnazione manuale" : person.answers?.roomNotes ? "Nota stanza da verificare" : "Posti compatibili insufficienti o dati da verificare"}</small></li>)}</ul></> : <p>Tutti i partecipanti hanno un posto.</p>}
             {result.unresolvedPreferences ? <p className="rp-notice">{result.unresolvedPreferences} preferenze contengono nomi da verificare.</p> : null}
             <p className="rp-aside-note">Le preferenze sono obiettivi del calcolo: non sempre possono essere soddisfatte tutte.</p>

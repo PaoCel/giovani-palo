@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { layoutFromDoc, layoutToDoc, parseRoomLayout, pickLayout, readRoomLayoutFile } from "../src/utils/roomLayout.ts";
+import { layoutFromDoc, layoutToDoc, parseRoomLayout, pickLayout, readRoomLayoutFile, roomsWithLayoutFloors } from "../src/utils/roomLayout.ts";
 
 const floor = (rooms, extra = {}) => ({ id: "piano-terra", name: "Piano terra", width: 900, height: 600, rooms, ...extra });
 const sample = () => ({
@@ -15,6 +15,13 @@ const sample = () => ({
     }),
     { id: "primo-piano", name: "Primo piano", width: 900, height: 600, rooms: [{ number: "215", x: 10, y: 10, w: 120, h: 100 }] },
   ],
+});
+
+test("i piani della pianta prevalgono sui numeri inferiti dal modulo", () => {
+  const rooms = [{ name: "104", floor: "1" }, { name: "215", floor: "2" }, { name: " 133A ", floor: "" }, { name: "extra", floor: "Terzo" }];
+  assert.deepEqual(roomsWithLayoutFloors(rooms, parseRoomLayout(sample())).map((room) => room.floor), ["Piano terra", "Primo piano", "Piano terra", "Terzo"]);
+  assert.equal(rooms[0].floor, "1");
+  assert.deepEqual(roomsWithLayoutFloors(rooms), rooms);
 });
 
 test("reads a valid layout, fills the optional parts and round-trips through Firestore", () => {

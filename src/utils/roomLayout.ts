@@ -37,6 +37,12 @@ const isObject = (value: unknown): value is Record<string, unknown> => value !==
 /** Room numbers match plan room names without case or surrounding spaces. */
 export const layoutRoomKey = (value: string) => value.trim().toLowerCase();
 
+/** Use the matched geometry as the source of truth, keeping unmatched room floors. */
+export function roomsWithLayoutFloors<T extends { name: string; floor: string }>(rooms: readonly T[], layout?: RoomLayout): T[] {
+  const floors = new Map(layout?.floors.flatMap((floor) => floor.rooms.map((room) => [layoutRoomKey(room.number), floor.name] as const)) ?? []);
+  return rooms.map((room) => ({ ...room, floor: floors.get(layoutRoomKey(room.name)) ?? room.floor }));
+}
+
 function text(value: unknown, label: string, max: number, pattern?: RegExp) {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed || trimmed.length > max || (pattern && !pattern.test(trimmed))) throw invalid(label);

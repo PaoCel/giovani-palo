@@ -61,7 +61,11 @@ export function ageAt(birthDate: unknown, referenceDate: Date | string): number 
 export function validateRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string): string[];
 export function assignmentProblem(person: PlannerRegistration, room: Room, plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string): string | null;
 export function buildPreferenceLinks(registrations: readonly PlannerRegistration[]): PreferenceLink[];
-export function proposeRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string, options?: { recalculate?: boolean }): RoomPlan;
+export function proposeRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string, options?: {
+  recalculate?: boolean;
+  occupyAllRoomsFirst?: boolean;
+  youthFloors?: { boys: string; girls: string };
+}): RoomPlan;
 export function roomSummary(plan: RoomPlan, registrations: readonly PlannerRegistration[]): {
   assigned: number;
   totalBeds: number;

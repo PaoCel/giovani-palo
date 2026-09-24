@@ -216,3 +216,64 @@ test("assegna deterministicamente oltre cento giovani senza superare i letti", (
     unresolvedPreferences: 0,
   });
 });
+
+test("occupa tutte le stanze prima di soddisfare le preferenze", () => {
+  const people = [registration("a", "giovane_uomo", { answers: { roomPreference1Name: "Persona b" } }), registration("b")];
+  const input = plan([room("staff", "staff_male"), room("a", "boys"), room("b", "boys")]);
+  const result = proposeRoomPlan(input, people, DATE, { occupyAllRoomsFirst: true });
+  assert.equal(new Set(Object.values(result.assignments)).size, 2);
+  assert.equal(Object.keys(result.assignments).length, 2);
+  assert.deepEqual(validateRoomPlan(result, people, DATE), []);
+  assert.deepEqual(input.assignments, {});
+});
+
+test("riusa i letti liberi solo dopo aver aperto tutte le stanze compatibili", () => {
+  const people = Array.from({ length: 8 }, (_, index) => registration(`p${index}`));
+  const input = plan([room("staff", "staff_male"), room("small", "boys", 1), room("medium", "boys", 2), room("large", "boys", 4)]);
+  const result = proposeRoomPlan(input, people, DATE, { occupyAllRoomsFirst: true });
+  assert.equal(new Set(Object.values(result.assignments)).size, 3);
+  assert.equal(Object.keys(result.assignments).length, 7);
+  assert.deepEqual(validateRoomPlan(result, people, DATE), []);
+});
+
+test("separa i piani, riclassifica stanze giovani vuote e conserva staff e coppie", () => {
+  const people = [registration("boy"), registration("girl", "giovane_donna")];
+  const input = plan([
+    room("staff", "staff_male", 2, { floor: "PT" }),
+    room("ground", "girls", 4, { floor: "PT" }),
+    room("first", "boys", 4, { floor: "1" }),
+    room("couple", "couple", 2, { floor: "1" }),
+    room("unknown", "unassigned", 4, { floor: "" }),
+  ]);
+  const result = proposeRoomPlan(input, people, DATE, { occupyAllRoomsFirst: true, youthFloors: { boys: "PT", girls: "1" } });
+  assert.deepEqual(result.assignments, { boy: "ground", girl: "first" });
+  assert.equal(result.rooms.find((room) => room.id === "staff").category, "staff_male");
+  assert.equal(result.rooms.find((room) => room.id === "couple").category, "couple");
+  assert.deepEqual(validateRoomPlan(result, people, DATE), []);
+});
+
+test("non supera il piano scelto quando i posti finiscono e non usa stanze senza piano", () => {
+  const people = [registration("a"), registration("b"), registration("c")];
+  const input = plan([room("staff", "staff_male"), room("ground", "boys", 1, { floor: "PT" }), room("first", "unassigned", 10), room("unknown", "unassigned", 10, { floor: "" })]);
+  const result = proposeRoomPlan(input, people, DATE, { occupyAllRoomsFirst: true, youthFloors: { boys: "PT", girls: "1" } });
+  assert.deepEqual(Object.values(result.assignments), ["ground"]);
+});
+
+test("segnala blocchi su piani incompatibili e ricalcola solo le assegnazioni sbloccate", () => {
+  const people = [registration("boy")];
+  const input = plan([room("staff", "staff_male"), room("ground", "boys", 2, { floor: "PT" }), room("first", "boys")], { assignments: { boy: "first" } });
+  const options = { youthFloors: { boys: "PT", girls: "1" }, occupyAllRoomsFirst: true };
+  assert.throws(() => proposeRoomPlan(input, people, DATE, options), /assegnazione conservata/);
+  assert.deepEqual(proposeRoomPlan(input, people, DATE, { ...options, recalculate: true }).assignments, { boy: "ground" });
+  assert.throws(() => proposeRoomPlan({ ...input, lockedIds: ["boy"] }, people, DATE, { ...options, recalculate: true }), /assegnazione conservata/);
+  assert.throws(() => proposeRoomPlan(input, people, DATE, { youthFloors: { boys: "", girls: "1" } }), /due piani diversi/);
+});
+
+test("la priorità stanze conserva blocchi, note e limiti di età", () => {
+  const people = [registration("locked"), registration("note", "giovane_uomo", { answers: { roomNotes: "Da verificare" } }), registration("new")];
+  const input = plan([room("staff", "staff_male"), room("used", "boys"), room("empty", "boys"), room("older", "boys", 4, { minAge: 18 })], { assignments: { locked: "used" }, lockedIds: ["locked"] });
+  const result = proposeRoomPlan(input, people, DATE, { occupyAllRoomsFirst: true, recalculate: true });
+  assert.deepEqual(result.assignments, { locked: "used", new: "empty" });
+  assert.deepEqual(result.lockedIds, ["locked"]);
+  assert.deepEqual(validateRoomPlan(result, people, DATE), []);
+});

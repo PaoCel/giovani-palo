@@ -52,6 +52,26 @@ La cancellazione dell'attività elimina il documento del piano.
   lasciano la persona alla revisione umana. Le preferenze reciproche hanno peso
   maggiore, ma l'algoritmo non promette un ottimo globale.
 
+La proposta offre **Occupa prima tutte le stanze**, attivo inizialmente: ogni
+giovane viene assegnato prima a una stanza compatibile vuota, poi ai letti delle
+stanze già occupate. Tra le proposte prevale il numero di stanze occupate, poi
+gli assegnati e infine le preferenze. Anche una sola persona per stanza va bene.
+Restano riservate le stanze staff e coppia; note, età e blocchi sono rispettati.
+Disattivando l'opzione si usa il precedente criterio basato sulle preferenze.
+
+**Separa giovani uomini e giovani donne per piano** permette di scegliere due
+piani distinti (preselezionati piano terra per GU, primo piano per GD quando
+riconosciuti). I piani si ricavano dalla pianta abbinata per numero, con ripiego
+sul campo Piano della stanza. Le stanze senza piano o su altri piani non sono
+usate dal calcolo. Le stanze giovani vuote vengono riclassificate per il piano
+scelto; staff e coppie conservano la propria destinazione. Un'assegnazione
+conservata su un piano incompatibile blocca la proposta con un messaggio:
+va spostata oppure sbloccata e ricalcolata. I criteri valgono per la proposta,
+non sono vincoli permanenti agli spostamenti manuali successivi.
+
+Le opzioni sono locali al calcolo, senza campi o query Firestore nuovi. La
+proposta applicata alimenta la pianta e il modulo Excel tramite la stessa bozza.
+
 Le preferenze vengono risolte prima con un nome completo normalizzato e univoco,
 poi con un match salvato ancora coerente con il testo corrente. Un nome ambiguo
 non viene collegato automaticamente.

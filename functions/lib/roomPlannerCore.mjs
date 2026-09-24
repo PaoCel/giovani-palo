@@ -446,7 +446,7 @@ function planScore(candidate, links, initialAssignedCount) {
   return (Object.keys(candidate.assignments).length - initialAssignedCount) * 10000 + mutual * 100 + met;
 }
 
-function simulateAutomatic(base, order, registrations, links, referenceDate, reverseRooms) {
+function simulateAutomatic(base, order, registrations, links, referenceDate, reverseRooms, options) {
   const candidate = roomPlanClone(base);
   const linksByPerson = new Map();
   for (const link of links) {
@@ -459,13 +459,14 @@ function simulateAutomatic(base, order, registrations, links, referenceDate, rev
     const desiredCategory = person.genderRoleCategory === "giovane_uomo" ? "boys" : "girls";
     const rooms = candidate.rooms
       .filter((room) => room.category === desiredCategory || room.category === "unassigned")
+      .filter((room) => !options.youthFloors || room.floor === options.youthFloors[desiredCategory])
       .map((room) => {
         const occupants = roomOccupants(candidate, room.id);
         const friendHits = (linksByPerson.get(person.id) || []).filter((id) => occupants.includes(id)).length;
-        return { room, friendHits, free: room.capacity - occupants.length };
+        return { room, friendHits, empty: occupants.length === 0, free: room.capacity - occupants.length };
       })
       .filter(({ room, free }) => free > 0 && assignmentProblem(person, { ...room, category: desiredCategory }, { ...candidate, rooms: candidate.rooms.map((item) => item.id === room.id ? { ...item, category: desiredCategory } : item) }, registrations, referenceDate) === null)
-      .sort((left, right) => right.friendHits - left.friendHits || (reverseRooms ? right.free - left.free : left.free - right.free) || left.room.id.localeCompare(right.room.id));
+      .sort((left, right) => (options.occupyAllRoomsFirst ? Number(right.empty) - Number(left.empty) : 0) || right.friendHits - left.friendHits || (reverseRooms ? right.free - left.free : left.free - right.free) || left.room.id.localeCompare(right.room.id));
     if (!rooms[0]) continue;
     const selected = candidate.rooms.find((room) => room.id === rooms[0].room.id);
     if (selected.category === "unassigned") selected.category = desiredCategory;
@@ -487,6 +488,26 @@ export function proposeRoomPlan(plan, registrations, referenceDate, options = {}
   const base = roomPlanClone(original);
   base.assignments = Object.fromEntries(Object.entries(base.assignments).filter(([id]) => preserved.has(id)));
   ensureReservedStaffRoom(base);
+  if (options.youthFloors) {
+    const { boys, girls } = options.youthFloors;
+    if (!text(boys) || !text(girls) || boys === girls) {
+      throw new Error("Scegli due piani diversi per giovani uomini e giovani donne.");
+    }
+    for (const [id, roomId] of Object.entries(base.assignments)) {
+      const person = byId.get(id);
+      if (!isYouth(person)) continue;
+      const category = person.genderRoleCategory === "giovane_uomo" ? "boys" : "girls";
+      if (base.rooms.find((room) => room.id === roomId)?.floor !== options.youthFloors[category]) {
+        throw new Error("Un’assegnazione conservata è su un piano diverso da quello scelto. Spostala oppure sbloccala e ricalcola.");
+      }
+    }
+    // Empty youth rooms may be reclassified; staff and couple reservations stay intact.
+    for (const room of base.rooms) {
+      if (!["unassigned", "boys", "girls"].includes(room.category) || roomOccupants(base, room.id).length) continue;
+      if (room.floor === boys) room.category = "boys";
+      else if (room.floor === girls) room.category = "girls";
+    }
+  }
 
   const links = buildPreferenceLinks(eligible);
   const linkCount = new Map();
@@ -497,10 +518,14 @@ export function proposeRoomPlan(plan, registrations, referenceDate, options = {}
   const people = eligible.filter((registration) => isYouth(registration));
   const initialAssignedCount = Object.keys(base.assignments).length;
   const attempts = candidateOrders(people, linkCount, links).flatMap((order) => [
-    simulateAutomatic(base, order, eligible, links, referenceDate, false),
-    simulateAutomatic(base, order, eligible, links, referenceDate, true),
+    simulateAutomatic(base, order, eligible, links, referenceDate, false, options),
+    simulateAutomatic(base, order, eligible, links, referenceDate, true, options),
   ]);
-  attempts.sort((left, right) => planScore(right, links, initialAssignedCount) - planScore(left, links, initialAssignedCount) || JSON.stringify(left.assignments).localeCompare(JSON.stringify(right.assignments)));
+  attempts.sort((left, right) =>
+    (options.occupyAllRoomsFirst ? new Set(Object.values(right.assignments)).size - new Set(Object.values(left.assignments)).size : 0)
+    || (options.occupyAllRoomsFirst ? Object.keys(right.assignments).length - Object.keys(left.assignments).length : 0)
+    || planScore(right, links, initialAssignedCount) - planScore(left, links, initialAssignedCount)
+    || JSON.stringify(left.assignments).localeCompare(JSON.stringify(right.assignments)));
   const best = attempts[0] || base;
   best.updatedAt = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
     ? referenceDate.toISOString()
