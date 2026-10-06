@@ -55,6 +55,7 @@ import {
   getRegistrationStatusLabel,
   getRegistrationStatusTone,
 } from "@/utils/registrations";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 type AdminEventTab =
   | "details"
@@ -370,7 +371,7 @@ export function AdminEventDetailPage() {
   const location = useLocation();
   const { session } = useAuth();
   const navigate = useNavigate();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const routeTab = getAdminEventTabFromPath(location.pathname);
   const isCampManagementTab = routeTab === "committees";
   const isStatsTab = routeTab === "stats";

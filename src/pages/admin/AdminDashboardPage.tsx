@@ -14,6 +14,7 @@ import { organizationService } from "@/services/firestore/organizationService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import type { OrganizationProfile } from "@/types";
 import { getEffectiveEventStatus } from "@/utils/events";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 interface DashboardData {
   organization: OrganizationProfile | null;
@@ -32,7 +33,7 @@ const initialData: DashboardData = {
 export function AdminDashboardPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const { data, loading, error } = useAsyncData(

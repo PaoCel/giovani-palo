@@ -26,6 +26,7 @@ import {
   getVisibleStandardFieldDefinitions,
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 interface SettingsActionCardProps {
   icon: "building" | "badge" | "key" | "list" | "chart";
@@ -763,7 +764,7 @@ function AssignAdminModal({
 export function AdminSettingsPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<null | "profile" | "units" | "forms" | "admins" | "logs">(null);

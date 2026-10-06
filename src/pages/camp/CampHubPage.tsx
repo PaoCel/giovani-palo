@@ -9,8 +9,8 @@ import { eventsService } from "@/services/firestore/eventsService";
 import { surveysService } from "@/services/firestore/surveysService";
 import type { Event } from "@/types";
 import { formatEventWindow } from "@/utils/formatters";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
-const DEFAULT_STAKE_ID = "roma-est";
 
 type CampTab = "gallery" | "survey";
 

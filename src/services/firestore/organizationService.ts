@@ -4,6 +4,7 @@ import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
 import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
 import { slugify } from "@/utils/slugify";
+import { DEFAULT_STAKE_NAME, LEGACY_DATA_STAKE_ID } from "@/config/app";
 
 const defaultEnabledStandardFields: OrganizationRegistrationDefaults["enabledStandardFields"] = [
   "birthDate",
@@ -38,7 +39,7 @@ function normalizeUnits(values: string[]) {
   }, []);
 }
 
-function getDefaultProfile(stakeName = "Palo di Roma Est"): OrganizationProfile {
+function getDefaultProfile(stakeName = DEFAULT_STAKE_NAME): OrganizationProfile {
   return {
     id: stakesService.defaultStakeId,
     stakeId: stakesService.defaultStakeId,
@@ -138,8 +139,11 @@ export const organizationService = {
     const fallback = getDefaultProfile(stake.name);
     // Stringhe del doc stake che, se vuote, devono cadere sul legacy. Se tutte
     // valorizzate evito del tutto la read di settings/organization.
+    // Il legacy e' del solo palo storico: un altro palo con campi vuoti non
+    // deve ereditare titoli, presidenti o contatti di roma-est.
     const needsLegacyFallback =
-      !stake.publicHomeTitle ||
+      stake.id === LEGACY_DATA_STAKE_ID &&
+      (!stake.publicHomeTitle ||
       !stake.publicHomeSubtitle ||
       !stake.accountHelpText ||
       !stake.codeRecoveryHelpText ||
@@ -150,7 +154,7 @@ export const organizationService = {
       !stake.minorConsentExampleImageUrl ||
       !stake.minorConsentExampleImagePath ||
       !stake.registrationDefaults ||
-      stakeUnits.length === 0;
+      stakeUnits.length === 0);
 
     const legacy = needsLegacyFallback ? await getCachedLegacyProfile() : null;
     const legacyProfile = legacy?.profile;

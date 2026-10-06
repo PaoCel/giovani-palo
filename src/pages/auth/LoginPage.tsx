@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { AuthAccessPanel } from "@/components/AuthAccessPanel";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useAuth } from "@/hooks/useAuth";
 import {
   getDefaultOrganizationProfile,
   organizationService,
@@ -11,12 +12,18 @@ import { getStoredPublicStakeId } from "@/utils/stakeSelection";
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
+  const { session } = useAuth();
+  // Chi ha gia' un profilo resta nel suo palo: il completamento profilo scrive
+  // `stakeId` dell'organizzazione mostrata, e per un admin/dirigente le rules
+  // rifiutano ogni cambio di palo (con piu' pali restava bloccato; un
+  // partecipante finiva invece spostato nel palo pubblico dell'ultima visita).
+  const profileStakeId = session?.profile.stakeId || "";
   const { data: organization, error } = useAsyncData(
     // Niente read di validazione del palo prima del profilo: getProfile
     // gestisce già id mancanti/invalidi cadendo sul default. Era un round
     // trip in più che teneva nascosto il form di login.
-    () => organizationService.getProfile(getStoredPublicStakeId() || undefined),
-    [],
+    () => organizationService.getProfile(profileStakeId || getStoredPublicStakeId() || undefined),
+    [profileStakeId],
     null,
   );
   const description =

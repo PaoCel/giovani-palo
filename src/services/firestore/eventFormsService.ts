@@ -20,6 +20,7 @@ import {
   getStandardFieldDefinition,
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
+import { LEGACY_DATA_STAKE_ID } from "@/config/app";
 
 const defaultEnabledStandardFields: StandardFieldKey[] = [
   "birthDate",
@@ -118,7 +119,7 @@ export const eventFormsService = {
       getDocsCacheFirst(getFieldsCollection(stakeId, eventId)),
     ]);
 
-    if (!settingsSnapshot.exists() && fieldsSnapshot.empty && stakeId === "roma-est") {
+    if (!settingsSnapshot.exists() && fieldsSnapshot.empty && stakeId === LEGACY_DATA_STAKE_ID) {
       const legacySnapshot = await getDocCacheFirst(doc(db, "events", eventId, "config", "form"));
 
       if (legacySnapshot.exists()) {

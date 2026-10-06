@@ -25,6 +25,7 @@ import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys } from "@/utils
 import { eventSpansMultipleCalendarDays, sanitizeEventAudience } from "@/utils/events";
 import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
 import { slugify } from "@/utils/slugify";
+import { LEGACY_DATA_STAKE_ID } from "@/config/app";
 
 function nowIso() {
   return new Date().toISOString();
@@ -241,17 +242,17 @@ async function getLegacyEventById(eventId: string) {
     return null;
   }
 
-  return mapEvent(snapshot.id, snapshot.data(), "roma-est");
+  return mapEvent(snapshot.id, snapshot.data(), LEGACY_DATA_STAKE_ID);
 }
 
 export const eventsService = {
   async listAllEvents(stakeId: string) {
     const snapshot = await getDocsCacheFirst(getActivityCollection(stakeId));
 
-    if (snapshot.empty && stakeId === "roma-est") {
+    if (snapshot.empty && stakeId === LEGACY_DATA_STAKE_ID) {
       const legacySnapshot = await getDocsCacheFirst(collection(db, "events"));
       return legacySnapshot.docs
-        .map((item) => mapEvent(item.id, item.data(), "roma-est"))
+        .map((item) => mapEvent(item.id, item.data(), LEGACY_DATA_STAKE_ID))
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     }
 
@@ -278,13 +279,13 @@ export const eventsService = {
       ),
     );
 
-    if (snapshot.empty && stakeId === "roma-est") {
+    if (snapshot.empty && stakeId === LEGACY_DATA_STAKE_ID) {
       const legacySnapshot = await getDocsCacheFirst(
         query(collection(db, "events"), where("isPublic", "==", true)),
       );
 
       return legacySnapshot.docs
-        .map((document) => mapEvent(document.id, document.data(), "roma-est"))
+        .map((document) => mapEvent(document.id, document.data(), LEGACY_DATA_STAKE_ID))
         .filter((event) => event.isVisible)
         .filter((event) => event.status !== "draft")
         .sort((left, right) => left.startDate.localeCompare(right.startDate));
@@ -310,7 +311,7 @@ export const eventsService = {
       return mapEvent(snapshot.id, snapshot.data(), stakeId);
     }
 
-    if (stakeId === "roma-est") {
+    if (stakeId === LEGACY_DATA_STAKE_ID) {
       return getLegacyEventById(eventId);
     }
 

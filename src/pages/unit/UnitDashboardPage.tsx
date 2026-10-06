@@ -7,6 +7,7 @@ import { HomeFeed } from "@/components/feed/HomeFeed";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { unitLeaderService, type UnitActivitySummary } from "@/services/firestore/unitLeaderService";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("it-IT", {
@@ -61,7 +62,7 @@ function ActivityRow({ summary }: { summary: UnitActivitySummary }) {
 
 export function UnitDashboardPage() {
   const { session } = useAuth();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const unitId = session?.profile.unitId ?? "";
   const unitName = session?.profile.unitName || "la tua unità";
 

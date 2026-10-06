@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import type { OrganizationProfile } from "@/types";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 interface CalendarData {
   organization: OrganizationProfile | null;
@@ -23,7 +24,7 @@ const initialData: CalendarData = {
 export function AdminCalendarPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const { data, loading, error } = useAsyncData(

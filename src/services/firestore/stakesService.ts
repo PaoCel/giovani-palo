@@ -12,8 +12,13 @@ import type {
 import { normalizeStandardFieldKeys } from "@/utils/formFields";
 import { cachedFetch } from "@/utils/sessionCache";
 import { slugify } from "@/utils/slugify";
+import {
+  DEFAULT_STAKE_ID,
+  DEFAULT_STAKE_NAME,
+  LEGACY_DATA_STAKE_ID,
+  LEGACY_DATA_STAKE_NAME,
+} from "@/config/app";
 
-const DEFAULT_STAKE_ID = "roma-est";
 const allowedStandardFieldKeys = new Set<StandardFieldKey>([
   "birthDate",
   "genderRoleCategory",
@@ -188,7 +193,7 @@ function mapRegistrationDefaults(value: unknown): OrganizationRegistrationDefaul
   };
 }
 
-function buildDefaultStakeDocument(name = "Palo di Roma Est") {
+function buildDefaultStakeDocument(name = DEFAULT_STAKE_NAME) {
   const timestamp = nowIso();
 
   return {
@@ -219,7 +224,7 @@ function buildDefaultStakeDocument(name = "Palo di Roma Est") {
 
 function mapStakeSummary(id: string, data: Record<string, unknown>): StakeSummary {
   const name =
-    typeof data.name === "string" && data.name.trim() ? data.name.trim() : "Palo di Roma Est";
+    typeof data.name === "string" && data.name.trim() ? data.name.trim() : DEFAULT_STAKE_NAME;
   const slug =
     typeof data.slug === "string" && data.slug.trim()
       ? data.slug.trim()
@@ -287,13 +292,13 @@ function mapLegacyOrganizationProfile(
   const name =
     typeof data.stakeName === "string" && data.stakeName.trim()
       ? data.stakeName.trim()
-      : "Palo di Roma Est";
+      : LEGACY_DATA_STAKE_NAME;
 
   return {
-    id: DEFAULT_STAKE_ID,
-    stakeId: DEFAULT_STAKE_ID,
+    id: LEGACY_DATA_STAKE_ID,
+    stakeId: LEGACY_DATA_STAKE_ID,
     stakeName: name,
-    stakeSlug: slugify(name) || DEFAULT_STAKE_ID,
+    stakeSlug: slugify(name) || LEGACY_DATA_STAKE_ID,
     isActive: true,
     publicHomeTitle:
       typeof data.publicHomeTitle === "string" && data.publicHomeTitle.trim()
@@ -404,7 +409,9 @@ export const stakesService = {
 
   async getDefaultStake() {
     const stakes = await this.listActiveStakes();
-    return stakes[0] ?? null;
+    // Con piu' pali attivi il default e' quello dell'ambiente (DEFAULT_STAKE_ID),
+    // non il primo in ordine alfabetico.
+    return stakes.find((stake) => stake.id === DEFAULT_STAKE_ID) ?? stakes[0] ?? null;
   },
 
   async getDefaultStakeId() {
@@ -523,7 +530,7 @@ export const stakesService = {
     const createdAt =
       typeof existingData.createdAt === "string" ? existingData.createdAt : nowIso();
     const payload = {
-      name: input.stakeName.trim() || "Palo di Roma Est",
+      name: input.stakeName.trim() || DEFAULT_STAKE_NAME,
       slug: input.stakeSlug?.trim() || slugify(input.stakeName) || DEFAULT_STAKE_ID,
       isActive: input.isActive ?? true,
       publicHomeTitle: input.publicHomeTitle.trim() || "Attività giovanili",

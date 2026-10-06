@@ -11,6 +11,7 @@ import {
   getRegistrationStatusLabel,
   getRegistrationStatusTone,
 } from "@/utils/registrations";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 interface DistributionItem {
   label: string;
@@ -44,7 +45,7 @@ function buildDistribution<T>(
 
 export function AdminStatsPage() {
   const { session } = useAuth();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const { data: entries, loading, error } = useAsyncData(
     () => adminEventsService.listStakeRegistrations(stakeId),
     [stakeId],

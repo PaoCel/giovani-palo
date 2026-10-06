@@ -4,8 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { resolveLatestCampWithGallery, type CampHighlight } from "@/utils/campHighlight";
 import { formatEventWindow } from "@/utils/formatters";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
-const DEFAULT_STAKE_ID = "roma-est";
 
 /**
  * Card home condivisa da tutti i ruoli: annuncia l'ultimo campeggio concluso

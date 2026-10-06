@@ -19,6 +19,7 @@ import {
   getRegistrationStatusLabel,
   getRegistrationStatusTone,
 } from "@/utils/registrations";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("it-IT", {
@@ -360,7 +361,7 @@ function getCampPublicMemberRoleLabel(member: CampPublicMember, kind: CampGroup[
 export function UnitActivityPage() {
   const { eventId = "" } = useParams<{ eventId: string }>();
   const { session } = useAuth();
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const unitId = session?.profile.unitId ?? "";
   const [selectedCampGroupKey, setSelectedCampGroupKey] = useState<string | null>(null);
   const [resendingRegistrationId, setResendingRegistrationId] = useState<string | null>(null);

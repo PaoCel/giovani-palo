@@ -5,8 +5,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { resolveLatestCampWithGallery, type CampHighlight } from "@/utils/campHighlight";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
-const DEFAULT_STAKE_ID = "roma-est";
 
 /** /campeggio senza id: manda all'ultimo campeggio con galleria. */
 export function CampIndexPage() {

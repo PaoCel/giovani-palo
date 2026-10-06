@@ -7,6 +7,7 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { organizationService } from "@/services/firestore/organizationService";
 import { usersService } from "@/services/firestore/usersService";
 import type { GenderRoleCategory } from "@/types";
+import { DEFAULT_STAKE_ID } from "@/config/app";
 
 const MANUAL_UNIT_VALUE = "__manual_unit__";
 
@@ -22,7 +23,7 @@ export function MyProfilePage() {
   const { session, completeProfile } = useAuth();
   const navigate = useNavigate();
   const [switchingRole, setSwitchingRole] = useState(false);
-  const stakeId = session?.profile.stakeId ?? "roma-est";
+  const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
 
   async function handleBecomeParent() {
     if (!session) {
