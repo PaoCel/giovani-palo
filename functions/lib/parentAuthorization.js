@@ -1138,7 +1138,18 @@ const parentAuthorizationIssueOwnToken = onCall(
       .where("status", "==", "pending")
       .get();
 
-    for (const vecchio of pendenti.docs) {
+    const daInvalidare = [...pendenti.docs];
+    // Il token annotato sull'iscrizione stessa si invalida comunque, anche se
+    // il suo documento non porta palo/attivita' (token molto vecchi).
+    const annotato = typeof state?.tokenId === "string" ? state.tokenId : "";
+    if (annotato && !daInvalidare.some((vecchio) => vecchio.id === annotato)) {
+      const annotatoSnap = await db.doc(`parentAuthorizationTokens/${annotato}`).get();
+      if (annotatoSnap.exists && annotatoSnap.data().status === "pending") {
+        daInvalidare.push(annotatoSnap);
+      }
+    }
+
+    for (const vecchio of daInvalidare) {
       await vecchio.ref.set({ status: "invalidated", invalidatedAt: nowIso() }, { merge: true });
       await writeAuditLog(db, stakeId, activityId, registrationId, {
         tokenId: vecchio.id,
