@@ -741,7 +741,7 @@ export interface ParentAuthorizationState {
   emailSentAt: string | null;
   emailLastError: string | null;
   emailRetryCount: number;
-  emailProvider: "brevo" | null;
+  emailProvider: "brevo" | "simulated" | null;
   brevoMessageId: string | null;
   authorizedAt: string | null;
   rejectedAt: string | null;
@@ -816,7 +816,7 @@ export interface ConsentAuditLog {
   signaturePath: string | null;
   pdfPath: string | null;
   auditPdfPath?: string | null;
-  emailProvider: "brevo" | null;
+  emailProvider: "brevo" | "simulated" | null;
   brevoMessageId: string | null;
   emailErrorCode: string | null;
   emailErrorMessage: string | null;

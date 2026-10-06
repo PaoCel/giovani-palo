@@ -10,6 +10,7 @@ initializeApp();
 const db = getFirestore();
 
 // Cloud Functions per autorizzazione genitoriale (Brevo magic link).
+const { EnvironmentConfigError, getAppPublicUrl, isProduction } = require("./lib/config");
 const parentAuthorization = require("./lib/parentAuthorization");
 const campManagement = require("./lib/campManagement");
 const roomMates = require("./lib/roomMates");
@@ -34,8 +35,33 @@ exports.roomManagementSave = roomManagement.roomManagementSave;
 exports.onRoomRegistrationDeleted = roomManagement.onRoomRegistrationDeleted;
 exports.onRoomActivityDeleted = roomManagement.onRoomActivityDeleted;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
-const WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
-const WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
+const PRODUCTION_WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
+const PRODUCTION_WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
+
+// Identita' VAPID dell'ambiente. Fuori da produzione la chiave pubblica arriva
+// da WEB_PUSH_PUBLIC_KEY (coppia propria del progetto, con il secret
+// WEB_PUSH_PRIVATE_KEY corrispondente) e non puo' essere quella di produzione.
+function getWebPushIdentity() {
+  if (isProduction()) {
+    return {
+      subject: PRODUCTION_WEB_PUSH_SUBJECT,
+      publicKey: PRODUCTION_WEB_PUSH_PUBLIC_KEY,
+    };
+  }
+
+  const publicKey = String(process.env.WEB_PUSH_PUBLIC_KEY || "").trim();
+  if (!publicKey || publicKey === PRODUCTION_WEB_PUSH_PUBLIC_KEY) {
+    throw new EnvironmentConfigError(
+      "WEB_PUSH_PUBLIC_KEY mancante o uguale a quella di produzione.",
+    );
+  }
+
+  const appUrl = getAppPublicUrl();
+  return {
+    subject: appUrl.startsWith("https://") ? appUrl : "mailto:supporto@gugditalia.it",
+    publicKey,
+  };
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -229,7 +255,15 @@ exports.propagateUnitNameChange = onDocumentUpdated(
       for (const r of regs.docs) regRefs.push(r.ref);
     }
 
-    const usersSnap = await db.collection("users").where("unitId", "==", unitId).select("unitId").get();
+    // Gli id unita' non sono unici fra pali (slug del nome): senza il filtro
+    // sul palo una rinomina riscriverebbe il nome anche agli utenti di un
+    // altro palo con un'unita' omonima.
+    const usersSnap = await db
+      .collection("users")
+      .where("stakeId", "==", stakeId)
+      .where("unitId", "==", unitId)
+      .select("unitId")
+      .get();
     const userRefs = usersSnap.docs.map((d) => d.ref);
 
     await Promise.all([
@@ -297,9 +331,23 @@ exports.sendAdminPushForNewRegistration = onDocumentCreated(
       return;
     }
 
+    let webPushIdentity;
+    try {
+      webPushIdentity = getWebPushIdentity();
+    } catch (error) {
+      if (!(error instanceof EnvironmentConfigError)) throw error;
+      logger.warn("Push admin disattivato: configurazione dell'ambiente incompleta.", {
+        stakeId,
+        activityId,
+        registrationId,
+        detail: error.message,
+      });
+      return;
+    }
+
     webpush.setVapidDetails(
-      WEB_PUSH_SUBJECT,
-      WEB_PUSH_PUBLIC_KEY,
+      webPushIdentity.subject,
+      webPushIdentity.publicKey,
       WEB_PUSH_PRIVATE_KEY.value(),
     );
 

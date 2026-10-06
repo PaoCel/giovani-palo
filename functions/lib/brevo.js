@@ -6,14 +6,15 @@
  * solo per chiamare un singolo endpoint REST).
  */
 
+const { logger } = require("firebase-functions");
+
 const {
   BREVO_API_URL,
-  BREVO_SENDER_EMAIL,
   BREVO_SENDER_NAME,
-  BREVO_REPLY_TO_EMAIL,
-  BREVO_REPLY_TO_NAME,
   SUPPORT_CONTACT_TEXT,
+  getEmailPolicy,
 } = require("./config");
+const { planDelivery, decorateMessage, maskAddress } = require("./emailPolicy");
 
 class BrevoError extends Error {
   constructor(message, statusCode, body) {
@@ -225,6 +226,79 @@ function buildAuthorizationEmailText({
     .join("\n");
 }
 
+/**
+ * Unico punto da cui esce una email: applica la politica dell'ambiente
+ * (allowlist destinatari fuori da produzione, To e BCC), marca oggetto e
+ * corpo, poi chiama Brevo. Una mail "simulata" (nessun destinatario
+ * ammesso) non tocca la rete e ritorna `simulated: true`.
+ */
+async function deliver({ apiKey, policy, payload, tag }) {
+  const plan = planDelivery(policy, { to: payload.to, bcc: payload.bcc });
+
+  if (plan.simulated) {
+    logger.info("Email simulata: destinatario fuori allowlist.", {
+      tag,
+      projectId: policy.projectId,
+      recipients: payload.to.map((recipient) => maskAddress(recipient.email)),
+    });
+    return { messageId: null, provider: "simulated", simulated: true };
+  }
+
+  if (plan.suppressed > 0) {
+    logger.info("Destinatari fuori allowlist rimossi dalla email.", {
+      tag,
+      projectId: policy.projectId,
+      suppressed: plan.suppressed,
+    });
+  }
+
+  if (!apiKey) {
+    throw new BrevoError("BREVO_API_KEY non configurata.", 0, null);
+  }
+
+  // Solo i campi che questo modulo costruisce: un `cc` o `messageVersions`
+  // aggiunto in futuro non deve scavalcare il filtro destinatari.
+  const body = {
+    sender: payload.sender,
+    to: plan.to,
+    ...(plan.bcc.length ? { bcc: plan.bcc } : {}),
+    replyTo: payload.replyTo,
+    subject: payload.subject,
+    htmlContent: payload.htmlContent,
+    textContent: payload.textContent,
+    ...(payload.attachment ? { attachment: payload.attachment } : {}),
+    tags: payload.tags,
+    headers: payload.headers,
+  };
+
+  const response = await fetch(BREVO_API_URL, {
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new BrevoError(
+      `Brevo API error ${response.status}: ${text || response.statusText}`,
+      response.status,
+      text,
+    );
+  }
+
+  const result = await response.json().catch(() => ({}));
+  return {
+    messageId:
+      typeof result.messageId === "string" ? result.messageId : null,
+    provider: "brevo",
+    simulated: false,
+  };
+}
+
 async function sendParentAuthorizationEmail({
   apiKey,
   parentEmail,
@@ -237,10 +311,7 @@ async function sendParentAuthorizationEmail({
   authorizationUrl,
   expiresAt,
 }) {
-  if (!apiKey) {
-    throw new BrevoError("BREVO_API_KEY non configurata.", 0, null);
-  }
-
+  const policy = getEmailPolicy();
   const activityDateRange = formatDateRangeIt(activityStartDate, activityEndDate);
   const expirationFormatted = expiresAt
     ? new Intl.DateTimeFormat("it-IT", {
@@ -276,14 +347,12 @@ async function sendParentAuthorizationEmail({
 
   const payload = {
     sender: {
-      email: BREVO_SENDER_EMAIL,
+      email: policy.senderEmail,
       name: buildRegistrationSenderName(participantName),
     },
     to: [{ email: parentEmail, name: parentName || parentEmail }],
-    replyTo: { email: BREVO_REPLY_TO_EMAIL, name: BREVO_REPLY_TO_NAME },
-    subject,
-    htmlContent,
-    textContent,
+    replyTo: { email: policy.replyToEmail, name: policy.replyToName },
+    ...decorateMessage(policy, { subject, htmlContent, textContent }),
     tags: ["parent-authorization"],
     // Disabilita open + click tracking per migliorare deliverability:
     // il pixel tracking 1x1 senza alt costa -0.5 sul mail-tester e per
@@ -296,31 +365,7 @@ async function sendParentAuthorizationEmail({
     },
   };
 
-  const response = await fetch(BREVO_API_URL, {
-    method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new BrevoError(
-      `Brevo API error ${response.status}: ${text || response.statusText}`,
-      response.status,
-      text,
-    );
-  }
-
-  const result = await response.json().catch(() => ({}));
-  return {
-    messageId:
-      typeof result.messageId === "string" ? result.messageId : null,
-    provider: "brevo",
-  };
+  return deliver({ apiKey, policy, payload, tag: "parent-authorization" });
 }
 
 function buildSignedAuthorizationCopyHtml({
@@ -439,9 +484,7 @@ async function sendSignedAuthorizationCopyEmail({
   conductPdfBuffer,
   conductPdfFilename,
 }) {
-  if (!apiKey) {
-    throw new BrevoError("BREVO_API_KEY non configurata.", 0, null);
-  }
+  const policy = getEmailPolicy();
 
   if (!parentEmail || !pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     throw new BrevoError("Parametri email modulo firmato incompleti.", 0, null);
@@ -459,22 +502,22 @@ async function sendSignedAuthorizationCopyEmail({
     activityTitle,
   });
 
+  // Copia in BCC al supporto. Fuori da produzione passa dall'allowlist come
+  // ogni altro destinatario (deliver), quindi di norma non parte.
   const bcc =
-    BREVO_REPLY_TO_EMAIL && BREVO_REPLY_TO_EMAIL !== parentEmail
-      ? [{ email: BREVO_REPLY_TO_EMAIL, name: BREVO_REPLY_TO_NAME }]
-      : undefined;
+    policy.replyToEmail && policy.replyToEmail !== parentEmail
+      ? [{ email: policy.replyToEmail, name: policy.replyToName }]
+      : [];
 
   const payload = {
     sender: {
-      email: BREVO_SENDER_EMAIL,
+      email: policy.senderEmail,
       name: buildRegistrationSenderName(participantName),
     },
     to: [{ email: parentEmail, name: parentName || parentEmail }],
-    ...(bcc ? { bcc } : {}),
-    replyTo: { email: BREVO_REPLY_TO_EMAIL, name: BREVO_REPLY_TO_NAME },
-    subject,
-    htmlContent,
-    textContent,
+    bcc,
+    replyTo: { email: policy.replyToEmail, name: policy.replyToName },
+    ...decorateMessage(policy, { subject, htmlContent, textContent }),
     attachment: [
       {
         name: pdfFilename || "modulo-consenso-firmato.pdf",
@@ -498,31 +541,7 @@ async function sendSignedAuthorizationCopyEmail({
     },
   };
 
-  const response = await fetch(BREVO_API_URL, {
-    method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new BrevoError(
-      `Brevo API error ${response.status}: ${text || response.statusText}`,
-      response.status,
-      text,
-    );
-  }
-
-  const result = await response.json().catch(() => ({}));
-  return {
-    messageId:
-      typeof result.messageId === "string" ? result.messageId : null,
-    provider: "brevo",
-  };
+  return deliver({ apiKey, policy, payload, tag: "parent-authorization-copy" });
 }
 
 module.exports = {

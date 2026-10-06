@@ -7,7 +7,7 @@
   "main": "index.js",
   "scripts": {
     "lint": "echo 'No lint configured'",
-    "serve": "firebase emulators:start --only functions",
+    "serve": "firebase emulators:start --only functions --project demo-room-planner",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {

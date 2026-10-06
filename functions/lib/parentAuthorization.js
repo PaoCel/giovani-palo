@@ -30,7 +30,7 @@ const JSZip = require("jszip");
 
 const {
   REGION,
-  APP_PUBLIC_URL,
+  getAppPublicUrl,
   PARENT_AUTHORIZATION_TOKEN_TTL_DAYS,
   STORAGE_PATH_PARENT_AUTH_PDF,
   STORAGE_PATH_PARENT_AUTH_SIGNATURE,
@@ -73,7 +73,7 @@ function hashToken(rawToken) {
 }
 
 function buildAuthorizationUrl(rawToken) {
-  return `${APP_PUBLIC_URL.replace(/\/$/, "")}/parent-confirm/${rawToken}`;
+  return `${getAppPublicUrl().replace(/\/$/, "")}/parent-confirm/${rawToken}`;
 }
 
 function computeExpiry() {
@@ -896,7 +896,8 @@ async function sendInitialAuthorizationEmail({
     event: "email_sent",
     parentEmail,
     parentName,
-    emailProvider: "brevo",
+    // "simulated": fuori produzione, destinatario fuori allowlist (nessuna mail partita).
+    emailProvider: brevoResult.provider === "simulated" ? "simulated" : "brevo",
     brevoMessageId: brevoResult.messageId || null,
   });
 
@@ -1126,8 +1127,13 @@ const parentAuthorizationIssueOwnToken = onCall(
     // non solo l'ultimo annotato sull'iscrizione. Gli invii falliti ne lasciano
     // indietro di orfani, e due link validi nella stessa casella sono un modo
     // sicuro di far firmare la cosa sbagliata.
+    // L'id iscrizione (`child_<uid>_<figlio>`, `user_<uid>`) e' lo stesso in
+    // tutte le attivita': senza palo e attivita' si invaliderebbero anche i
+    // link dello stesso figlio su altre attivita' o su un altro palo.
     const pendenti = await db
       .collection("parentAuthorizationTokens")
+      .where("stakeId", "==", stakeId)
+      .where("activityId", "==", activityId)
       .where("registrationId", "==", registrationId)
       .where("status", "==", "pending")
       .get();

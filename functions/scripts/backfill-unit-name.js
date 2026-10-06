@@ -4,8 +4,8 @@
  * (registrazioni.unitNameSnapshot + users.unitName).
  *
  * Uso:
- *   # default: cerca unità con "sabin" nel nome nello stake roma-est, dry-run
- *   node scripts/backfill-unit-name.js
+ *   # cerca unità con "sabin" nel nome dello stake indicato, dry-run
+ *   node scripts/backfill-unit-name.js --stake roma-est
  *
  *   # specifica id unità e nuovo nome, dry-run
  *   node scripts/backfill-unit-name.js --stake roma-est --unit-id ramo-delle-sabine --new-name "La Sabina"
@@ -22,7 +22,7 @@ const { getFirestore, FieldPath } = require("firebase-admin/firestore");
 
 function parseArgs(argv) {
   const out = {
-    stake: "roma-est",
+    stake: null,
     unitId: null,
     newName: "La Sabina",
     search: "sabin",
@@ -40,6 +40,11 @@ function parseArgs(argv) {
 }
 
 const args = parseArgs(process.argv);
+
+if (!args.stake) {
+  console.error("Manca --stake <stakeId>: nessun palo di default.");
+  process.exit(1);
+}
 
 initializeApp({ credential: applicationDefault() });
 const db = getFirestore();
@@ -93,7 +98,13 @@ async function collectRegistrations(stakeId, unitId) {
 }
 
 async function collectUsers(unitId) {
-  const snap = await db.collection("users").where("unitId", "==", unitId).select("unitId").get();
+  // Solo gli utenti del palo indicato: gli id unita' non sono unici fra pali.
+  const snap = await db
+    .collection("users")
+    .where("stakeId", "==", args.stake)
+    .where("unitId", "==", unitId)
+    .select("unitId")
+    .get();
   return snap.docs.map((d) => d.ref);
 }
 
