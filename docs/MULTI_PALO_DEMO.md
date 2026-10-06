@@ -50,6 +50,22 @@ su produzione ne' mandare email a persone vere.
 - Secret per progetto: `BREVO_API_KEY` e `WEB_PUSH_PRIVATE_KEY` vanno creati nel
   progetto di staging (chiavi separate da produzione).
 
+## Pubblicare staging/demo
+
+Progetto `giovani-palo-staging` (creato dall'account `paolo.celestini97@gmail.com`:
+sull'altro la quota progetti era piena). Ogni comando usa `--project giovani-palo-staging`
+e `--config firebase.staging.json`, mai `--project` da solo.
+
+- Hosting: `firebase deploy --only hosting --config firebase.staging.json --project giovani-palo-staging`.
+  Il predeploy costruisce `dist-staging/` (`npm run build:staging`, usa `.env.staging`)
+  e lancia `tools/check-staging-bundle.mjs`, che blocca il deploy se il bundle
+  contiene valori di produzione, non e' noindex o il progetto e' quello di produzione.
+  La build di staging emette `robots.txt` (Disallow), meta `noindex`, nome PWA
+  "(Demo)"; l'hosting aggiunge `X-Robots-Tag`.
+- Ordine: rules/indici -> functions -> hosting, con `--only` mirati.
+- Functions: `functions/.env.giovani-palo-staging` (da `functions/.env.staging.example`)
+  e secret `BREVO_API_KEY`, `WEB_PUSH_PRIVATE_KEY` nel progetto di staging.
+
 ## Creare un palo
 
 ```sh

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
+    "build:staging": "tsc --noEmit -p tsconfig.app.json && vite build --mode staging --outDir dist-staging --emptyOutDir",
     "preview": "vite preview"
   },
   "dependencies": {
