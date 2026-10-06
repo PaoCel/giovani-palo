@@ -68,6 +68,12 @@ dist/
 
 # dotenv environment variables file
 .env
+# Secret locali per gli emulatori delle functions (mai in git)
+.secret.local
+.runtimeconfig.json
+# Config per ambiente (staging/demo): locale, mai in git. Solo gli *.example.
+.env.*
+!.env.*.example
 
 # dataconnect generated files
 .dataconnect
