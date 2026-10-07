@@ -1361,7 +1361,7 @@ export function RegistrationEditor({
                   <p className="subtle-text">
                     Sei maggiorenne, quindi i consensi li esprimi tu direttamente.
                     Sono <strong>facoltativi</strong>: il rifiuto non impedisce la
-                    partecipazione all&apos;attivita&apos;. Maggiori dettagli nella{" "}
+                    partecipazione all&apos;attività. Maggiori dettagli nella{" "}
                     <Link to="/privacy/photos">informativa fotografie</Link>.
                   </p>
 
@@ -1376,8 +1376,8 @@ export function RegistrationEditor({
                     <span>
                       <strong>Acconsento alla realizzazione di foto e video</strong>
                       <small>
-                        Foto e video realizzati durante l&apos;attivita&apos; per uso interno
-                        e documentazione (album dell&apos;attivita, materiale per le famiglie
+                        Foto e video realizzati durante l&apos;attività per uso interno
+                        e documentazione (album dell&apos;attività, materiale per le famiglie
                         partecipanti).
                       </small>
                     </span>
@@ -1428,9 +1428,9 @@ export function RegistrationEditor({
                 </strong>
                 <span>
                   Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
-                  per autorizzare la partecipazione. L&apos;iscrizione sara&apos; in stato
+                  per autorizzare la partecipazione. L&apos;iscrizione sarà in stato
                   <em> &quot;in attesa autorizzazione&quot; </em>
-                  finche&apos; il genitore non conferma. Il link scade dopo 14 giorni.
+                  finché il genitore non conferma. Il link scade dopo 14 giorni.
                 </span>
               </div>
 
@@ -1512,8 +1512,8 @@ export function RegistrationEditor({
                 <div className="surface-panel surface-panel--subtle form-subsection">
                   <h3>Contatto di emergenza</h3>
                   <p className="subtle-text">
-                    Persona da contattare in caso di urgenza durante l&apos;attivita&apos;
-                    (puo&apos; coincidere con il genitore se preferisci).
+                    Persona da contattare in caso di urgenza durante l&apos;attività
+                    (può coincidere con il genitore se preferisci).
                   </p>
                   <div className="card-grid card-grid--two">
                     <label className="field">
@@ -1570,7 +1570,7 @@ export function RegistrationEditor({
                 <div className="surface-panel surface-panel--subtle form-subsection">
                   <h3>Note mediche e alimentari</h3>
                   <p className="subtle-text">
-                    Tutto facoltativo. Dichiara solo cio&apos; che ritieni utile per la
+                    Tutto facoltativo. Dichiara solo ciò che ritieni utile per la
                     sicurezza del minore. Le informazioni sono visibili solo agli admin.
                   </p>
                   <div className="form-stack">
@@ -1654,7 +1654,7 @@ export function RegistrationEditor({
               <div className="form-info-banner">
                 <strong>Domande facoltative per il caminetto</strong>
                 <span>
-                  Scrivi una o piu&apos; domande per il Settanta. Puoi inviarle in forma
+                  Scrivi una o più domande per il Settanta. Puoi inviarle in forma
                   anonima. Salta lo step se non vuoi farne nessuna: l&apos;iscrizione si
                   conclude lo stesso al passo successivo.
                 </span>
@@ -1745,8 +1745,8 @@ export function RegistrationEditor({
 
               {existingRegistration ? (
                 <p className="subtle-text">
-                  Hai gia&apos; inviato l&apos;iscrizione: le domande gia&apos; salvate
-                  in precedenza puoi gestirle dalla pagina dell&apos;attivita&apos; nella
+                  Hai già inviato l&apos;iscrizione: le domande già salvate
+                  in precedenza puoi gestirle dalla pagina dell&apos;attività nella
                   sezione &quot;Domande per il caminetto&quot;.
                 </p>
               ) : null}

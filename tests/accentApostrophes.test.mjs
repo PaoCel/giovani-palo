@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 // italiani (e^ per è, attivita^ per attività, Gesu^ per Gesù). Uno sweep ha
 // sostituito tutte le occorrenze: questo test diventa rosso se ne rientra una.
 //
-// Gli esempi "sbagliati" qui sotto usano ^ al posto dell'apostrofo e vengono
+// Vale per l'apostrofo ASCII e per le entità HTML che lo scrivono nel JSX.
+//
+// Gli esempi "sbagliati" qui sotto usano ^ al posto dell'apostrofo, {apos} al
+// posto dell'entità nominale e {39} al posto di quella numerica: vengono
 // convertiti a runtime con ap(), così questo file non contiene mai la forma
 // vietata e non fa scattare se stesso.
 
@@ -32,16 +35,21 @@ const WORD_PATTERN = ACCENT_WORDS.map(
   (word) => `[${word[0].toLowerCase()}${word[0].toUpperCase()}]${word.slice(1)}`,
 ).join("|");
 
+// L'apostrofo è quello ASCII oppure l'entità HTML nominale o numerica (JSX).
+const APOSTROPHE = "(?:'|&apos;|&#39;)";
+
 // Prima della parola: né lettera/cifra/underscore né apostrofo/virgolette
-// (sono stringhe di codice), salvo l'apostrofo di elisione, cioè preceduto a
-// sua volta da una lettera (dell'attivita^). Dopo la parola: un apostrofo non
-// seguito da lettera, cifra o underscore.
+// (sono stringhe di codice), né un'entità-apostrofo, salvo l'apostrofo di
+// elisione, cioè preceduto a sua volta da una lettera (dell'attivita^, e anche
+// con l'entità al posto del primo apostrofo). Dopo la parola: un apostrofo (o
+// entità) non seguito da lettera, cifra o underscore.
 // Secondo ramo: una stringa tra virgolette doppie che COMINCIA con la forma
 // sbagliata ("E^ tardi", "Attivita^ del campo") è un testo, non codice, a meno
 // che l'apostrofo chiuda la stringa ("attivita^").
 const DETECTOR = new RegExp(
-  `(?:(?<![\\p{L}\\p{N}_'"])|(?<=\\p{L}'))(${WORD_PATTERN})'(?![\\p{L}\\p{N}_])` +
-    `|(?<=")(${WORD_PATTERN})'(?=[\\s.,;:!?)\\]])`,
+  `(?:(?<![\\p{L}\\p{N}_'"])(?<!&apos;)(?<!&#39;)|(?<=\\p{L}${APOSTROPHE}))` +
+    `(${WORD_PATTERN})(${APOSTROPHE})(?![\\p{L}\\p{N}_])` +
+    `|(?<=")(${WORD_PATTERN})(${APOSTROPHE})(?=[\\s.,;:!?)\\]])`,
   "gu",
 );
 
@@ -54,12 +62,17 @@ function findAccentApostrophes(text) {
       line += 1;
     }
     cursor = match.index;
-    matches.push({ line, word: match[1] ?? match[2] });
+    matches.push({
+      line,
+      word: match[1] ?? match[3],
+      apostrophe: match[2] ?? match[4],
+    });
   }
   return matches;
 }
 
-const ap = (text) => text.replaceAll("^", "'");
+const ap = (text) =>
+  text.replaceAll("^", "'").replaceAll("{apos}", "&apos;").replaceAll("{39}", "&#39;");
 const words = (text) => findAccentApostrophes(ap(text)).map((m) => m.word);
 
 // --- Rilevatore (unit) ------------------------------------------------------
@@ -83,6 +96,18 @@ const MUST_FLAG = [
   ['label: "Attivita^ del campo"', ["Attivita"]],
   ['<p>"E^ tardi"</p>', ["E"]],
   ['t("Gesu^ Cristo")', ["Gesu"]],
+  // entità HTML nel JSX: nominale e numerica, stesse regole dell'apostrofo
+  ["attivita{apos}", ["attivita"]],
+  ["dell{apos}attivita{apos}", ["attivita"]],
+  ["sara{apos} in stato", ["sara"]],
+  ["Piu{39} tardi", ["Piu"]],
+  ["E{apos} uno strumento", ["E"]],
+  ["non c{apos}e{apos} ne{39} altro", ["e", "ne"]],
+  ["<p>Non puo{apos} essere</p>", ["puo"]],
+  ["Finche{apos}, Cosi{39}.", ["Finche", "Cosi"]],
+  // elisione e chiusura con forme diverse
+  ["dell^attivita{apos} e dell{apos}unita^", ["attivita", "unita"]],
+  ['label="Attivita{apos} del campo"', ["Attivita"]],
 ];
 
 for (const [input, expected] of MUST_FLAG) {
@@ -110,6 +135,17 @@ const MUST_NOT_FLAG = [
   "[^si^, ^no^]",
   // parole non in elenco
   "dell^anno e l^ora",
+  // entità HTML: senza entità finale, stringa isolata tra entità, parola non intera
+  "dell{apos}attivita",
+  "{apos}attivita{apos}",
+  "{39}si{39}",
+  "{apos}e{apos}",
+  "l{apos}anno",
+  "attivita{apos}a e sara{apos}_x e piu{39}8",
+  "parente{apos} e abate{39}",
+  "x_attivita{apos} e 1e{apos}",
+  "un po{apos} di tempo e c{apos}è",
+  'const k = "attivita{apos}"',
 ];
 
 for (const input of MUST_NOT_FLAG) {
@@ -123,17 +159,19 @@ test("ogni parola dell'elenco è rilevata, in minuscolo e maiuscolo iniziale", (
     const lower = word[0].toLowerCase() + word.slice(1);
     const upper = word[0].toUpperCase() + word.slice(1);
     for (const form of [lower, upper]) {
-      assert.deepEqual(words(`prima ${form}^ dopo`), [form], form);
+      for (const mark of ["^", "{apos}", "{39}"]) {
+        assert.deepEqual(words(`prima ${form}${mark} dopo`), [form], `${form}${mark}`);
+      }
     }
   }
 });
 
 test("il numero di riga è 1-based e conta i ritorni a capo", () => {
-  const text = ap("riga uno\nriga due e^ qui\n\nquarta: cosi^\r\nquinta: Gesu^");
+  const text = ap("riga uno\nriga due e^ qui\n\nquarta: cosi{apos}\r\nquinta: Gesu{39}");
   assert.deepEqual(findAccentApostrophes(text), [
-    { line: 2, word: "e" },
-    { line: 4, word: "cosi" },
-    { line: 5, word: "Gesu" },
+    { line: 2, word: "e", apostrophe: "'" },
+    { line: 4, word: "cosi", apostrophe: "&apos;" },
+    { line: 5, word: "Gesu", apostrophe: "&#39;" },
   ]);
 });
 
@@ -197,8 +235,8 @@ test("nei file tracciati non ci sono apostrofi al posto degli accenti", () => {
     const text = readTextFile(file);
     if (text === null) continue;
     scanned += 1;
-    for (const { line, word } of findAccentApostrophes(text)) {
-      offenders.push(`${file}:${line} ${word}'`);
+    for (const { line, word, apostrophe } of findAccentApostrophes(text)) {
+      offenders.push(`${file}:${line} ${word}${apostrophe}`);
     }
   }
 
@@ -209,7 +247,7 @@ test("nei file tracciati non ci sono apostrofi al posto degli accenti", () => {
     const rest = offenders.length - shown.length;
     assert.fail(
       [
-        `Trovati ${offenders.length} apostrofi al posto della lettera accentata (scrivi è, à, ù, ì, ò):`,
+        `Trovati ${offenders.length} apostrofi (o entità HTML) al posto della lettera accentata (scrivi è, à, ù, ì, ò):`,
         ...shown.map((entry) => `  ${entry}`),
         ...(rest > 0 ? [`  ... e altre ${rest}`] : []),
       ].join("\n"),

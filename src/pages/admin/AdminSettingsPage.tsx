@@ -579,7 +579,7 @@ function StandardFieldsModal({
         <div className="surface-panel surface-panel--subtle form-subsection">
           <h3>Esempio consenso genitori</h3>
           <p>
-            Carica un fac-simile fotografato o scannerizzato: verra mostrato ai partecipanti
+            Carica un fac-simile fotografato o scannerizzato: verrà mostrato ai partecipanti
             minorenni per far capire subito che tipo di foglio preparare.
           </p>
 

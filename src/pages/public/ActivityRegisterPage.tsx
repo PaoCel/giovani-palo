@@ -140,7 +140,7 @@ function RegistrationLoadingState({ title }: { title?: string }) {
       <div className="registration-loading__copy">
         <h2>{title ? `Prepariamo ${title}` : "Prepariamo il modulo"}</h2>
         <p>
-          Stiamo aprendo la sessione e caricando i dati dell'attivita. Resta
+          Stiamo aprendo la sessione e caricando i dati dell'attività. Resta
           su questa pagina ancora un momento.
         </p>
       </div>

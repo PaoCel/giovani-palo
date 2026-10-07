@@ -1,14 +1,14 @@
 # Checklist privacy, notifiche e consensi
 
-Queste sono le attivita da fare manualmente fuori dal codice o dentro la console Firebase/admin.
+Queste sono le attività da fare manualmente fuori dal codice o dentro la console Firebase/admin.
 
 ## 1. Pubblicare le regole Firebase aggiornate
 
 - Deploy `firestore.rules`.
 - Deploy `storage.rules`.
 - Verifica subito dopo il deploy:
-  - un admin puo vedere gli alert admin;
-  - un utente autenticato puo caricare il consenso genitore solo sulla propria iscrizione;
+  - un admin può vedere gli alert admin;
+  - un utente autenticato può caricare il consenso genitore solo sulla propria iscrizione;
   - il file esempio del consenso e visibile pubblicamente;
   - il documento consenso genitore non e pubblico.
 
@@ -27,13 +27,13 @@ Queste sono le attivita da fare manualmente fuori dal codice o dentro la console
 
 ## 4. Verificare e approvare i testi privacy
 
-- Fate rileggere i contenuti delle nuove pagine `/privacy` e `/privacy/photos` a chi nel vostro ente segue privacy o responsabilita organizzative.
+- Fate rileggere i contenuti delle nuove pagine `/privacy` e `/privacy/photos` a chi nel vostro ente segue privacy o responsabilità organizzative.
 - Controllate in particolare:
-  - finalita del trattamento;
+  - finalità del trattamento;
   - tempi di conservazione reali;
   - contatto corretto per esercizio dei diritti;
-  - modalita effettive di uso pubblico delle immagini;
-  - gestione dei minori e di chi puo firmare l'autorizzazione.
+  - modalità effettive di uso pubblico delle immagini;
+  - gestione dei minori e di chi può firmare l'autorizzazione.
 - Se serve, aggiornate i testi nel codice o chiedetemi di renderli configurabili anche da admin.
 
 ## 5. Attivare le notifiche push sui dispositivi admin
@@ -86,12 +86,12 @@ Queste sono le attivita da fare manualmente fuori dal codice o dentro la console
 - Caso D: notifiche admin:
   - un admin desktop con browser chiuso riceve la push;
   - un admin iPhone/iPad con web app installata riceve la push;
-  - cliccando la notifica si apre l'area admin dell'attivita.
+  - cliccando la notifica si apre l'area admin dell'attività.
 
-## 9. Controllare i dati gia esistenti
+## 9. Controllare i dati già esistenti
 
-- Le iscrizioni gia presenti non hanno automaticamente un documento consenso.
-- Se avete attivita gia in corso con minorenni iscritti, aprite il nuovo tab `Consensi` e usatelo per capire chi deve ancora consegnarlo.
+- Le iscrizioni già presenti non hanno automaticamente un documento consenso.
+- Se avete attività già in corso con minorenni iscritti, aprite il nuovo tab `Consensi` e usatelo per capire chi deve ancora consegnarlo.
 
 ## 10. Flusso autorizzazione genitoriale via email Brevo (attività rafforzate)
 

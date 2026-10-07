@@ -37,7 +37,7 @@ export function PhotoConsentPage() {
         <div className="surface-panel surface-panel--subtle">
           <p>
             Il consenso per uso interno copre fotografie e immagini impiegate in comunicazioni
-            riservate all&apos;organizzazione, riepiloghi delle attivita, condivisioni interne,
+            riservate all&apos;organizzazione, riepiloghi delle attività, condivisioni interne,
             documentazione logistica e archivi operativi collegati all&apos;evento.
           </p>
         </div>
@@ -52,7 +52,7 @@ export function PhotoConsentPage() {
             Il consenso per uso pubblico riguarda l&apos;eventuale pubblicazione di immagini
             selezionate su canali aperti come siti, locandine, social o altri materiali pubblici
             dell&apos;organizzazione. Il mancato consenso non blocca l&apos;iscrizione
-            all&apos;attivita.
+            all&apos;attività.
           </p>
         </div>
       </SectionCard>

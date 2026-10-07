@@ -8,7 +8,7 @@ const COMMITTEE_DEFINITIONS = [
   { id: "logistics", title: "Logistica e Materiali", emoji: "🧱" },
   { id: "wellbeing", title: "Benessere e Supporto", emoji: "🛋️" },
   { id: "kitchen", title: "Cucina", emoji: "🥘" },
-  { id: "games", title: "Giochi e Attivita", emoji: "🛝" },
+  { id: "games", title: "Giochi e Attività", emoji: "🛝" },
   { id: "spiritual", title: "Pensieri Spirituali e Serate", emoji: "ℹ️" },
 ];
 
@@ -460,7 +460,7 @@ const campManagementSave = onCall(
 
     const activity = activitySnapshot.data() || {};
     if (activity.activityType !== "camp") {
-      throw new HttpsError("failed-precondition", "I comitati sono modificabili solo su attivita camp.");
+      throw new HttpsError("failed-precondition", "I comitati sono modificabili solo su attività camp.");
     }
 
     const timestamp = nowIso();

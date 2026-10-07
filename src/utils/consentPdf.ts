@@ -16,17 +16,17 @@ const PARENTAL_TITLE = "Consenso e informazioni mediche";
 const PHOTO_TITLE = "Liberatoria per l'uso delle immagini";
 
 const PARENTAL_BODY = [
-  "Documento basato sul modulo della Chiesa di Gesu Cristo dei Santi degli Ultimi Giorni \"Consenso e informazioni mediche\" (versione 3/25), richiesto per gli eventi che prevedono pernottamento, viaggi al di fuori della propria zona o rischi superiori al normale (Manuale generale 20.5.5, 20.7.4, 20.7.7).",
-  "Concedo a mio figlio o a chi sono tutore il permesso di partecipare all'evento e alle attivita previste e autorizzo i dirigenti adulti che supervisionano l'evento a somministrare il trattamento di emergenza al partecipante in caso di incidenti o malattie e ad agire in mia vece nell'approvare le necessarie cure mediche. L'autorizzazione vale anche per il viaggio da/per l'evento.",
+  "Documento basato sul modulo della Chiesa di Gesù Cristo dei Santi degli Ultimi Giorni \"Consenso e informazioni mediche\" (versione 3/25), richiesto per gli eventi che prevedono pernottamento, viaggi al di fuori della propria zona o rischi superiori al normale (Manuale generale 20.5.5, 20.7.4, 20.7.7).",
+  "Concedo a mio figlio o a chi sono tutore il permesso di partecipare all'evento e alle attività previste e autorizzo i dirigenti adulti che supervisionano l'evento a somministrare il trattamento di emergenza al partecipante in caso di incidenti o malattie e ad agire in mia vece nell'approvare le necessarie cure mediche. L'autorizzazione vale anche per il viaggio da/per l'evento.",
   "Le informazioni mediche fornite (allergie, restrizioni alimentari, farmaci, condizioni di salute, note utili) saranno consultate solo dai dirigenti dell'evento o dal personale medico, se necessario, per intervenire in modo appropriato. Saranno trattate con riservatezza.",
-  "Comprendo che le unita potrebbero non poter soddisfare ogni esigenza medica, fisica o di altro tipo: i dirigenti si confronteranno con me se servono accorgimenti specifici. Il partecipante e responsabile della propria condotta e si attiene alle norme della Chiesa, alle regole di sicurezza dell'evento e alle indicazioni dei dirigenti. La partecipazione e un privilegio che puo essere revocato in caso di comportamento inappropriato o di rischio.",
+  "Comprendo che le unità potrebbero non poter soddisfare ogni esigenza medica, fisica o di altro tipo: i dirigenti si confronteranno con me se servono accorgimenti specifici. Il partecipante e responsabile della propria condotta e si attiene alle norme della Chiesa, alle regole di sicurezza dell'evento e alle indicazioni dei dirigenti. La partecipazione e un privilegio che può essere revocato in caso di comportamento inappropriato o di rischio.",
 ];
 
 const PHOTO_BODY = [
-  "Documento basato sulla \"Liberatoria per l'uso delle immagini\" della Chiesa di Gesu Cristo dei Santi degli Ultimi Giorni (Intellectual Reserve, Inc. - IRI), modulo IPO 37077 160.",
+  "Documento basato sulla \"Liberatoria per l'uso delle immagini\" della Chiesa di Gesù Cristo dei Santi degli Ultimi Giorni (Intellectual Reserve, Inc. - IRI), modulo IPO 37077 160.",
   "Il concedente concede irrevocabilmente all'IRI e ai suoi licenziatari, successori e aventi diritto il consenso e i pieni diritti di registrare, copiare, riprodurre, adattare, pubblicare, esibire, distribuire ed eseguire le immagini, le interviste e qualsiasi materiale reso disponibile, in qualsiasi pubblicazione o mezzo (libri, riviste, internet, video, televisione, cinema), con o senza credito al concedente.",
   "Se il concedente e minorenne, il genitore o tutore dichiara di avere la piena autorita per perfezionare la liberatoria a nome del minore e firma per suo conto.",
-  "Il concedente non avra diritto, titolo o interesse in alcuna opera o pubblicazione realizzata dall'IRI in virtu di questa liberatoria. Tutte le condizioni complete (incluse le informazioni sulla legge applicabile - Stato dello Utah - e sulle controversie) sono riportate nel testo originale del modulo IRI 37077 160.",
+  "Il concedente non avrà diritto, titolo o interesse in alcuna opera o pubblicazione realizzata dall'IRI in virtu di questa liberatoria. Tutte le condizioni complete (incluse le informazioni sulla legge applicabile - Stato dello Utah - e sulle controversie) sono riportate nel testo originale del modulo IRI 37077 160.",
 ];
 
 interface SignatureImage {
@@ -119,8 +119,8 @@ export async function downloadConsentPdf({
   doc.line(marginX, y, marginX + contentWidth, y);
   y += 6;
 
-  // Section: Dati attivita
-  writeWrapped("Dati dell'attivita", "bold", 12);
+  // Section: Dati attività
+  writeWrapped("Dati dell'attività", "bold", 12);
   writeWrapped(`Titolo: ${event.title}`);
   writeWrapped(`Date: ${formatDateRange(event.startDate, event.endDate)}`);
   writeWrapped(`Luogo: ${event.location || "-"}`);
@@ -137,7 +137,7 @@ export async function downloadConsentPdf({
     writeWrapped(`Data di nascita: ${formatDateOnly(registration.birthDate)}`);
   }
   if (registration.unitNameSnapshot) {
-    writeWrapped(`Unita: ${registration.unitNameSnapshot}`);
+    writeWrapped(`Unità: ${registration.unitNameSnapshot}`);
   }
   if (registration.email) {
     writeWrapped(`Email: ${registration.email}`);

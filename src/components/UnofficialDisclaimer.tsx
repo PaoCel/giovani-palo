@@ -26,7 +26,7 @@ export function UnofficialDisclaimer({
         <strong>Questa piattaforma non è un sito ufficiale</strong> de La Chiesa
         di Gesù Cristo dei Santi degli Ultimi Giorni. È uno strumento locale
         creato per facilitare informazioni, iscrizioni e coordinamento delle
-        attivita.
+        attività.
       </p>
     </aside>
   );

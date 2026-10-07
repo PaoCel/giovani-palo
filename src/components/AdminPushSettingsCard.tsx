@@ -152,7 +152,7 @@ export function AdminPushSettingsCard() {
             <h3>Attiva le notifiche push</h3>
             <p>
               Consenti le notifiche su questo dispositivo per ricevere l&apos;avviso anche quando la
-              PWA e in background o chiusa.
+              PWA è in background o chiusa.
             </p>
             {pushStatus.permission === "denied" ? (
               <p>

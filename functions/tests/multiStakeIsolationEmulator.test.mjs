@@ -1293,7 +1293,7 @@ describe("create-stake", () => {
     const before = (await adminDb.doc(`stakes/${x.A.id}`).get()).data();
     await assert.rejects(
       createStake(ctx(), { stakeId: x.A.id, name: "Sovrascrittura", units: [{ name: "Rione Nuovo" }], apply: true }),
-      /esiste gia/,
+      /esiste già/,
     );
     assert.deepEqual((await adminDb.doc(`stakes/${x.A.id}`).get()).data(), before, "il palo esistente è intatto");
     assert.equal((await adminDb.doc(`stakes/${x.A.id}/units/${x.A.id}-rione-nuovo`).get()).exists, false);
@@ -1317,7 +1317,7 @@ describe("create-stake", () => {
     const email = emailOf("admin-nounit");
     await assert.rejects(
       createStake(ctx(), { stakeId, name: "Senza unita", admin: { email, firstName: "Mario", lastName: "Rossi", password: PASSWORD }, apply: true }),
-      /almeno un'unita/,
+      /almeno un'unità/,
     );
     assert.equal((await adminDb.doc(`stakes/${stakeId}`).get()).exists, false);
     assert.equal(await authUserExists(email), false, "nessun account Auth creato");
@@ -1381,7 +1381,7 @@ describe("create-stake", () => {
     assert.deepEqual(result.units.map((u) => u.type), ["rione", "ramo"]);
 
     // Un secondo giro sullo stesso id è rifiutato: niente duplicati.
-    await assert.rejects(createStake(ctx(), { stakeId, name: "Palo Nuovo", units: [{ name: "Rione Uno" }], apply: true }), /esiste gia/);
+    await assert.rejects(createStake(ctx(), { stakeId, name: "Palo Nuovo", units: [{ name: "Rione Uno" }], apply: true }), /esiste già/);
 
     const stored = (await adminDb.doc(`users/${adminUid}`).get()).data();
     assert.equal(stored.role, "admin");
@@ -1470,7 +1470,7 @@ describe("create-stake", () => {
 
     const again = cli(...common, "--apply", "--admin-password", PASSWORD);
     assert.equal(again.status, 1);
-    assert.match(again.stderr, /esiste gia/);
+    assert.match(again.stderr, /esiste già/);
     const wrongProject = spawnSync(process.execPath, ["tools/create-stake.mjs", "--project", "giovani-palo", "--id", `iso-cli2-${runId}`, "--name", "x"], {
       cwd: repoRoot, env: process.env, encoding: "utf8", timeout: 60_000,
     });

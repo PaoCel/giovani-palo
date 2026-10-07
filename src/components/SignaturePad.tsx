@@ -255,7 +255,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
         <div className="signature-pad__hint">
           <small>
             {showInitialPreview
-              ? "Firma gia presente. Tocca o disegna sopra per sostituirla."
+              ? "Firma già presente. Tocca o disegna sopra per sostituirla."
               : "Firma con il dito (telefono) o con il mouse (computer)."}
           </small>
           <button

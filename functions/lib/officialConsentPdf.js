@@ -341,8 +341,8 @@ async function generateChurchActivityConductPdf() {
   const conductDoc = await PDFDocument.create();
   const [conductPage] = await conductDoc.copyPages(templateDoc, [1]);
   conductDoc.addPage(conductPage);
-  conductDoc.setTitle("Condotta durante le attivita della Chiesa");
-  conductDoc.setAuthor("Piattaforma attivita giovani");
+  conductDoc.setTitle("Condotta durante le attività della Chiesa");
+  conductDoc.setAuthor("Piattaforma attività giovani");
 
   const pdfBytes = await conductDoc.save();
   return Buffer.from(pdfBytes);

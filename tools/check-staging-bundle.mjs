@@ -4,7 +4,7 @@
 // `firebase deploy` (la CLI deploya qualunque cartella).
 //
 // Il progetto atteso arriva da GCLOUD_PROJECT (impostato dalla CLI nei hook di
-// predeploy, cioè dal --project del deploy).
+// predeploy, ciòè dal --project del deploy).
 import fs from "node:fs";
 import path from "node:path";
 

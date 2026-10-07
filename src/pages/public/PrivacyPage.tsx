@@ -49,7 +49,7 @@ export function PrivacyPage() {
         className="hero--compact"
         eyebrow="Privacy"
         title="Informativa privacy e cookie"
-        description="Come vengono trattati i dati personali raccolti per gestire attivita, iscrizioni e supporto organizzativo, in conformita al GDPR e al Codice Privacy italiano."
+        description="Come vengono trattati i dati personali raccolti per gestire attività, iscrizioni e supporto organizzativo, in conformità al GDPR e al Codice Privacy italiano."
         actions={
           <Link className="button button--soft" to="/privacy/photos">
             Informativa fotografie
@@ -78,14 +78,14 @@ export function PrivacyPage() {
           <p>
             Per esercitare i tuoi diritti o per qualsiasi richiesta privacy puoi scrivere a
             {" "}<strong>{PRIVACY_EMAIL}</strong>. Per supporto operativo (problemi di iscrizione,
-            informazioni sull&apos;attivita) usa {supportContact}.
+            informazioni sull&apos;attività) usa {supportContact}.
           </p>
         </div>
       </SectionCard>
 
       <SectionCard
         title="Categorie di dati trattati"
-        description="Raccogliamo solo le informazioni necessarie per gestire correttamente attivita e iscrizioni (principio di minimizzazione)."
+        description="Raccogliamo solo le informazioni necessarie per gestire correttamente attività e iscrizioni (principio di minimizzazione)."
       >
         <div className="stack">
           <div className="surface-panel surface-panel--subtle">
@@ -93,22 +93,22 @@ export function PrivacyPage() {
             <ul>
               <li>Nome e cognome.</li>
               <li>Email e telefono per conferme e comunicazioni operative.</li>
-              <li>Data di nascita per gestire la fascia d&apos;eta e i consensi richiesti per i minori.</li>
-              <li>Unita / rione di appartenenza, per la visibilita del responsabile locale.</li>
-              <li>Eventuali risposte a campi del modulo specifici dell&apos;attivita
-                (es. allergie, preferenze di stanza, note logistiche) — opzionali e configurabili per attivita.</li>
+              <li>Data di nascita per gestire la fascia d&apos;età e i consensi richiesti per i minori.</li>
+              <li>Unità / rione di appartenenza, per la visibilita del responsabile locale.</li>
+              <li>Eventuali risposte a campi del modulo specifici dell&apos;attività
+                (es. allergie, preferenze di stanza, note logistiche) — opzionali e configurabili per attività.</li>
             </ul>
           </div>
 
           <div className="surface-panel surface-panel--subtle">
             <h3>Dati specifici per i minori</h3>
             <p>
-              Per i partecipanti minorenni puo essere richiesto il consenso del genitore
+              Per i partecipanti minorenni può essere richiesto il consenso del genitore
               o del tutore legale tramite link inviato via email. Il sistema conserva lo stato
               dell&apos;autorizzazione e i PDF firmati generati dalla procedura in area protetta
               accessibile solo agli admin di palo. Il trattamento segue le indicazioni
-              dell&apos;Art. 8 GDPR (in Italia, eta minima 14 anni per il consenso digitale;
-              GUGD applica la regola operativa piu rigorosa di richiedere il consenso del
+              dell&apos;Art. 8 GDPR (in Italia, età minima 14 anni per il consenso digitale;
+              GUGD applica la regola operativa più rigorosa di richiedere il consenso del
               genitore per tutti gli iscritti sotto i 18 anni).
             </p>
           </div>
@@ -116,7 +116,7 @@ export function PrivacyPage() {
       </SectionCard>
 
       <SectionCard
-        title="Base giuridica e finalita"
+        title="Base giuridica e finalità"
         description="Perche tratta i tuoi dati e con quale base legale ai sensi del GDPR."
       >
         <div className="surface-panel surface-panel--subtle">
@@ -127,7 +127,7 @@ export function PrivacyPage() {
             </li>
             <li>
               <strong>Legittimo interesse (Art. 6, par. 1, lett. f GDPR):</strong> coordinamento
-              organizzativo e logistico delle attivita del palo, gestione di iscrizioni, contatti
+              organizzativo e logistico delle attività del palo, gestione di iscrizioni, contatti
               operativi, sicurezza dei partecipanti.
             </li>
           </ul>
@@ -140,15 +140,15 @@ export function PrivacyPage() {
       >
         <div className="surface-panel surface-panel--subtle">
           <ul>
-            <li><strong>Profilo utente:</strong> finche l&apos;account e attivo. Profili inattivi
+            <li><strong>Profilo utente:</strong> finché l&apos;account e attivo. Profili inattivi
               da oltre 24 mesi vengono eliminati salvo rinnovo del consenso.</li>
-            <li><strong>Iscrizioni a una attivita e moduli compilati:</strong> 24 mesi dopo la data
-              di fine dell&apos;attivita.</li>
+            <li><strong>Iscrizioni a una attività e moduli compilati:</strong> 24 mesi dopo la data
+              di fine dell&apos;attività.</li>
             <li><strong>Autorizzazioni genitore e PDF firmati:</strong> 24 mesi dopo la
-              data di fine dell&apos;attivita.</li>
+              data di fine dell&apos;attività.</li>
             <li><strong>Tentativi di iscrizione (log tecnico):</strong> 90 giorni.</li>
             <li><strong>Token di recupero per iscrizioni guest:</strong> 90 giorni dalla fine
-              dell&apos;attivita.</li>
+              dell&apos;attività.</li>
             <li><strong>Notifiche admin:</strong> 365 giorni.</li>
             <li><strong>Audit log delle azioni amministrative:</strong> 24 mesi.</li>
           </ul>
@@ -219,7 +219,7 @@ export function PrivacyPage() {
             <p>
               L&apos;app usa solo strumenti tecnici necessari al funzionamento: sessione,
               autenticazione, preferenze operative, installazione della PWA. Non sono attivi
-              banner cookie per profilazione o marketing perche non sono presenti servizi di
+              banner cookie per profilazione o marketing perché non sono presenti servizi di
               tracciamento pubblicitario o analytics di profilazione.
             </p>
           </div>
@@ -228,7 +228,7 @@ export function PrivacyPage() {
             <h3>Quando servira un banner</h3>
             <p>
               Se in futuro verranno aggiunti analytics non anonimizzati, pixel pubblicitari,
-              remarketing o altri strumenti di tracciamento non tecnici, sara mostrato un banner
+              remarketing o altri strumenti di tracciamento non tecnici, sarà mostrato un banner
               di consenso dedicato prima dell&apos;attivazione.
             </p>
           </div>
@@ -244,14 +244,14 @@ export function PrivacyPage() {
             Tutti i dati personali sono trattati e conservati nell&apos;Unione Europea
             (regione Firestore <code>eur3</code>: Belgio + Paesi Bassi).
             L&apos;accesso e regolato da regole di sicurezza per ruolo (admin di palo,
-            responsabile di unita, partecipante), validate lato server da Firebase Security Rules.
+            responsabile di unità, partecipante), validate lato server da Firebase Security Rules.
             La connessione e cifrata in HTTPS. I documenti sensibili (es. autorizzazioni dei minori)
             sono in area di storage protetta, accessibile solo all&apos;admin di palo e al
             titolare dell&apos;iscrizione quando previsto.
           </p>
           <p>
             In caso di violazione confermata che riguardi dati personali, il titolare notifica
-            agli interessati e al Garante entro 72 ore, in conformita all&apos;Art. 33 GDPR.
+            agli interessati e al Garante entro 72 ore, in conformità all&apos;Art. 33 GDPR.
           </p>
         </div>
       </SectionCard>
