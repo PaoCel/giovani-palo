@@ -62,9 +62,29 @@ e `--config firebase.staging.json`, mai `--project` da solo.
   contiene valori di produzione, non è noindex o il progetto è quello di produzione.
   La build di staging emette `robots.txt` (Disallow), meta `noindex`, nome PWA
   "(Demo)"; l'hosting aggiunge `X-Robots-Tag`.
-- Ordine: rules/indici -> functions -> hosting, con `--only` mirati.
+- Ordine: rules/indici -> storage -> functions -> hosting, con `--only` mirati.
 - Functions: `functions/.env.giovani-palo-staging` (da `functions/.env.staging.example`)
   e secret `BREVO_API_KEY`, `WEB_PUSH_PRIVATE_KEY` nel progetto di staging.
+
+**Stato al 2026-10-07**: pubblicati rules, indici, storage, 16 functions e hosting;
+dominio `demo.gugditalia.it` attivo (record `CNAME demo` verso
+`giovani-palo-staging.web.app` su register.it, certificato emesso da Firebase).
+Il `BREVO_API_KEY` di staging è una copia di quello di produzione, ma l'allowlist
+limita le mail vere a `paolocelestini23@gmail.com`.
+
+- **Auth**: Identity Platform con email/password, dominio `demo.gugditalia.it`
+  autorizzato e **registrazione chiusa** (`client.permissions.disabledUserSignup`):
+  `accounts:signUp` risponde `ADMIN_ONLY_OPERATION`, anche per l'accesso anonimo.
+  Conseguenza: su staging "Crea un account" e l'iscrizione "senza account" mostrano
+  un errore; gli account li crea solo il seed (Admin SDK). Per riaprire la
+  registrazione: `PATCH .../admin/v2/projects/giovani-palo-staging/config?updateMask=client.permissions.disabledUserSignup`
+  con `false`.
+- **Primo deploy delle functions** (gen2 su progetto nuovo): serve un Owner per i
+  binding IAM (pubsub `serviceAccountTokenCreator`, compute `run.invoker` e
+  `eventarc.eventReceiver`), i trigger Firestore falliscono per qualche minuto
+  finché l'Eventarc Service Agent non propaga, e la CLI chiede la cleanup policy
+  (`firebase functions:artifacts:setpolicy --location europe-west1 --days 1 --force`).
+  Si ritenta lo stesso deploy finché `firebase functions:list` mostra 16 funzioni.
 
 ## Creare un palo
 
@@ -99,10 +119,22 @@ FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9199 FIREBASE_STORAGE_EMULATOR_HOST=127.0.
   node tools/seed-demo.mjs --reset --apply
 # UI: config "vite-demo-emulators" in .claude/launch.json (VITE_DEFAULT_STAKE_ID=palo-demo)
 
-# Staging (ADC attive)
-DEMO_PASSWORD=... DEMO_PARENT_EMAIL=tuo+genitore@... node tools/seed-demo.mjs \
-  --project giovani-palo-staging --reset --apply
+# Staging: l'Admin SDK accetta solo service account o ADC, e il service account
+# dell'Admin SDK di staging non si può impersonare. Si crea una chiave
+# temporanea, si passa solo al processo del seed e si cancella subito dopo.
+SA=firebase-adminsdk-fbsvc@giovani-palo-staging.iam.gserviceaccount.com
+( umask 077; gcloud iam service-accounts keys create /percorso/fuori/dal/repo/key.json \
+    --iam-account $SA --project giovani-palo-staging --account paolo.celestini97@gmail.com )
+GOOGLE_APPLICATION_CREDENTIALS=/percorso/fuori/dal/repo/key.json \
+  node --env-file=$HOME/.config/giovani-palo-demo.env tools/seed-demo.mjs \
+  --project giovani-palo-staging --reset --apply      # senza --apply è un dry-run
+gcloud iam service-accounts keys delete <KEY_ID> --iam-account $SA \
+  --project giovani-palo-staging --account paolo.celestini97@gmail.com
 ```
+
+`~/.config/giovani-palo-demo.env` (permessi 600, fuori dal repo) contiene
+`DEMO_PASSWORD` e `DEMO_PARENT_EMAIL`; `node --env-file` lo legge senza passare dalla
+shell. Seed applicato su staging il 2026-10-07 (palo `palo-demo`, 25 iscrizioni).
 
 `--reset` cancella tutto il palo demo (documenti, profili e account Auth con
 `stakeId` demo, token, cache firme dei genitori demo, prefissi Storage del palo).
@@ -113,10 +145,13 @@ stare in `EMAIL_ALLOWLIST` di staging.
 
 ## Rischi noti, non ancora chiusi
 
-- **Mail di Firebase Auth fuori dall'allowlist.** Sulla demo la registrazione è
-  pubblica: reset password e verifica li manda Firebase a qualunque indirizzo
-  scritto da un visitatore. L'allowlist copre solo Brevo. Opzioni: registrazione
-  chiusa su staging (Identity Platform + blocking function) o rischio accettato.
+- **Mail di Firebase Auth fuori dall'allowlist.** L'allowlist copre solo Brevo.
+  Su staging il rischio è chiuso dalla registrazione disabilitata (nessun
+  visitatore può creare un account, quindi verifica e reset non partono verso
+  indirizzi arbitrari); se si riapre la registrazione torna aperto.
+- **Firma di Matteo nella demo.** Il link di firma consuma l'autorizzazione in
+  attesa del seed: dopo averla firmata (collaudo del 2026-10-07) serve
+  `--reset --apply` per ripristinare lo stato "in attesa".
 - `validRegistrationCreate` non controlla né il palo dell'utente né `unitId`: chi
   è loggato può iscriversi a qualunque attività pubblica aperta di qualunque
   palo con un `unitId` a scelta (probabilmente voluto, da decidere col punto 5).
