@@ -1,4 +1,4 @@
-// Creazione di un palo: documento stake, unita' e (facoltativo) primo admin.
+// Creazione di un palo: documento stake, unità e (facoltativo) primo admin.
 // Unica implementazione, usata da `tools/create-stake.mjs` e da
 // `tools/seed-demo.mjs`: nessuna UI crea pali, primi admin o dirigenti.
 //
@@ -18,7 +18,7 @@ export function slugify(value) {
     .replace(/(^-|-$)/g, "");
 }
 
-/** Id unita' unico fra pali: lo slug del nome da solo collide fra due pali. */
+/** Id unità unico fra pali: lo slug del nome da solo collide fra due pali. */
 export function unitIdFor(stakeId, unitName) {
   return `${stakeId}-${slugify(unitName)}`;
 }
@@ -60,7 +60,7 @@ export function buildUnitDocument({ name, type = "rione", now }) {
   return { name, type, isActive: true, createdAt: now, updatedAt: now };
 }
 
-/** Profilo `users/{uid}` valido per `validUserPayload` (nessuna chiave in piu'). */
+/** Profilo `users/{uid}` valido per `validUserPayload` (nessuna chiave in più). */
 export function buildUserDocument({
   firstName,
   lastName,
@@ -97,7 +97,7 @@ export function buildUserDocument({
 }
 
 /**
- * @param {object} ctx { db, auth } Admin SDK gia' puntati sul bersaglio validato.
+ * @param {object} ctx { db, auth } Admin SDK già puntati sul bersaglio validato.
  * @param {object} input
  *   stakeId, name, slug?, supportContact?, units?: [{name, type?}],
  *   admin?: {email, firstName, lastName, uid?, password?},
@@ -114,7 +114,7 @@ export async function createStake({ db, auth }, input) {
   const now = input.now || new Date().toISOString();
   const stakeRef = db.doc(`stakes/${stakeId}`);
   if ((await stakeRef.get()).exists) {
-    throw new Error(`stakes/${stakeId} esiste gia': nessuna sovrascrittura.`);
+    throw new Error(`stakes/${stakeId} esiste già: nessuna sovrascrittura.`);
   }
 
   const stake = { id: stakeId, name: name.trim(), slug: input.slug || slugify(name) || stakeId };
@@ -124,7 +124,7 @@ export async function createStake({ db, auth }, input) {
     type: unit.type === "ramo" ? "ramo" : "rione",
   }));
   if (new Set(units.map((unit) => unit.id)).size !== units.length) {
-    throw new Error("Unita' con lo stesso nome.");
+    throw new Error("Unità con lo stesso nome.");
   }
 
   let admin = null;
@@ -132,13 +132,13 @@ export async function createStake({ db, auth }, input) {
   if (input.admin) {
     const { email, firstName, lastName } = input.admin;
     if (!email || !firstName || !lastName) throw new Error("Admin: servono email, nome e cognome.");
-    // Un admin non puo' cambiare unita' da solo (canUpdateOwnUser) e il
-    // completamento profilo la richiede: senza unita' resta bloccato al primo accesso.
-    if (units.length === 0) throw new Error("Admin: serve almeno un'unita' (--unit) a cui assegnarlo.");
+    // Un admin non può cambiare unità da solo (canUpdateOwnUser) e il
+    // completamento profilo la richiede: senza unità resta bloccato al primo accesso.
+    if (units.length === 0) throw new Error("Admin: serve almeno un'unità (--unit) a cui assegnarlo.");
     const wanted = input.admin.unit ? unitIdFor(stakeId, input.admin.unit) : units[0].id;
     adminUnit = units.find((unit) => unit.id === wanted);
-    if (!adminUnit) throw new Error(`Admin: l'unita' "${input.admin.unit}" non e' fra quelle del palo.`);
-    // `admin.uid` e' l'uid DESIDERATO per un account nuovo, non la prova che esista:
+    if (!adminUnit) throw new Error(`Admin: l'unità "${input.admin.unit}" non è fra quelle del palo.`);
+    // `admin.uid` è l'uid DESIDERATO per un account nuovo, non la prova che esista:
     // si cerca per uid se indicato, altrimenti per email.
     let existingUid = null;
     try {
@@ -154,7 +154,7 @@ export async function createStake({ db, auth }, input) {
       const profile = await db.doc(`users/${existingUid}`).get();
       if (profile.exists && profile.data().stakeId !== stakeId) {
         throw new Error(
-          `L'account ${email} ha gia' un profilo nel palo "${profile.data().stakeId}": non lo sposto.`,
+          `L'account ${email} ha già un profilo nel palo "${profile.data().stakeId}": non lo sposto.`,
         );
       }
     }

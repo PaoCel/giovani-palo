@@ -234,7 +234,7 @@ export const surveysService = {
 
   /**
    * Semina il sondaggio post-campeggio standard sull'evento indicato. Non fa
-   * nulla se ci sono gia' domande (evita doppioni se l'admin ci riclicca sopra).
+   * nulla se ci sono già domande (evita doppioni se l'admin ci riclicca sopra).
    * Ritorna l'elenco domande risultante. Solo admin lato rules.
    */
   async seedCampSurveyTemplate(
@@ -262,7 +262,7 @@ export const surveysService = {
 
 /**
  * Domande di default del "sondaggio post-campeggio". Feedback anonimo, uguale
- * per tutti i ruoli. L'admin puo' poi modificarle/aggiungerne dal SurveyEditor.
+ * per tutti i ruoli. L'admin può poi modificarle/aggiungerne dal SurveyEditor.
  */
 export const CAMP_SURVEY_TEMPLATE: ReadonlyArray<{
   text: string;

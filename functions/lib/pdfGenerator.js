@@ -119,8 +119,8 @@ async function generateParentAuthorizationPdf(payload) {
       );
     doc.moveDown(1);
 
-    // Attivita'
-    sectionHeading(doc, "Attivita'");
+    // Attività
+    sectionHeading(doc, "Attività");
     labelValue(doc, "Titolo:", payload.activity.title);
     labelValue(
       doc,
@@ -299,8 +299,8 @@ async function generateParentAuthorizationPdf(payload) {
       .fontSize(9)
       .fillColor("#6b7894")
       .text(
-        "Il presente consenso e' stato raccolto tramite procedura elettronica con link unico inviato " +
-          "all'indirizzo email dichiarato del genitore. La firma elettronica raccolta e' considerata " +
+        "Il presente consenso è stato raccolto tramite procedura elettronica con link unico inviato " +
+          "all'indirizzo email dichiarato del genitore. La firma elettronica raccolta è considerata " +
           "firma elettronica semplice ai sensi del Regolamento eIDAS (910/2014/UE) e del CAD italiano. " +
           "Documento prodotto automaticamente dal sistema, non richiede sottoscrizione.",
       );

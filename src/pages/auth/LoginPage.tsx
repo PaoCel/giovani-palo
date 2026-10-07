@@ -13,9 +13,9 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
   const { session } = useAuth();
-  // Chi ha gia' un profilo resta nel suo palo: il completamento profilo scrive
+  // Chi ha già un profilo resta nel suo palo: il completamento profilo scrive
   // `stakeId` dell'organizzazione mostrata, e per un admin/dirigente le rules
-  // rifiutano ogni cambio di palo (con piu' pali restava bloccato; un
+  // rifiutano ogni cambio di palo (con più pali restava bloccato; un
   // partecipante finiva invece spostato nel palo pubblico dell'ultima visita).
   const profileStakeId = session?.profile.stakeId || "";
   const { data: organization, error } = useAsyncData(

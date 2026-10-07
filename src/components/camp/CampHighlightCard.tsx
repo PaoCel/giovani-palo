@@ -10,7 +10,7 @@ import { DEFAULT_STAKE_ID } from "@/config/app";
 /**
  * Card home condivisa da tutti i ruoli: annuncia l'ultimo campeggio concluso
  * con foto disponibili e porta alla galleria + sondaggio del campeggio.
- * Non mostra nulla finche' non c'e' un campeggio con almeno un media.
+ * Non mostra nulla finché non c'è un campeggio con almeno un media.
  */
 export function CampHighlightCard() {
   const { session } = useAuth();

@@ -98,7 +98,7 @@ async function collectRegistrations(stakeId, unitId) {
 }
 
 async function collectUsers(unitId) {
-  // Solo gli utenti del palo indicato: gli id unita' non sono unici fra pali.
+  // Solo gli utenti del palo indicato: gli id unità non sono unici fra pali.
   const snap = await db
     .collection("users")
     .where("stakeId", "==", args.stake)

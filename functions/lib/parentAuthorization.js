@@ -7,7 +7,7 @@
  *    token attivo, genera un token, salva l'hash in `parentAuthorizationTokens`,
  *    invia email Brevo, scrive audit log.
  * 2. parentAuthorizationGetContext (callable pubblica) - la pagina genitore
- *    legge i dati pubblici da mostrare (titolo attivita', date, nome partecipante)
+ *    legge i dati pubblici da mostrare (titolo attività, date, nome partecipante)
  *    passando il token in chiaro. Verifica scadenza/uso/invalidazione.
  * 3. parentAuthorizationConfirm (callable pubblica) - il genitore conferma:
  *    salva consensi nel sub-object della registration, marca token come usato,
@@ -163,7 +163,7 @@ async function assertCanResendParentAuthorization(db, request, stakeId, registra
   if (!isAdmin && !isUnitLeaderForRegistration) {
     throw new HttpsError(
       "permission-denied",
-      "Puoi reinviare autorizzazioni solo per la tua unita'.",
+      "Puoi reinviare autorizzazioni solo per la tua unità.",
     );
   }
 
@@ -245,7 +245,7 @@ async function syncPendingParticipantDetails(registrationRef, registration) {
   return true;
 }
 
-// Stati in cui l'autorizzazione non e' ancora stata decisa dal genitore: solo
+// Stati in cui l'autorizzazione non è ancora stata decisa dal genitore: solo
 // qui ha senso spostare la richiesta su un altro indirizzo.
 const REISSUABLE_PARENT_AUTH_STATUSES = [
   "pending_request",
@@ -278,7 +278,7 @@ async function reissueParentAuthorizationForNewParentEmail({
 }) {
   const activity = await loadActivity(db, stakeId, activityId);
   if (!activity) {
-    logger.warn("Attivita' non trovata per reissue parent auth.", {
+    logger.warn("Attività non trovata per reissue parent auth.", {
       stakeId,
       activityId,
       registrationId,
@@ -701,7 +701,7 @@ async function sendInitialAuthorizationEmail({
     return { skipped: true, reason: "missing_request_payload" };
   }
 
-  // Un'autorizzazione gia' firmata (o rifiutata) non si tocca: un invio
+  // Un'autorizzazione già firmata (o rifiutata) non si tocca: un invio
   // arrivato in ritardo ne cancellerebbe firma, PDF e consensi.
   const statoCorrente = registration.parentAuthorization?.status;
   if (statoCorrente === "authorized" || statoCorrente === "rejected_by_parent") {
@@ -723,7 +723,7 @@ async function sendInitialAuthorizationEmail({
   const parentName = `${parentFirstName} ${parentLastName}`.trim();
   const parentPhone = asString(request.parentPhone).trim();
   const participantName = asString(registration.fullName).trim() || "il minore";
-  const activityTitle = asString(activity.title).trim() || "Attivita'";
+  const activityTitle = asString(activity.title).trim() || "Attività";
   const activityStartDate = asString(activity.startDate);
   const activityEndDate = asString(activity.endDate) || activityStartDate;
   const activityLocation = asString(activity.location).trim();
@@ -979,7 +979,7 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
       return;
     }
 
-    // Se gia' c'e' un sub-object parentAuthorization con tokenId, non re-inviare.
+    // Se già c'è un sub-object parentAuthorization con tokenId, non re-inviare.
     // Il reinvio passa da resendParentAuthorization callable.
     if (
       after.parentAuthorization &&
@@ -993,8 +993,8 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
         `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
       );
 
-      // Il modulo puo' correggere il genitore (mail sbagliata, altro genitore).
-      // Finche' nessuno ha firmato, il token vecchio va invalidato e la mail
+      // Il modulo può correggere il genitore (mail sbagliata, altro genitore).
+      // Finché nessuno ha firmato, il token vecchio va invalidato e la mail
       // rispedita al nuovo indirizzo: sincronizzare solo i campi sanitari
       // lasciava l'autorizzazione appesa alla casella sbagliata, senza errori
       // e senza modo di accorgersene (2026-09-17).
@@ -1020,7 +1020,7 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
 
     const activity = await loadActivity(db, stakeId, activityId);
     if (!activity) {
-      logger.warn("Attivita' non trovata per parent auth send.", {
+      logger.warn("Attività non trovata per parent auth send.", {
         stakeId,
         activityId,
       });
@@ -1051,12 +1051,12 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
 );
 
 // =============================================================================
-// Cloud Function: firma dall'app per il genitore gia' autenticato
+// Cloud Function: firma dall'app per il genitore già autenticato
 // =============================================================================
 
 // Il magic-link nasce per il genitore senza account. Chi ha un account
-// famiglia e' gia' identificato: gli emettiamo un token a vita breve, senza
-// mandare nessuna mail, e lo mandiamo alla stessa pagina di firma. Cosi'
+// famiglia è già identificato: gli emettiamo un token a vita breve, senza
+// mandare nessuna mail, e lo mandiamo alla stessa pagina di firma. Così
 // modulo, PDF ufficiale, log di consenso e copia firmata restano una sola
 // implementazione.
 const PARENT_SELF_TOKEN_TTL_MINUTES = 60;
@@ -1098,7 +1098,7 @@ const parentAuthorizationIssueOwnToken = onCall(
       registration.status === "cancelled" ||
       registration.registrationStatus === "cancelled"
     ) {
-      throw new HttpsError("failed-precondition", "L'iscrizione e' annullata.");
+      throw new HttpsError("failed-precondition", "L'iscrizione è annullata.");
     }
 
     const state =
@@ -1107,7 +1107,7 @@ const parentAuthorizationIssueOwnToken = onCall(
         : null;
 
     if (state?.status === "authorized") {
-      throw new HttpsError("failed-precondition", "L'autorizzazione e' gia' stata firmata.");
+      throw new HttpsError("failed-precondition", "L'autorizzazione è già stata firmata.");
     }
 
     const req = readParentAuthorizationRequest(registration);
@@ -1120,16 +1120,16 @@ const parentAuthorizationIssueOwnToken = onCall(
 
     const activity = await loadActivity(db, stakeId, activityId);
     if (!activity) {
-      throw new HttpsError("not-found", "Attivita' non trovata.");
+      throw new HttpsError("not-found", "Attività non trovata.");
     }
 
     // Un solo link vivo per iscrizione: si invalidano tutti quelli pendenti,
     // non solo l'ultimo annotato sull'iscrizione. Gli invii falliti ne lasciano
     // indietro di orfani, e due link validi nella stessa casella sono un modo
     // sicuro di far firmare la cosa sbagliata.
-    // L'id iscrizione (`child_<uid>_<figlio>`, `user_<uid>`) e' lo stesso in
-    // tutte le attivita': senza palo e attivita' si invaliderebbero anche i
-    // link dello stesso figlio su altre attivita' o su un altro palo.
+    // L'id iscrizione (`child_<uid>_<figlio>`, `user_<uid>`) è lo stesso in
+    // tutte le attività: senza palo e attività si invaliderebbero anche i
+    // link dello stesso figlio su altre attività o su un altro palo.
     const pendenti = await db
       .collection("parentAuthorizationTokens")
       .where("stakeId", "==", stakeId)
@@ -1140,7 +1140,7 @@ const parentAuthorizationIssueOwnToken = onCall(
 
     const daInvalidare = [...pendenti.docs];
     // Il token annotato sull'iscrizione stessa si invalida comunque, anche se
-    // il suo documento non porta palo/attivita' (token molto vecchi).
+    // il suo documento non porta palo/attività (token molto vecchi).
     const annotato = typeof state?.tokenId === "string" ? state.tokenId : "";
     if (annotato && !daInvalidare.some((vecchio) => vecchio.id === annotato)) {
       const annotatoSnap = await db.doc(`parentAuthorizationTokens/${annotato}`).get();
@@ -1331,7 +1331,7 @@ const parentAuthorizationConfirm = onCall(
 
     const activity = await loadActivity(db, stakeId, activityId);
     if (!activity) {
-      throw new HttpsError("not-found", "Attivita' non trovata.");
+      throw new HttpsError("not-found", "Attività non trovata.");
     }
 
     const ipAddress = (
@@ -1831,7 +1831,7 @@ const parentAuthorizationReject = onCall(
 );
 
 // =============================================================================
-// Cloud Function: reinvio admin o dirigente della stessa unita'
+// Cloud Function: reinvio admin o dirigente della stessa unità
 // =============================================================================
 
 const parentAuthorizationResend = onCall(
@@ -1866,7 +1866,7 @@ const parentAuthorizationResend = onCall(
 
     const activity = await loadActivity(db, stakeId, activityId);
     if (!activity) {
-      throw new HttpsError("not-found", "Attivita' non trovata.");
+      throw new HttpsError("not-found", "Attività non trovata.");
     }
 
     // Invalida vecchio token (se esiste).
@@ -1893,7 +1893,7 @@ const parentAuthorizationResend = onCall(
     }
 
     // Riusa la logica di invio iniziale forzando un nuovo invio.
-    // Reset dello stato per permettere al re-send: tolgo tokenId cosi' la
+    // Reset dello stato per permettere al re-send: tolgo tokenId così la
     // funzione interna ne crea uno nuovo (il check di skip avviene su
     // `email_error` o `tokenId presente AND status != email_error`).
     await db.doc(

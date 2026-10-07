@@ -668,7 +668,7 @@ export const registrationsService = {
   },
 
   // Admin elimina iscrizione (hard delete). Le rules consentono delete solo
-  // se l'utente e' admin di stake (firestore.rules:820).
+  // se l'utente è admin di stake (firestore.rules:820).
   async adminDeleteRegistration(stakeId: string, eventId: string, registrationId: string) {
     await deleteDoc(getRegistrationReference(stakeId, eventId, registrationId));
   },

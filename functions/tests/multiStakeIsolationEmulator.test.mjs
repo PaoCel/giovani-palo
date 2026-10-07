@@ -3,13 +3,13 @@
 // Storage 9299, progetto demo-room-planner.
 //
 // Due pali veri (A e B) creati con gli strumenti del repo (tools/lib/stakes.mjs),
-// ciascuno con admin, dirigente di unita', partecipante e genitore con figli.
+// ciascuno con admin, dirigente di unità, partecipante e genitore con figli.
 // Le RULES si provano con il client SDK e utenti reali di Auth (l'Admin SDK le
 // ignora: qui serve solo per il seed e per ispezionare lo stato). Le callable e i
 // trigger girano nell'emulatore delle Functions.
 //
-// Ogni esecuzione usa id univoci (runId) e ripulisce cio' che ha creato. Non
-// legge ne' modifica i pali gia' presenti nell'emulatore (palo-demo, ...): fa
+// Ogni esecuzione usa id univoci (runId) e ripulisce ciò che ha creato. Non
+// legge né modifica i pali già presenti nell'emulatore (palo-demo, ...): fa
 // eccezione un blocco di SOLA LETTURA su palo-demo e il dry-run di resetDemo.
 import test, { after, before, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -73,7 +73,7 @@ assert.match(AUTH_HOST, /^(127\.0\.0\.1|localhost):9199$/, "Auth Emulator sulla 
 if (STORAGE_HOST) assert.match(STORAGE_HOST, /^(127\.0\.0\.1|localhost):9299$/, "Storage Emulator sulla 9299");
 
 // Stessa guardia degli strumenti `tools/*.mjs`: se rifiuta questo ambiente, il
-// test non parte (e la guardia stessa e' coperta dal blocco "guardie" sotto).
+// test non parte (e la guardia stessa è coperta dal blocco "guardie" sotto).
 const target = resolveTarget({ kind: "stake" });
 assert.equal(target.emulator, true);
 initAdmin(target);
@@ -90,7 +90,7 @@ const iso = () => new Date().toISOString();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sha256 = (value) => crypto.createHash("sha256").update(value, "utf8").digest("hex");
 
-// Tutto cio' che creo, per la pulizia finale.
+// Tutto ciò che creo, per la pulizia finale.
 const track = { stakes: new Set(), uids: new Set(), storagePrefixes: new Set(), docs: new Set() };
 const apps = [];
 
@@ -176,7 +176,7 @@ async function outcome(promise) {
 
 async function expectDenied(promise, label) {
   const result = await outcome(promise);
-  assert.equal(result.ok, false, `${label}: doveva essere negata ed e' riuscita`);
+  assert.equal(result.ok, false, `${label}: doveva essere negata ed è riuscita`);
   assert.equal(
     result.code,
     "permission-denied",
@@ -191,7 +191,7 @@ async function expectAllowed(promise, label) {
 
 async function expectCallableCode(promise, code, label) {
   const result = await outcome(promise);
-  assert.equal(result.ok, false, `${label}: la callable doveva fallire con ${code} ed e' riuscita`);
+  assert.equal(result.ok, false, `${label}: la callable doveva fallire con ${code} ed è riuscita`);
   assert.equal(
     result.code,
     `functions/${code}`,
@@ -258,7 +258,7 @@ const PARENT_REQUEST = {
   parentPhone: "3330000000",
 };
 
-/** Iscrizione valida per validRegistrationPayload (nessuna chiave in piu'). */
+/** Iscrizione valida per validRegistrationPayload (nessuna chiave in più). */
 function registrationDoc({
   firstName,
   lastName,
@@ -396,7 +396,7 @@ async function seedStake(key) {
       name: `Palo Isolamento ${key} ${runId}`,
       supportContact: `supporto-${lower}@example.invalid`,
       units: [{ name: "Rione Uno" }, { name: "Rione Due" }],
-      // Niente `uid`: con un uid esplicito createStake presume un account Auth gia' esistente.
+      // Niente `uid`: con un uid esplicito createStake presume un account Auth già esistente.
       admin: {
         email: emailOf(`admin-${lower}`),
         firstName: `Admin${key}`,
@@ -456,7 +456,7 @@ async function seedStake(key) {
     activityDoc("Bozza privata", { isPublic: false, isVisible: false, status: "draft" }),
   );
   await adminDb.doc(`${base}/camp`).set(activityDoc("Campeggio test", { activityType: "camp", overnight: true }));
-  // Attivita' aperta senza iscrizioni: serve alle prove di creazione da parte dei proprietari.
+  // Attività aperta senza iscrizioni: serve alle prove di creazione da parte dei proprietari.
   await adminDb.doc(`${base}/open`).set(activityDoc("Attivita aperta", { activityType: "trip" }));
   for (const activityId of ["pub", "priv"]) {
     await adminDb.doc(`${base}/${activityId}/config/form`).set({ allowGuestRegistration: false, requireLoginForEdit: true });
@@ -621,7 +621,7 @@ describe("guardie degli strumenti (target.mjs)", () => {
 // [descrizione, attore, consentito, operazione con la stessa forma usata dal client]
 const RULE_CASES = [
   // --- controlli positivi: ogni admin opera nel proprio palo -----------------
-  ["admin A legge attivita', iscrizioni, unita' e utenti del proprio palo", "adminA", true, async (db, c) => {
+  ["admin A legge attività, iscrizioni, unità e utenti del proprio palo", "adminA", true, async (db, c) => {
     await listAll(db, `stakes/${c.A.id}/activities`);
     await listAll(db, `stakes/${c.A.id}/activities/pub/registrations`);
     await getOne(db, `stakes/${c.A.id}/activities/pub/registrations/${c.A.partReg}`);
@@ -631,10 +631,10 @@ const RULE_CASES = [
     await getOne(db, `users/${c.A.participant.uid}`);
     await listWhere(db, "users", where("stakeId", "==", c.A.id));
     await getOne(db, `users/${c.A.parent.uid}/children/figlio-1`);
-    // La list dei figli e' dimostrabile alle rules solo con il filtro sul palo.
+    // La list dei figli è dimostrabile alle rules solo con il filtro sul palo.
     await listWhere(db, `users/${c.A.parent.uid}/children`, where("stakeId", "==", c.A.id));
   }],
-  ["admin A scrive iscrizioni, unita', attivita' e documento del proprio palo", "adminA", true, async (db, c) => {
+  ["admin A scrive iscrizioni, unità, attività e documento del proprio palo", "adminA", true, async (db, c) => {
     const registration = doc(db, `stakes/${c.A.id}/activities/pub/registrations/scritta-da-admin`);
     await setDoc(registration, { fullName: "Scritta da admin" });
     await updateDoc(registration, { fullName: "Aggiornata da admin" });
@@ -682,8 +682,8 @@ const RULE_CASES = [
   }],
 
   // --- admin A NON entra in B -------------------------------------------------
-  ["admin A non elenca le attivita' di B senza filtro", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities`)],
-  ["admin A non legge un'attivita' privata di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/priv`)],
+  ["admin A non elenca le attività di B senza filtro", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities`)],
+  ["admin A non legge un'attività privata di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/priv`)],
   ["admin A non elenca le iscrizioni di B", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities/pub/registrations`)],
   ["admin A non legge un'iscrizione di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/pub/registrations/${c.B.partReg}`)],
   ["admin A non crea iscrizioni in B", "adminA", false, (db, c) =>
@@ -696,18 +696,18 @@ const RULE_CASES = [
     updateDoc(doc(db, `stakes/${c.B.id}/activities/camp/registrations/${c.B.partReg}`), {
       assignedPatrolId: "p1", assignedPatrolName: "Pattuglia", assignedPatrolRole: "member", assignedCommittees: [], updatedAt: iso(),
     })],
-  ["admin A non legge un'unita' non attiva di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/units/${c.B.inactiveUnit.id}`)],
-  ["admin A non elenca tutte le unita' di B (anche inattive)", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/units`)],
-  ["admin A non crea unita' in B", "adminA", false, (db, c) =>
+  ["admin A non legge un'unità non attiva di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/units/${c.B.inactiveUnit.id}`)],
+  ["admin A non elenca tutte le unità di B (anche inattive)", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/units`)],
+  ["admin A non crea unità in B", "adminA", false, (db, c) =>
     setDoc(doc(db, `stakes/${c.B.id}/units/intrusa`), { name: "Intrusa", type: "rione", isActive: true, createdAt: iso(), updatedAt: iso() })],
-  ["admin A non aggiorna unita' di B", "adminA", false, (db, c) =>
+  ["admin A non aggiorna unità di B", "adminA", false, (db, c) =>
     updateDoc(doc(db, `stakes/${c.B.id}/units/${c.B.unit1.id}`), { name: "Manomessa" })],
-  ["admin A non cancella unita' di B", "adminA", false, (db, c) => deleteDoc(doc(db, `stakes/${c.B.id}/units/${c.B.unit1.id}`))],
-  ["admin A non crea attivita' in B", "adminA", false, (db, c) =>
+  ["admin A non cancella unità di B", "adminA", false, (db, c) => deleteDoc(doc(db, `stakes/${c.B.id}/units/${c.B.unit1.id}`))],
+  ["admin A non crea attività in B", "adminA", false, (db, c) =>
     setDoc(doc(db, `stakes/${c.B.id}/activities/intrusa`), { title: "Intrusa" })],
-  ["admin A non aggiorna attivita' di B", "adminA", false, (db, c) =>
+  ["admin A non aggiorna attività di B", "adminA", false, (db, c) =>
     updateDoc(doc(db, `stakes/${c.B.id}/activities/pub`), { title: "Manomessa" })],
-  ["admin A non cancella attivita' di B", "adminA", false, (db, c) => deleteDoc(doc(db, `stakes/${c.B.id}/activities/pub`))],
+  ["admin A non cancella attività di B", "adminA", false, (db, c) => deleteDoc(doc(db, `stakes/${c.B.id}/activities/pub`))],
   ["admin A non aggiorna il documento stakes/B", "adminA", false, (db, c) => updateDoc(doc(db, `stakes/${c.B.id}`), { name: "Palo rubato" })],
   ["admin A non cancella il documento stakes/B", "adminA", false, (db, c) => deleteDoc(doc(db, `stakes/${c.B.id}`))],
   ["admin A non legge un utente di B (get)", "adminA", false, (db, c) => getOne(db, `users/${c.B.participant.uid}`)],
@@ -731,7 +731,7 @@ const RULE_CASES = [
   ["admin A non legge i log di consenso di B", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities/pub/consentAuditLogs`)],
   ["admin A non legge i dispositivi push di B", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/adminPushDevices`)],
   ["admin A non legge le note di trasporto di B", "adminA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities/pub/transportNotes`)],
-  ["admin A non legge la configurazione del modulo di un'attivita' privata di B", "adminA", false, (db, c) =>
+  ["admin A non legge la configurazione del modulo di un'attività privata di B", "adminA", false, (db, c) =>
     getOne(db, `stakes/${c.B.id}/activities/priv/config/form`)],
   ["admin A non legge il piano campo di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/camp/management/camp`)],
   ["admin A non scrive il piano campo di B", "adminA", false, (db, c) =>
@@ -747,23 +747,23 @@ const RULE_CASES = [
     listWhere(db, "parentAuthorizationTokens", where("stakeId", "==", c.B.id))],
 
   // --- letture volutamente aperte (nessuna restrizione da inventare) ------------
-  ["il documento stakes/B e' pubblico anche per l'admin di A (get e list)", "adminA", true, async (db, c) => {
+  ["il documento stakes/B è pubblico anche per l'admin di A (get e list)", "adminA", true, async (db, c) => {
     await getOne(db, `stakes/${c.B.id}`);
     const listed = await listWhere(db, "stakes", where("slug", "==", c.B.stake.slug));
     assert.deepEqual(ids(listed), [c.B.id]);
   }],
-  ["le attivita' pubbliche di B sono leggibili da chiunque (get, list filtrata, modulo)", "adminA", true, async (db, c) => {
+  ["le attività pubbliche di B sono leggibili da chiunque (get, list filtrata, modulo)", "adminA", true, async (db, c) => {
     await getOne(db, `stakes/${c.B.id}/activities/pub`);
     const listed = await listWhere(db, `stakes/${c.B.id}/activities`, where("isPublic", "==", true), where("isVisible", "==", true));
     assert.deepEqual(ids(listed), ["camp", "open", "pub"], "la lista pubblica non include la bozza privata");
     await getOne(db, `stakes/${c.B.id}/activities/pub/config/form`);
   }],
-  ["le unita' attive di B sono pubbliche (servono al modulo di iscrizione)", "adminA", true, async (db, c) => {
+  ["le unità attive di B sono pubbliche (servono al modulo di iscrizione)", "adminA", true, async (db, c) => {
     const listed = await listWhere(db, `stakes/${c.B.id}/units`, where("isActive", "==", true));
     assert.deepEqual(ids(listed), [c.B.unit1.id, c.B.unit2.id].sort());
     await getOne(db, `stakes/${c.B.id}/units/${c.B.unit1.id}`);
   }],
-  ["un visitatore non autenticato vede solo stake, attivita' pubbliche e unita' attive", "signedOut", true, async (db, c) => {
+  ["un visitatore non autenticato vede solo stake, attività pubbliche e unità attive", "signedOut", true, async (db, c) => {
     await getOne(db, `stakes/${c.A.id}`);
     await listWhere(db, "stakes", where("slug", "==", c.A.stake.slug));
     await getOne(db, `stakes/${c.A.id}/activities/pub`);
@@ -774,14 +774,14 @@ const RULE_CASES = [
     listAll(db, `stakes/${c.A.id}/activities/pub/registrations`)],
   ["un visitatore non autenticato non legge una bozza", "signedOut", false, (db, c) => getOne(db, `stakes/${c.A.id}/activities/priv`)],
 
-  // --- dirigente di unita' A ------------------------------------------------------
-  ["dirigente A legge i giovani e le iscrizioni della propria unita' (query esatte del client)", "leaderA", true, async (db, c) => {
+  // --- dirigente di unità A ------------------------------------------------------
+  ["dirigente A legge i giovani e le iscrizioni della propria unità (query esatte del client)", "leaderA", true, async (db, c) => {
     const youth = await listWhere(db, "users", where("stakeId", "==", c.A.id), where("unitId", "==", c.A.unit1.id));
     assert.ok(ids(youth).includes(c.A.participant.uid));
     assert.ok(!ids(youth).includes(c.B.participant.uid));
     const regs = await listWhere(db, `stakes/${c.A.id}/activities/pub/registrations`, where("unitId", "==", c.A.unit1.id));
     assert.ok(ids(regs).includes(c.A.partReg));
-    assert.ok(!ids(regs).includes(c.A.otherReg), "l'iscrizione dell'altra unita' non rientra");
+    assert.ok(!ids(regs).includes(c.A.otherReg), "l'iscrizione dell'altra unità non rientra");
     await getOne(db, `stakes/${c.A.id}/activities/priv`);
     await listAll(db, `stakes/${c.A.id}/activities/pub/transportNotes`);
     await getOne(db, `users/${c.A.participant.uid}`);
@@ -791,23 +791,23 @@ const RULE_CASES = [
     await setDoc(note, { registrationId: c.A.partReg, resolvedByUid: c.actors.leaderA.uid, resolvedAt: iso() });
     await deleteDoc(note);
   }],
-  ["dirigente A non elenca i giovani dell'altra unita' del proprio palo", "leaderA", false, (db, c) =>
+  ["dirigente A non elenca i giovani dell'altra unità del proprio palo", "leaderA", false, (db, c) =>
     listWhere(db, "users", where("stakeId", "==", c.A.id), where("unitId", "==", c.A.unit2.id))],
-  ["dirigente A non elenca tutto il proprio palo senza filtro unita'", "leaderA", false, (db, c) =>
+  ["dirigente A non elenca tutto il proprio palo senza filtro unità", "leaderA", false, (db, c) =>
     listWhere(db, "users", where("stakeId", "==", c.A.id))],
   ["dirigente A non elenca i giovani di B", "leaderA", false, (db, c) =>
     listWhere(db, "users", where("stakeId", "==", c.B.id), where("unitId", "==", c.B.unit1.id))],
   ["dirigente A non legge un utente di B", "leaderA", false, (db, c) => getOne(db, `users/${c.B.participant.uid}`)],
-  ["dirigente A non elenca le iscrizioni di un'unita' di B", "leaderA", false, (db, c) =>
+  ["dirigente A non elenca le iscrizioni di un'unità di B", "leaderA", false, (db, c) =>
     listWhere(db, `stakes/${c.B.id}/activities/pub/registrations`, where("unitId", "==", c.B.unit1.id))],
-  ["dirigente A non elenca le iscrizioni di B nemmeno con l'id della propria unita'", "leaderA", false, (db, c) =>
+  ["dirigente A non elenca le iscrizioni di B nemmeno con l'id della propria unità", "leaderA", false, (db, c) =>
     listWhere(db, `stakes/${c.B.id}/activities/pub/registrations`, where("unitId", "==", c.A.unit1.id))],
   ["dirigente A non legge un'iscrizione di B", "leaderA", false, (db, c) =>
     getOne(db, `stakes/${c.B.id}/activities/pub/registrations/${c.B.partReg}`)],
-  ["dirigente A non elenca le iscrizioni dell'altra unita' del proprio palo", "leaderA", false, (db, c) =>
+  ["dirigente A non elenca le iscrizioni dell'altra unità del proprio palo", "leaderA", false, (db, c) =>
     listWhere(db, `stakes/${c.A.id}/activities/pub/registrations`, where("unitId", "==", c.A.unit2.id))],
-  ["dirigente A non elenca le attivita' di B senza filtro", "leaderA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities`)],
-  ["dirigente A non legge un'attivita' privata di B", "leaderA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/priv`)],
+  ["dirigente A non elenca le attività di B senza filtro", "leaderA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities`)],
+  ["dirigente A non legge un'attività privata di B", "leaderA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/priv`)],
   ["dirigente A non legge le note di trasporto di B", "leaderA", false, (db, c) => listAll(db, `stakes/${c.B.id}/activities/pub/transportNotes`)],
   ["dirigente A non scrive note di trasporto in B", "leaderA", false, (db, c) =>
     setDoc(doc(db, `stakes/${c.B.id}/activities/pub/transportNotes/${c.B.partReg}`), {
@@ -844,14 +844,14 @@ const RULE_CASES = [
     listWhere(db, "users", where("stakeId", "==", c.B.id))],
   ["partecipante A non elenca gli utenti del proprio palo", "participantA", false, (db, c) =>
     listWhere(db, "users", where("stakeId", "==", c.A.id))],
-  ["partecipante A non legge un'attivita' privata di B", "participantA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/priv`)],
+  ["partecipante A non legge un'attività privata di B", "participantA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/priv`)],
   ["partecipante A non legge le domande di una iscrizione di B", "participantA", false, (db, c) =>
     listAll(db, `stakes/${c.B.id}/activities/pub/registrations/${c.B.partReg}/questions`)],
   ["partecipante A non legge il piano campo di B", "participantA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/camp/management/camp`)],
   ["partecipante B legge il piano campo del proprio campeggio (controllo positivo)", "participantB", true, (db, c) =>
     getOne(db, `stakes/${c.B.id}/activities/camp/management/camp`)],
 
-  ["partecipante A crea la propria iscrizione in un'attivita' aperta (controllo positivo, payload completo)", "participantA", true, (db, c) =>
+  ["partecipante A crea la propria iscrizione in un'attività aperta (controllo positivo, payload completo)", "participantA", true, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.A.id}/activities/open/registrations/user_${c.actors.participantA.uid}`),
       registrationDoc({ firstName: "Ginevra", lastName: "Alderighi", unit: c.A.unit1, userId: c.actors.participantA.uid }),
@@ -861,7 +861,7 @@ const RULE_CASES = [
       doc(db, `stakes/${c.A.id}/activities/open/registrations/user_${c.B.participant.uid}`),
       registrationDoc({ firstName: "Ottavia", lastName: "Zanzibar", unit: c.A.unit1, userId: c.B.participant.uid }),
     )],
-  ["partecipante A non crea iscrizioni in un'attivita' non pubblica di B (payload valido)", "participantA", false, (db, c) =>
+  ["partecipante A non crea iscrizioni in un'attività non pubblica di B (payload valido)", "participantA", false, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.B.id}/activities/priv/registrations/user_${c.actors.participantA.uid}`),
       registrationDoc({ firstName: "Ginevra", lastName: "Alderighi", unit: c.B.unit1, userId: c.actors.participantA.uid }),
@@ -881,7 +881,7 @@ const RULE_CASES = [
       "la query famiglia di A restituisce solo i figli di A",
     );
   }],
-  ["genitore A crea l'iscrizione di un proprio figlio in un'attivita' aperta (controllo positivo, payload completo)", "parentA", true, (db, c) =>
+  ["genitore A crea l'iscrizione di un proprio figlio in un'attività aperta (controllo positivo, payload completo)", "parentA", true, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.A.id}/activities/open/registrations/child_${c.actors.parentA.uid}_figlio-1`),
       registrationDoc({
@@ -930,7 +930,7 @@ describe("RULES: isolamento fra pali", () => {
     });
   }
 
-  test("palo B non e' stato toccato da nessuna delle scritture negate", async () => {
+  test("palo B non è stato toccato da nessuna delle scritture negate", async () => {
     const stake = (await adminDb.doc(`stakes/${x.B.id}`).get()).data();
     assert.equal(stake.name, x.B.stake.name);
     for (const path of [
@@ -967,7 +967,7 @@ describe("CALLABLE: isolamento fra pali", () => {
   const issue = "parentAuthorizationIssueOwnToken";
 
   before(async () => {
-    // Avvio a freddo del processo Functions: la prima chiamata puo' durare 10-20 s.
+    // Avvio a freddo del processo Functions: la prima chiamata può durare 10-20 s.
     const warmup = await x.actors.parentA.call("parentAuthorizationGetContext", { token: "avvio" });
     assert.equal(warmup.data.status, "not_found");
   });
@@ -1010,11 +1010,11 @@ describe("CALLABLE: isolamento fra pali", () => {
     assert.equal(issued.createdByMode, "self");
     assert.equal(issued.createdByUserId, actors.parentA.uid);
     assert.equal((await adminDb.doc(`parentAuthorizationTokens/${A.pendingToken}`).get()).data().status, "invalidated");
-    // Il token di B non e' stato toccato.
+    // Il token di B non è stato toccato.
     assert.equal((await adminDb.doc(`parentAuthorizationTokens/${B.pendingToken}`).get()).data().status, "pending");
   });
 
-  test("issueOwnToken: l'invalidazione e' limitata a palo e attivita' (stesso id iscrizione in tre posti)", { timeout: 120_000 }, async () => {
+  test("issueOwnToken: l'invalidazione è limitata a palo e attività (stesso id iscrizione in tre posti)", { timeout: 120_000 }, async () => {
     const { A, B } = x;
     const parentT = await createUser({
       key: "parent-t", role: "parent", firstName: "Teresa", lastName: "Token", stake: A.stake, unit: A.unit1,
@@ -1044,12 +1044,12 @@ describe("CALLABLE: isolamento fra pali", () => {
     const registrationToken = async (stakeId, activityId) =>
       (await adminDb.doc(`stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`).get()).data().parentAuthorization.tokenId;
 
-    // Il trigger onRegistrationPendingParentAuth sui seed non deve creare altri token (tokenId gia' presente).
+    // Il trigger onRegistrationPendingParentAuth sui seed non deve creare altri token (tokenId già presente).
     await sleep(1500);
 
     const first = await client.call(issue, { stakeId: A.id, activityId: "tok-x", registrationId });
     assert.equal(first.data.ok, true);
-    assert.equal(await status(A.id, "tok-x"), "invalidated", "il token di A/X e' invalidato");
+    assert.equal(await status(A.id, "tok-x"), "invalidated", "il token di A/X è invalidato");
     assert.equal(await status(A.id, "tok-y"), "pending", "A/Y resta valido");
     assert.equal(await status(B.id, "tok-x2"), "pending", "B/X2 resta valido");
     assert.equal(await registrationToken(A.id, "tok-y"), tokenIds[`${A.id}/tok-y`]);
@@ -1060,7 +1060,7 @@ describe("CALLABLE: isolamento fra pali", () => {
       .map((d) => d.data()).filter((d) => d.event === "token_invalidated");
     assert.deepEqual(invalidations.map((d) => d.tokenId), [tokenIds[`${A.id}/tok-x`]]);
 
-    // Specchio: emettere per B/X2 non tocca ne' A/X (token nuovo compreso) ne' A/Y.
+    // Specchio: emettere per B/X2 non tocca né A/X (token nuovo compreso) né A/Y.
     const newTokenOfAX = sha256(first.data.token);
     const second = await client.call(issue, { stakeId: B.id, activityId: "tok-x2", registrationId });
     assert.equal(second.data.ok, true);
@@ -1078,7 +1078,7 @@ describe("CALLABLE: isolamento fra pali", () => {
     await expectCallableCode(actors.adminA.call("roomManagementSave", request(B.id, "camp")), "permission-denied", "admin A su B/camp");
     await expectCallableCode(
       actors.adminA.call("roomManagementSave", request(B.id, "attivita-inesistente")),
-      "permission-denied", "admin A su attivita' inesistente di B (nessun oracolo di esistenza)",
+      "permission-denied", "admin A su attività inesistente di B (nessun oracolo di esistenza)",
     );
     await expectCallableCode(actors.leaderA.call("roomManagementSave", request(B.id, "camp")), "permission-denied", "dirigente A su B");
     await expectCallableCode(actors.participantA.call("roomManagementSave", request(B.id, "camp")), "permission-denied", "partecipante A su B");
@@ -1106,19 +1106,19 @@ describe("CALLABLE: isolamento fra pali", () => {
     await expectCallableCode(actors.adminA.call("campManagementSave", request(B.id, "camp")), "permission-denied", "admin A su B/camp");
     await expectCallableCode(
       actors.adminA.call("campManagementSave", request(B.id, "attivita-inesistente")),
-      "permission-denied", "admin A su attivita' inesistente di B (nessun oracolo di esistenza)",
+      "permission-denied", "admin A su attività inesistente di B (nessun oracolo di esistenza)",
     );
     await expectCallableCode(actors.leaderA.call("campManagementSave", request(B.id, "camp")), "permission-denied", "dirigente A su B");
     await expectCallableCode(actors.participantA.call("campManagementSave", request(B.id, "camp")), "permission-denied", "partecipante A su B");
-    assert.deepEqual(await campPlan(B.id), planBefore, "il piano campo di B e' intatto");
+    assert.deepEqual(await campPlan(B.id), planBefore, "il piano campo di B è intatto");
     assert.equal(await registrationStamp(B.id), stampBefore, "le iscrizioni di B non sono state sincronizzate");
 
     const saved = await actors.adminB.call("campManagementSave", request(B.id, "camp"));
     assert.equal(saved.data.ok, true, "l'admin di B salva nel proprio palo");
-    assert.notEqual((await campPlan(B.id)).updatedAt, planBefore.updatedAt, "il piano campo di B e' stato salvato");
+    assert.notEqual((await campPlan(B.id)).updatedAt, planBefore.updatedAt, "il piano campo di B è stato salvato");
     const savedByLeader = await actors.leaderB.call("campManagementSave", request(B.id, "camp"));
     assert.equal(savedByLeader.data.ok, true, "il dirigente di B salva nel proprio palo");
-    assert.deepEqual(await campPlan(A.id), planABefore, "il palo A non e' stato scritto dai salvataggi di B");
+    assert.deepEqual(await campPlan(A.id), planABefore, "il palo A non è stato scritto dai salvataggi di B");
   });
 
   test("roomMateSuggestions: il partecipante di A non interroga il palo B", { timeout: 120_000 }, async () => {
@@ -1145,7 +1145,7 @@ describe("CALLABLE: isolamento fra pali", () => {
 // 3. TRIGGER propagateUnitNameChange
 // ===========================================================================
 describe("TRIGGER: propagateUnitNameChange", () => {
-  test("rinominare un'unita' di A non riscrive gli utenti di B con lo stesso id unita'", { timeout: 90_000 }, async () => {
+  test("rinominare un'unità di A non riscrive gli utenti di B con lo stesso id unità", { timeout: 90_000 }, async () => {
     const stakes = { A: `iso-ua-${runId}`, B: `iso-ub-${runId}` };
     for (const stakeId of Object.values(stakes)) track.stakes.add(stakeId);
     const sharedUnitId = `rione-aurora-${runId}`; // lo slug del nome: identico fra due pali
@@ -1188,7 +1188,7 @@ describe("TRIGGER: propagateUnitNameChange", () => {
       "la propagazione del nome sugli utenti di A",
       30_000,
     );
-    assert.equal(usersA[2].unitName, "Altra", "un'altra unita' dello stesso palo non cambia");
+    assert.equal(usersA[2].unitName, "Altra", "un'altra unità dello stesso palo non cambia");
     const regA = await waitFor(
       async () => (await adminDb.doc(`stakes/${stakes.A}/activities/pub/registrations/reg-a`).get()).data(),
       (data) => data.unitNameSnapshot === NEW,
@@ -1212,10 +1212,10 @@ describe("TRIGGER: propagateUnitNameChange", () => {
 });
 
 // ===========================================================================
-// 4. EMAIL: fuori da produzione la mail iniziale e' simulata
+// 4. EMAIL: fuori da produzione la mail iniziale è simulata
 // ===========================================================================
 describe("EMAIL: simulazione fuori da produzione", () => {
-  test("la mail iniziale di autorizzazione e' simulata, non fallisce e non crea token fuori dal palo", { timeout: 90_000 }, async () => {
+  test("la mail iniziale di autorizzazione è simulata, non fallisce e non crea token fuori dal palo", { timeout: 90_000 }, async () => {
     const { B } = x;
     const parentUid = uid("parent-mail");
     const childId = "figlio-m";
@@ -1252,7 +1252,7 @@ describe("EMAIL: simulazione fuori da produzione", () => {
     assert.ok(!settled.events.includes("email_failed"), `nessun invio fallito (eventi: ${settled.events})`);
     assert.ok(settled.events.includes("authorization_requested"));
     const sentLog = settled.logs.find((entry) => entry.event === "email_sent");
-    assert.equal(sentLog.emailProvider, "simulated", "l'audit dice che la mail e' simulata, non inviata da Brevo");
+    assert.equal(sentLog.emailProvider, "simulated", "l'audit dice che la mail è simulata, non inviata da Brevo");
     assert.equal(sentLog.brevoMessageId, null);
 
     const tokens = await adminDb.collection("parentAuthorizationTokens").where("registrationId", "==", registrationId).get();
@@ -1264,13 +1264,13 @@ describe("EMAIL: simulazione fuori da produzione", () => {
     assert.equal(token.parentEmail, "genitore@example.invalid");
     assert.equal(settled.state.tokenId, tokens.docs[0].id);
 
-    // Nessuna rincorsa del trigger su se stesso e nessun email_error piu' tardi.
+    // Nessuna rincorsa del trigger su se stesso e nessun email_error più tardi.
     await sleep(4000);
     const later = await read();
     assert.equal(later.state.status, "email_sent", "lo stato non finisce mai in email_error");
     assert.ok(!later.events.includes("email_failed"));
     const tokensLater = await adminDb.collection("parentAuthorizationTokens").where("registrationId", "==", registrationId).get();
-    assert.equal(tokensLater.size, 1, "nessun token in piu' dopo qualche secondo");
+    assert.equal(tokensLater.size, 1, "nessun token in più dopo qualche secondo");
   });
 });
 
@@ -1289,17 +1289,17 @@ describe("create-stake", () => {
     }
   };
 
-  test("rifiuta un id palo gia' esistente senza sovrascriverlo", async () => {
+  test("rifiuta un id palo già esistente senza sovrascriverlo", async () => {
     const before = (await adminDb.doc(`stakes/${x.A.id}`).get()).data();
     await assert.rejects(
       createStake(ctx(), { stakeId: x.A.id, name: "Sovrascrittura", units: [{ name: "Rione Nuovo" }], apply: true }),
       /esiste gia/,
     );
-    assert.deepEqual((await adminDb.doc(`stakes/${x.A.id}`).get()).data(), before, "il palo esistente e' intatto");
+    assert.deepEqual((await adminDb.doc(`stakes/${x.A.id}`).get()).data(), before, "il palo esistente è intatto");
     assert.equal((await adminDb.doc(`stakes/${x.A.id}/units/${x.A.id}-rione-nuovo`).get()).exists, false);
   });
 
-  test("rifiuta id non validi, nome mancante e unita' duplicate", async () => {
+  test("rifiuta id non validi, nome mancante e unità duplicate", async () => {
     await assert.rejects(createStake(ctx(), { stakeId: "AB", name: "Corto" }), /Id palo non valido/);
     await assert.rejects(createStake(ctx(), { stakeId: "con spazi", name: "Spazi" }), /Id palo non valido/);
     await assert.rejects(createStake(ctx(), { stakeId: `iso-noname-${runId}`, name: "  " }), /Nome del palo mancante/);
@@ -1311,7 +1311,7 @@ describe("create-stake", () => {
     assert.equal((await adminDb.doc(`stakes/iso-dup-${runId}`).get()).exists, false);
   });
 
-  test("con un admin e senza unita' lancia e non scrive niente", async () => {
+  test("con un admin e senza unità lancia e non scrive niente", async () => {
     const stakeId = `iso-nounit-${runId}`;
     track.stakes.add(stakeId);
     const email = emailOf("admin-nounit");
@@ -1323,7 +1323,7 @@ describe("create-stake", () => {
     assert.equal(await authUserExists(email), false, "nessun account Auth creato");
   });
 
-  test("rifiuta un admin la cui unita' non e' fra quelle del palo, o con un account di un altro palo", async () => {
+  test("rifiuta un admin la cui unità non è fra quelle del palo, o con un account di un altro palo", async () => {
     const stakeId = `iso-badadmin-${runId}`;
     track.stakes.add(stakeId);
     await assert.rejects(
@@ -1332,19 +1332,19 @@ describe("create-stake", () => {
         admin: { email: emailOf("admin-badunit"), firstName: "Mario", lastName: "Rossi", unit: "Rione Inesistente", password: PASSWORD },
         apply: true,
       }),
-      /non e' fra quelle del palo/,
+      /non è fra quelle del palo/,
     );
-    // L'admin di A ha gia' un profilo nel palo A: non si sposta in un palo nuovo.
+    // L'admin di A ha già un profilo nel palo A: non si sposta in un palo nuovo.
     await assert.rejects(
       createStake(ctx(), {
         stakeId, name: "Admin rubato", units: [{ name: "Rione Uno" }],
         admin: { email: x.A.admin.email, firstName: "Admin", lastName: "Rubato", password: PASSWORD },
         apply: true,
       }),
-      /ha gia' un profilo nel palo/,
+      /ha già un profilo nel palo/,
     );
     assert.equal((await adminDb.doc(`stakes/${stakeId}`).get()).exists, false);
-    assert.equal((await adminDb.doc(`users/${x.A.admin.uid}`).get()).data().stakeId, x.A.id, "il profilo dell'admin di A non e' stato spostato");
+    assert.equal((await adminDb.doc(`users/${x.A.admin.uid}`).get()).data().stakeId, x.A.id, "il profilo dell'admin di A non è stato spostato");
     assert.equal(await authUserExists(emailOf("admin-badunit")), false);
   });
 
@@ -1365,7 +1365,7 @@ describe("create-stake", () => {
     assert.equal(await authUserExists(email), false);
   });
 
-  test("con admin e unita' crea un admin che supera la scrittura di login dell'app", { timeout: 60_000 }, async () => {
+  test("con admin e unità crea un admin che supera la scrittura di login dell'app", { timeout: 60_000 }, async () => {
     const stakeId = `iso-new-${runId}`;
     track.stakes.add(stakeId);
     const email = emailOf("admin-new");
@@ -1380,7 +1380,7 @@ describe("create-stake", () => {
     assert.deepEqual(result.units.map((u) => u.id), [`${stakeId}-rione-uno`, `${stakeId}-ramo-due`]);
     assert.deepEqual(result.units.map((u) => u.type), ["rione", "ramo"]);
 
-    // Un secondo giro sullo stesso id e' rifiutato: niente duplicati.
+    // Un secondo giro sullo stesso id è rifiutato: niente duplicati.
     await assert.rejects(createStake(ctx(), { stakeId, name: "Palo Nuovo", units: [{ name: "Rione Uno" }], apply: true }), /esiste gia/);
 
     const stored = (await adminDb.doc(`users/${adminUid}`).get()).data();
@@ -1414,14 +1414,14 @@ describe("create-stake", () => {
 
     // Il nuovo admin governa il proprio palo, non quello degli altri.
     await expectAllowed(listWhere(admin.db, "users", where("stakeId", "==", stakeId)), "elenco utenti del nuovo palo");
-    await expectAllowed(listAll(admin.db, `stakes/${stakeId}/units`), "unita' del nuovo palo");
+    await expectAllowed(listAll(admin.db, `stakes/${stakeId}/units`), "unità del nuovo palo");
     await expectAllowed(
       setDoc(doc(admin.db, `stakes/${stakeId}/activities/prima`), { title: "Prima attivita", isPublic: false }),
-      "prima attivita' del nuovo palo",
+      "prima attività del nuovo palo",
     );
     await expectDenied(getOne(admin.db, `users/${x.A.participant.uid}`), "utente del palo A");
     await expectDenied(listAll(admin.db, `stakes/${x.A.id}/activities/pub/registrations`), "iscrizioni del palo A");
-    await expectDenied(setDoc(doc(admin.db, `stakes/${x.A.id}/units/intrusa`), { name: "x", type: "rione", isActive: true, createdAt: stamp, updatedAt: stamp }), "unita' del palo A");
+    await expectDenied(setDoc(doc(admin.db, `stakes/${x.A.id}/units/intrusa`), { name: "x", type: "rione", isActive: true, createdAt: stamp, updatedAt: stamp }), "unità del palo A");
     // E viceversa: l'admin di A non entra nel palo nuovo.
     await expectDenied(listAll(x.actors.adminA.db, `stakes/${stakeId}/activities`), "admin A sul palo nuovo");
     await expectDenied(getOne(x.actors.adminA.db, `users/${adminUid}`), "admin A sul profilo del nuovo admin");
@@ -1479,7 +1479,7 @@ describe("create-stake", () => {
     assert.equal((await adminDb.doc(`stakes/iso-cli2-${runId}`).get()).exists, false);
   });
 
-  test("admin.uid e' l'uid desiderato per un account nuovo (creato con quell'uid)", { timeout: 60_000 }, async () => {
+  test("admin.uid è l'uid desiderato per un account nuovo (creato con quell'uid)", { timeout: 60_000 }, async () => {
     const stakeId = `iso-uid-${runId}`;
     track.stakes.add(stakeId);
     const adminUid = uid("admin-uid");
@@ -1509,7 +1509,7 @@ describe("create-stake", () => {
     );
   });
 
-  test("admin.uid di un account Auth gia' esistente: viene riusato, senza toccarne la password", { timeout: 60_000 }, async () => {
+  test("admin.uid di un account Auth già esistente: viene riusato, senza toccarne la password", { timeout: 60_000 }, async () => {
     const stakeId = `iso-reuse-${runId}`;
     track.stakes.add(stakeId);
     const adminUid = uid("admin-reuse");
@@ -1534,7 +1534,7 @@ describe("create-stake", () => {
 
   // Con admin.uid di un account esistente, l'email passata non viene confrontata con
   // quella dell'account: il profilo users/{uid} nasce con un'email diversa da quella
-  // con cui l'admin accede (senza password lo script fallisce piu' tardi su
+  // con cui l'admin accede (senza password lo script fallisce più tardi su
   // generatePasswordResetLink, con password no). Meglio rifiutare subito.
   test(
     "admin.uid di un account esistente con un'email diversa da quella indicata: rifiutato, niente scritto",
@@ -1564,13 +1564,13 @@ describe("create-stake", () => {
         admin: { uid: x.A.admin.uid, email: x.A.admin.email, firstName: "Admin", lastName: "Rubato", password: PASSWORD },
         apply: true,
       }),
-      /ha gia' un profilo nel palo/,
+      /ha già un profilo nel palo/,
     );
     assert.equal((await adminDb.doc(`stakes/${stakeId}`).get()).exists, false);
     assert.equal((await adminDb.doc(`users/${x.A.admin.uid}`).get()).data().stakeId, x.A.id);
   });
 
-  test("admin.uid nuovo ma email gia' di un altro account: l'apply fallisce e non scrive il palo", async () => {
+  test("admin.uid nuovo ma email già di un altro account: l'apply fallisce e non scrive il palo", async () => {
     const stakeId = `iso-mailtaken-${runId}`;
     track.stakes.add(stakeId);
     const adminUid = uid("admin-mailtaken");
@@ -1606,11 +1606,11 @@ describe("dati demo: forma dei documenti", () => {
   const input = { today: "2026-10-06", parentEmail: "", appUrl: "http://localhost:5173" };
   const dataset = buildDemoDataset({ ...input, stakeId: DEMO_STAKE_ID });
 
-  test("senza stakeId ne' prefix il dataset e' quello di palo-demo (default)", () => {
+  test("senza stakeId né prefix il dataset è quello di palo-demo (default)", () => {
     assert.deepEqual(buildDemoDataset(input).docs, dataset.docs);
   });
 
-  test("il dataset e' deterministico, senza indirizzi veri e senza percorsi duplicati", () => {
+  test("il dataset è deterministico, senza indirizzi veri e senza percorsi duplicati", () => {
     const again = buildDemoDataset({ ...input, stakeId: DEMO_STAKE_ID });
     assert.deepEqual(again.docs, dataset.docs);
     const pathList = dataset.docs.map((entry) => entry.path);
@@ -1655,7 +1655,7 @@ describe("dati demo: forma dei documenti", () => {
     const text = JSON.stringify(other.docs);
     assert.ok(!text.includes(DEMO_STAKE_ID), "nessun riferimento al palo demo");
     assert.ok(!/(?<![a-z0-9])demo-(admin|leader|participant|parent|youth|child|magic)/.test(text), "nessun uid o id figlio di default");
-    assert.ok(!text.includes(sha256(MATTEO_MAGIC_TOKEN)), "il token magic-link e' diverso");
+    assert.ok(!text.includes(sha256(MATTEO_MAGIC_TOKEN)), "il token magic-link è diverso");
     assert.notEqual(other.magicLink, dataset.magicLink);
     const accounts = demoAccounts(otherPrefix);
     assert.deepEqual(
@@ -1794,7 +1794,7 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
     );
   });
 
-  test("il dirigente legge giovani e iscrizioni della propria unita' e non quelle delle altre", async () => {
+  test("il dirigente legge giovani e iscrizioni della propria unità e non quelle delle altre", async () => {
     const { db } = clients.leader;
     const expectedYouth = userDocs.filter((entry) => entry.data.unitId === aurora).length;
     const youth = await listWhere(db, "users", where("stakeId", "==", copyStakeId), where("unitId", "==", aurora));
@@ -1802,15 +1802,15 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
     const expectedRegs = registrationDocs.filter((entry) => entry.path.startsWith(`${viaggio}/`) && entry.data.unitId === aurora).length;
     const regs = await listWhere(db, `${viaggio}/registrations`, where("unitId", "==", aurora));
     assert.equal(regs.size, expectedRegs);
-    await expectDenied(listWhere(db, `${viaggio}/registrations`, where("unitId", "==", brezza)), "iscrizioni dell'unita' Brezza");
-    await expectDenied(listWhere(db, "users", where("stakeId", "==", copyStakeId), where("unitId", "==", brezza)), "giovani dell'unita' Brezza");
+    await expectDenied(listWhere(db, `${viaggio}/registrations`, where("unitId", "==", brezza)), "iscrizioni dell'unità Brezza");
+    await expectDenied(listWhere(db, "users", where("stakeId", "==", copyStakeId), where("unitId", "==", brezza)), "giovani dell'unità Brezza");
     await expectDenied(listAll(db, `${viaggio}/registrations`), "tutte le iscrizioni senza filtro");
     const brezzaReg = registrationDocs.find((entry) => entry.data.unitId === brezza && entry.path.startsWith(`${viaggio}/`));
-    assert.ok(brezzaReg, "esiste un'iscrizione di un'altra unita' nel seed");
-    await expectDenied(getOne(db, brezzaReg.path), "iscrizione dell'unita' Brezza");
+    assert.ok(brezzaReg, "esiste un'iscrizione di un'altra unità nel seed");
+    await expectDenied(getOne(db, brezzaReg.path), "iscrizione dell'unità Brezza");
   });
 
-  test("l'admin demo elenca attivita' e iscrizioni del proprio palo ma non del palo A", async () => {
+  test("l'admin demo elenca attività e iscrizioni del proprio palo ma non del palo A", async () => {
     const { db } = clients.admin;
     assert.equal((await listAll(db, `stakes/${copyStakeId}/activities`)).size, 2);
     const expected = registrationDocs.filter((entry) => entry.path.startsWith(`${viaggio}/`)).length;
@@ -1821,11 +1821,11 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
     await expectDenied(listAll(x.actors.adminA.db, `${viaggio}/registrations`), "admin A sul palo seminato");
   });
 
-  test("il link magic-link seed e' valido e la firma dall'app funziona sui dati demo", { timeout: 120_000 }, async () => {
+  test("il link magic-link seed è valido e la firma dall'app funziona sui dati demo", { timeout: 120_000 }, async () => {
     const { parent } = clients;
     const anonymous = x.actors.signedOut;
     const context = await anonymous.call("parentAuthorizationGetContext", { token: rawToken });
-    assert.equal(context.data.status, "valid", "il token del seed e' valido (non scaduto)");
+    assert.equal(context.data.status, "valid", "il token del seed è valido (non scaduto)");
     assert.equal(context.data.participantName, "Matteo Conti");
     assert.equal(context.data.activityTitle, "Viaggio al Tempio");
 
@@ -1834,12 +1834,12 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
     const chiara = `child_${parentUid}_${prefix}-child-chiara`;
     await expectCallableCode(
       parent.call("parentAuthorizationIssueOwnToken", { stakeId: copyStakeId, activityId: "viaggio-tempio", registrationId: chiara }),
-      "failed-precondition", "figlia gia' autorizzata",
+      "failed-precondition", "figlia già autorizzata",
     );
     const issued = await parent.call("parentAuthorizationIssueOwnToken", { stakeId: copyStakeId, activityId: "viaggio-tempio", registrationId: matteo });
     assert.equal(issued.data.ok, true);
-    assert.equal((await adminDb.doc(`parentAuthorizationTokens/${tokenHash}`).get()).data().status, "invalidated", "il link seed e' sostituito dal nuovo");
-    // Il vero palo-demo non e' stato toccato dalla firma sul palo isolato.
+    assert.equal((await adminDb.doc(`parentAuthorizationTokens/${tokenHash}`).get()).data().status, "invalidated", "il link seed è sostituito dal nuovo");
+    // Il vero palo-demo non è stato toccato dalla firma sul palo isolato.
     assert.deepEqual((await adminDb.doc(realTokenPath).get()).data(), realTokenBefore, "il token del vero palo-demo resta intatto");
   });
 });
@@ -1853,7 +1853,7 @@ describe("palo-demo reale (sola lettura)", () => {
   before(async () => {
     const stake = await adminDb.doc(`stakes/${DEMO_STAKE_ID}`).get();
     if (!stake.exists) {
-      state.reason = `stakes/${DEMO_STAKE_ID} non c'e' nell'emulatore: eseguire tools/seed-demo.mjs --apply`;
+      state.reason = `stakes/${DEMO_STAKE_ID} non c'è nell'emulatore: eseguire tools/seed-demo.mjs --apply`;
       return;
     }
     try {
@@ -1872,7 +1872,7 @@ describe("palo-demo reale (sola lettura)", () => {
       return fn();
     });
 
-  guarded("il partecipante legge la propria iscrizione, il dirigente le query di unita', l'admin le liste", async () => {
+  guarded("il partecipante legge la propria iscrizione, il dirigente le query di unità, l'admin le liste", async () => {
     const reg = await getOne(state.actors.participant.db, `stakes/${DEMO_STAKE_ID}/activities/viaggio-tempio/registrations/user_demo-participant`);
     assert.equal(reg.exists(), true);
     const leaderDb = state.actors.leader.db;
@@ -1882,7 +1882,7 @@ describe("palo-demo reale (sola lettura)", () => {
     assert.ok(regs.size > 0);
     await expectDenied(
       listWhere(leaderDb, `stakes/${DEMO_STAKE_ID}/activities/viaggio-tempio/registrations`, where("unitId", "==", demoBrezza)),
-      "dirigente demo sull'unita' Brezza",
+      "dirigente demo sull'unità Brezza",
     );
     const adminDb2 = state.actors.admin.db;
     assert.ok((await listAll(adminDb2, `stakes/${DEMO_STAKE_ID}/activities`)).size >= 2);
@@ -1985,7 +1985,7 @@ describe("resetDemo: isolamento fra pali", () => {
   const idsWhere = async (collectionName, stakeId) =>
     (await adminDb.collection(collectionName).where("stakeId", "==", stakeId).get()).docs.map((entry) => entry.id).sort();
 
-  /** Tutto cio' che non deve cambiare: palo-demo reale, altri pali, i miei pali di test. Solo letture. */
+  /** Tutto ciò che non deve cambiare: palo-demo reale, altri pali, i miei pali di test. Solo letture. */
   async function sharedSnapshot() {
     const demoAuth = (await adminAuth.listUsers(1000)).users.map((user) => user.uid).filter((id) => id.startsWith("demo-")).sort();
     return {
@@ -2093,7 +2093,7 @@ describe("resetDemo: isolamento fra pali", () => {
     const result = await resetDemo({ db: adminDb, auth: adminAuth, bucket: bucket() }, resetInput(false));
     assert.equal(result.applied, false);
     assert.equal(result.plan.stake, `stakes/${isoStake} (ricorsivo)`);
-    assert.deepEqual(result.plan.nonSeedUsers, [{ uid: strangerUid, email: strangerEmail }], "solo l'estraneo, non gli account seed ne' i giovani sintetici");
+    assert.deepEqual(result.plan.nonSeedUsers, [{ uid: strangerUid, email: strangerEmail }], "solo l'estraneo, non gli account seed né i giovani sintetici");
     assert.equal(result.plan.users, fx.isoUserIds.length + 1, "utenti seed + l'estraneo");
     assert.equal(result.plan.tokens, 2, "un token magic-link e uno anonimo del palo");
     assert.ok(Array.isArray(result.plan.storagePrefixes));
@@ -2104,7 +2104,7 @@ describe("resetDemo: isolamento fra pali", () => {
       assert.ok(!prefix.includes(keepStake) && !prefix.includes(DEMO_STAKE_ID), `il piano non tocca altri pali: ${prefix}`);
     }
 
-    // Nulla e' sparito.
+    // Nulla è sparito.
     assert.deepEqual(await treePaths(adminDb.doc(`stakes/${isoStake}`)), isoTreeBefore);
     assert.equal((await adminDb.doc(`users/${strangerUid}`).get()).exists, true);
     assert.equal((await adminAuth.getUsers(fx.isoAuthIds.map((id) => ({ uid: id })))).users.length, fx.isoAuthIds.length);
@@ -2120,7 +2120,7 @@ describe("resetDemo: isolamento fra pali", () => {
     assert.equal(result.applied, true);
     await sleep(2500); // eventuali trigger sulle cancellazioni
 
-    // Il palo reset e' sparito: documenti, profili, account, token, file, cache firma.
+    // Il palo reset è sparito: documenti, profili, account, token, file, cache firma.
     assert.equal((await adminDb.doc(`stakes/${isoStake}`).get()).exists, false);
     assert.deepEqual(await adminDb.doc(`stakes/${isoStake}`).listCollections(), [], "nessuna sottocollezione rimasta");
     for (const id of [...fx.isoUserIds, strangerUid]) {
@@ -2135,8 +2135,8 @@ describe("resetDemo: isolamento fra pali", () => {
     assert.equal((await adminDb.doc(cacheDoc(parentEmail)).get()).exists, false, "cache firma del genitore del palo cancellata");
     assert.deepEqual(await filesUnder(cachePrefix(parentEmail)), []);
 
-    // Tutto il resto e' identico a prima.
-    assert.deepEqual(await keepSnapshot(), fx.keepBefore, "il secondo palo e' intatto (documenti, utenti, Auth, token, file, cache di un'altra email)");
+    // Tutto il resto è identico a prima.
+    assert.deepEqual(await keepSnapshot(), fx.keepBefore, "il secondo palo è intatto (documenti, utenti, Auth, token, file, cache di un'altra email)");
     assert.deepEqual(await sharedSnapshot(), fx.sharedBefore, "palo-demo reale e gli altri pali sono intatti");
     for (const key of ["A", "B"]) {
       assert.equal((await adminDb.doc(`stakes/${x[key].id}`).get()).exists, true);
@@ -2144,7 +2144,7 @@ describe("resetDemo: isolamento fra pali", () => {
     }
   });
 
-  test("e' idempotente: un secondo reset sullo stesso palo non fallisce e non tocca gli altri", { timeout: 120_000 }, async () => {
+  test("è idempotente: un secondo reset sullo stesso palo non fallisce e non tocca gli altri", { timeout: 120_000 }, async () => {
     const again = await resetDemo({ db: adminDb, auth: adminAuth, bucket: bucket() }, resetInput(true));
     assert.equal(again.applied, true);
     assert.deepEqual(again.plan.nonSeedUsers, []);

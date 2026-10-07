@@ -139,7 +139,7 @@ export const organizationService = {
     const fallback = getDefaultProfile(stake.name);
     // Stringhe del doc stake che, se vuote, devono cadere sul legacy. Se tutte
     // valorizzate evito del tutto la read di settings/organization.
-    // Il legacy e' del solo palo storico: un altro palo con campi vuoti non
+    // Il legacy è del solo palo storico: un altro palo con campi vuoti non
     // deve ereditare titoli, presidenti o contatti di roma-est.
     const needsLegacyFallback =
       stake.id === LEGACY_DATA_STAKE_ID &&

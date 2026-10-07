@@ -81,7 +81,7 @@ test("la tabella dei valori di produzione copre ogni campo (se ne aggiungi uno, 
 // resolveAppEnvironment
 // ---------------------------------------------------------------------------
 
-test("senza VITE_APP_ENV l'ambiente e' production", () => {
+test("senza VITE_APP_ENV l'ambiente è production", () => {
   assert.equal(resolveAppEnvironment({}), "production");
   assert.equal(resolveAppEnvironment({ MODE: "production" }), "production");
   assert.equal(resolveAppEnvironment({ MODE: "development" }), "production");
@@ -98,7 +98,7 @@ test("VITE_APP_ENV ammette solo production e staging", () => {
   }
 });
 
-test("--mode staging senza VITE_APP_ENV=staging e' un errore", () => {
+test("--mode staging senza VITE_APP_ENV=staging è un errore", () => {
   assert.throws(() => resolveAppEnvironment({ MODE: "staging" }));
   assert.throws(() => resolveAppEnvironment({ MODE: "staging", VITE_APP_ENV: "" }));
   assert.throws(() => resolveAppEnvironment({ MODE: "staging", VITE_APP_ENV: "production" }));
@@ -131,12 +131,12 @@ test("VITE_APP_ENV non valido fa fallire anche la risoluzione dei valori", () =>
 test("--mode staging senza VITE_APP_ENV=staging non ricade sui valori di produzione", () => {
   assert.throws(() => resolveFirebaseSettings({ MODE: "staging" }, PRODUCTION_SETTINGS));
   assert.throws(() => resolveFirebaseSettings({ MODE: "staging", VITE_APP_ENV: "production" }, PRODUCTION_SETTINGS));
-  // Anche con tutti i valori di staging presenti: l'incoerenza di MODE e' un errore.
+  // Anche con tutti i valori di staging presenti: l'incoerenza di MODE è un errore.
   assert.throws(() => resolveFirebaseSettings(staging({ VITE_APP_ENV: "production" }), PRODUCTION_SETTINGS));
   assert.throws(() => resolveFirebaseSettings(without(staging(), "VITE_APP_ENV"), PRODUCTION_SETTINGS));
 });
 
-test("produzione con VITE_FIREBASE_PROJECT_ID di un altro progetto e' un errore", () => {
+test("produzione con VITE_FIREBASE_PROJECT_ID di un altro progetto è un errore", () => {
   assert.throws(() =>
     resolveFirebaseSettings({ VITE_FIREBASE_PROJECT_ID: "giovani-palo-staging" }, PRODUCTION_SETTINGS),
   );
@@ -148,8 +148,8 @@ test("produzione con VITE_FIREBASE_PROJECT_ID di un altro progetto e' un errore"
   );
 });
 
-test("produzione senza i valori di produzione disponibili e' un errore", () => {
-  // Non e' nella spec scritta, ma l'alternativa sarebbe inventare una config.
+test("produzione senza i valori di produzione disponibili è un errore", () => {
+  // Non è nella spec scritta, ma l'alternativa sarebbe inventare una config.
   assert.throws(() => resolveFirebaseSettings({}, null));
 });
 
@@ -237,7 +237,7 @@ test("staging: due valori mancanti compaiono entrambi nel messaggio", () => {
   );
 });
 
-test("staging: il measurement id e' facoltativo", () => {
+test("staging: il measurement id è facoltativo", () => {
   for (const env of [
     without(staging(), "VITE_FIREBASE_MEASUREMENT_ID"),
     staging({ VITE_FIREBASE_MEASUREMENT_ID: "" }),
@@ -256,7 +256,7 @@ test("staging senza --mode staging (solo VITE_APP_ENV=staging) funziona", () => 
 });
 
 // ---------------------------------------------------------------------------
-// resolveFirebaseSettings: staging non puo' puntare alla produzione
+// resolveFirebaseSettings: staging non può puntare alla produzione
 // ---------------------------------------------------------------------------
 
 test("staging: qualunque valore uguale a quello di produzione blocca la build", () => {
@@ -268,7 +268,7 @@ test("staging: qualunque valore uguale a quello di produzione blocca la build", 
   }
 });
 
-test("staging: il valore di produzione con spazi attorno e' comunque riconosciuto", () => {
+test("staging: il valore di produzione con spazi attorno è comunque riconosciuto", () => {
   for (const [envVar, productionValue] of Object.entries(PRODUCTION_VALUE_BY_ENV_VAR)) {
     assert.throws(
       () => resolveFirebaseSettings(staging({ [envVar]: `  ${productionValue} ` }), PRODUCTION_SETTINGS),
@@ -293,7 +293,7 @@ test("staging senza valori di produzione a disposizione accetta un env valido", 
   assert.equal(settings.webPushPublicKey, STAGING_ENV.VITE_WEB_PUSH_PUBLIC_KEY);
 });
 
-test("staging: un progetto che inizia con giovani-palo ma e' un altro progetto non e' una collisione", () => {
+test("staging: un progetto che inizia con giovani-palo ma è un altro progetto non è una collisione", () => {
   const settings = resolveFirebaseSettings(
     staging({ VITE_FIREBASE_PROJECT_ID: "giovani-palo-staging" }),
     PRODUCTION_SETTINGS,
@@ -301,7 +301,7 @@ test("staging: un progetto che inizia con giovani-palo ma e' un altro progetto n
   assert.equal(settings.firebaseConfig.projectId, "giovani-palo-staging");
 });
 
-test("staging: il risultato non e' l'oggetto di produzione ne' ne condivide pezzi", () => {
+test("staging: il risultato non è l'oggetto di produzione né ne condivide pezzi", () => {
   const settings = resolveFirebaseSettings(staging(), PRODUCTION_SETTINGS);
   assert.notEqual(settings, PRODUCTION_SETTINGS);
   assert.notEqual(settings.firebaseConfig, PRODUCTION_SETTINGS.firebaseConfig);
@@ -312,7 +312,7 @@ test("staging: il risultato non e' l'oggetto di produzione ne' ne condivide pezz
 });
 
 // ---------------------------------------------------------------------------
-// Un bundle non puo' girare sull'host dell'altro ambiente
+// Un bundle non può girare sull'host dell'altro ambiente
 // ---------------------------------------------------------------------------
 
 // Le varianti con punto finale e maiuscole valgono per ogni host di questi elenchi.
@@ -359,7 +359,7 @@ test("bundle di produzione: ammette i suoi host e localhost", () => {
   }
 });
 
-test("bundle di produzione: un host che somiglia a quello di staging ma non lo e' resta ammesso", () => {
+test("bundle di produzione: un host che somiglia a quello di staging ma non lo è resta ammesso", () => {
   for (const host of ["demo.gugditalia.it.example.com", "evildemo.gugditalia.it", "giovani-palo.web.app.example.com"]) {
     assert.doesNotThrow(() => assertHostMatchesEnvironment("production", host), host);
   }
@@ -388,7 +388,7 @@ test("bundle di staging: ammette i suoi host e localhost", () => {
   }
 });
 
-test("bundle di staging: un host che somiglia a quello di produzione ma non lo e' resta ammesso", () => {
+test("bundle di staging: un host che somiglia a quello di produzione ma non lo è resta ammesso", () => {
   for (const host of ["gugditalia.it.example.com", "evilgugditalia.it", "giovani-palo-2.web.app"]) {
     assert.doesNotThrow(() => assertHostMatchesEnvironment("staging", host), host);
   }
@@ -398,7 +398,7 @@ test("bundle di staging: un host che somiglia a quello di produzione ma non lo e
 // MODE di produzione e variabili di un altro ambiente
 // ---------------------------------------------------------------------------
 
-test("MODE production con VITE_APP_ENV=staging e' un errore (regressione)", () => {
+test("MODE production con VITE_APP_ENV=staging è un errore (regressione)", () => {
   assert.throws(() => resolveAppEnvironment({ MODE: "production", VITE_APP_ENV: "staging" }));
   assert.throws(() => resolveFirebaseSettings(staging({ MODE: "production" }), PRODUCTION_SETTINGS));
   assert.throws(() => resolveFirebaseSettings(staging({ MODE: "production" }), null));
@@ -447,7 +447,7 @@ test("MODE production: una qualunque variabile VITE_FIREBASE_*, VITE_WEB_PUSH_PU
   }
 });
 
-test("MODE production: anche un valore uguale a quello di produzione e' una variabile di troppo", () => {
+test("MODE production: anche un valore uguale a quello di produzione è una variabile di troppo", () => {
   assert.throws(() =>
     resolveFirebaseSettings(
       { MODE: "production", VITE_FIREBASE_PROJECT_ID: PRODUCTION_SETTINGS.firebaseConfig.projectId },
@@ -490,7 +490,7 @@ test("senza MODE (o con MODE development) la produzione si risolve come prima, a
   );
 });
 
-test("MODE staging non e' toccato dal controllo sulle variabili di produzione", () => {
+test("MODE staging non è toccato dal controllo sulle variabili di produzione", () => {
   const settings = resolveFirebaseSettings(staging({ VITE_DEFAULT_STAKE_ID: "demo-stake" }), PRODUCTION_SETTINGS);
   assert.equal(settings.appEnvironment, "staging");
 });

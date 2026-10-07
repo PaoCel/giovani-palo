@@ -85,7 +85,7 @@ service firebase.storage {
     }
 
     // Firme genitore raccolte tramite magic-link (separate da quelle MVP esistenti
-    // per evitare collisioni con consenti gia' caricati dall'utente loggato).
+    // per evitare collisioni con consenti già caricati dall'utente loggato).
     match /protected/stakes/{stakeId}/activities/{activityId}/parent-authorization-signatures/{registrationId}/{fileName=**} {
       allow read: if isStakeAdmin(stakeId);
       allow write: if false;

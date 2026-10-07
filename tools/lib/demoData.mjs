@@ -1,11 +1,11 @@
 // Dati sintetici per la demo (progetto di staging o emulatori), con i 4 ruoli:
-// admin di palo, dirigente di unita', partecipante, genitore con due figli.
+// admin di palo, dirigente di unità, partecipante, genitore con due figli.
 //
 // Deterministico: ids fissi, nomi da liste fisse, date relative a `today`
 // (--today YYYY-MM-DD, altrimenti oggi). Stesso `today` = stessi documenti.
 // Email: `.invalid` per i login e per i genitori sintetici; solo
-// DEMO_PARENT_EMAIL (indirizzo di chi gestisce la demo) puo' essere vero e
-// non e' mai nel sorgente.
+// DEMO_PARENT_EMAIL (indirizzo di chi gestisce la demo) può essere vero e
+// non è mai nel sorgente.
 //
 // Forma dei documenti: firestore.rules (validUserPayload, validRegistrationPayload,
 // validChildPayload) e le callable in functions/lib/parentAuthorization.js.
@@ -240,7 +240,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     });
   }
 
-  // Giovani sintetici (profili senza login), a rotazione sulle tre unita'
+  // Giovani sintetici (profili senza login), a rotazione sulle tre unità
   const youth = Array.from({ length: YOUTH_COUNT }, (_, index) => {
     const isBoy = index % 2 === 0;
     const pool = isBoy ? BOYS : GIRLS;
@@ -261,7 +261,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     }));
   }
 
-  // Attivita'
+  // Attività
   const activityBase = {
     description: "Attività di esempio con dati sintetici.",
     audience: "congiunta",
@@ -394,7 +394,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     const common = {
       firstName: person.firstName, lastName: person.lastName, genderRoleCategory: person.gender,
       birthDate: person.birthDate, unit: person.unit, mode: "authenticated", userId: person.uid,
-      // Un po' di lacune volute (foto, trasporto) perche' le dashboard mostrino numeri veri.
+      // Un po' di lacune volute (foto, trasporto) perché le dashboard mostrino numeri veri.
       answers: {
         ...(index % 4 === 3 ? {} : { transportMode: TRANSPORT_CHOICES[index % TRANSPORT_CHOICES.length] }),
         photoInternalConsent: index % 3 !== 0,
@@ -479,7 +479,7 @@ export async function seedDemo(
 }
 
 /**
- * Cancella TUTTO cio' che appartiene al palo demo: documenti, profili e account
+ * Cancella TUTTO ciò che appartiene al palo demo: documenti, profili e account
  * Auth di chi ha stakeId demo, token, cache firme dei genitori demo, Storage.
  * @param {object} ctx { db, auth, bucket|null }
  */
@@ -507,7 +507,7 @@ export async function resetDemo(
     ...cacheHashes.map((hash) => `protected/parent-authorization-signature-cache/${hash}/`),
   ];
 
-  // Chi si e' registrato da solo nel palo demo (visitatori, account QA) viene
+  // Chi si è registrato da solo nel palo demo (visitatori, account QA) viene
   // cancellato come gli account sintetici: l'elenco va letto prima di --apply.
   const seededUids = new Set([...Object.values(accounts).map((a) => a.uid)]);
   const strangers = demoUsers.docs

@@ -396,7 +396,7 @@ export function RegistrationEditor({
   const showParentStep = eventRequiresParentAuthorization;
   const hasPrefilledParentContacts = hasFilledText(values.parentEmail);
 
-  // Foto/video consent per MAGGIORENNI: per i minori il consenso lo da' il
+  // Foto/video consent per MAGGIORENNI: per i minori il consenso lo dà il
   // genitore via magic-link (parentAuthorization.photoConsent). Per gli
   // adulti serve una checkbox semplice qui nel form, se l'evento richiede
   // image consent.
@@ -416,9 +416,9 @@ export function RegistrationEditor({
   const shouldHideCategoryField =
     isAuthenticatedAccount && hasFilledText(session?.profile.genderRoleCategory);
   const shouldHideUnitField = isAuthenticatedAccount && hasFilledText(session?.profile.unitName);
-  // Se l'utente ha un account e il telefono e' gia' nel profilo, non lo
-  // ri-chiediamo: il dato e' gia' nostro, vogliamo solo le info specifiche
-  // dell'attivita'.
+  // Se l'utente ha un account e il telefono è già nel profilo, non lo
+  // ri-chiediamo: il dato è già nostro, vogliamo solo le info specifiche
+  // dell'attività.
   const shouldHidePhoneField = isAuthenticatedAccount && hasFilledText(session?.profile.phone);
   const shouldAskPhoneField =
     activeStandardFields.some((field) => field.key === "phone") && !shouldHidePhoneField;
@@ -567,7 +567,7 @@ export function RegistrationEditor({
     // session con nuovi oggetti equivalenti mentre l'utente sta compilando.
     // Resettare su ogni cambio di riferimento cancellava la bozza e riportava
     // al primo passo. Si riparte solo quando cambia davvero il soggetto del
-    // modulo (attivita', iscrizione, sorgente genitore o sessione).
+    // modulo (attività, iscrizione, sorgente genitore o sessione).
     setValues(getInitialValues(session, formConfig, initialRegistration, parentDetailsSource));
     setFieldErrors({});
     setCurrentStepIndex(0);
@@ -1086,8 +1086,8 @@ export function RegistrationEditor({
       return (typeof answer === "string" ? answer : fallback).trim();
     };
 
-    // Quando l'attivita' richiede autorizzazione magic-link al genitore e il
-    // partecipante e' minorenne, raccogliamo i dati del genitore qui e settiamo
+    // Quando l'attività richiede autorizzazione magic-link al genitore e il
+    // partecipante è minorenne, raccogliamo i dati del genitore qui e settiamo
     // lo status di registrazione a "in attesa autorizzazione". La Cloud Function
     // di richiesta autorizzazione (lato server) sposta questi dati nel
     // sub-object `parentAuthorization`, crea il token e invia la mail Brevo.

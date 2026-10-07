@@ -2,15 +2,15 @@
 // `import.meta`): lo usano sia `config.ts` a runtime sia `vite.config.ts` per
 // far fallire la build prima di produrre un bundle sbagliato.
 //
-// Regola anti-prod: un ambiente diverso da "production" non puo' mai
-// puntare al backend di produzione, ne' per un valore dimenticato (nessun
-// ripiego sui valori di produzione) ne' per un valore copiato per errore.
+// Regola anti-prod: un ambiente diverso da "production" non può mai
+// puntare al backend di produzione, né per un valore dimenticato (nessun
+// ripiego sui valori di produzione) né per un valore copiato per errore.
 //
 // I valori di produzione completi stanno in `productionSettings.ts` e
 // arrivano qui come parametro: `config.ts` li passa solo nelle build di
-// produzione, cosi' un bundle di staging non contiene la chiave di prod.
+// produzione, così un bundle di staging non contiene la chiave di prod.
 
-// Unico valore di produzione che vive qui: l'id progetto non e' un segreto e
+// Unico valore di produzione che vive qui: l'id progetto non è un segreto e
 // serve come guardia anche quando i valori completi non sono nel bundle.
 export const PRODUCTION_PROJECT_ID = "giovani-palo";
 
@@ -28,10 +28,10 @@ const STAGING_HOST_PATTERNS = [
 ];
 
 /**
- * Lega il bundle all'host che lo serve. Non c'e' altro controllo fra `dist/` e
+ * Lega il bundle all'host che lo serve. Non c'è altro controllo fra `dist/` e
  * `firebase deploy`: senza questo, `npm run build` seguito da un deploy sul
  * sito di staging pubblicherebbe una build che scrive sul backend di produzione.
- * localhost e' sempre ammesso (sviluppo, emulatori).
+ * localhost è sempre ammesso (sviluppo, emulatori).
  */
 export function assertHostMatchesEnvironment(appEnvironment: AppEnvironment, rawHostname: string) {
   const hostname = rawHostname.toLowerCase().replace(/\.+$/, "");

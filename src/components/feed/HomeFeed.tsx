@@ -102,8 +102,8 @@ export function HomeFeed(_: HomeFeedProps) {
         ),
       );
 
-      // Niente piu' codice galleria: tutte le gallerie del feed sono
-      // automaticamente accessibili a chi e' loggato.
+      // Niente più codice galleria: tutte le gallerie del feed sono
+      // automaticamente accessibili a chi è loggato.
       const unlockedMap: UnlockedSet = {};
       for (const id of galleryIds) {
         unlockedMap[id] = true;

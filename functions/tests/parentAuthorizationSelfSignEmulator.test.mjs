@@ -83,7 +83,7 @@ test("il genitore firma dall'app, gli altri no", async () => {
     status: "registrations_open",
   });
 
-  // Token precedente gia' inviato via mail: deve essere invalidato dal nuovo.
+  // Token precedente già inviato via mail: deve essere invalidato dal nuovo.
   const vecchioToken = `vecchio-${runId}`;
   await adminDb.doc(`parentAuthorizationTokens/${vecchioToken}`).set({
     id: vecchioToken,
@@ -120,7 +120,7 @@ test("il genitore firma dall'app, gli altri no", async () => {
   assert.equal(
     (await adminDb.doc(`parentAuthorizationTokens/${vecchioToken}`).get()).data().status,
     "invalidated",
-    "il vecchio link non vale piu'",
+    "il vecchio link non vale più",
   );
 
   const nuovo = (await adminDb.doc(`parentAuthorizationTokens/${dopo.parentAuthorization.tokenId}`).get()).data();
@@ -130,11 +130,11 @@ test("il genitore firma dall'app, gli altri no", async () => {
 
   const logs = await adminDb.collection(`${activityPath}/consentAuditLogs`).get();
   const eventi = logs.docs.map((d) => d.data().event);
-  assert.ok(eventi.includes("token_issued_in_app"), "l'emissione dall'app e' tracciata");
-  assert.ok(eventi.includes("token_invalidated"), "l'invalidazione e' tracciata");
+  assert.ok(eventi.includes("token_issued_in_app"), "l'emissione dall'app è tracciata");
+  assert.ok(eventi.includes("token_invalidated"), "l'invalidazione è tracciata");
 });
 
-test("niente token per iscrizioni annullate, gia' firmate o senza dati genitore", async () => {
+test("niente token per iscrizioni annullate, già firmate o senza dati genitore", async () => {
   const genitore = await client("genitore2");
   const parentUid = genitore.auth.currentUser.uid;
 

@@ -5,7 +5,7 @@
  * (defineSecret in lib/parentAuthorization.js).
  *
  * I valori sotto sono quelli di PRODUZIONE. Ogni altro progetto Firebase
- * (staging, demo, emulatore) e' "non produzione": URL, mittente e allowlist
+ * (staging, demo, emulatore) è "non produzione": URL, mittente e allowlist
  * email arrivano dal file `functions/.env.<projectId>` (vedi
  * `functions/.env.staging.example`) e non possono mai ricadere sui valori di
  * produzione senza un errore esplicito.
@@ -16,7 +16,7 @@ const REGION = "europe-west1";
 // Progetto Firebase di produzione: l'unico in cui le email partono senza filtri.
 const PRODUCTION_PROJECT_ID = "giovani-palo";
 
-// Host di produzione: un ambiente non di produzione non puo' costruire link
+// Host di produzione: un ambiente non di produzione non può costruire link
 // verso questi host.
 const PRODUCTION_HOSTS = [
   "gugditalia.it",
@@ -41,7 +41,7 @@ const BREVO_REPLY_TO_NAME =
 
 // Testo di supporto mostrato in email + pagina genitore.
 const SUPPORT_CONTACT_TEXT =
-  "Per assistenza contatta il dirigente della tua unita'.";
+  "Per assistenza contatta il dirigente della tua unità.";
 
 // Scadenza token magic-link in giorni.
 const PARENT_AUTHORIZATION_TOKEN_TTL_DAYS = 14;
@@ -99,7 +99,7 @@ function requireProjectId(env = process.env) {
 }
 
 /**
- * Un emulatore delle functions non e' mai produzione, nemmeno se parte con il
+ * Un emulatore delle functions non è mai produzione, nemmeno se parte con il
  * progetto di default (`.firebaserc` punta a giovani-palo): altrimenti userebbe
  * link e allowlist di produzione e, senza `.secret.local`, la chiave Brevo vera.
  */
@@ -142,9 +142,9 @@ function getAppPublicUrl(env = process.env) {
   try {
     url = new URL(configured);
   } catch {
-    throw new EnvironmentConfigError(`APP_PUBLIC_URL non e' un URL valido: ${configured}`);
+    throw new EnvironmentConfigError(`APP_PUBLIC_URL non è un URL valido: ${configured}`);
   }
-  // Il punto finale ("gugditalia.it.") e' lo stesso host: va tolto prima del confronto.
+  // Il punto finale ("gugditalia.it.") è lo stesso host: va tolto prima del confronto.
   const host = url.hostname.toLowerCase().replace(/\.+$/, "");
   if (PRODUCTION_HOSTS.includes(host) || PRODUCTION_PREVIEW_HOST.test(host)) {
     throw new EnvironmentConfigError(
@@ -183,9 +183,9 @@ function normalizeSubjectPrefix(raw) {
 
 /**
  * Politica email dell'ambiente corrente.
- * In produzione `allowlist` e' null (nessun filtro, nessun prefisso: stesso
- * comportamento di sempre). Fuori da produzione l'allowlist e' sempre
- * attiva: se EMAIL_ALLOWLIST manca o e' vuota non esce niente (tutto
+ * In produzione `allowlist` è null (nessun filtro, nessun prefisso: stesso
+ * comportamento di sempre). Fuori da produzione l'allowlist è sempre
+ * attiva: se EMAIL_ALLOWLIST manca o è vuota non esce niente (tutto
  * "simulato").
  */
 function getEmailPolicy(env = process.env) {

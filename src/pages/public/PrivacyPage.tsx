@@ -59,7 +59,7 @@ export function PrivacyPage() {
 
       <SectionCard
         title="Disclaimer importante"
-        description="Cos'e' davvero questa piattaforma."
+        description="Cos'è davvero questa piattaforma."
       >
         <UnofficialDisclaimer />
       </SectionCard>
@@ -70,9 +70,9 @@ export function PrivacyPage() {
       >
         <div className="surface-panel surface-panel--subtle">
           <p>
-            Titolare del trattamento e' <strong>Paolo Celestini</strong>, persona fisica
-            proprietaria della piattaforma. Non si tratta di una societa' ne' di un ente:
-            il trattamento e' gestito direttamente dal titolare individuale che ha sviluppato
+            Titolare del trattamento è <strong>Paolo Celestini</strong>, persona fisica
+            proprietaria della piattaforma. Non si tratta di una società né di un ente:
+            il trattamento è gestito direttamente dal titolare individuale che ha sviluppato
             e mantiene questa piattaforma.
           </p>
           <p>
@@ -200,10 +200,10 @@ export function PrivacyPage() {
               Firebase Cloud Messaging (notifiche push agli admin, no PII nel payload).</li>
             <li><strong>Brevo (Sendinblue SAS, Francia)</strong>:
               servizio email transazionale per l'invio del link di autorizzazione al genitore.
-              Riceve solo email genitore, nome attivita', nome partecipante e link unico.</li>
+              Riceve solo email genitore, nome attività, nome partecipante e link unico.</li>
           </ul>
           <p>
-            Nessun servizio di analytics, advertising, tracciamento o profilazione e' integrato.
+            Nessun servizio di analytics, advertising, tracciamento o profilazione è integrato.
             Eventuali nuovi sub-fornitori verranno aggiunti qui prima dell&apos;attivazione.
           </p>
         </div>

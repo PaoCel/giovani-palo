@@ -150,7 +150,7 @@ function normalizeFieldOverrides(value: unknown): StandardFieldOverrides {
             .filter(Boolean)
         : null;
 
-      // Firestore non accetta undefined: ometto le chiavi vuote anziche'
+      // Firestore non accetta undefined: ometto le chiavi vuote anziché
       // settarle a undefined (causava errore "Unsupported field value: undefined").
       const override: StandardFieldOverrides[StandardFieldKey] = {};
       if (typeof data.label === "string" && data.label.trim()) {
@@ -409,7 +409,7 @@ export const stakesService = {
 
   async getDefaultStake() {
     const stakes = await this.listActiveStakes();
-    // Con piu' pali attivi il default e' quello dell'ambiente (DEFAULT_STAKE_ID),
+    // Con più pali attivi il default è quello dell'ambiente (DEFAULT_STAKE_ID),
     // non il primo in ordine alfabetico.
     return stakes.find((stake) => stake.id === DEFAULT_STAKE_ID) ?? stakes[0] ?? null;
   },

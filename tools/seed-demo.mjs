@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Dati demo sintetici con i 4 ruoli (admin, dirigente di unita', partecipante,
+// Dati demo sintetici con i 4 ruoli (admin, dirigente di unità, partecipante,
 // genitore). Dry-run di default. Mai su produzione: accetta solo emulatori
 // demo-* o progetti *-staging / *-demo (guardie in tools/lib/target.mjs).
 //

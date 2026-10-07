@@ -2,7 +2,7 @@
  * Client Brevo Transactional Email API.
  * Doc: https://developers.brevo.com/reference/sendtransacemail
  *
- * Usa fetch nativo Node 22+. Niente SDK Brevo (evita dipendenza in piu'
+ * Usa fetch nativo Node 22+. Niente SDK Brevo (evita dipendenza in più
  * solo per chiamare un singolo endpoint REST).
  */
 

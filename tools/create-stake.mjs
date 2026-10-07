@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Crea un palo (doc stake + unita' + primo admin). Dry-run di default.
+// Crea un palo (doc stake + unità + primo admin). Dry-run di default.
 //
 //   node tools/create-stake.mjs --project giovani-palo-staging --id palo-napoli \
 //     --name "Palo di Napoli" --unit "Rione Vomero" --unit "Ramo Posillipo:ramo" \
@@ -11,7 +11,7 @@
 // CONFIRM_PROJECT=giovani-palo. Emulatori: FIRESTORE_EMULATOR_HOST e
 // FIREBASE_AUTH_EMULATOR_HOST locali, progetto demo-*.
 //
-// L'admin va assegnato a un'unita' (default la prima): non puo' cambiarla da
+// L'admin va assegnato a un'unità (default la prima): non può cambiarla da
 // solo e il completamento profilo la richiede. Senza --admin-birth-date mette
 // 1980-01-01 come segnaposto (da correggere in /me).
 // Il primo admin non riceve una password: in remoto lo script stampa il link
@@ -50,7 +50,7 @@ try {
     allowProduction: values.production,
   });
   if (values["admin-password"] && !target.emulator) {
-    throw new TargetError("--admin-password e' ammesso solo con gli emulatori.");
+    throw new TargetError("--admin-password è ammesso solo con gli emulatori.");
   }
 
   initAdmin(target);

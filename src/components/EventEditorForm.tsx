@@ -27,13 +27,13 @@ const ACTIVITY_TYPE_OPTIONS: {
     value: "standard",
     label: "Standard",
     description:
-      "Attivita' semplice in giornata. Iscrizione leggera, senza autorizzazione genitoriale via email.",
+      "Attività semplice in giornata. Iscrizione leggera, senza autorizzazione genitoriale via email.",
   },
   {
     value: "overnight",
     label: "Con pernottamento",
     description:
-      "Attivita' che include almeno una notte fuori casa. Richiede autorizzazione genitore via email.",
+      "Attività che include almeno una notte fuori casa. Richiede autorizzazione genitore via email.",
   },
   {
     value: "trip",
@@ -49,9 +49,9 @@ const ACTIVITY_TYPE_OPTIONS: {
   },
   {
     value: "multi_day",
-    label: "Su piu' giorni",
+    label: "Su più giorni",
     description:
-      "Attivita' che si svolge in piu' giornate. Richiede autorizzazione genitore via email.",
+      "Attività che si svolge in più giornate. Richiede autorizzazione genitore via email.",
   },
 ];
 
@@ -261,7 +261,7 @@ export function EventEditorForm({
 
       if (!wasStrong && isStrong) {
         // Passaggio standard -> non-standard: attivo flag rafforzati di default.
-        // Admin puo' poi disattivarli singolarmente.
+        // Admin può poi disattivarli singolarmente.
         return {
           ...current,
           activityType: nextType,
@@ -931,7 +931,7 @@ export function EventEditorForm({
               </label>
 
               <label className="field">
-                {renderFieldLabel("Tipo di attivita'", "activityType")}
+                {renderFieldLabel("Tipo di attività", "activityType")}
                 <select
                   className={getInputClass("activityType")}
                   value={values.activityType}
@@ -956,10 +956,10 @@ export function EventEditorForm({
                 <div className="form-info-banner">
                   <strong>Autorizzazione genitoriale rafforzata attiva.</strong>
                   <span>
-                    Per i partecipanti minorenni il sistema chiedera' i contatti
-                    del genitore e inviera' un'email con un link unico di
+                    Per i partecipanti minorenni il sistema chiederà i contatti
+                    del genitore e invierà un'email con un link unico di
                     conferma. Senza autorizzazione genitoriale l'iscrizione
-                    restera' in stato "in attesa autorizzazione".
+                    resterà in stato "in attesa autorizzazione".
                   </span>
                   {!canHaveOvernight ? (
                     <span className="form-info-banner__warning">
@@ -1004,7 +1004,7 @@ export function EventEditorForm({
                     {values.requiresAccount ? (
                       <small>
                         {" "}
-                        (disattivato perche' l'account e' obbligatorio)
+                        (disattivato perché l'account è obbligatorio)
                       </small>
                     ) : null}
                   </span>
@@ -1054,7 +1054,7 @@ export function EventEditorForm({
                       Richiedi account utente (no iscrizione anonima)
                       <small>
                         {" "}
-                        Consigliato per attivita' con pernottamento.
+                        Consigliato per attività con pernottamento.
                       </small>
                     </span>
                   </label>

@@ -250,8 +250,8 @@ export function ActivityRegisterPage() {
     }
   }
 
-  // Caso uso: genitore che iscrive piu' figli dallo stesso device senza
-  // creare un account. La sessione anonima e' legata al primo figlio quindi
+  // Caso uso: genitore che iscrive più figli dallo stesso device senza
+  // creare un account. La sessione anonima è legata al primo figlio quindi
   // riapre l'iscrizione esistente; con questo bottone scolleghiamo e
   // apriamo una nuova sessione anonima per ripartire da zero.
   async function handleResetAnonymousSession() {
@@ -261,8 +261,8 @@ export function ActivityRegisterPage() {
 
     const confirmed = window.confirm(
       "Stai per avviare una nuova iscrizione per un'altra persona. " +
-        "Conferma di aver gia' salvato il codice di recupero o il PDF " +
-        "dell'iscrizione precedente: senza quelli non potrai piu' modificarla.",
+        "Conferma di aver già salvato il codice di recupero o il PDF " +
+        "dell'iscrizione precedente: senza quelli non potrai più modificarla.",
     );
 
     if (!confirmed) {
@@ -541,7 +541,7 @@ export function ActivityRegisterPage() {
           selectedChild ? selectedChild.genderRoleCategory : session.profile.genderRoleCategory,
         )
       : false;
-  // Per attivita' rafforzate (overnight/trip/camp/multi_day) con account
+  // Per attività rafforzate (overnight/trip/camp/multi_day) con account
   // obbligatorio: blocco i guest. Anche se formConfig.allowGuestRegistration
   // fosse legacy true, qui prevale.
   const eventForcesAccount = Boolean(event?.requiresAccount);
@@ -675,7 +675,7 @@ export function ActivityRegisterPage() {
                 Stai per iscrivere un'altra persona (es. un secondo figlio) dallo stesso
                 dispositivo? Usa "Iscrivi un'altra persona": chiude questa sessione anonima
                 e ne apre una nuova. <strong>Salva prima codice e PDF</strong>: senza non
-                potrai piu' modificare l'iscrizione attuale.
+                potrai più modificare l'iscrizione attuale.
               </p>
             ) : null}
 
@@ -695,7 +695,7 @@ export function ActivityRegisterPage() {
               <p style={{ marginTop: "0.6rem" }}>
                 <strong>Email autorizzazione inviata al genitore.</strong> Se non la trovate
                 in arrivo entro qualche minuto, controllate la <strong>cartella spam</strong>
-                {" "}o <strong>posta indesiderata</strong>. Per iCloud/Outlook puo' capitare
+                {" "}o <strong>posta indesiderata</strong>. Per iCloud/Outlook può capitare
                 che venga filtrata: contrassegnatela come "non spam" per vederla. Mittente:
                 {" "}<code>noreply@gugditalia.it</code>.
               </p>
@@ -718,7 +718,7 @@ export function ActivityRegisterPage() {
                   </span>
                 </button>{" "}
                 Salva prima codice di recupero e PDF dell'iscrizione attuale: una volta
-                aperta la nuova sessione non potrai piu' modificarla da qui senza il codice.
+                aperta la nuova sessione non potrai più modificarla da qui senza il codice.
               </p>
             ) : null}
           </div>
@@ -766,11 +766,11 @@ export function ActivityRegisterPage() {
 
       {!session && formConfig && !allowGuestForThisActivity ? (
         <SectionCard
-          title={eventForcesAccount ? "Serve un account per questa attivita'" : "Serve un account"}
+          title={eventForcesAccount ? "Serve un account per questa attività" : "Serve un account"}
           description={
             eventForcesAccount
-              ? "Questa attivita' prevede pernottamento o trasferta: per motivi di sicurezza l'iscrizione e' disponibile solo con account autenticato."
-              : "Per questa attivita' l'iscrizione e' disponibile solo dopo autenticazione."
+              ? "Questa attività prevede pernottamento o trasferta: per motivi di sicurezza l'iscrizione è disponibile solo con account autenticato."
+              : "Per questa attività l'iscrizione è disponibile solo dopo autenticazione."
           }
         >
           <Link
@@ -786,7 +786,7 @@ export function ActivityRegisterPage() {
       {accountBlockedForGuest ? (
         <SectionCard
           title="Iscrizione disponibile solo con account"
-          description="Stai usando una sessione anonima. Per le attivita' con pernottamento o trasferta serve creare un account o accedere."
+          description="Stai usando una sessione anonima. Per le attività con pernottamento o trasferta serve creare un account o accedere."
         >
           <Link
             className="button button--primary"

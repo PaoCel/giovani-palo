@@ -144,7 +144,7 @@ export function getRegistrationHighlights(
   }
 
   if (isMinorBirthDate(registration.birthDate)) {
-    // Nuovo flusso magic-link via email: priorita' a parentAuthorization.status.
+    // Nuovo flusso magic-link via email: priorità a parentAuthorization.status.
     const parentAuthStatus = registration.parentAuthorization?.status;
     if (parentAuthStatus === "authorized") {
       highlights.push({ label: "Autorizzazione genitore confermata", tone: "info" });

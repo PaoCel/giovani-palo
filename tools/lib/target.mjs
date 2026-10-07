@@ -1,6 +1,6 @@
 // Guardie condivise dagli script `tools/*.mjs` che scrivono dati (create-stake,
-// seed-demo). Decide DOVE scrivono e rifiuta tutto cio' che non e' chiaramente
-// il bersaglio voluto: un Admin SDK ignora le rules, quindi qui non c'e' una
+// seed-demo). Decide DOVE scrivono e rifiuta tutto ciò che non è chiaramente
+// il bersaglio voluto: un Admin SDK ignora le rules, quindi qui non c'è una
 // seconda difesa.
 import { createRequire } from "node:module";
 
@@ -59,7 +59,7 @@ export function resolveTarget({ kind, project, allowProduction = false, needsSto
   }
 
   if (projectId.startsWith("demo-")) {
-    throw new TargetError(`${projectId} e' un progetto emulatore: avvia gli emulatori e imposta gli host.`);
+    throw new TargetError(`${projectId} è un progetto emulatore: avvia gli emulatori e imposta gli host.`);
   }
 
   if (kind === "seed") {
@@ -83,7 +83,7 @@ export function resolveTarget({ kind, project, allowProduction = false, needsSto
   return { projectId, emulator: false };
 }
 
-/** Inizializza l'Admin SDK sul bersaglio gia' validato (una sola volta). */
+/** Inizializza l'Admin SDK sul bersaglio già validato (una sola volta). */
 export function initAdmin({ projectId, emulator }) {
   if (getApps().length === 0) {
     initializeApp({

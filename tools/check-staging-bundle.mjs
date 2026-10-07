@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Predeploy di firebase.staging.json: rifiuta di pubblicare `dist-staging/` se
-// non e' un bundle di staging pulito. Unico controllo fra la build e
+// non è un bundle di staging pulito. Unico controllo fra la build e
 // `firebase deploy` (la CLI deploya qualunque cartella).
 //
 // Il progetto atteso arriva da GCLOUD_PROJECT (impostato dalla CLI nei hook di
-// predeploy, cioe' dal --project del deploy).
+// predeploy, cioè dal --project del deploy).
 import fs from "node:fs";
 import path from "node:path";
 
@@ -17,7 +17,7 @@ const prod = PRODUCTION_SETTINGS.firebaseConfig;
 const problems = [];
 
 if (!project) problems.push("GCLOUD_PROJECT assente: lancia il deploy con --project.");
-if (project === prod.projectId) problems.push("Il progetto del deploy e' quello di produzione.");
+if (project === prod.projectId) problems.push("Il progetto del deploy è quello di produzione.");
 if (!fs.existsSync(distDir)) problems.push("dist-staging/ non esiste.");
 
 if (!problems.length) {

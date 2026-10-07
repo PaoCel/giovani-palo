@@ -6,7 +6,7 @@
  * prima di considerarli validi.
  *
  * Quando aggiorni un testo, INCREMENTA la relativa versione (es. v1 -> v2).
- * La versione viene salvata insieme al consenso del genitore per tracciabilita'.
+ * La versione viene salvata insieme al consenso del genitore per tracciabilità.
  * Non rimuovere mai versioni vecchie: aggiungi sempre nuove costanti.
  */
 
@@ -34,16 +34,16 @@ export const LEGAL_DOCS: Record<LegalDocKey, LegalDocText> = {
     reviewedByLegal: false,
     reviewNotes:
       "[DA REVISIONARE LEGALMENTE] Testo placeholder. Far validare da consulente.",
-    body: `Il sottoscritto, in qualita' di genitore o tutore legale del minore indicato, autorizza la partecipazione del minore all'attivita' organizzata dall'Organizzazione.
+    body: `Il sottoscritto, in qualità di genitore o tutore legale del minore indicato, autorizza la partecipazione del minore all'attività organizzata dall'Organizzazione.
 
 Il sottoscritto dichiara:
-- di avere titolo per esercitare la responsabilita' genitoriale sul minore;
-- di essere a conoscenza del programma, delle date, del luogo e delle caratteristiche dell'attivita' (incluso eventuale pernottamento o trasferta);
+- di avere titolo per esercitare la responsabilità genitoriale sul minore;
+- di essere a conoscenza del programma, delle date, del luogo e delle caratteristiche dell'attività (incluso eventuale pernottamento o trasferta);
 - di aver fornito tutte le informazioni sanitarie, alimentari e logistiche rilevanti per la sicurezza del minore;
-- di autorizzare i responsabili dell'attivita' a contattare i numeri di emergenza indicati in caso di necessita' e ad attivare le cure mediche urgenti necessarie;
-- di sollevare l'Organizzazione e i responsabili da ogni responsabilita' per fatti non imputabili a colpa o negligenza degli stessi.
+- di autorizzare i responsabili dell'attività a contattare i numeri di emergenza indicati in caso di necessità e ad attivare le cure mediche urgenti necessarie;
+- di sollevare l'Organizzazione e i responsabili da ogni responsabilità per fatti non imputabili a colpa o negligenza degli stessi.
 
-Il presente consenso e' raccolto tramite procedura elettronica con link inviato all'indirizzo email del genitore dichiarato in fase di iscrizione.`,
+Il presente consenso è raccolto tramite procedura elettronica con link inviato all'indirizzo email del genitore dichiarato in fase di iscrizione.`,
   },
   privacy: {
     version: LEGAL_DOC_VERSIONS.privacy,
@@ -51,24 +51,24 @@ Il presente consenso e' raccolto tramite procedura elettronica con link inviato 
     reviewedByLegal: false,
     reviewNotes:
       "[DA REVISIONARE LEGALMENTE] Testo predisposto da titolare individuale, far validare a consulente.",
-    body: `Ai sensi degli artt. 13 e 14 del Reg. UE 2016/679 (GDPR), il titolare del trattamento informa che i dati personali del minore e del genitore o tutore raccolti tramite questo modulo saranno trattati per le seguenti finalita':
+    body: `Ai sensi degli artt. 13 e 14 del Reg. UE 2016/679 (GDPR), il titolare del trattamento informa che i dati personali del minore e del genitore o tutore raccolti tramite questo modulo saranno trattati per le seguenti finalità:
 
-1. Gestione amministrativa dell'iscrizione e della partecipazione all'attivita';
+1. Gestione amministrativa dell'iscrizione e della partecipazione all'attività;
 2. Tutela della sicurezza e della salute del partecipante (anche tramite condivisione di informazioni mediche dichiarate con personale sanitario in caso di emergenza);
-3. Comunicazioni operative ai genitori o tutori e ai partecipanti relative all'attivita';
+3. Comunicazioni operative ai genitori o tutori e ai partecipanti relative all'attività;
 4. Adempimenti di obblighi di legge.
 
 Base giuridica: consenso, esecuzione di obblighi precontrattuali e contrattuali, interesse vitale del minore, obbligo legale.
 
-Conservazione: i dati saranno conservati per il tempo strettamente necessario alle finalita' sopra indicate e in conformita' agli obblighi di legge.
+Conservazione: i dati saranno conservati per il tempo strettamente necessario alle finalità sopra indicate e in conformità agli obblighi di legge.
 
-Diritti dell'interessato: accesso, rettifica, cancellazione, limitazione, portabilita', opposizione, reclamo al Garante Privacy.
+Diritti dell'interessato: accesso, rettifica, cancellazione, limitazione, portabilità, opposizione, reclamo al Garante Privacy.
 
-Titolare del trattamento: Paolo Celestini, persona fisica proprietaria della piattaforma. Contatto: supporto@gugditalia.it. Non e' una societa' ne' un ente: il trattamento e' gestito direttamente dal titolare individuale che ha sviluppato e mantiene questa piattaforma a supporto delle attivita'.
+Titolare del trattamento: Paolo Celestini, persona fisica proprietaria della piattaforma. Contatto: supporto@gugditalia.it. Non è una società né un ente: il trattamento è gestito direttamente dal titolare individuale che ha sviluppato e mantiene questa piattaforma a supporto delle attività.
 
-DISCLAIMER: questa NON e' una piattaforma ufficiale della Chiesa di Gesu' Cristo dei Santi degli Ultimi Giorni ne' di altra organizzazione religiosa. E' uno strumento sviluppato e gestito a titolo personale dal titolare per supportare l'organizzazione delle attivita'.
+DISCLAIMER: questa NON è una piattaforma ufficiale della Chiesa di Gesù Cristo dei Santi degli Ultimi Giorni né di altra organizzazione religiosa. È uno strumento sviluppato e gestito a titolo personale dal titolare per supportare l'organizzazione delle attività.
 
-L'invio dell'email di autorizzazione tramite il provider Brevo (Sendinblue SAS, Francia) comporta il trasferimento dei dati strettamente necessari (indirizzo email genitore, nome attivita', nome partecipante, link di conferma) al fornitore del servizio email transazionale.`,
+L'invio dell'email di autorizzazione tramite il provider Brevo (Sendinblue SAS, Francia) comporta il trasferimento dei dati strettamente necessari (indirizzo email genitore, nome attività, nome partecipante, link di conferma) al fornitore del servizio email transazionale.`,
   },
   photo: {
     version: LEGAL_DOC_VERSIONS.photo,
@@ -76,29 +76,29 @@ L'invio dell'email di autorizzazione tramite il provider Brevo (Sendinblue SAS, 
     reviewedByLegal: false,
     reviewNotes:
       "[DA REVISIONARE LEGALMENTE] Verificare con consulente la separazione tra uso interno e uso pubblicabile/social.",
-    body: `Il sottoscritto, in qualita' di genitore o tutore legale del minore indicato, esprime separatamente i seguenti consensi (FACOLTATIVI - il rifiuto NON impedisce la partecipazione all'attivita'):
+    body: `Il sottoscritto, in qualità di genitore o tutore legale del minore indicato, esprime separatamente i seguenti consensi (FACOLTATIVI - il rifiuto NON impedisce la partecipazione all'attività):
 
-A) Consenso alla realizzazione di foto e video da parte dei responsabili durante l'attivita' per uso interno e documentazione (album dell'attivita', materiale per le famiglie partecipanti).
+A) Consenso alla realizzazione di foto e video da parte dei responsabili durante l'attività per uso interno e documentazione (album dell'attività, materiale per le famiglie partecipanti).
 
 B) Consenso alla pubblicazione delle immagini su canali pubblici dell'Organizzazione (sito web, social media, materiale promozionale).
 
-I consensi possono essere revocati in qualsiasi momento contattando i responsabili. La revoca non pregiudica la liceita' dei trattamenti effettuati prima della revoca.
+I consensi possono essere revocati in qualsiasi momento contattando i responsabili. La revoca non pregiudica la liceità dei trattamenti effettuati prima della revoca.
 
 L'Organizzazione si impegna a:
-- non pubblicare immagini lesive della dignita' o del decoro del minore;
-- rimuovere tempestivamente, su richiesta, le immagini gia' pubblicate quando tecnicamente possibile.`,
+- non pubblicare immagini lesive della dignità o del decoro del minore;
+- rimuovere tempestivamente, su richiesta, le immagini già pubblicate quando tecnicamente possibile.`,
   },
   conduct: {
     version: LEGAL_DOC_VERSIONS.conduct,
     title: "Regolamento di comportamento",
     reviewedByLegal: false,
     reviewNotes:
-      "[DA REVISIONARE LEGALMENTE] Testo ripreso dal modulo 'Consenso e informazioni mediche' (secondo foglio) gia' incluso nel PDF firmato.",
-    body: `Il partecipante e' responsabile della propria condotta e si attiene alle norme della Chiesa, alle regole di sicurezza dell'evento e alle indicazioni dei dirigenti.
+      "[DA REVISIONARE LEGALMENTE] Testo ripreso dal modulo 'Consenso e informazioni mediche' (secondo foglio) già incluso nel PDF firmato.",
+    body: `Il partecipante è responsabile della propria condotta e si attiene alle norme della Chiesa, alle regole di sicurezza dell'evento e alle indicazioni dei dirigenti.
 
-La partecipazione e' un privilegio che puo' essere revocato in caso di comportamento inappropriato o di rischio.
+La partecipazione è un privilegio che può essere revocato in caso di comportamento inappropriato o di rischio.
 
-Le unita' potrebbero non poter soddisfare ogni esigenza medica, fisica o di altro tipo: i dirigenti si confronteranno con il genitore o tutore se servono accorgimenti specifici.`,
+Le unità potrebbero non poter soddisfare ogni esigenza medica, fisica o di altro tipo: i dirigenti si confronteranno con il genitore o tutore se servono accorgimenti specifici.`,
   },
 };
 
@@ -118,7 +118,7 @@ export const PARENT_CONSENT_CHECKBOXES: ConsentCheckboxLabel[] = [
   {
     key: "authorizesParticipation",
     label:
-      "Autorizzo la partecipazione del minore all'attivita' indicata, alle date, nel luogo e con le modalita' descritte (incluso eventuale pernottamento o trasferta).",
+      "Autorizzo la partecipazione del minore all'attività indicata, alle date, nel luogo e con le modalità descritte (incluso eventuale pernottamento o trasferta).",
     required: true,
   },
   {
@@ -151,9 +151,9 @@ export const PHOTO_CONSENT_OPTIONS: PhotoConsentLabel[] = [
   {
     key: "photoConsent",
     label:
-      "Acconsento alla realizzazione di foto e video del minore durante l'attivita' per uso interno e documentazione.",
+      "Acconsento alla realizzazione di foto e video del minore durante l'attività per uso interno e documentazione.",
     helpText:
-      "FACOLTATIVO. Il rifiuto non impedisce la partecipazione all'attivita'.",
+      "FACOLTATIVO. Il rifiuto non impedisce la partecipazione all'attività.",
   },
   {
     key: "socialPublicationConsent",
@@ -165,6 +165,6 @@ export const PHOTO_CONSENT_OPTIONS: PhotoConsentLabel[] = [
 ];
 
 export const SUPPORT_CONTACT_TEXT =
-  "Per assistenza contatta il dirigente della tua unita'.";
+  "Per assistenza contatta il dirigente della tua unità.";
 
 export const PARENT_AUTHORIZATION_TOKEN_TTL_DAYS = 14;

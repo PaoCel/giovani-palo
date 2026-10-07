@@ -1624,7 +1624,7 @@ export function AdminEventDetailPage() {
   async function handleAdminDeleteRegistration(registration: Registration) {
     const confirmed = window.confirm(
       `Eliminare definitivamente l'iscrizione di ${registration.fullName}?\n\n` +
-        "L'iscrizione verra' rimossa dal database. Eventuali firme/PDF/documenti " +
+        "L'iscrizione verrà rimossa dal database. Eventuali firme/PDF/documenti " +
         "associati su Storage NON vengono eliminati automaticamente (vanno rimossi a mano se serve).\n\n" +
         "Azione irreversibile.",
     );

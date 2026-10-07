@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { router } from "@/routes/router";
 
 // Soglia oltre cui si mostra splash invece del contenuto pubblico:
-// sotto questo valore il primo paint pubblico e' percepito come "istantaneo"
+// sotto questo valore il primo paint pubblico è percepito come "istantaneo"
 // e non vale la pena mostrare l'overlay (eviterebbe il flash di un loader
 // breve). Sopra, l'attesa diventa fastidiosa e il loader chiarifica
 // "sto verificando se sei loggato".

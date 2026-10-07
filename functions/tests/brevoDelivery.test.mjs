@@ -9,7 +9,7 @@ const { ENVIRONMENT_NOTICE } = require("../lib/emailPolicy.js");
 const { logger } = require("firebase-functions");
 
 // La politica email si legge da process.env a ogni invio: ogni test parte da un
-// ambiente pulito, imposta solo cio' che dichiara e ripristina tutto alla fine.
+// ambiente pulito, imposta solo ciò che dichiara e ripristina tutto alla fine.
 const ENV_KEYS = [
   "GCLOUD_PROJECT",
   "GOOGLE_CLOUD_PROJECT",
@@ -122,7 +122,7 @@ const emails = (list) => (list ?? []).map((recipient) => recipient.email);
 // ---------------------------------------------------------------------------
 
 for (const { name, send, args, subject, hasSupportBcc } of SENDERS) {
-  test(`${name}: in produzione la mail parte una volta, senza prefisso ne' avviso`, async () => {
+  test(`${name}: in produzione la mail parte una volta, senza prefisso né avviso`, async () => {
     await withEnvironment(PRODUCTION, async ({ calls }) => {
       const result = await send(args());
 
@@ -204,7 +204,7 @@ for (const { name, send, args, subject, hasSupportBcc } of SENDERS) {
   });
 }
 
-test("sendSignedAuthorizationCopyEmail: in produzione il BCC al supporto non c'e' se il genitore E' il supporto", async () => {
+test("sendSignedAuthorizationCopyEmail: in produzione il BCC al supporto non c'è se il genitore È il supporto", async () => {
   await withEnvironment(PRODUCTION, async ({ calls }) => {
     await sendSignedAuthorizationCopyEmail(signedCopyArgs({ parentEmail: SUPPORT }));
 
@@ -238,7 +238,7 @@ for (const { name, send, args } of SENDERS) {
     ["EMAIL_ALLOWLIST vuota", { ...STAGING, EMAIL_ALLOWLIST: "" }],
     ["EMAIL_ALLOWLIST di soli separatori", { ...STAGING, EMAIL_ALLOWLIST: " , ; " }],
   ]) {
-    test(`${name}: fuori produzione con ${label} la mail e' simulata e fetch non parte`, async () => {
+    test(`${name}: fuori produzione con ${label} la mail è simulata e fetch non parte`, async () => {
       await withEnvironment(vars, async ({ calls }) => {
         const result = await send(args());
         assert.equal(result.simulated, true);
@@ -266,7 +266,7 @@ for (const { name, send, args } of SENDERS) {
     });
   });
 
-  test(`${name}: fuori produzione con il genitore fuori allowlist la mail e' simulata`, async () => {
+  test(`${name}: fuori produzione con il genitore fuori allowlist la mail è simulata`, async () => {
     await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: "qualcun-altro@example.invalid" }, async ({ calls }) => {
       const result = await send(args());
       assert.equal(result.simulated, true);
@@ -274,7 +274,7 @@ for (const { name, send, args } of SENDERS) {
     });
   });
 
-  test(`${name}: un indirizzo con +tag non e' coperto dalla voce senza tag`, async () => {
+  test(`${name}: un indirizzo con +tag non è coperto dalla voce senza tag`, async () => {
     await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: PARENT }, async ({ calls }) => {
       const result = await send(args({ parentEmail: "genitore+iscritto@example.invalid" }));
       assert.equal(result.simulated, true);
@@ -330,7 +330,7 @@ for (const { name, send, args, subject } of SENDERS) {
     );
   });
 
-  test(`${name}: il genitore puo' essere ammesso con la voce @dominio`, async () => {
+  test(`${name}: il genitore può essere ammesso con la voce @dominio`, async () => {
     await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: "@example.invalid" }, async ({ calls }) => {
       const result = await send(args());
       assert.equal(calls.length, 1);
@@ -365,22 +365,22 @@ for (const { name, send, args, subject } of SENDERS) {
   });
 }
 
-test("sendSignedAuthorizationCopyEmail: fuori produzione il BCC al supporto cade se non e' in allowlist", async () => {
+test("sendSignedAuthorizationCopyEmail: fuori produzione il BCC al supporto cade se non è in allowlist", async () => {
   await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: PARENT }, async ({ calls }) => {
     await sendSignedAuthorizationCopyEmail(signedCopyArgs());
 
     assert.equal(calls.length, 1);
     const body = calls[0].body;
     assert.deepEqual(emails(body.to), [PARENT]);
-    assert.ok(!emails(body.bcc).includes(SUPPORT), "il supporto non e' in allowlist e non deve ricevere la copia");
+    assert.ok(!emails(body.bcc).includes(SUPPORT), "il supporto non è in allowlist e non deve ricevere la copia");
     assert.deepEqual(emails(body.bcc), []);
-    // Il resto della mail e' intatto.
+    // Il resto della mail è intatto.
     assert.equal(body.attachment.length, 1);
     assert.equal(body.attachment[0].name, "modulo.pdf");
   });
 });
 
-test("sendSignedAuthorizationCopyEmail: se anche il supporto e' in allowlist il BCC resta", async () => {
+test("sendSignedAuthorizationCopyEmail: se anche il supporto è in allowlist il BCC resta", async () => {
   await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: `${PARENT}, ${SUPPORT}` }, async ({ calls }) => {
     await sendSignedAuthorizationCopyEmail(signedCopyArgs());
 
@@ -397,7 +397,7 @@ test("sendSignedAuthorizationCopyEmail: il BCC resta anche con l'intero dominio 
   });
 });
 
-test("sendParentAuthorizationEmail: fuori produzione il link del genitore e' nel corpo, nessun BCC", async () => {
+test("sendParentAuthorizationEmail: fuori produzione il link del genitore è nel corpo, nessun BCC", async () => {
   await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: PARENT }, async ({ calls }) => {
     await sendParentAuthorizationEmail(authorizationArgs());
     const body = calls[0].body;
@@ -429,15 +429,15 @@ for (const { name, send, args } of SENDERS) {
     );
   });
 
-  test(`${name}: FIREBASE_CONFIG illeggibile e' come progetto sconosciuto`, async () => {
-    await withEnvironment({ FIREBASE_CONFIG: "{non e' json" }, async ({ calls }) => {
+  test(`${name}: FIREBASE_CONFIG illeggibile è come progetto sconosciuto`, async () => {
+    await withEnvironment({ FIREBASE_CONFIG: "{non è json" }, async ({ calls }) => {
       await assert.rejects(() => send(args()), (error) => error instanceof EnvironmentConfigError);
       assert.equal(calls.length, 0);
     });
   });
 }
 
-test("il progetto si puo' leggere anche da FIREBASE_CONFIG", async () => {
+test("il progetto si può leggere anche da FIREBASE_CONFIG", async () => {
   await withEnvironment(
     { FIREBASE_CONFIG: JSON.stringify({ projectId: "giovani-palo" }) },
     async ({ calls }) => {
@@ -466,7 +466,7 @@ const MULTI_ADDRESS_PARENTS = [
 ];
 
 for (const { name, send, args } of SENDERS) {
-  test(`${name}: un parentEmail con piu' indirizzi non supera una voce @dominio, niente parte (regressione)`, async () => {
+  test(`${name}: un parentEmail con più indirizzi non supera una voce @dominio, niente parte (regressione)`, async () => {
     await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: "@gugditalia.it" }, async ({ calls }) => {
       for (const parentEmail of MULTI_ADDRESS_PARENTS) {
         const result = await send(args({ parentEmail }));
@@ -476,7 +476,7 @@ for (const { name, send, args } of SENDERS) {
     });
   });
 
-  test(`${name}: un parentEmail con piu' indirizzi non supera nemmeno una voce esatta`, async () => {
+  test(`${name}: un parentEmail con più indirizzi non supera nemmeno una voce esatta`, async () => {
     await withEnvironment({ ...STAGING, EMAIL_ALLOWLIST: "x@gugditalia.it, victim@gmail.com" }, async ({ calls }) => {
       for (const parentEmail of MULTI_ADDRESS_PARENTS) {
         const result = await send(args({ parentEmail }));
@@ -575,8 +575,8 @@ test("corpo Brevo, non produzione: l'insieme esatto dei campi per entrambe le fu
   });
 });
 
-// L'unico modo di avere campi in piu' nel payload passando dalle funzioni
-// pubbliche e' un passaggio intermedio che li aggiunge (come potrebbe fare una
+// L'unico modo di avere campi in più nel payload passando dalle funzioni
+// pubbliche è un passaggio intermedio che li aggiunge (come potrebbe fare una
 // modifica futura): si carica una copia di brevo.js il cui decorateMessage
 // restituisce chiavi extra, e si controlla che non arrivino a fetch.
 const brevoPath = require.resolve("../lib/brevo.js");
@@ -606,7 +606,7 @@ const EXTRA_PAYLOAD_KEYS = {
 test("corpo Brevo: chiavi extra nel payload (cc, messageVersions...) non arrivano a fetch (regressione)", async () => {
   const brevo = loadBrevoWithExtraPayloadKeys(EXTRA_PAYLOAD_KEYS);
 
-  // La copia caricata e' davvero un'altra istanza di brevo.js.
+  // La copia caricata è davvero un'altra istanza di brevo.js.
   assert.notEqual(brevo.sendParentAuthorizationEmail, sendParentAuthorizationEmail);
 
   await withEnvironment(PRODUCTION, async ({ calls }) => {

@@ -104,7 +104,7 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
   }
 
   async function removeQuestion(id: string) {
-    if (!confirm("Eliminare la domanda? Le risposte gia' inviate non saranno cancellate.")) {
+    if (!confirm("Eliminare la domanda? Le risposte già inviate non saranno cancellate.")) {
       return;
     }
     await surveysService.deleteQuestion(stakeId, eventId, id);

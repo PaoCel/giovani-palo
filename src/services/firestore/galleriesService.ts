@@ -300,7 +300,7 @@ export const galleriesService = {
   // Sottoscrizioni cache-first (onSnapshot + persistentLocalCache): la prima
   // emissione arriva SUBITO dalla cache IndexedDB (niente attesa del round-trip
   // di rete che faceva "girare" la galleria all'infinito su connessioni lente),
-  // poi il server aggiorna in background. In piu' i nuovi upload di chiunque
+  // poi il server aggiorna in background. In più i nuovi upload di chiunque
   // compaiono in tempo reale senza refresh.
   subscribeGalleryByActivity(
     stakeId: string,

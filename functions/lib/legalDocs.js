@@ -17,22 +17,22 @@ const LEGAL_DOCS = {
     version: LEGAL_DOC_VERSIONS.participation,
     title: "Autorizzazione alla partecipazione",
     summary:
-      "Il genitore o tutore autorizza la partecipazione del minore all'attivita' indicata, " +
+      "Il genitore o tutore autorizza la partecipazione del minore all'attività indicata, " +
       "dichiara di aver fornito tutte le informazioni sanitarie rilevanti e di autorizzare " +
       "i responsabili a contattare i numeri di emergenza e attivare le cure mediche urgenti " +
-      "in caso di necessita'.",
+      "in caso di necessità.",
   },
   privacy: {
     version: LEGAL_DOC_VERSIONS.privacy,
     title: "Informativa privacy (GDPR)",
     summary:
-      "Titolare del trattamento: Paolo Celestini, persona fisica (NON una societa' " +
-      "ne' un ente religioso ufficiale). Contatto: supporto@gugditalia.it. " +
+      "Titolare del trattamento: Paolo Celestini, persona fisica (NON una società " +
+      "né un ente religioso ufficiale). Contatto: supporto@gugditalia.it. " +
       "I dati sono trattati per gestione iscrizione, sicurezza del partecipante e " +
       "comunicazioni operative ai genitori. Base giuridica: consenso, esecuzione " +
       "contrattuale, interesse vitale del minore. Email via Brevo (Sendinblue SAS, Francia). " +
-      "Questa NON e' una piattaforma ufficiale della Chiesa: e' uno strumento sviluppato " +
-      "a titolo personale dal titolare per supportare l'organizzazione delle attivita'.",
+      "Questa NON è una piattaforma ufficiale della Chiesa: è uno strumento sviluppato " +
+      "a titolo personale dal titolare per supportare l'organizzazione delle attività.",
   },
   photo: {
     version: LEGAL_DOC_VERSIONS.photo,
@@ -53,7 +53,7 @@ const PARENT_CONSENT_CHECKBOXES = [
   {
     key: "authorizesParticipation",
     label:
-      "Autorizzo la partecipazione del minore all'attivita' indicata, alle date, nel luogo e con le modalita' descritte.",
+      "Autorizzo la partecipazione del minore all'attività indicata, alle date, nel luogo e con le modalità descritte.",
   },
   {
     key: "confirmsDataAccuracy",

@@ -23,8 +23,8 @@ export function UnofficialDisclaimer({
         <AppIcon name="badge" />
       </span>
       <p>
-        <strong>Questa piattaforma non e' un sito ufficiale</strong> de La Chiesa
-        di Gesu' Cristo dei Santi degli Ultimi Giorni. E' uno strumento locale
+        <strong>Questa piattaforma non è un sito ufficiale</strong> de La Chiesa
+        di Gesù Cristo dei Santi degli Ultimi Giorni. È uno strumento locale
         creato per facilitare informazioni, iscrizioni e coordinamento delle
         attivita.
       </p>

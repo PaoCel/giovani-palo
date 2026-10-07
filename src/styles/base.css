@@ -2027,7 +2027,7 @@ button {
 }
 
 /* Colonne fluide: due card affiancate sul telefono (stile locandina),
-   tre o piu' su schermi larghi. Prima erano tre colonne fisse anche a
+   tre o più su schermi larghi. Prima erano tre colonne fisse anche a
    375px di larghezza. */
 .activity-grid {
   display: grid;

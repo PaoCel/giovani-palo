@@ -2,11 +2,11 @@
  * Filtro destinatari e marcatura degli ambienti non di produzione.
  *
  * Funzioni pure: la politica (getEmailPolicy in ./config) viene passata da
- * fuori, cosi' si provano senza variabili d'ambiente.
+ * fuori, così si provano senza variabili d'ambiente.
  *
- * Regola: fuori da produzione una email esce solo se OGNI destinatario e'
+ * Regola: fuori da produzione una email esce solo se OGNI destinatario è
  * nell'allowlist (To e BCC valutati uno per uno). Se nessun To resta, la mail
- * e' "simulata": non parte niente, nemmeno verso i BCC ammessi.
+ * è "simulata": non parte niente, nemmeno verso i BCC ammessi.
  */
 
 function normalizeAddress(address) {
@@ -15,7 +15,7 @@ function normalizeAddress(address) {
 
 // Un solo indirizzo semplice. `parentEmail` arriva dal client senza validazione:
 // senza questo filtro "vittima@gmail.com,x@dominio" supererebbe una voce
-// "@dominio" (conta solo cio' che segue l'ultima @) e a Brevo partirebbe la
+// "@dominio" (conta solo ciò che segue l'ultima @) e a Brevo partirebbe la
 // stringa intera.
 const SINGLE_ADDRESS = /^[^\s@,;<>"()[\]\\:]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
@@ -56,7 +56,7 @@ function planDelivery(policy, { to = [], bcc = [] }) {
 }
 
 const ENVIRONMENT_NOTICE =
-  "Ambiente di prova: questo messaggio non e' reale e non produce effetti sulle attivita' vere.";
+  "Ambiente di prova: questo messaggio non è reale e non produce effetti sulle attività vere.";
 
 /**
  * Marca oggetto e corpo di una mail non di produzione. In produzione ritorna

@@ -8,14 +8,14 @@ export interface CampHighlight {
   gallery: Gallery;
 }
 
-// Quante gallerie al massimo controlliamo partendo dal campeggio piu' recente.
-// Post-campo normalmente ce n'e' una sola; il limite evita raffiche di read.
+// Quante gallerie al massimo controlliamo partendo dal campeggio più recente.
+// Post-campo normalmente ce n'è una sola; il limite evita raffiche di read.
 const MAX_CAMPS_TO_PROBE = 4;
 
 /**
- * Risolve l'ultimo campeggio concluso che ha gia' una galleria con almeno un
- * media. E' la sorgente per la card home condivisa da tutti i ruoli e per la
- * pagina campeggio. Ritorna null se non c'e' nessun campeggio con foto.
+ * Risolve l'ultimo campeggio concluso che ha già una galleria con almeno un
+ * media. È la sorgente per la card home condivisa da tutti i ruoli e per la
+ * pagina campeggio. Ritorna null se non c'è nessun campeggio con foto.
  */
 export async function resolveLatestCampWithGallery(
   stakeId: string,
@@ -25,7 +25,7 @@ export async function resolveLatestCampWithGallery(
   const events = await eventsService.listPublicEvents(stakeId);
   const camps = events
     .filter((event) => isCampEvent(event) && isPastEvent(event))
-    // Piu' recente per data di fine, prima.
+    // Più recente per data di fine, prima.
     .sort((left, right) => right.endDate.localeCompare(left.endDate))
     .slice(0, MAX_CAMPS_TO_PROBE);
 

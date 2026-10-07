@@ -176,7 +176,7 @@ export function getRegistrationAvailability(
 }
 
 /**
- * Un evento e' un "campeggio" solo con activityType camp. Pattuglie, comitati,
+ * Un evento è un "campeggio" solo con activityType camp. Pattuglie, comitati,
  * checklist zaino e area /campeggio esistono solo per questi eventi: un viaggio
  * con pernottamento (activityType trip, overnight true) non deve vederli.
  */

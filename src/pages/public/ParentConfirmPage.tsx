@@ -104,7 +104,7 @@ export function ParentConfirmPage() {
   useNoIndex();
 
   const { token } = useParams();
-  // Chi arriva dal magic-link non e' loggato; chi firma dall'app si', e merita
+  // Chi arriva dal magic-link non è loggato; chi firma dall'app sì, e merita
   // una via di ritorno invece di "puoi chiudere questa pagina".
   const { session } = useAuth();
   const isParentSession = Boolean(session?.isParent);
@@ -284,7 +284,7 @@ export function ParentConfirmPage() {
             </p>
             <p className="parent-confirm-fineprint">
               Una copia PDF dell'autorizzazione viene conservata in modo sicuro dagli admin.
-              Se vuoi una copia per i tuoi archivi, contatta il dirigente della tua unita'.
+              Se vuoi una copia per i tuoi archivi, contatta il dirigente della tua unità.
             </p>
             {isParentSession ? (
               <Link className="button button--primary" to="/family">

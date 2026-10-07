@@ -12,7 +12,7 @@ if (useLocalEmulators && (!emulatorProjectId.startsWith("demo-") || !["localhost
 // Backend per ambiente. Produzione = valori storici; staging solo da VITE_*
 // e mai con valori di produzione (vedi environment.ts, controllato anche in
 // vite.config.ts a build time). Il confronto sta sul valore statico di
-// VITE_APP_ENV cosi' un bundle di staging non include i valori di produzione.
+// VITE_APP_ENV così un bundle di staging non include i valori di produzione.
 const settings = resolveFirebaseSettings(
   import.meta.env,
   import.meta.env.VITE_APP_ENV === "staging" ? null : PRODUCTION_SETTINGS,

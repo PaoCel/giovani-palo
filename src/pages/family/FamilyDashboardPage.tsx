@@ -78,7 +78,7 @@ export function FamilyDashboardPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Il genitore e' gia' autenticato: non ha senso farlo passare dalla mail per
+  // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
   // pagina di firma del magic-link.
   async function handleAuthorizeNow(registration: Registration) {

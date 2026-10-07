@@ -2,8 +2,8 @@
 
 Un solo codice, tre ambienti: **produzione** (`giovani-palo`), **staging/demo**
 (progetto separato, es. `giovani-palo-staging`, dominio `demo.gugditalia.it`) ed
-**emulatori** (`demo-*`). Un ambiente diverso da produzione non puo' scrivere
-su produzione ne' mandare email a persone vere.
+**emulatori** (`demo-*`). Un ambiente diverso da produzione non può scrivere
+su produzione né mandare email a persone vere.
 
 ## Client (Vite)
 
@@ -24,16 +24,16 @@ su produzione ne' mandare email a persone vere.
   staging su `gugditalia.it`/`giovani-palo.web.app` non parte. Aggiornare le liste
   in `environment.ts` se nasce un nuovo host di staging. Prima di ogni deploy su
   staging controlla comunque che `dist/` contenga il project id di staging.
-- `VITE_DEFAULT_STAKE_ID` (con `_NAME`/`_SLUG`) e' il palo mostrato sulle pagine
+- `VITE_DEFAULT_STAKE_ID` (con `_NAME`/`_SLUG`) è il palo mostrato sulle pagine
   pubbliche; in produzione resta `roma-est`. Le collection legacy `events/` e
   `settings/organization` restano di `roma-est` (`LEGACY_DATA_STAKE_ID`).
 
 ## Functions
 
 - Il progetto si legge da `GCLOUD_PROJECT`/`FIREBASE_CONFIG` (la CLI li imposta
-  su ogni funzione deployata); se non e' determinabile, email e link
+  su ogni funzione deployata); se non è determinabile, email e link
   **falliscono** (mai un ripiego a caso). Un emulatore delle functions
-  (`FUNCTIONS_EMULATOR=true`) e' sempre "non produzione", anche se parte col
+  (`FUNCTIONS_EMULATOR=true`) è sempre "non produzione", anche se parte col
   progetto di default; lo script `serve` usa comunque `--project demo-room-planner`.
 - Produzione: invariata. Fuori da produzione serve `functions/.env.<projectId>`
   (modello: `functions/.env.staging.example`, ignorato da git):
@@ -43,7 +43,7 @@ su produzione ne' mandare email a persone vere.
   `functions/lib/brevo.js`): To e BCC valutati uno per uno, indirizzi esatti o
   `@dominio`, niente wildcard; ogni destinatario deve essere UN indirizzo semplice
   (niente virgole, spazi, `<>`: l'email del genitore arriva dal client non
-  validata) e a Brevo va la forma normalizzata. Se nessun To e' ammesso la mail e' "simulata"
+  validata) e a Brevo va la forma normalizzata. Se nessun To è ammesso la mail è "simulata"
   (log con indirizzi mascherati, nessuna chiamata a Brevo, nessuna chiave
   necessaria). Lista vuota o assente = non esce niente. Oggetto con prefisso
   e banner nel corpo.
@@ -59,7 +59,7 @@ e `--config firebase.staging.json`, mai `--project` da solo.
 - Hosting: `firebase deploy --only hosting --config firebase.staging.json --project giovani-palo-staging`.
   Il predeploy costruisce `dist-staging/` (`npm run build:staging`, usa `.env.staging`)
   e lancia `tools/check-staging-bundle.mjs`, che blocca il deploy se il bundle
-  contiene valori di produzione, non e' noindex o il progetto e' quello di produzione.
+  contiene valori di produzione, non è noindex o il progetto è quello di produzione.
   La build di staging emette `robots.txt` (Disallow), meta `noindex`, nome PWA
   "(Demo)"; l'hosting aggiunge `X-Robots-Tag`.
 - Ordine: rules/indici -> functions -> hosting, con `--only` mirati.
@@ -75,9 +75,9 @@ node tools/create-stake.mjs --project <id> --id palo-napoli --name "Palo di Napo
   --admin-unit "Rione Vomero"            # dry-run; aggiungi --apply per scrivere
 ```
 
-- Rifiuta di sovrascrivere un palo esistente. Id unita' = `<palo>-<slug>` (unico
+- Rifiuta di sovrascrivere un palo esistente. Id unità = `<palo>-<slug>` (unico
   fra pali).
-- L'admin va assegnato a un'unita' (non puo' cambiarla da solo e il
+- L'admin va assegnato a un'unità (non può cambiarla da solo e il
   completamento profilo la richiede) e ha la data di nascita `1980-01-01`
   come segnaposto (modificabile da `/me`). Niente password: lo script stampa il
   link per sceglierla (con gli emulatori `--admin-password`).
@@ -85,9 +85,9 @@ node tools/create-stake.mjs --project <id> --id palo-napoli --name "Palo di Napo
 
 ## Seed demo (4 ruoli)
 
-`tools/seed-demo.mjs` scrive il palo `palo-demo` con admin, dirigente di unita',
-partecipante e genitore (2 figli: uno gia' autorizzato, uno in attesa per
-provare "Autorizza ora" e il link di firma), 2 attivita' e 25 iscrizioni.
+`tools/seed-demo.mjs` scrive il palo `palo-demo` con admin, dirigente di unità,
+partecipante e genitore (2 figli: uno già autorizzato, uno in attesa per
+provare "Autorizza ora" e il link di firma), 2 attività e 25 iscrizioni.
 Rifiuta produzione e qualsiasi progetto che non sia emulatore `demo-*` o
 `*-staging`/`*-demo`. Deterministico: ids fissi, date relative a `--today`.
 
@@ -108,32 +108,32 @@ DEMO_PASSWORD=... DEMO_PARENT_EMAIL=tuo+genitore@... node tools/seed-demo.mjs \
 `stakeId` demo, token, cache firme dei genitori demo, prefissi Storage del palo).
 Login: `admin|dirigente|partecipante|genitore.demo@example.invalid`; password
 `Demo-2026!` solo negli emulatori, altrove `DEMO_PASSWORD` (min 12 caratteri).
-`DEMO_PARENT_EMAIL` e' l'unica casella vera (copia firmata del modulo) e deve
+`DEMO_PARENT_EMAIL` è l'unica casella vera (copia firmata del modulo) e deve
 stare in `EMAIL_ALLOWLIST` di staging.
 
 ## Rischi noti, non ancora chiusi
 
-- **Mail di Firebase Auth fuori dall'allowlist.** Sulla demo la registrazione e'
+- **Mail di Firebase Auth fuori dall'allowlist.** Sulla demo la registrazione è
   pubblica: reset password e verifica li manda Firebase a qualunque indirizzo
   scritto da un visitatore. L'allowlist copre solo Brevo. Opzioni: registrazione
   chiusa su staging (Identity Platform + blocking function) o rischio accettato.
-- `validRegistrationCreate` non controlla ne' il palo dell'utente ne' `unitId`: chi
-  e' loggato puo' iscriversi a qualunque attivita' pubblica aperta di qualunque
+- `validRegistrationCreate` non controlla né il palo dell'utente né `unitId`: chi
+  è loggato può iscriversi a qualunque attività pubblica aperta di qualunque
   palo con un `unitId` a scelta (probabilmente voluto, da decidere col punto 5).
-- Il link di firma di Matteo nella demo e' derivato da una stringa fissa del
-  repo pubblico: chiunque sappia la regola puo' firmare la demo (la copia va a
+- Il link di firma di Matteo nella demo è derivato da una stringa fissa del
+  repo pubblico: chiunque sappia la regola può firmare la demo (la copia va a
   `DEMO_PARENT_EMAIL`). Accettato; non usarlo per dati veri.
-- `--reset` cancella anche chi si e' registrato da solo nel palo demo (profilo e
+- `--reset` cancella anche chi si è registrato da solo nel palo demo (profilo e
   account Auth): il dry-run elenca `nonSeedUsers`, leggilo prima di `--apply`.
-  La cache firme e' globale per hash email: un `DEMO_PARENT_EMAIL` uguale a quello
+  La cache firme è globale per hash email: un `DEMO_PARENT_EMAIL` uguale a quello
   di un genitore vero di un altro palo gli cancellerebbe la firma salvata.
-- `users/{genitore}/children` e' elencabile dall'admin del palo solo con
+- `users/{genitore}/children` è elencabile dall'admin del palo solo con
   `where("stakeId","==",...)`.
 
 - `canCreateOwnUser` accetta qualsiasi `stakeId`: prima di aprire a pali veri
   serve `exists(/stakes/$(stakeId))` (punto 5 del piano).
-- Un partecipante o genitore puo' cambiare `stakeId` del proprio profilo (le
-  rules lo consentono); con piu' pali il selettore va protetto.
-- `parentAuthorizationSignatureCache` e' per hash dell'email, non per palo: la
-  stessa email riusa la firma in pali diversi (accettabile: e' lo stesso
+- Un partecipante o genitore può cambiare `stakeId` del proprio profilo (le
+  rules lo consentono); con più pali il selettore va protetto.
+- `parentAuthorizationSignatureCache` è per hash dell'email, non per palo: la
+  stessa email riusa la firma in pali diversi (accettabile: è lo stesso
   genitore).

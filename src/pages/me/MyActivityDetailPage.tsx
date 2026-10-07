@@ -720,7 +720,7 @@ export function MyActivityDetailPage() {
                 ) : (
                   <EmptyState
                     title="Nessuna pattuglia assegnata"
-                    description="Quando sara' assegnata, la vedrai qui."
+                    description="Quando sarà assegnata, la vedrai qui."
                   />
                 )}
               </div>
@@ -810,7 +810,7 @@ export function MyActivityDetailPage() {
                 ) : (
                   <EmptyState
                     title="Nessun comitato assegnato"
-                    description="Quando sarai assegnato a un comitato, comparira' qui."
+                    description="Quando sarai assegnato a un comitato, comparirà qui."
                   />
                 )}
               </div>

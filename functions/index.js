@@ -38,9 +38,9 @@ const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const PRODUCTION_WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const PRODUCTION_WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
 
-// Identita' VAPID dell'ambiente. Fuori da produzione la chiave pubblica arriva
+// Identità VAPID dell'ambiente. Fuori da produzione la chiave pubblica arriva
 // da WEB_PUSH_PUBLIC_KEY (coppia propria del progetto, con il secret
-// WEB_PUSH_PRIVATE_KEY corrispondente) e non puo' essere quella di produzione.
+// WEB_PUSH_PRIVATE_KEY corrispondente) e non può essere quella di produzione.
 function getWebPushIdentity() {
   if (isProduction()) {
     return {
@@ -255,9 +255,9 @@ exports.propagateUnitNameChange = onDocumentUpdated(
       for (const r of regs.docs) regRefs.push(r.ref);
     }
 
-    // Gli id unita' non sono unici fra pali (slug del nome): senza il filtro
+    // Gli id unità non sono unici fra pali (slug del nome): senza il filtro
     // sul palo una rinomina riscriverebbe il nome anche agli utenti di un
-    // altro palo con un'unita' omonima.
+    // altro palo con un'unità omonima.
     const usersSnap = await db
       .collection("users")
       .where("stakeId", "==", stakeId)

@@ -37,7 +37,7 @@ export function MyActivityGalleryPage() {
         return;
       }
       setGallery(found);
-      // Galleria sempre accessibile per chi e' loggato (no codice).
+      // Galleria sempre accessibile per chi è loggato (no codice).
       const list = await galleriesService.listMedia(stakeId, found.id);
       setMedia(list);
     } catch (caughtError) {

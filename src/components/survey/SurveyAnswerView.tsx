@@ -20,9 +20,9 @@ import type {
 interface SurveyAnswerViewProps {
   stakeId: string;
   eventId: string;
-  /** Mostra l'intestazione grande. Off quando la vista e' incassata in un hub. */
+  /** Mostra l'intestazione grande. Off quando la vista è incassata in un hub. */
   showHero?: boolean;
-  /** Dove tornare quando non c'e' il sondaggio o dopo l'invio. */
+  /** Dove tornare quando non c'è il sondaggio o dopo l'invio. */
   backHref?: string;
   backLabel?: string;
 }

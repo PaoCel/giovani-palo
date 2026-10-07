@@ -55,7 +55,7 @@ test("resolveProjectId toglie gli spazi dal valore letto", () => {
 test("resolveProjectId ritorna stringa vuota se non determinabile", () => {
   assert.equal(resolveProjectId({}), "");
   assert.equal(resolveProjectId({ GCLOUD_PROJECT: "", GOOGLE_CLOUD_PROJECT: "", FIREBASE_CONFIG: "" }), "");
-  assert.equal(resolveProjectId({ FIREBASE_CONFIG: "{non e' json" }), "");
+  assert.equal(resolveProjectId({ FIREBASE_CONFIG: "{non è json" }), "");
   assert.equal(resolveProjectId({ FIREBASE_CONFIG: "null" }), "");
   assert.equal(resolveProjectId({ FIREBASE_CONFIG: "[]" }), "");
   assert.equal(resolveProjectId({ FIREBASE_CONFIG: "{}" }), "");
@@ -65,7 +65,7 @@ test("resolveProjectId ritorna stringa vuota se non determinabile", () => {
 test("senza progetto determinabile policy, URL e isProduction lanciano EnvironmentConfigError", () => {
   const unknown = [
     {},
-    { FIREBASE_CONFIG: "{non e' json" },
+    { FIREBASE_CONFIG: "{non è json" },
     { FIREBASE_CONFIG: "{}" },
     // Anche con tutta la configurazione email presente: niente ripiego a caso.
     { EMAIL_ALLOWLIST: "paolo@gmail.com", APP_PUBLIC_URL: "https://staging.example.com" },
@@ -77,21 +77,21 @@ test("senza progetto determinabile policy, URL e isProduction lanciano Environme
   }
 });
 
-test("EnvironmentConfigError e' un Error con il nome giusto", () => {
+test("EnvironmentConfigError è un Error con il nome giusto", () => {
   const error = new EnvironmentConfigError("prova");
   assert.ok(error instanceof Error);
   assert.equal(error.name, "EnvironmentConfigError");
   assert.equal(error.message, "prova");
 });
 
-test("il progetto di produzione e' esattamente giovani-palo", () => {
+test("il progetto di produzione è esattamente giovani-palo", () => {
   assert.equal(isProduction({ GCLOUD_PROJECT: "giovani-palo" }), true);
   assert.equal(isProduction({ GOOGLE_CLOUD_PROJECT: "giovani-palo" }), true);
   assert.equal(isProduction({ FIREBASE_CONFIG: JSON.stringify({ projectId: "giovani-palo" }) }), true);
   assert.equal(isProduction({ GCLOUD_PROJECT: " giovani-palo " }), true);
 });
 
-test("un progetto che inizia con l'id di produzione NON e' produzione", () => {
+test("un progetto che inizia con l'id di produzione NON è produzione", () => {
   for (const projectId of [
     "giovani-palo-staging",
     "giovani-palo-2",
@@ -133,7 +133,7 @@ test("produzione: EMAIL_ALLOWLIST, EMAIL_SUBJECT_PREFIX e APP_PUBLIC_URL dell'en
   assert.equal(getAppPublicUrl(env), "https://gugditalia.it");
 });
 
-test("produzione: un'allowlist non valida nell'env non rompe nulla perche' non si legge", () => {
+test("produzione: un'allowlist non valida nell'env non rompe nulla perché non si legge", () => {
   const policy = getEmailPolicy({ ...PROD, EMAIL_ALLOWLIST: "*" });
   assert.equal(policy.allowlist, null);
 });
@@ -148,7 +148,7 @@ test("produzione: gli override di mittente e reply-to dell'env sono ignorati", (
   assert.equal(policy.replyToEmail, "supporto@gugditalia.it");
 });
 
-test("produzione: getAppPublicUrl e' https://gugditalia.it", () => {
+test("produzione: getAppPublicUrl è https://gugditalia.it", () => {
   assert.equal(getAppPublicUrl(PROD), "https://gugditalia.it");
   assert.equal(getAppPublicUrl({ GOOGLE_CLOUD_PROJECT: "giovani-palo" }), "https://gugditalia.it");
   assert.equal(
@@ -161,7 +161,7 @@ test("produzione: getAppPublicUrl e' https://gugditalia.it", () => {
 // 3. Non produzione: policy
 // ---------------------------------------------------------------------------
 
-test("non produzione: allowlist sempre un array, vuota se EMAIL_ALLOWLIST manca o e' vuota", () => {
+test("non produzione: allowlist sempre un array, vuota se EMAIL_ALLOWLIST manca o è vuota", () => {
   for (const env of [
     STAGING,
     { ...STAGING, EMAIL_ALLOWLIST: "" },
@@ -188,7 +188,7 @@ test("non produzione: un'allowlist con voci non valide fa fallire la policy", ()
   assert.throws(() => getEmailPolicy({ ...STAGING, EMAIL_ALLOWLIST: "paolo@gmail.com, *@x.it" }), isEnvError);
 });
 
-test("non produzione: il prefisso oggetto di default e' '[TEST] '", () => {
+test("non produzione: il prefisso oggetto di default è '[TEST] '", () => {
   assert.equal(getEmailPolicy(STAGING).subjectPrefix, "[TEST] ");
 });
 
@@ -242,7 +242,7 @@ test("getAppPublicUrl: restituisce l'URL configurato", () => {
   );
 });
 
-test("getAppPublicUrl: un host di produzione e' vietato fuori da produzione", () => {
+test("getAppPublicUrl: un host di produzione è vietato fuori da produzione", () => {
   const productionUrls = [
     "https://gugditalia.it",
     "https://gugditalia.it/",
@@ -299,7 +299,7 @@ test("getAppPublicUrl: il punto finale non rende vietato un host che non lo era"
   }
 });
 
-test("getAppPublicUrl: gli host si confrontano esattamente, 'demo.gugditalia.it' e' ammesso", () => {
+test("getAppPublicUrl: gli host si confrontano esattamente, 'demo.gugditalia.it' è ammesso", () => {
   for (const url of [
     "https://demo.gugditalia.it",
     "https://staging.gugditalia.it/",
@@ -311,7 +311,7 @@ test("getAppPublicUrl: gli host si confrontano esattamente, 'demo.gugditalia.it'
   }
 });
 
-test("getAppPublicUrl: un valore che non e' un URL lancia", () => {
+test("getAppPublicUrl: un valore che non è un URL lancia", () => {
   for (const value of ["non un url", "staging.example.com", "://rotto", "https://"]) {
     assert.throws(() => getAppPublicUrl({ ...STAGING, APP_PUBLIC_URL: value }), isEnvError, value);
   }
@@ -333,7 +333,7 @@ test("parseAllowlist scarta le voci vuote", () => {
   assert.deepEqual(parseAllowlist(" a@b.it ,, ; c@d.it , "), ["a@b.it", "c@d.it"]);
 });
 
-test("parseAllowlist di niente e' una lista vuota", () => {
+test("parseAllowlist di niente è una lista vuota", () => {
   assert.deepEqual(parseAllowlist(undefined), []);
   assert.deepEqual(parseAllowlist(null), []);
   assert.deepEqual(parseAllowlist(""), []);
@@ -392,7 +392,7 @@ test("isAllowed: la voce @dominio ammette tutto quel dominio e solo quello", () 
   assert.equal(isAllowed(allowlist, "mario@ugditalia.it"), false);
 });
 
-test("isAllowed: un indirizzo con +tag e' distinto da quello senza", () => {
+test("isAllowed: un indirizzo con +tag è distinto da quello senza", () => {
   assert.equal(isAllowed(parseAllowlist("paolo@gmail.com"), "paolo+genitore@gmail.com"), false);
   assert.equal(isAllowed(parseAllowlist("paolo+genitore@gmail.com"), "paolo@gmail.com"), false);
   assert.equal(isAllowed(parseAllowlist("paolo+genitore@gmail.com"), "paolo+genitore@gmail.com"), true);
@@ -400,7 +400,7 @@ test("isAllowed: un indirizzo con +tag e' distinto da quello senza", () => {
   assert.equal(isAllowed(parseAllowlist("@gmail.com"), "paolo+genitore@gmail.com"), true);
 });
 
-test("isAllowed: input spazzatura e' sempre falso", () => {
+test("isAllowed: input spazzatura è sempre falso", () => {
   const allowlist = parseAllowlist("paolo@gmail.com, @gugditalia.it");
   for (const garbage of [
     undefined,
@@ -445,7 +445,7 @@ test("isAllowed: normalizzare la voce non cancella la distinzione dei +tag", () 
   assert.equal(isAllowed([" Paolo@Example.IT "], "altro@example.it"), false);
 });
 
-// Il `parentEmail` arriva dal client senza validazione: una stringa con piu'
+// Il `parentEmail` arriva dal client senza validazione: una stringa con più
 // indirizzi che finisce con "@dominio-ammesso" non deve superare l'allowlist.
 const MULTI_ADDRESS_ATTACKS = [
   "victim@gmail.com,x@gugditalia.it",
@@ -469,7 +469,7 @@ const MULTI_ADDRESS_ATTACKS = [
   "victim[x]@gmail.com@gugditalia.it",
 ];
 
-test("isAllowed: una stringa con piu' indirizzi non passa con una voce @dominio (regressione)", () => {
+test("isAllowed: una stringa con più indirizzi non passa con una voce @dominio (regressione)", () => {
   const allowlist = parseAllowlist("@gugditalia.it");
   for (const attack of MULTI_ADDRESS_ATTACKS) {
     assert.equal(isAllowed(allowlist, attack), false, JSON.stringify(attack));
@@ -478,7 +478,7 @@ test("isAllowed: una stringa con piu' indirizzi non passa con una voce @dominio 
   }
 });
 
-test("isAllowed: una stringa con piu' indirizzi non passa nemmeno con una voce esatta (regressione)", () => {
+test("isAllowed: una stringa con più indirizzi non passa nemmeno con una voce esatta (regressione)", () => {
   const allowlist = parseAllowlist("x@gugditalia.it, victim@gmail.com");
   for (const attack of MULTI_ADDRESS_ATTACKS) {
     assert.equal(isAllowed(allowlist, attack), false, JSON.stringify(attack));
@@ -488,7 +488,7 @@ test("isAllowed: una stringa con piu' indirizzi non passa nemmeno con una voce e
   assert.equal(isAllowed(allowlist, "victim@gmail.com"), true);
 });
 
-test("isAllowed: una stringa con piu' indirizzi non passa nemmeno se e' identica a una voce della lista", () => {
+test("isAllowed: una stringa con più indirizzi non passa nemmeno se è identica a una voce della lista", () => {
   // Lista scritta a mano (parseAllowlist non la produrrebbe): il controllo
   // sull'indirizzo singolo viene prima del confronto.
   for (const attack of MULTI_ADDRESS_ATTACKS) {
@@ -586,7 +586,7 @@ test("planDelivery: se resta un To ma cadono tutti i BCC, la mail parte senza BC
   assert.equal(plan.suppressed, 1);
 });
 
-test("planDelivery: se nessun To passa la mail e' simulata, anche con un BCC ammesso", () => {
+test("planDelivery: se nessun To passa la mail è simulata, anche con un BCC ammesso", () => {
   const policy = { allowlist: parseAllowlist("supporto@gugditalia.it") };
   const plan = planDelivery(policy, {
     to: [person("genitore@no.it")],
@@ -595,11 +595,11 @@ test("planDelivery: se nessun To passa la mail e' simulata, anche con un BCC amm
   assert.equal(plan.simulated, true);
   assert.deepEqual(plan.to, []);
   assert.deepEqual(plan.bcc, []);
-  // spec ambigua: "suppressed" quando la mail e' simulata. Si assume che tutto sia scartato.
+  // spec ambigua: "suppressed" quando la mail è simulata. Si assume che tutto sia scartato.
   assert.equal(plan.suppressed, 2);
 });
 
-test("planDelivery: senza To la mail e' simulata", () => {
+test("planDelivery: senza To la mail è simulata", () => {
   const policy = { allowlist: parseAllowlist("a@ok.it") };
   const plan = planDelivery(policy, { to: [], bcc: [person("a@ok.it")] });
   assert.equal(plan.simulated, true);
@@ -734,7 +734,7 @@ test("planDelivery: in produzione (allowlist null) gli indirizzi restano come ar
   assert.equal(plan.suppressed, 0);
 });
 
-test("planDelivery: un destinatario con piu' indirizzi viene scartato, quello pulito resta (regressione)", () => {
+test("planDelivery: un destinatario con più indirizzi viene scartato, quello pulito resta (regressione)", () => {
   const policy = { allowlist: parseAllowlist("@gugditalia.it") };
   for (const attack of MULTI_ADDRESS_ATTACKS) {
     const alone = planDelivery(policy, { to: [person(attack)], bcc: [person("supporto@gugditalia.it")] });
@@ -788,7 +788,7 @@ test("decorateMessage: fuori da produzione l'oggetto riceve il prefisso", () => 
   assert.equal(custom.subject, `[DEMO] ${SUBJECT}`);
 });
 
-test("decorateMessage: prefisso vuoto lascia l'oggetto com'e'", () => {
+test("decorateMessage: prefisso vuoto lascia l'oggetto com'è", () => {
   const out = decorateMessage(getEmailPolicy({ ...STAGING, EMAIL_SUBJECT_PREFIX: "" }), message());
   assert.equal(out.subject, SUBJECT);
 });
@@ -805,7 +805,7 @@ test("decorateMessage: il banner HTML sta subito dopo il tag <body>", () => {
   const bodyTag = '<body style="margin:0;padding:0;">';
   const insertAt = HTML_WITH_BODY.indexOf(bodyTag) + bodyTag.length;
 
-  // Tutto cio' che precede il banner e tutto cio' che segue e' l'originale, intatto.
+  // Tutto ciò che precede il banner e tutto ciò che segue è l'originale, intatto.
   assert.ok(out.startsWith(HTML_WITH_BODY.slice(0, insertAt)));
   assert.ok(out.endsWith(HTML_WITH_BODY.slice(insertAt)));
 
@@ -867,7 +867,7 @@ test("maskAddress mostra al massimo il primo carattere del nome utente", () => {
   }
 });
 
-test("maskAddress con nome utente di un carattere non lo ripete ne' lo allunga", () => {
+test("maskAddress con nome utente di un carattere non lo ripete né lo allunga", () => {
   assert.equal(maskAddress("a@example.invalid"), "a***@example.invalid");
 });
 
@@ -921,7 +921,7 @@ test("isEmulatorRuntime: vale solo FUNCTIONS_EMULATOR=true, senza distinguere ma
   assert.equal(isEmulatorRuntime({}), false);
 });
 
-test("emulatore: il progetto di produzione sotto l'emulatore NON e' produzione (regressione)", () => {
+test("emulatore: il progetto di produzione sotto l'emulatore NON è produzione (regressione)", () => {
   for (const projectEnv of [
     { GCLOUD_PROJECT: "giovani-palo" },
     { GOOGLE_CLOUD_PROJECT: "giovani-palo" },
@@ -950,11 +950,11 @@ test("emulatore: sul progetto di produzione EMAIL_ALLOWLIST ed EMAIL_SUBJECT_PRE
   });
   assert.deepEqual(policy.allowlist, ["dev@example.invalid"]);
   assert.equal(policy.subjectPrefix, "[DEMO] ");
-  // e una voce non valida non e' piu' ignorata
+  // e una voce non valida non è più ignorata
   assert.throws(() => getEmailPolicy({ ...PROD, ...EMULATOR, EMAIL_ALLOWLIST: "*" }), isEnvError);
 });
 
-test("emulatore sul progetto di produzione: niente esce verso genitori e supporto, il messaggio e' marcato", () => {
+test("emulatore sul progetto di produzione: niente esce verso genitori e supporto, il messaggio è marcato", () => {
   const policy = getEmailPolicy({ ...PROD, ...EMULATOR });
   const plan = planDelivery(policy, {
     to: [person("genitore@example.invalid")],
@@ -970,7 +970,7 @@ test("emulatore sul progetto di produzione: niente esce verso genitori e support
   assert.ok(out.textContent.startsWith(ENVIRONMENT_NOTICE));
 });
 
-test("emulatore sul progetto di produzione: l'URL pubblico e' localhost, mai quello di produzione (regressione)", () => {
+test("emulatore sul progetto di produzione: l'URL pubblico è localhost, mai quello di produzione (regressione)", () => {
   assert.equal(getAppPublicUrl({ ...PROD, ...EMULATOR }), "http://localhost:5173");
   assert.equal(getAppPublicUrl({ ...PROD, ...EMULATOR, APP_PUBLIC_URL: "" }), "http://localhost:5173");
   assert.equal(getAppPublicUrl({ ...PROD, FUNCTIONS_EMULATOR: "TRUE" }), "http://localhost:5173");
@@ -994,7 +994,7 @@ test("emulatore: un progetto sconosciuto resta un errore, anche con FUNCTIONS_EM
 });
 
 test("emulatore su un progetto di staging: policy da env e URL di default localhost", () => {
-  // Il default localhost per un progetto non demo e' dedotto dal codice, la descrizione parla del progetto di produzione.
+  // Il default localhost per un progetto non demo è dedotto dal codice, la descrizione parla del progetto di produzione.
   const env = { ...STAGING, ...EMULATOR };
   assert.equal(isProduction(env), false);
   assert.deepEqual(getEmailPolicy({ ...env, EMAIL_ALLOWLIST: "a@example.invalid" }).allowlist, ["a@example.invalid"]);
@@ -1067,7 +1067,7 @@ test("getAppPublicUrl: http su localhost solo in un progetto demo-* o sotto l'em
     ]) {
       assert.equal(getAppPublicUrl({ ...env, APP_PUBLIC_URL: url }), url, `${label}: ${url}`);
     }
-    // Un progetto reale non demo e fuori dall'emulatore non puo' mandare link a localhost.
+    // Un progetto reale non demo e fuori dall'emulatore non può mandare link a localhost.
     assert.throws(() => getAppPublicUrl({ ...STAGING, APP_PUBLIC_URL: url }), isEnvError, `staging: ${url}`);
   }
 });

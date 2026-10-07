@@ -458,7 +458,7 @@ service cloud.firestore {
         && (
           request.resource.data.registrationStatus == resource.data.registrationStatus
           || request.resource.data.registrationStatus == 'cancelled'
-          // Riattivazione: chi ha annullato puo' reiscriversi risalvando il
+          // Riattivazione: chi ha annullato può reiscriversi risalvando il
           // modulo. Senza questo ramo il salvataggio passava ma lo stato
           // restava 'cancelled' e l'iscrizione era invisibile agli admin.
           // 'confirmed' resta escluso: lo scrive solo il genitore che firma.
@@ -1034,9 +1034,9 @@ service cloud.firestore {
 
       // Galleria foto/video: accesso aperto a chiunque sia loggato (anche
       // ospite anon). Il flusso a codice via Cloud Function rimane disponibile
-      // per gallerie storiche ma non e' piu' richiesto per leggere i media.
+      // per gallerie storiche ma non è più richiesto per leggere i media.
       // Upload aperto a tutti i loggati (galleria collaborativa del campeggio):
-      // ogni utente puo' aggiungere media e cancellare SOLO i propri; gli admin
+      // ogni utente può aggiungere media e cancellare SOLO i propri; gli admin
       // gestiscono tutto. La creazione/pubblicazione della galleria resta admin.
       match /galleries/{galleryId} {
         allow get, list: if true;
@@ -1305,11 +1305,11 @@ service cloud.firestore {
             && validGenderRoleCategory(request.resource.data.category)
             && !('userId' in request.resource.data)
             && !('anonymousUid' in request.resource.data);
-          // Update consentito solo finche' la risposta e' ancora una bozza:
-          // una volta inviata (isDraft == false) non e' piu' sovrascrivibile,
-          // cosi' nessun altro loggato puo' distruggere un invio definitivo
+          // Update consentito solo finché la risposta è ancora una bozza:
+          // una volta inviata (isDraft == false) non è più sovrascrivibile,
+          // così nessun altro loggato può distruggere un invio definitivo
           // conoscendone l'id casuale. L'anonimato resta intatto (nessuna
-          // identita' e' tracciata sul documento).
+          // identità è tracciata sul documento).
           allow update: if isSignedIn()
             && resource.data.isDraft == true
             && request.resource.data.eventId == activityId
