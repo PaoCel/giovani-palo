@@ -2519,6 +2519,13 @@ html.rn-skin .install-hint__icon {
   overflow-wrap: anywhere;
 }
 
+/* Avviso sotto un campo del foglio: il margine tiene un po' d'aria quando lo si
+   porta in vista con scrollIntoView. */
+.rn-notice--inline {
+  margin-top: 10px;
+  scroll-margin-block: 12px;
+}
+
 /* Record già sfidato da questo telefono: un'etichetta, non un tasto spento
    (un'altra persona dello stesso telefono può sfidarlo). */
 .rn-rec__phone-note {
