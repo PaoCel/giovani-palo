@@ -2,7 +2,7 @@ import { MiniScore } from "@/components/recordNight/MyRecords";
 import { CATEGORY_ICONS, RecordNightIcon } from "@/components/recordNight/RecordNightIcon";
 import type { RecordNightPublicRecord } from "@/types";
 import { getRecordNightMeasureShortLabel } from "@/utils/recordNight";
-import { groupPublicRecordsByCategory } from "@/utils/recordNightGuest";
+import { GUEST_COPY, groupPublicRecordsByCategory } from "@/utils/recordNightGuest";
 
 interface GuestOpenRecordsProps {
   // Quello che scrive lo staff: titolo, categoria, come si misura. Mai numeri,
@@ -10,6 +10,10 @@ interface GuestOpenRecordsProps {
   records: ReadonlyArray<RecordNightPublicRecord>;
   // false dopo la chiusura: sola lettura, niente "Sfida".
   canAct: boolean;
+  // Il telefono ha già il massimo di richieste in coda: "Sfida" resta chiuso.
+  atLimit: boolean;
+  // Record che questo telefono ha già sfidato con una richiesta valida.
+  challengedIds: ReadonlySet<string>;
   busy: boolean;
   // Il tasto premuto: il foglio gli restituisce il focus alla chiusura.
   onChallenge: (record: RecordNightPublicRecord, trigger: HTMLElement) => void;
@@ -17,7 +21,14 @@ interface GuestOpenRecordsProps {
 
 // Elenco dei record aperti per chi non ha un account: sola lettura, con "Sfida"
 // che apre il foglio "Senza account".
-export function GuestOpenRecords({ records, canAct, busy, onChallenge }: GuestOpenRecordsProps) {
+export function GuestOpenRecords({
+  records,
+  canAct,
+  atLimit,
+  challengedIds,
+  busy,
+  onChallenge,
+}: GuestOpenRecordsProps) {
   const groups = groupPublicRecordsByCategory(records);
 
   return (
@@ -34,6 +45,13 @@ export function GuestOpenRecords({ records, canAct, busy, onChallenge }: GuestOp
       <p className="rn-sub">
         {canAct ? "Scegli un record e tocca Sfida per segnarti." : "Le iscrizioni ai record sono chiuse."}
       </p>
+
+      {canAct && atLimit ? (
+        <div className="rn-notice" id="rn-guest-limit-list">
+          <RecordNightIcon name="lock" />
+          <span>{GUEST_COPY.phoneLimit}</span>
+        </div>
+      ) : null}
 
       {groups.length === 0 ? (
         <div className="rn-empty">
@@ -69,16 +87,39 @@ export function GuestOpenRecords({ records, canAct, busy, onChallenge }: GuestOp
                     <h4 className="rn-rec__title">{record.title}</h4>
                     {canAct ? (
                       <div className="rn-rec__action">
-                        <button
-                          aria-label={`Sfida: ${record.title}`}
-                          className="rn-btn-sfida"
-                          disabled={busy}
-                          onClick={(event) => onChallenge(record, event.currentTarget)}
-                          type="button"
-                        >
-                          <RecordNightIcon name="plus" />
-                          Sfida
-                        </button>
+                        {challengedIds.has(record.id) ? (
+                          <button
+                            aria-label={`Richiesta inviata: ${record.title}`}
+                            className="rn-btn-sfida"
+                            disabled
+                            type="button"
+                          >
+                            <RecordNightIcon name="check" />
+                            Richiesta inviata
+                          </button>
+                        ) : atLimit ? (
+                          <button
+                            aria-describedby="rn-guest-limit-list"
+                            aria-label={`Sfida: ${record.title}`}
+                            className="rn-btn-locked"
+                            disabled
+                            type="button"
+                          >
+                            <RecordNightIcon name="lock" />
+                            Sfida
+                          </button>
+                        ) : (
+                          <button
+                            aria-label={`Sfida: ${record.title}`}
+                            className="rn-btn-sfida"
+                            disabled={busy}
+                            onClick={(event) => onChallenge(record, event.currentTarget)}
+                            type="button"
+                          >
+                            <RecordNightIcon name="plus" />
+                            Sfida
+                          </button>
+                        )}
                       </div>
                     ) : null}
                   </div>

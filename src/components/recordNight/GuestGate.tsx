@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { RecordNightIcon } from "@/components/recordNight/RecordNightIcon";
+import { GUEST_COPY } from "@/utils/recordNightGuest";
 
 interface GuestGateProps {
   // Accesso con ritorno a questa pagina.
@@ -9,6 +10,8 @@ interface GuestGateProps {
   // acceso: compare anche "Segnati con nome e unità". Dopo la chiusura resta
   // solo "Accedi".
   canSignUp: boolean;
+  // Il telefono ha già il massimo di richieste in coda: si dice prima di compilare.
+  atLimit: boolean;
   busy: boolean;
   // Riceve il tasto premuto: il foglio gli restituisce il focus alla chiusura
   // (su iPhone e Safari un tocco non dà il focus al tasto).
@@ -18,7 +21,7 @@ interface GuestGateProps {
 // Pagina senza account vero (nessuna sessione, o sessione anonima del telefono):
 // "Accedi" è sempre il primo tasto e porta alla pagina di accesso; sotto, la
 // strada senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md, UI).
-export function GuestGate({ loginPath, canSignUp, busy, onSignUp }: GuestGateProps) {
+export function GuestGate({ loginPath, canSignUp, atLimit, busy, onSignUp }: GuestGateProps) {
   return (
     <section aria-labelledby="rn-guest-gate-title" className="rn-gate rn-gate--guest">
       <h2 className="rn-gate__title" id="rn-guest-gate-title">
@@ -36,14 +39,21 @@ export function GuestGate({ loginPath, canSignUp, busy, onSignUp }: GuestGatePro
         <div className="rn-gate__alt">
           <p className="rn-gate__alt-label">Non hai l'account?</p>
           <button
+            aria-describedby={atLimit ? "rn-guest-limit-gate" : undefined}
             className="rn-btn rn-btn--ghost"
-            disabled={busy}
+            disabled={busy || atLimit}
             onClick={(event) => onSignUp(event.currentTarget)}
             type="button"
           >
-            <RecordNightIcon name="pencil" />
+            <RecordNightIcon name={atLimit ? "lock" : "pencil"} />
             Segnati con nome e unità
           </button>
+          {atLimit ? (
+            <div className="rn-notice" id="rn-guest-limit-gate">
+              <RecordNightIcon name="lock" />
+              <span>{GUEST_COPY.phoneLimit}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>

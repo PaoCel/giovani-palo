@@ -25,6 +25,8 @@ import {
 } from "@/components/recordNight/hooks";
 import type { RecordNightGuestRequest, RecordNightPublicRecord } from "@/types";
 import {
+  getChallengedRecordIds,
+  isAtGuestPhoneLimit,
   isGuestIntakeOpen,
   type RecordNightGuestRequestFields,
 } from "@/utils/recordNightGuest";
@@ -74,14 +76,6 @@ export function RecordNightGuestView({
   } = useRecordNightGuestContext(stakeId, eventId);
   const guest = useRecordNightGuestRequests(stakeId, eventId);
 
-  // Dopo il primo invio la sessione anonima nasce a metà dell'azione: la rilettura
-  // che il hook fa da sé usa ancora la chiave di prima. Si rilegge con l'ultima
-  // `reload`, letta da qui.
-  const reloadGuestRef = useRef(guest.reload);
-  useEffect(() => {
-    reloadGuestRef.current = guest.reload;
-  });
-
   const [sheet, setSheet] = useState<SheetState>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const [toast, setToast] = useState<RecordNightToastState | null>(null);
@@ -111,6 +105,19 @@ export function RecordNightGuestView({
   // Finestra aperta con l'interruttore spento: resta il gate di oggi, senza elenco.
   const switchOff = Boolean(context) && !closed && !serverIntake;
   const phoneMode = guest.mode === "phone";
+  // Tetto di richieste in coda per telefono: si dice prima di compilare. Le sfide
+  // già inviate non si ripropongono.
+  const atLimit = isAtGuestPhoneLimit(guest.requests);
+  const challengedIds = useMemo(() => getChallengedRecordIds(guest.requests), [guest.requests]);
+  // Un foglio aperto mentre le iscrizioni si chiudono (o l'invio si spegne) non
+  // invia più, ma non perde il testo.
+  const blocked = closed ? "closed" : intakeOpen ? null : "unavailable";
+
+  // Con le iscrizioni chiuse "Annulla" non deve più promettere un ripristino.
+  useEffect(() => {
+    if (!closed) return;
+    setToast((current) => (current?.kind === "undo" && current.entryId ? null : current));
+  }, [closed]);
 
   // Dopo l'invio: scroll alla sezione "Le tue richieste da questo telefono" e
   // focus sul suo titolo, appena la rilettura l'ha portata in pagina.
@@ -138,7 +145,7 @@ export function RecordNightGuestView({
   async function handleSubmit(fields: RecordNightGuestRequestFields) {
     const outcome = await guest.submit(fields);
     if (outcome.ok) {
-      await reloadGuestRef.current();
+      // L'hook ha già riletto le richieste: la nuova c'è.
       setSheet(null);
       showToast({ kind: "undo", message: "Richiesta inviata." });
       setScrollToRequests(true);
@@ -213,6 +220,18 @@ export function RecordNightGuestView({
       </div>
     ) : null;
 
+  // Il contesto (modulo, unità, elenco) non letto, o riletto male: avviso con
+  // Riprova sopra l'elenco. Le richieste del telefono non ne dipendono.
+  const contextNotice = contextError ? (
+    <div className="rn-notice rn-notice--error" role="alert">
+      <RecordNightIcon name="alert" />
+      <span>{contextError}</span>
+      <button className="rn-btn rn-btn--sm" onClick={() => void reloadContext()} type="button">
+        Riprova
+      </button>
+    </div>
+  ) : null;
+
   const requestsSection = phoneMode ? (
     <GuestRequests
       busy={guest.busy}
@@ -235,24 +254,23 @@ export function RecordNightGuestView({
         <>
           {board}
           {accountGate}
-          <div className="rn-notice rn-notice--error" role="alert">
-            <RecordNightIcon name="alert" />
-            <span>{contextError}</span>
-            <button className="rn-btn rn-btn--sm" onClick={() => void reloadContext()} type="button">
-              Riprova
-            </button>
-          </div>
+          {contextNotice}
+          {phoneNotice}
+          {requestsSection}
           <RecordNightRules />
         </>
       ) : !context ? (
         <>
           {board}
+          {phoneNotice}
+          {requestsSection}
           <RecordNightLoading label="Sto caricando i record..." />
         </>
       ) : switchOff ? (
         <>
           {board}
           {accountGate}
+          {contextNotice}
           {phoneNotice}
           {requestsSection}
           <RecordNightRules />
@@ -260,19 +278,23 @@ export function RecordNightGuestView({
       ) : (
         <>
           <GuestGate
+            atLimit={atLimit}
             busy={guest.busy}
             canSignUp={intakeOpen}
             loginPath={loginPath}
             onSignUp={(trigger) => openSheet({ mode: "propose" }, trigger)}
           />
+          {contextNotice}
           {phoneNotice}
           {requestsSection}
           {board}
           <RecordNightRules />
           {!closed || records.length > 0 ? (
             <GuestOpenRecords
+              atLimit={atLimit}
               busy={guest.busy}
               canAct={intakeOpen}
+              challengedIds={challengedIds}
               onChallenge={(record, trigger) => openSheet({ mode: "challenge", record }, trigger)}
               records={records}
             />
@@ -300,6 +322,7 @@ export function RecordNightGuestView({
 
       {sheet && context ? (
         <GuestSheet
+          blocked={blocked}
           loginPath={loginPath}
           mode={sheet.mode}
           onClose={() => setSheet(null)}

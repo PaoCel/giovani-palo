@@ -64,6 +64,9 @@ interface GuestSheetProps {
   units: ReadonlyArray<RecordNightGuestUnit>;
   records: ReadonlyArray<RecordNightPublicRecord>;
   loginPath: string;
+  // Le iscrizioni si sono chiuse (o l'invio si è spento) a foglio aperto: "Invia
+  // richiesta" resta spento e il foglio lo spiega, senza perdere ciò che si è scritto.
+  blocked: "closed" | "unavailable" | null;
   // Il tasto che ha aperto il foglio: alla chiusura riprende il focus.
   opener: HTMLElement | null;
   onClose: () => void;
@@ -80,6 +83,7 @@ export function GuestSheet({
   units,
   records,
   loginPath,
+  blocked,
   opener,
   onClose,
   onSubmit,
@@ -163,7 +167,7 @@ export function GuestSheet({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busyRef.current) return;
+    if (busyRef.current || blocked) return;
 
     const draft: RecordNightGuestDraft = propose
       ? { kind: "proposal", firstName, lastName, unitId, text, measure, durationSeconds: duration, needs }
@@ -259,6 +263,17 @@ export function GuestSheet({
             </button>
           </header>
 
+          <div aria-live="polite" className="rn-sheet__banner">
+            {blocked ? (
+              <p className="rn-notice" id={fieldId("blocked")}>
+                <RecordNightIcon name="lock" />
+                <span>
+                  {blocked === "closed" ? GUEST_COPY.intakeClosed : GUEST_COPY.intakeUnavailable}
+                </span>
+              </p>
+            ) : null}
+          </div>
+
           <div className="rn-sheet__body">
             {challengeRecord ? (
               <div className={`rn-req-record rn-cat--${challengeRecord.category}`}>
@@ -293,6 +308,7 @@ export function GuestSheet({
                 <RecordNightIcon name="user" />
                 Accedi
               </Link>
+              <p className="rn-g-login__hint">{GUEST_COPY.sheetLoginHint}</p>
             </div>
             <p className="rn-g-sep">Oppure segnati con nome e unità</p>
 
@@ -527,8 +543,9 @@ export function GuestSheet({
               </button>
               <button
                 aria-busy={busy || undefined}
+                aria-describedby={blocked ? fieldId("blocked") : undefined}
                 className="rn-btn rn-btn--led"
-                disabled={busy}
+                disabled={busy || blocked !== null}
                 type="submit"
               >
                 Invia richiesta

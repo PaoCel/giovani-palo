@@ -10,7 +10,7 @@ import {
   getRecordNightCategoryLabel,
   getRecordNightMeasureShortLabel,
 } from "@/utils/recordNight";
-import { GUEST_STATE_TEXTS, getGuestStateText } from "@/utils/recordNightGuest";
+import { GUEST_COPY, GUEST_STATE_TEXTS, getGuestStateText } from "@/utils/recordNightGuest";
 
 type RecordsById = ReadonlyMap<string, RecordNightPublicRecord>;
 
@@ -173,15 +173,13 @@ export function GuestRequestCard({
         <article className="rn-mine rn-mine--no">
           <span className="rn-no-label rn-no-label--soft">
             <RecordNightIcon name="alert" />
-            Richiesta non collegata
+            {text.title}
           </span>
           <Who request={request} />
           <Body muted recordsById={recordsById} request={request} />
           <p className="rn-state-line">
             <RecordNightIcon name="alert" />
-            <span>
-              {text.title}. {text.description}
-            </span>
+            <span>{text.description}</span>
           </p>
         </article>
       );
@@ -312,8 +310,11 @@ export function GuestRequests({
   onRestore,
 }: GuestRequestsProps) {
   const cards = requests.filter((request) => request.state !== "withdrawn");
-  // Dopo la chiusura le ritirate non si mostrano più (come "Ritirati" di MyRecords).
-  const withdrawn = requests.filter((request) => request.state === "withdrawn" && request.canRestore);
+  // Dopo la chiusura le ritirate non si mostrano più (come "Ritirati" di MyRecords):
+  // vale anche se la finestra si chiude a pagina aperta, prima di una nuova lettura.
+  const withdrawn = requests.filter(
+    (request) => request.state === "withdrawn" && request.canRestore && !closed,
+  );
 
   if (cards.length === 0 && withdrawn.length === 0) return null;
 
@@ -324,7 +325,7 @@ export function GuestRequests({
           Le tue richieste da questo telefono
         </h2>
       </div>
-      <p className="rn-sub">Se cambi telefono o cancelli i dati del sito, non le trovi più.</p>
+      <p className="rn-sub">{GUEST_COPY.phoneOnlyNote}</p>
 
       {cards.length > 0 ? (
         <div className="rn-req-list">
