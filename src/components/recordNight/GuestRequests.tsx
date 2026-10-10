@@ -10,7 +10,12 @@ import {
   getRecordNightCategoryLabel,
   getRecordNightMeasureShortLabel,
 } from "@/utils/recordNight";
-import { GUEST_COPY, GUEST_STATE_TEXTS, getGuestStateText } from "@/utils/recordNightGuest";
+import {
+  GUEST_COPY,
+  GUEST_STATE_TEXTS,
+  getGuestStateText,
+  stripBidi,
+} from "@/utils/recordNightGuest";
 
 type RecordsById = ReadonlyMap<string, RecordNightPublicRecord>;
 
@@ -18,7 +23,7 @@ type RecordsById = ReadonlyMap<string, RecordNightPublicRecord>;
 // (`null` o vuoto: record non più pubblico, interruttore spento) si scrive un
 // testo neutro, senza cercarlo altrove e senza segnalare errori.
 function getChallengeTitle(request: RecordNightGuestRequest) {
-  return typeof request.recordTitle === "string" ? request.recordTitle.trim() : "";
+  return typeof request.recordTitle === "string" ? stripBidi(request.recordTitle).trim() : "";
 }
 
 // Il record dell'elenco pubblico per categoria e come si misura: solo se il
@@ -32,18 +37,21 @@ function getPublicRecord(request: RecordNightGuestRequest, recordsById: RecordsB
 // titolo del record sfidato, oppure le parole di chi ha proposto.
 export function getGuestRequestLabel(request: RecordNightGuestRequest) {
   if (request.kind === "challenge") return getChallengeTitle(request) || "Un record";
-  return request.text?.trim() || "Un record";
+  return stripBidi(request.text).trim() || "Un record";
 }
 
+// Nome e unità come li ha digitati chi ha inviato la richiesta: testo di
+// sconosciuti, senza caratteri di verso e libero di andare a capo (nessun pezzo
+// si schiaccia: scorre come una frase dentro la pillola).
 function Who({ request }: { request: RecordNightGuestRequest }) {
   return (
     <div className="rn-pills">
-      <span className="rn-pill">
+      <span className="rn-pill rn-pill--flow">
         <RecordNightIcon name="user" />
-        <bdi>
-          {request.firstName} {request.lastName}
-        </bdi>{" "}
-        · <bdi>{request.unitName}</bdi>
+        <span className="rn-pill__text">
+          <bdi>{stripBidi(`${request.firstName} ${request.lastName}`)}</bdi> ·{" "}
+          <bdi>{stripBidi(request.unitName)}</bdi>
+        </span>
       </span>
     </div>
   );
@@ -88,7 +96,7 @@ function Body({
   if (request.kind === "challenge") return <RecordBlock recordsById={recordsById} request={request} />;
   return (
     <>
-      <p className={muted ? "rn-quote rn-quote--muted" : "rn-quote"}>{request.text}</p>
+      <p className={muted ? "rn-quote rn-quote--muted" : "rn-quote"}>{stripBidi(request.text)}</p>
       {request.measure ? (
         <div className="rn-pills">
           <span className="rn-pill">
@@ -96,9 +104,11 @@ function Body({
             {getRecordNightMeasureShortLabel(request.measure, request.durationSeconds)}
           </span>
           {request.needs ? (
-            <span className="rn-pill">
+            <span className="rn-pill rn-pill--flow">
               <RecordNightIcon name="bag" />
-              Serve: <bdi>{request.needs}</bdi>
+              <span className="rn-pill__text">
+                Serve: <bdi>{stripBidi(request.needs)}</bdi>
+              </span>
             </span>
           ) : null}
         </div>

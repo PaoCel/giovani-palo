@@ -152,9 +152,12 @@ export function RecordNightGuestView({
     } else if (
       outcome.kind === "closed" ||
       outcome.kind === "disabled" ||
+      outcome.kind === "unavailable" ||
       outcome.kind === "record_gone"
     ) {
-      // Finestra chiusa, modulo spento o record tolto: l'elenco sotto va aggiornato.
+      // Finestra chiusa, modulo o interruttore spenti (il server li risponde con lo
+      // stesso testo neutro: "unavailable") o record tolto: il contesto si rilegge,
+      // così il foglio passa a "blocked" e, chiuso, la pagina mostra lo stato giusto.
       void reloadContext();
     }
     return outcome;

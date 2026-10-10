@@ -265,7 +265,8 @@ export function GuestSheet({
 
   const challengeRecord = !propose ? record : null;
   // Errori che non stanno sotto un campo: il record da sfidare non c'è più.
-  const formError = error ?? fieldErrors.recordId ?? fieldErrors.kind ?? null;
+  // Con il foglio bloccato lo spiega già l'avviso in cima: niente frase ripetuta.
+  const formError = blocked ? null : (error ?? fieldErrors.recordId ?? fieldErrors.kind ?? null);
 
   function renderFieldError(key: GuestFieldKey) {
     const message = fieldErrors[key];
