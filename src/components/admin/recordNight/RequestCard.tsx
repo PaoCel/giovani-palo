@@ -77,6 +77,10 @@ export function RequestCard({
   const [query, setQuery] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sale a ogni errore di un'azione: serve a rimettere il focus (vedi sotto) anche
+  // quando il messaggio è lo stesso di prima.
+  const [errorTick, setErrorTick] = useState(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const baseId = useId();
   const articleRef = useRef<HTMLElement>(null);
   const rejectButton = useRef<HTMLButtonElement>(null);
@@ -179,6 +183,28 @@ export function RequestCard({
   const panelId = `${baseId}-reject`;
   const busyLink = ctx.busyKey === `req-link:${request.id}`;
 
+  // Un'azione fallita rilegge i dati e di solito spegne il tasto che si era
+  // premuto (la persona scelta non è più selezionabile, il record è cambiato): il
+  // focus finirebbe sul body. Lo si porta sul messaggio d'errore della carta, che
+  // è un avviso (role=alert) e resta leggibile da tastiera.
+  function failWith(message: string) {
+    setError(message);
+    setErrorTick((current) => current + 1);
+  }
+
+  useEffect(() => {
+    if (errorTick === 0) return;
+    const active = document.activeElement;
+    // Il focus è "perso" se è sul body o su un controllo diventato disabilitato
+    // (alcuni browser lo lasciano lì).
+    const lost =
+      !active ||
+      active === document.body ||
+      ((active instanceof HTMLButtonElement || active instanceof HTMLInputElement) &&
+        active.disabled);
+    if (lost) errorRef.current?.focus();
+  }, [errorTick]);
+
   function pick(candidate: Candidate) {
     // Ogni cambio di scelta azzera la conferma: si può dare solo dopo aver scelto chi.
     if (pickedId !== candidate.registrationId) setVerifiedFor("");
@@ -196,7 +222,7 @@ export function RequestCard({
       verified,
     );
     if (result.ok) restoreFocus();
-    else setError(result.message);
+    else failWith(result.message);
   }
 
   async function reject(note: string) {
@@ -204,7 +230,7 @@ export function RequestCard({
     const restoreFocus = rememberFocusNeighbour(articleRef.current, ctx.anchors.queue);
     const result = await ctx.requests.reject(request, note);
     if (result.ok) restoreFocus();
-    else setError(result.message);
+    else failWith(result.message);
   }
 
   const className = [
@@ -486,7 +512,7 @@ export function RequestCard({
           ) : null}
 
           {error ? (
-            <p className="rna-panel__error" role="alert">
+            <p className="rna-panel__error" ref={errorRef} role="alert" tabIndex={-1}>
               {error}
             </p>
           ) : null}

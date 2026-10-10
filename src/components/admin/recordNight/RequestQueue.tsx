@@ -40,7 +40,6 @@ export function RequestQueue({ ctx, ownUnitId, ownUnitName, titleId }: RequestQu
   const [bulkError, setBulkError] = useState<string | null>(null);
   const bulkButton = useRef<HTMLButtonElement>(null);
   const selectToggle = useRef<HTMLButtonElement>(null);
-  const focusSelectToggle = useFocusReturn(selectToggle);
   const cancelBulkButton = useRef<HTMLButtonElement>(null);
   const focusBulk = useFocusReturn(bulkButton);
 
@@ -117,14 +116,26 @@ export function RequestQueue({ ctx, ownUnitId, ownUnitName, titleId }: RequestQu
     setBulkError(null);
   }
 
+  function focusAfterBulkReject() {
+    // Due frame: dopo il render che toglie carte, barra ed eventuale "Fine".
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => {
+        const toggle = selectToggle.current;
+        if (toggle && toggle.isConnected) toggle.focus();
+        else document.getElementById(titleId)?.focus();
+      }),
+    );
+  }
+
   async function rejectChosen() {
     setBulkError(null);
     const result = await requests.rejectMany(chosen);
     if (result.ok) {
       setSelected(new Set());
       setConfirmBulk(false);
-      // La barra e le carte scelte spariscono: il focus torna sul tasto "Fine".
-      focusSelectToggle();
+      // La barra e le carte scelte spariscono. Il focus torna sul tasto "Fine"; se la
+      // coda è rimasta vuota sparisce anche quello e si va al titolo della sezione.
+      focusAfterBulkReject();
     } else {
       setBulkError(result.message);
     }
