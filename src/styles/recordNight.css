@@ -2259,9 +2259,12 @@ html.rn-skin .install-hint__icon {
 .rn-mine--no .rn-req-record,
 .rn-mine--gone .rn-req-record { background: rgba(255, 255, 255, 0.025); }
 
-/* Sulla card colorata (Ci sei) la riga di stato segue l'inchiostro della card. */
-.rn-mine--in .rn-private { color: rgba(11, 13, 18, 0.78); font-weight: 600; }
-.rn-mine--in .rn-private .rn-ico { color: rgba(11, 13, 18, 0.7); }
+/* Sulla card colorata (Ci sei) la riga di stato è a inchiostro pieno: rapporto
+   di contrasto calcolato su inizio, centro e fondo del gradiente delle 6
+   categorie, minimo 4,8:1 al fondo (resistenza), 6,3:1 al centro. Con inchiostro
+   al 78% scendeva a 3,85:1. */
+.rn-mine--in .rn-private { color: var(--tb-ink); font-weight: 600; }
+.rn-mine--in .rn-private .rn-ico { color: var(--tb-ink); }
 
 .rn-private--read { align-items: flex-start; }
 .rn-private--read .rn-ico { margin-top: 2px; }
@@ -2329,7 +2332,7 @@ html.rn-skin .install-hint__icon {
 }
 
 .rn-mine--in .rn-origin .rn-ico { color: var(--tb-ink); }
-.rn-mine--in .rn-origin-note { color: rgba(11, 13, 18, 0.7); }
+.rn-mine--in .rn-origin-note { color: var(--tb-ink); }
 
 /* Foglio "Senza account" */
 .rn-g-login {
@@ -2394,7 +2397,7 @@ html.rn-skin .install-hint__icon {
   font-size: 13.5px;
   line-height: 1.4;
   text-align: center;
-  color: var(--tb-muted);
+  color: var(--tb-soft);
 }
 
 /* Avviso in cima al foglio (iscrizioni chiuse o invio spento a foglio aperto). */
@@ -2456,6 +2459,65 @@ html.rn-skin .install-hint__icon {
 }
 
 .rn-sheet__note--body { margin-top: 22px; }
+
+/* Foglio "Senza account": informativa, conferma di chiusura, tasti che non si
+   spengono (aria-disabled: il focus non va perso mentre si invia). */
+.rn-layer--guest .rn-sheet:focus { outline: none; }
+
+.rn-layer--guest [aria-disabled="true"] { opacity: 0.55; cursor: default; }
+.rn-layer--guest .rn-stepper__btn[aria-disabled="true"] { opacity: 0.35; }
+
+.rn-sheet__privacy {
+  margin-top: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--tb-muted);
+}
+
+.rn-sheet__privacy a {
+  font-weight: 700;
+  color: var(--tb-led-hi);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rn-sheet__confirm { display: grid; gap: 12px; }
+
+.rn-sheet__confirm-text {
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: var(--tb-text);
+}
+
+.rn-sheet__buttons--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* Testo scritto da sconosciuti: va a capo ovunque e il suo verso non sfora
+   in quello che gli sta intorno. */
+.rn-quote,
+.rn-pill,
+.rn-withdrawn__label,
+.rn-req-record strong,
+.rn-req-list .rn-mine__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+}
+
+/* Bersagli di almeno 44 px nelle schermate senza account (la vista e il suo
+   foglio): "Sfida", "Ripristina", "Riprova", "Annulla" dell'avviso, "Chiudi".
+   Scoped: gli altri flussi non cambiano. */
+.rn-guest .rn-btn--sm,
+.rn-guest .rn-btn-sfida,
+.rn-guest .rn-btn-locked,
+.rn-guest .rn-toast__action,
+.rn-layer--guest .rn-btn { min-height: 44px; }
+
+.rn-guest .rn-icon-btn--sm,
+.rn-layer--guest .rn-icon-btn {
+  width: 44px;
+  height: 44px;
+}
 
 /* ---------- micro-animazioni, spente con prefers-reduced-motion ---------- */
 @media (prefers-reduced-motion: no-preference) {
