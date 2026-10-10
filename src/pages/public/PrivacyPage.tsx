@@ -112,6 +112,19 @@ export function PrivacyPage() {
               genitore per tutti gli iscritti sotto i 18 anni).
             </p>
           </div>
+
+          <div className="surface-panel surface-panel--subtle">
+            <h3>Richieste senza account (Notte dei Record)</h3>
+            <p>
+              Chi non ha un account può segnarsi a un record indicando nome, cognome, unità e il
+              testo della proposta. Questi dati li vede solo lo staff, che li usa per collegare la
+              richiesta all&apos;iscrizione. Si cancellano in automatico circa 7 giorni dopo la
+              data del viaggio o dell&apos;attività (con un ritardo tecnico fino a un giorno). Se lo
+              staff collega una proposta a un&apos;iscrizione, il suo testo resta come una
+              qualsiasi proposta fatta con un account. Le richieste restano legate a una sessione
+              anonima di quel telefono, non a un account.
+            </p>
+          </div>
         </div>
       </SectionCard>
 
