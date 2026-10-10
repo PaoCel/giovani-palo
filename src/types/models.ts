@@ -317,6 +317,9 @@ export interface Event {
   // iscrizioni ai record chiudono a `startDate`.
   recordsEnabled?: boolean;
   recordsCloseAt?: string | null;
+  // Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md): chiude solo
+  // l'invio, spento di default. Il client lo legge dal contesto pubblico.
+  recordsGuestEnabled?: boolean;
   requiresParentalConsent: boolean;
   requiresPhotoRelease: boolean;
   createdBy: string;
@@ -510,6 +513,7 @@ export interface EventWriteInput {
   // Assenti = il salvataggio non tocca il valore già scritto sull'attività.
   recordsEnabled?: boolean;
   recordsCloseAt?: string | null;
+  recordsGuestEnabled?: boolean;
   requiresParentalConsent?: boolean;
   requiresPhotoRelease?: boolean;
 }
@@ -906,8 +910,139 @@ export interface RecordNightEntry {
   withdrawnWithRecordHide: boolean;
   rejectionReason: string;
   createdByAdmin: boolean;
+  // Tentativo nato dal collegamento di una richiesta senza account: id della
+  // richiesta e flag per l'etichetta "Da una richiesta senza account". Assenti
+  // (o null/false) sugli altri tentativi.
+  sourceRequestId?: string | null;
+  fromGuestRequest?: boolean;
   createdAt: string;
   updatedAt: string;
   decidedAt: string | null;
   decidedBy: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md)
+// ---------------------------------------------------------------------------
+// Le richieste stanno in `recordRequests`, chiusa ai client: passano solo dalle
+// callable `recordNightGuest` (telefono) e `recordNightAdmin` (staff).
+
+export type RecordNightRequestKind = "proposal" | "challenge";
+
+// Stato della richiesta vista dallo staff.
+export type RecordNightRequestStatus = "open" | "linked" | "rejected" | "withdrawn";
+
+// Stato mostrato a chi l'ha inviata (`mine`), derivato dalla richiesta e dal
+// tentativo collegato. Mai dati dell'iscrizione.
+export type RecordNightGuestState =
+  | "received"
+  | "withdrawn"
+  | "not_linked"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "removed";
+
+export interface RecordNightGuestUnit {
+  id: string;
+  name: string;
+}
+
+// Record dell'elenco pubblico: solo ciò che scrive lo staff. Mai conteggi,
+// nomi o note.
+export interface RecordNightPublicRecord {
+  id: string;
+  title: string;
+  category: RecordNightCategory;
+  measure: RecordNightMeasure;
+  durationSeconds: number | null;
+}
+
+// Contesto pubblico (`context`, senza login).
+export interface RecordNightGuestContext {
+  // Modulo acceso e finestra aperta (a prescindere dall'interruttore).
+  open: boolean;
+  closeAt: string | null;
+  // Modulo acceso, finestra aperta e interruttore "Richieste senza account" acceso.
+  intakeOpen: boolean;
+  units: RecordNightGuestUnit[];
+  // Vuoto finché l'interruttore è spento.
+  records: RecordNightPublicRecord[];
+}
+
+// Una richiesta vista da chi l'ha inviata (`mine`).
+export interface RecordNightGuestRequest {
+  requestId: string;
+  kind: RecordNightRequestKind;
+  firstName: string;
+  lastName: string;
+  unitName: string;
+  // Solo proposta.
+  text: string | null;
+  measure: RecordNightMeasure | null;
+  durationSeconds: number | null;
+  needs: string;
+  // Solo sfida; il titolo è null se il record non è più aperto.
+  recordId: string | null;
+  recordTitle: string | null;
+  state: RecordNightGuestState;
+  // Solo `rejected` ("Non accettata"): il motivo scritto per il ragazzo.
+  reason: string;
+  createdAt: string;
+  // Ritiro e ripristino da questo telefono, con finestra aperta.
+  canWithdraw: boolean;
+  canRestore: boolean;
+}
+
+export interface RecordNightGuestMine {
+  open: boolean;
+  closeAt: string | null;
+  requests: RecordNightGuestRequest[];
+}
+
+export type RecordNightRegistrationType = "user" | "child" | "manual";
+
+// Abbinamento proposto dal server allo staff: un indizio calcolato dal nome, non
+// una prova (`linkRequest` rilegge tutto).
+export interface RecordNightRequestSuggestion {
+  registrationId: string;
+  name: string;
+  unitName: string;
+  type: RecordNightRegistrationType;
+  activeEntries: number;
+  alreadyOnRecord: boolean;
+}
+
+// Una richiesta vista dallo staff (`listRequests` e risultati delle azioni).
+export interface RecordNightStaffRequest {
+  id: string;
+  status: RecordNightRequestStatus;
+  kind: RecordNightRequestKind;
+  firstName: string;
+  lastName: string;
+  unitId: string;
+  unitName: string;
+  personKey: string;
+  proposedText: string | null;
+  proposedMeasure: RecordNightMeasure | null;
+  proposedDurationSeconds: number | null;
+  proposedNeeds: string;
+  recordId: string | null;
+  // Solo sfida, solo in `listRequests`.
+  recordTitle: string | null;
+  recordStatus: RecordNightRecordStatus | null;
+  // Nota interna: non passa mai al telefono.
+  staffNote: string;
+  linkedRegistrationId: string | null;
+  linkedEntryId: string | null;
+  linkedBy: string | null;
+  linkedAt: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Solo `open` in `listRequests` (negli esiti delle azioni sono vuoti): id delle
+  // altre richieste con lo stesso nome e unità, e fino a 3 abbinamenti.
+  duplicates: string[];
+  suggestions: RecordNightRequestSuggestion[];
 }

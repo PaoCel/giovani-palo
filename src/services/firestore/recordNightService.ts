@@ -216,6 +216,8 @@ export function mapRecordNightEntry(id: string, data: DocumentData): RecordNight
     withdrawnWithRecordHide: data.withdrawnWithRecordHide === true,
     rejectionReason: asString(data.rejectionReason),
     createdByAdmin: data.createdByAdmin === true,
+    sourceRequestId: asNullableString(data.sourceRequestId),
+    fromGuestRequest: data.fromGuestRequest === true,
     createdAt: asString(data.createdAt),
     updatedAt: asString(data.updatedAt),
     decidedAt: asNullableString(data.decidedAt),

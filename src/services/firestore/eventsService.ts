@@ -166,6 +166,7 @@ function mapEvent(
       typeof data.recordsCloseAt === "string" && data.recordsCloseAt
         ? data.recordsCloseAt
         : null,
+    recordsGuestEnabled: data.recordsGuestEnabled === true,
     requiresParentalConsent: data.requiresParentalConsent === true,
     requiresPhotoRelease: data.requiresPhotoRelease === true,
     createdBy: typeof data.createdBy === "string" ? data.createdBy : "",
@@ -239,6 +240,11 @@ function normalizeEventInput(input: EventWriteInput) {
       : {}),
     ...(input.recordsCloseAt !== undefined
       ? { recordsCloseAt: input.recordsCloseAt }
+      : {}),
+    // Richieste senza account: spento di default, ma solo se l'editor lo passa
+    // (un salvataggio che non lo conosce non deve spegnere l'interruttore).
+    ...(input.recordsGuestEnabled !== undefined
+      ? { recordsGuestEnabled: input.recordsGuestEnabled }
       : {}),
     requiresParentalConsent: input.requiresParentalConsent ?? false,
     requiresPhotoRelease: input.requiresPhotoRelease ?? false,

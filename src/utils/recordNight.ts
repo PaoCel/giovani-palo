@@ -9,7 +9,9 @@ import type {
   RecordNightMeasure,
   RecordNightRecord,
 } from "@/types";
-import { normalizeSurveyAnswer } from "@/utils/surveyClustering";
+// Import relativo con estensione: i test di tests/ caricano questo file con
+// Node, che non conosce l'alias "@/".
+import { normalizeSurveyAnswer } from "./surveyClustering.ts";
 
 // ---------------------------------------------------------------------------
 // Tabelle
