@@ -860,7 +860,8 @@ function buildRequestSuggestions(requestData, registrations, entriesByRegistrati
     const unitMatch = sameUnit(requestData, registration.data);
     const entries = entriesByRegistration.get(registration.id) || [];
     scored.push({
-      score: Math.min(1, base + (unitMatch ? SUGGESTION_UNIT_BONUS : 0)),
+      // Senza tetto a 1: a nome identico il bonus dell'unità deve ancora spareggiare.
+      score: base + (unitMatch ? SUGGESTION_UNIT_BONUS : 0),
       suggestion: {
         registrationId: registration.id,
         name,
