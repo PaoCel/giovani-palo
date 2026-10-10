@@ -177,25 +177,30 @@ function addDays(date, days) {
   return new Date(date.getTime() + days * DAY_MS);
 }
 
-// Scadenza della richiesta (campo TTL `expiresAt`): inizio attività + 7 giorni,
-// altrimenti chiusura + 14. Mai nel passato alla creazione, o la richiesta
-// nascerebbe già "inesistente": in quel caso 14 giorni da adesso.
+// Scadenza della richiesta (campo TTL `expiresAt`): inizio attività + 7 giorni;
+// solo se manca la data di inizio, chiusura + 14 giorni. Se la scadenza è già
+// passata restituisce null: la richiesta nascerebbe "inesistente", quindi chi
+// chiama non la crea (le iscrizioni sono da considerare chiuse).
 function resolveRequestExpiry(activity, now) {
   const start = toDate(activity.startDate);
-  let expires = start ? addDays(start, EXPIRY_AFTER_START_DAYS) : null;
-  if (!expires) {
-    const closeAt = resolveCloseAt(activity);
-    expires = closeAt ? addDays(closeAt, EXPIRY_AFTER_CLOSE_DAYS) : null;
+  if (start) {
+    const expires = addDays(start, EXPIRY_AFTER_START_DAYS);
+    return expires.getTime() > now.getTime() ? expires : null;
   }
-  if (!expires || expires.getTime() <= now.getTime()) return addDays(now, FALLBACK_EXPIRY_DAYS);
-  return expires;
+  const closeAt = resolveCloseAt(activity);
+  if (closeAt) {
+    const expires = addDays(closeAt, EXPIRY_AFTER_CLOSE_DAYS);
+    return expires.getTime() > now.getTime() ? expires : null;
+  }
+  return addDays(now, FALLBACK_EXPIRY_DAYS);
 }
 
-// Tetti per un ingresso in `open` dal telefono. `phoneRequests` = richieste dello
-// stesso telefono (dati piatti, non scadute); `openInActivity` = quante richieste
-// `open` ha l'attività in tutto. `countCreated`: solo `submit` crea (il tetto di
-// 20 create in tutto non si applica a `restore`).
-function assertRequestCaps({ phoneRequests, personKey, openInActivity, countCreated }) {
+// Tetti del telefono per un ingresso in `open` (submit e restore), sui dati già
+// letti per `anonUid`: `phoneRequests` = richieste dello stesso telefono (dati
+// piatti, non scadute). `countCreated`: solo `submit` crea (il tetto di 20 create
+// in tutto non si applica a `restore`). Si controllano PRIMA di contare la coda
+// dell'attività, che costa una lettura in più e un lock condiviso.
+function assertPhoneCaps({ phoneRequests, personKey, countCreated }) {
   const open = phoneRequests.filter((request) => request.status === "open");
   if (open.length >= MAX_OPEN_PER_PHONE) throw new HttpsError("failed-precondition", MESSAGES.phoneCap);
   if (countCreated && phoneRequests.length >= MAX_CREATED_PER_PHONE) {
@@ -204,6 +209,10 @@ function assertRequestCaps({ phoneRequests, personKey, openInActivity, countCrea
   if (open.filter((request) => request.personKey === personKey).length >= MAX_OPEN_PER_PERSON) {
     throw new HttpsError("failed-precondition", MESSAGES.phoneCap);
   }
+}
+
+// Tetto della coda: `openInActivity` = quante richieste `open` ha l'attività in tutto.
+function assertActivityCap(openInActivity) {
   if (openInActivity >= MAX_OPEN_REQUESTS_PER_ACTIVITY) {
     throw new HttpsError("failed-precondition", MESSAGES.unavailable);
   }
@@ -283,9 +292,13 @@ async function readPhoneRequests(tx, refs, uid, now) {
   return snapshot.docs.map(view).filter((request) => !isRequestExpired(request.data, now));
 }
 
-async function countOpenInActivity(tx, refs, now) {
-  const snapshot = await tx.get(refs.requests.where("status", "==", "open"));
-  return snapshot.docs.map(view).filter((request) => !isRequestExpired(request.data, now)).length;
+// Quante richieste `open` ha l'attività: un'aggregazione `count()`, senza scaricare
+// i documenti (nomi e testi dei minori restano dove sono). Conta anche una richiesta
+// scaduta ma non ancora cancellata dal TTL: succede solo dopo la fine delle
+// iscrizioni, quando submit e restore sono comunque chiusi.
+async function countOpenInActivity(tx, refs) {
+  const snapshot = await tx.get(refs.requests.where("status", "==", "open").count());
+  return snapshot.data().count;
 }
 
 // Richiesta del chiamante, oppure null: inesistente, scaduta e altrui sono lo
@@ -360,6 +373,12 @@ async function guestSubmit(ctx) {
 
   assertWindowOpen(activity, now);
   if (activity.recordsGuestEnabled !== true) throw unavailable();
+  const expiresAt = resolveRequestExpiry(activity, now);
+  if (!expiresAt) throw new HttpsError("failed-precondition", MESSAGES.closed);
+
+  // Prima i tetti del telefono (dati già letti), poi il resto: chi è al limite non costa altre letture.
+  const personKey = personKeyOf(fields.firstName, fields.lastName, fields.unitId);
+  assertPhoneCaps({ phoneRequests: phoneRequests.map((request) => request.data), personKey, countCreated: true });
 
   const unitSnap = await tx.get(refs.units.doc(fields.unitId));
   if (!unitSnap.exists || unitSnap.data().isActive !== true || typeof unitSnap.data().name !== "string") {
@@ -373,15 +392,7 @@ async function guestSubmit(ctx) {
       throw new HttpsError("failed-precondition", "Questo record non è più disponibile.");
     }
   }
-  const openInActivity = await countOpenInActivity(tx, refs, now);
-
-  const personKey = personKeyOf(fields.firstName, fields.lastName, fields.unitId);
-  assertRequestCaps({
-    phoneRequests: phoneRequests.map((request) => request.data),
-    personKey,
-    openInActivity,
-    countCreated: true,
-  });
+  assertActivityCap(await countOpenInActivity(tx, refs));
 
   const requestRef = refs.requests.doc();
   const proposal = fields.kind === "proposal";
@@ -410,7 +421,7 @@ async function guestSubmit(ctx) {
     decidedAt: null,
     createdAt: nowIso,
     updatedAt: nowIso,
-    expiresAt: Timestamp.fromDate(resolveRequestExpiry(activity, now)),
+    expiresAt: Timestamp.fromDate(expiresAt),
   });
   return { requestId: requestRef.id };
 }
@@ -440,10 +451,13 @@ async function guestMine(ctx) {
   const entrySnaps = entryIds.length ? await tx.getAll(...entryIds.map((id) => refs.entries.doc(id))) : [];
   const recordSnaps = recordIds.length ? await tx.getAll(...recordIds.map((id) => refs.records.doc(id))) : [];
   const entries = new Map(entrySnaps.filter((snap) => snap.exists).map((snap) => [snap.id, snap.data() || {}]));
-  // Il titolo è quello pubblico del record: se non è più aperto non si mostra.
+  // Il titolo si mostra solo se è pubblico adesso: record aperto, con almeno uno
+  // sfidante e interruttore acceso (come in `context`). Dopo lo spegnimento o il
+  // nascondimento torna null.
+  const titlesPublic = activity.recordsGuestEnabled === true;
   const titles = new Map(
     recordSnaps
-      .filter((snap) => snap.exists && (snap.data() || {}).status === "open")
+      .filter((snap) => titlesPublic && snap.exists && (snap.data() || {}).status === "open" && (snap.data() || {}).challengerCount > 0)
       .map((snap) => [snap.id, String((snap.data() || {}).title || "")]),
   );
 
@@ -484,13 +498,12 @@ async function guestRestore(ctx) {
   if (request.data.status !== "withdrawn") throw unavailable();
 
   const phoneRequests = await readPhoneRequests(tx, refs, uid, now);
-  const openInActivity = await countOpenInActivity(tx, refs, now);
-  assertRequestCaps({
+  assertPhoneCaps({
     phoneRequests: phoneRequests.map((item) => item.data),
     personKey: request.data.personKey,
-    openInActivity,
     countCreated: false,
   });
+  assertActivityCap(await countOpenInActivity(tx, refs));
   tx.update(request.ref, { status: "open", updatedAt: nowIso });
   return { requestId: request.id, state: "received" };
 }
@@ -515,6 +528,8 @@ function createRecordNightGuestHandler({ db, clock = () => new Date() } = {}) {
     const uid = input.action === "context" ? null : assertGuestAuth(request);
     const refs = refsFor(firestore, input.stakeId, input.activityId);
 
+    // `context` e `mine` non scrivono: transazione di sola lettura, senza lock condivisi.
+    const readOnly = input.action === "context" || input.action === "mine";
     const result = await firestore.runTransaction(async (tx) => {
       const now = clock();
       const nowIso = now.toISOString();
@@ -524,7 +539,7 @@ function createRecordNightGuestHandler({ db, clock = () => new Date() } = {}) {
       // `recordsEnabled` falso spegne tutto, per tutti.
       if (activity.recordsEnabled !== true) throw new HttpsError("failed-precondition", MESSAGES.disabled);
       return GUEST_ACTIONS[input.action]({ tx, refs, uid, fields: input.fields, activity, now, nowIso });
-    });
+    }, { readOnly });
 
     // Solo azione e id: mai nomi, testi o altri dati di minori.
     logger.info("Record night guest action.", {
@@ -556,7 +571,8 @@ module.exports = {
   parsePersonName,
   personKeyOf,
   resolveRequestExpiry,
-  assertRequestCaps,
+  assertPhoneCaps,
+  assertActivityCap,
   deriveRequesterState,
   buildMineItem,
 };

@@ -903,14 +903,20 @@ function groupRequestDuplicates(requests) {
 // tutto ciò che permetterebbe un "Annulla" o un "Mostra di nuovo": se il tentativo
 // era già ritirato dal titolare con `statusBeforeWithdraw`, anche quello va a null.
 // Il contatore scende di uno solo se era `approved`. Se è una proposta approvata
-// che ha creato il record, prima serve "Riporta in attesa" (esiste già).
+// che ha creato il record, prima serve "Riporta in attesa" (esiste già). Se invece
+// il tentativo non è più approvato (ritirato, rifiutato) ma il record è nato da
+// lui e resta a zero, il record si nasconde come fa "Riporta in attesa": senza,
+// resterebbe un record `open` vuoto e il ricollegamento ne creerebbe un doppione.
+// `hideRecord` dice se nascondere `record`.
 function planUnlinkEntry(entry, record, nowIso) {
-  if (entry.status === "approved" && record && record.createdFromEntryId === entry.id) {
+  const createdTheRecord = Boolean(record) && record.createdFromEntryId === entry.id;
+  if (entry.status === "approved" && createdTheRecord) {
     throw new HttpsError(
       "failed-precondition",
       "Questa proposta ha creato un record: prima usa «Riporta in attesa», poi scollega.",
     );
   }
+  const delta = counterDelta(entry.status, "withdrawn");
   return {
     patch: {
       status: "withdrawn",
@@ -919,7 +925,8 @@ function planUnlinkEntry(entry, record, nowIso) {
       withdrawnWithRecordHide: false,
       updatedAt: nowIso,
     },
-    delta: counterDelta(entry.status, "withdrawn"),
+    delta,
+    hideRecord: createdTheRecord && record.status === "open" && nextChallengerCount(record.challengerCount, delta) === 0,
   };
 }
 
@@ -1507,9 +1514,11 @@ async function adminListRequests(ctx) {
     .filter((request) => !isRequestExpired(request.data, now))
     .sort((left, right) => String(left.data.createdAt).localeCompare(String(right.data.createdAt)) || left.id.localeCompare(right.id));
   const entriesByRegistration = new Map();
+  const entriesById = new Map();
   for (const entry of plainList(entriesSnap.docs.map(view))) {
     if (!entriesByRegistration.has(entry.registrationId)) entriesByRegistration.set(entry.registrationId, []);
     entriesByRegistration.get(entry.registrationId).push(entry);
+    entriesById.set(entry.id, entry);
   }
   const recordsById = new Map(recordsSnap.docs.map(view).map((record) => [record.id, record.data]));
   const duplicatesOf = groupRequestDuplicates(requests);
@@ -1519,6 +1528,12 @@ async function adminListRequests(ctx) {
       const record = recordsById.get(request.data.recordId);
       item.recordTitle = record ? String(record.title || "") : null;
       item.recordStatus = record ? record.status ?? null : null;
+    }
+    if (request.data.status === "linked") {
+      // Stato del tentativo collegato, già in memoria: serve a distinguere "in attesa" da "ritirato".
+      const entry = entriesById.get(request.data.linkedEntryId);
+      item.entryStatus = entry ? entry.status ?? null : null;
+      item.withdrawnBy = entry ? entry.withdrawnBy ?? null : null;
     }
     if (request.data.status === "open") {
       item.duplicates = duplicatesOf(request);
@@ -1540,6 +1555,17 @@ async function adminListRequests(ctx) {
 async function adminLinkRequest(ctx) {
   const { tx, refs, fields, uid, now, nowIso } = ctx;
   const request = await readRequest(tx, refs, fields.requestId, now);
+  // Doppio tocco o risposta persa: già collegata a QUESTA iscrizione = stato attuale.
+  // Con un'altra iscrizione l'errore di sempre (prima va scollegata).
+  if (request.data.status === "linked" && request.data.linkedRegistrationId === fields.registrationId) {
+    const linkedId = request.data.linkedEntryId;
+    const linkedSnap = typeof linkedId === "string" && linkedId ? await tx.get(refs.entries.doc(linkedId)) : null;
+    return {
+      entry: linkedSnap && linkedSnap.exists ? shape(linkedSnap.id, linkedSnap.data() || {}) : null,
+      record: null,
+      request: staffRequestView(request.id, request.data),
+    };
+  }
   const registrationSnap = await tx.get(refs.registrations.doc(fields.registrationId));
   const siblings = plainList(await readEntriesOfRegistration(tx, refs, fields.registrationId));
   const isChallenge = request.data.kind === "challenge";
@@ -1610,43 +1636,52 @@ function rejectedRequestPatch(requestData, note, uid, nowIso) {
 async function adminRejectRequest(ctx) {
   const { tx, refs, fields, uid, now, nowIso } = ctx;
   const request = await readRequest(tx, refs, fields.requestId, now);
+  // Già non collegabile (doppio tocco): niente da fare.
+  if (request.data.status === "rejected") {
+    return { entry: null, record: null, request: staffRequestView(request.id, request.data) };
+  }
   assertRequestOpen(request);
   return { entry: null, record: null, request: writeRequestPatch(tx, request, rejectedRequestPatch(request.data, fields.note, uid, nowIso)) };
 }
 
-// Rifiuto in blocco (max 50): tutto o niente, nella stessa transazione. Una
-// richiesta non più `open` (collegata o ritirata nel frattempo) ferma l'azione,
-// così non si rifiuta per sbaglio ciò che è già stato lavorato.
+// Rifiuto in blocco (max 50), in una transazione: rifiuta le richieste ancora
+// `open` e salta le altre (già ritirate, collegate, rifiutate, inesistenti o
+// scadute), senza fermarsi: in coda si seleziona mentre i telefoni cambiano.
 async function adminRejectRequests(ctx) {
   const { tx, refs, fields, uid, now, nowIso } = ctx;
   const snapshots = await tx.getAll(...fields.requestIds.map((id) => refs.requests.doc(id)));
-  const requests = snapshots.map((snapshot) => {
-    if (!snapshot.exists || isRequestExpired(snapshot.data() || {}, now)) {
-      throw new HttpsError("not-found", "Richiesta non trovata.");
-    }
-    return view(snapshot);
-  });
-  for (const request of requests) {
-    if (request.data.status !== "open") {
-      throw new HttpsError("failed-precondition", "Alcune richieste non sono più in attesa: aggiorna l'elenco.");
-    }
-  }
-  const updated = requests.map((request) =>
+  const open = snapshots
+    .filter((snapshot) => snapshot.exists && !isRequestExpired(snapshot.data() || {}, now))
+    .map(view)
+    .filter((request) => request.data.status === "open");
+  const updated = open.map((request) =>
     writeRequestPatch(tx, request, rejectedRequestPatch(request.data, fields.note, uid, nowIso)),
   );
-  return { entry: null, record: null, request: null, requests: updated, rejectedCount: updated.length };
+  return {
+    entry: null,
+    record: null,
+    request: null,
+    requests: updated,
+    rejectedCount: updated.length,
+    skippedCount: fields.requestIds.length - updated.length,
+  };
 }
 
-// "Riapri": una richiesta non collegabile torna in coda. Non controlla i tetti
-// (sono per gli ingressi dal telefono). Già `open` = niente da fare.
+// "Riapri": una richiesta non collegabile o ritirata dal telefono torna in coda.
+// Non controlla i tetti né la finestra (sono per gli ingressi dal telefono): senza,
+// dopo la chiusura o con il telefono perso una richiesta ritirata sarebbe un vicolo
+// cieco. Già `open` = niente da fare.
 async function adminReopenRequest(ctx) {
   const { tx, refs, fields, uid, now, nowIso } = ctx;
   const request = await readRequest(tx, refs, fields.requestId, now);
   if (request.data.status === "open") {
     return { entry: null, record: null, request: staffRequestView(request.id, request.data) };
   }
-  if (request.data.status !== "rejected") {
-    throw new HttpsError("failed-precondition", "Si possono riaprire solo le richieste segnate come non collegabili.");
+  if (request.data.status !== "rejected" && request.data.status !== "withdrawn") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Si possono riaprire solo le richieste non collegabili o ritirate dal telefono.",
+    );
   }
   const updated = writeRequestPatch(tx, request, { status: "open", decidedBy: uid, decidedAt: nowIso, updatedAt: nowIso });
   return { entry: null, record: null, request: updated };
@@ -1670,15 +1705,19 @@ async function adminUnlinkRequest(ctx) {
     const entrySnap = await tx.get(refs.entries.doc(request.data.linkedEntryId));
     if (entrySnap.exists) entry = view(entrySnap);
   }
-  const needsRecord = entry && entry.data.status === "approved" && typeof entry.data.recordId === "string" && entry.data.recordId;
-  const record = needsRecord ? await readRecord(tx, refs, entry.data.recordId) : null;
+  // Il record serve per ogni stato: scende il contatore (approved) o si nasconde
+  // il record rimasto vuoto che questo tentativo aveva creato (ritirato, rifiutato).
+  const hasRecord = entry && typeof entry.data.recordId === "string" && entry.data.recordId;
+  const record = hasRecord ? await readRecord(tx, refs, entry.data.recordId) : null;
 
   let updatedEntry = null;
   let updatedRecord = null;
   if (entry) {
     const plan = planUnlinkEntry({ ...entry.data, id: entry.id }, record && record.data, nowIso);
     updatedEntry = writeEntryPatch(tx, entry, plan.patch);
-    if (record && plan.delta !== 0) updatedRecord = writeCounter(tx, record, plan.delta, nowIso);
+    if (record && (plan.delta !== 0 || plan.hideRecord)) {
+      updatedRecord = writeCounter(tx, record, plan.delta, nowIso, plan.hideRecord ? { status: "hidden" } : {});
+    }
   }
   const updatedRequest = writeRequestPatch(tx, request, {
     status: "open",
