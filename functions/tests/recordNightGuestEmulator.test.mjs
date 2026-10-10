@@ -54,6 +54,14 @@
 //  - rejectRequests con un id non valido: o errore e nessuna modifica, o le sole
 //    richieste open rifiutate.
 //  - Il 20 create in tutto non si prova su restore (non crea documenti).
+//  - Con l'interruttore recordsGuestEnabled spento (o assente) l'elenco pubblico del
+//    context è VUOTO: D1 dice che i titoli diventano visibili solo dopo l'anteprima
+//    dello staff e l'accensione. La riga `context` della spec non lo ripete.
+//  - A capo e tab dentro un nome sono spazi bianchi: accettati se normalizzati
+//    (come negli altri campi di testo del modulo), non vanno salvati com'erano.
+// Esito dell'ultima corsa (2026-10-10, backend d7fb82b): tutto verde tranne M2a, che
+// segnala un difetto vero del backend (bonus unità annullato dal tetto a 1 quando il
+// nome coincide esattamente: recordNight.js buildRequestSuggestions).
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -698,6 +706,15 @@ test("A2 context: intakeOpen segue modulo, finestra e interruttore", async () =>
     assert.equal(res.intakeOpen, expected.intakeOpen, `${label}: intakeOpen`);
   }
 
+  // D1: con l'interruttore spento (o assente) nessun titolo è pubblico, anche se i record esistono.
+  for (const guest of [false, "absent"]) {
+    const act = await newActivity({ guest });
+    await seedPublicRecord(act, "r-1", { title: "Titolo non ancora pubblico", challengerCount: 2 });
+    const res = await G(signedOut, act, "context");
+    assert.deepEqual(res.records, [], `interruttore ${guest}: elenco pubblico non vuoto`);
+    assert.ok(!JSON.stringify(res).includes("Titolo non ancora pubblico"));
+  }
+
   // Modulo spento (recordsEnabled falso o assente): o errore «non è attiva» o niente di aperto e niente record.
   for (const enabled of [false, "absent"]) {
     const act = await newActivity({ enabled });
@@ -1079,7 +1096,7 @@ test("E1 un account vero riceve «Hai un account: accedi»; senza login non si i
 const INVALID_NAMES = [
   "Mar1a", "1234", "Maria3", "3Maria",
   "https://evil.example", "www.evil.it", "evil.it", "mail@evil.it", "Maria.com",
-  "<b>Maria</b>", "<script>alert(1)</script>", "Maria<img src=x>", "Maria&Co", "{{nome}}", "Maria_Rossi", "Maria;", "Maria\nRossi", "Maria\u0000",
+  "<b>Maria</b>", "<script>alert(1)</script>", "Maria<img src=x>", "Maria&Co", "{{nome}}", "Maria_Rossi", "Maria;", "Maria\u0000", "Maria\u0007",
   "Maria 😀", "",
   "   ", "A", "A".repeat(41),
 ];
@@ -1098,6 +1115,18 @@ test("E2 nome e cognome: cifre, URL, markup e lunghezze fuori da 2-40 rifiutati;
   assert.deepEqual(failures, [], `Nomi non validi non rifiutati con invalid-argument:\n${failures.join("\n")}`);
   assert.equal((await requestsOfPhone(act, phone)).length, 0, "nessun dato parziale per i nomi rifiutati");
 
+  // A capo e tab sono spazi bianchi: il modulo li riduce a uno spazio come negli altri campi di testo
+  // (la spec dice «spazio»). Accettato o rifiutato va bene, ma non devono restare a capo salvati.
+  const spacing = await newPhone();
+  for (const [index, raw] of ["Maria\nRossi", "Maria\tRossi", "  Anna   Maria  "].entries()) {
+    const outcome = await capture(submit(spacing, act, proposalRequest({ firstName: raw, lastName: `Spazi${["Alfa", "Beta", "Gamma"][index]}`, unitId: UNITS.a.id }, { text: `Spazi ${index}` })));
+    if (outcome.ok) {
+      const stored = (await requestData(act, outcome.data.requestId)).firstName;
+      assert.doesNotMatch(stored, /[\n\r\t]|\s{2}|^\s|\s$/u, `firstName salvato con spazi bianchi non normalizzati: ${JSON.stringify(stored)}`);
+    } else {
+      assert.equal(outcome.code, "functions/invalid-argument");
+    }
+  }
   const surnames = ["Alfa", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"];
   for (const [index, good] of VALID_NAMES.entries()) {
     const who = { firstName: good, lastName: surnames[index], unitId: UNITS.a.id };
@@ -1490,7 +1519,8 @@ test("F1 oracolo: nome di una persona iscritta, sconosciuto e duplicato danno ri
   for (const { label, kind, res } of outcomes) {
     const stored = await requestData(act, res.requestId);
     assert.equal(stored.status, "open", `${kind} «${label}»: stato iniziale`);
-    assert.deepEqual(forbiddenPaths(stored, requestForbidden), [], `${kind} «${label}»: il documento porta dati dell'iscrizione`);
+    const populated = Object.fromEntries(Object.entries(stored).filter(([, value]) => value !== null && value !== undefined && value !== ""));
+    assert.deepEqual(forbiddenPaths(populated, requestForbidden), [], `${kind} «${label}»: il documento porta dati dell'iscrizione`);
     for (const field of LINK_FIELDS) assert.ok(!stored[field], `${kind} «${label}»: ${field}`);
     const keys = sortedKeys(stored).filter((key) => !["staffNote", "decidedBy", "decidedAt"].includes(key));
     if (keysByKind[kind] === null) keysByKind[kind] = keys;
@@ -1727,7 +1757,8 @@ test("H1 interruttore recordsGuestEnabled spento: blocca solo submit; mine, riti
   // Il resto del telefono.
   const ctx = await G(signedOut, act, "context");
   assert.equal(ctx.intakeOpen, false);
-  assert.equal(ctx.records.length, 1, "l'elenco pubblico resta visibile");
+  // D1: i titoli diventano pubblici solo dopo l'anteprima dello staff e l'accensione dell'interruttore.
+  assert.deepEqual(ctx.records, [], "con l'interruttore spento l'elenco senza login non mostra nessun titolo");
   const items = await mineById(phone1, act);
   assert.ok(items.size >= 7, "le richieste già inviate si vedono");
   assert.equal((await withdraw(phone1, act, toWithdraw)).ok, true);
@@ -2495,25 +2526,36 @@ test("M1 listRequests: tutte le richieste dell'attività con lo status, duplicat
   for (const id of [mariaOne, mariaTwo, mariaThree]) assert.equal(dupCount(queue2.get(id)), 2, id);
 });
 
-test("M2 suggerimenti: unità coincidente in testa, mai guest_ né iscrizioni annullate, al massimo 3", async () => {
+test("M2a suggerimenti: l'unità coincidente porta in testa a parità di nome", async () => {
   const { admin, phone1 } = pool;
   const act = await newActivity();
   const gretaA = await enrollManual(act, "manual_greta_a", "Greta", "Fontana");
   const gretaB = await enrollManual(act, "manual_greta_b", "Greta", "Fontana", { unitId: UNITS.b.id, unitName: UNITS.b.name });
-  const gretaGuest = await enrollRaw(act, "guest_greta", "Greta", "Fontana");
-  const gretaCancelled = await enrollManual(act, "manual_greta_off", "Greta", "Fontana", { registrationStatus: "cancelled" });
   const requestB = await seedRequest(act, phone1, { who: person("Greta", "Fontana", UNITS.b) });
   const requestA = await seedRequest(act, phone1, { who: person("Greta", "Fontana", UNITS.a) });
   const queue = await queueById(admin, act);
   const idsB = suggestionIds(queue.get(requestB));
   const idsA = suggestionIds(queue.get(requestA));
+  assert.ok(idsB.includes(gretaA) && idsB.includes(gretaB) && idsA.includes(gretaA) && idsA.includes(gretaB), "entrambe le Greta fra i suggerimenti");
   assert.equal(idsB[0], gretaB, "stessa unità = in testa (richiesta dell'unità Beta)");
   assert.equal(idsA[0], gretaA, "stessa unità = in testa (richiesta dell'unità Alfa)");
-  assert.ok(idsB.includes(gretaA) && idsA.includes(gretaB), "l'altra unità resta fra i suggerimenti");
-  for (const ids of [idsA, idsB]) {
+});
+
+test("M2b suggerimenti: mai guest_ né iscrizioni annullate, al massimo 3, campi dichiarati", async () => {
+  const { admin, phone1 } = pool;
+  const act = await newActivity();
+  await enrollManual(act, "manual_greta_a", "Greta", "Fontana");
+  await enrollManual(act, "manual_greta_b", "Greta", "Fontana", { unitId: UNITS.b.id, unitName: UNITS.b.name });
+  const gretaGuest = await enrollRaw(act, "guest_greta", "Greta", "Fontana");
+  const gretaCancelled = await enrollManual(act, "manual_greta_off", "Greta", "Fontana", { registrationStatus: "cancelled" });
+  const requestB = await seedRequest(act, phone1, { who: person("Greta", "Fontana", UNITS.b) });
+  const requestA = await seedRequest(act, phone1, { who: person("Greta", "Fontana", UNITS.a) });
+  const queue = await queueById(admin, act);
+  for (const id of [requestA, requestB]) {
+    const ids = suggestionIds(queue.get(id));
     assert.ok(!ids.includes(gretaGuest), "guest_ non si suggerisce");
     assert.ok(!ids.includes(gretaCancelled), "un'iscrizione annullata non si suggerisce");
-    assert.ok(ids.length <= 3);
+    assert.ok(ids.length >= 1 && ids.length <= 3);
   }
   for (const suggestion of queue.get(requestB).suggestions) {
     assert.equal(typeof suggestion.registrationId, "string");
