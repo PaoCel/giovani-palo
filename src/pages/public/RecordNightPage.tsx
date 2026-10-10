@@ -3,6 +3,7 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 
 import "@/styles/recordNight.css";
 
+import { RecordNightGuestView } from "@/components/recordNight/GuestRecordNight";
 import { MyRecords, getEntryLabel, getJoinedLabel } from "@/components/recordNight/MyRecords";
 import { OpenRecords } from "@/components/recordNight/OpenRecords";
 import { PersonPicker } from "@/components/recordNight/PersonPicker";
@@ -22,7 +23,11 @@ import {
   RecordNightToast,
   type RecordNightToastState,
 } from "@/components/recordNight/RecordNightToast";
-import { useMinuteClock, useRecordNightSkin } from "@/components/recordNight/hooks";
+import {
+  useMinuteClock,
+  useRecordNightRequestQueue,
+  useRecordNightSkin,
+} from "@/components/recordNight/hooks";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { eventsService } from "@/services/firestore/eventsService";
@@ -94,12 +99,40 @@ function storePerson(key: string, registrationId: string) {
   }
 }
 
+// La pagina non si indicizza: l'elenco dei record è per chi la apre dal link, non
+// per i motori di ricerca. Il meta si toglie all'uscita (come ParentConfirmPage).
+function useRecordNightNoIndex() {
+  useEffect(() => {
+    const meta = document.createElement("meta");
+    meta.name = "robots";
+    meta.content = "noindex, nofollow, noarchive";
+    document.head.appendChild(meta);
+    return () => {
+      meta.remove();
+    };
+  }, []);
+}
+
+// Numeri accanto a "Gestisci le proposte": con richieste senza account da
+// collegare "N da collegare · M proposte", altrimenti "N in attesa" come prima.
+function getManageCountText(requestCount: number, pendingCount: number | null) {
+  const proposals = pendingCount ?? 0;
+  if (requestCount > 0) {
+    const parts = [`${requestCount} da collegare`];
+    if (proposals > 0) parts.push(proposals === 1 ? "1 proposta" : `${proposals} proposte`);
+    return parts.join(" · ");
+  }
+  if (proposals > 0) return proposals === 1 ? "1 in attesa" : `${proposals} in attesa`;
+  return "";
+}
+
 // Pagina partecipante della Notte dei Record (docs/NOTTE_DEI_RECORD.md), link
 // da condividere su WhatsApp. Route pubblica: gli stati di accesso (senza
 // login, ospite, senza iscrizione, iscritto, genitore, staff, chiuso) li
 // gestisce la pagina.
 export function RecordNightPage() {
   useRecordNightSkin();
+  useRecordNightNoIndex();
   const { eventId = "" } = useParams();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -197,6 +230,10 @@ export function RecordNightPage() {
   const visibleRecords = useMemo(() => records.filter(isRecordVisibleToParticipants), [records]);
   const people = useMemo<RecordNightPerson[]>(() => context?.people ?? [], [context]);
   const isStaff = context?.isStaff === true;
+  // Staff: richieste senza account da collegare, per il tasto "Gestisci". Se la
+  // lettura non riesce il tasto resta com'era, senza il numero.
+  const requestQueue = useRecordNightRequestQueue(stakeId, eventId, isStaff && Boolean(recordsKey));
+  const requestCount = requestQueue.status === "ready" ? requestQueue.openCount : 0;
 
   // "Per chi?": la scelta resta per la sessione del browser.
   const personStorageKey = recordsKey ? `gugd-record-night-person:${stakeId}/${eventId}` : "";
@@ -421,7 +458,28 @@ export function RecordNightPage() {
     );
   }
 
-  const recordsLoading = Boolean(uid) && !current;
+  // Nessuna sessione, o la sessione anonima del telefono: la pagina per chi non
+  // ha un account vero. Con un account vero la pagina resta quella di sempre.
+  if (!uid) {
+    return (
+      <RecordNightGuestView
+        backPath={getActivityPath(event.id, stakeId)}
+        clientClosed={closed}
+        closeAt={closeAt}
+        dayLabel={dayLabel}
+        eventId={eventId}
+        eventTitle={event.title}
+        isAnonymous={session?.isAnonymous === true}
+        loginPath={loginPath}
+        now={now}
+        stakeId={stakeId}
+        weekday={weekday}
+      />
+    );
+  }
+
+  const manageCountText = getManageCountText(requestCount, pendingCount);
+  const recordsLoading = !current;
   const activityNoun = event.activityType === "trip" ? "al viaggio" : "all'attività";
   const registrationPath = getActivityRegistrationPath(event.id, stakeId);
   const managePath = `/activities/${event.id}/record/gestisci${stakeId ? `?stake=${encodeURIComponent(stakeId)}` : ""}`;
@@ -471,10 +529,10 @@ export function RecordNightPage() {
           <RecordNightIcon name="list" />
           <span className="rn-manage__text">
             <span className="rn-manage__label">Gestisci le proposte</span>
-            {pendingCount ? (
+            {manageCountText ? (
               <span className="rn-manage__count">
                 <i aria-hidden="true" className="rn-led" />
-                {pendingCount === 1 ? "1 in attesa" : `${pendingCount} in attesa`}
+                {manageCountText}
               </span>
             ) : null}
           </span>
@@ -482,27 +540,9 @@ export function RecordNightPage() {
         </Link>
       ) : null}
 
-      {!uid ? (
-        <RecordNightGate
-          action={
-            <Link className="rn-btn rn-btn--led" to={loginPath}>
-              <RecordNightIcon name="user" />
-              Accedi
-            </Link>
-          }
-          icon="lock"
-          text={
-            session?.isAnonymous
-              ? "Accedi con il tuo account per vedere i record."
-              : "Dopo l'accesso torni a questa pagina."
-          }
-          title="Accedi per vedere i record"
-        />
-      ) : null}
-
       <RecordNightRules />
 
-      {uid && current?.error ? (
+      {current?.error ? (
         <div className="rn-notice rn-notice--error" role="alert">
           <RecordNightIcon name="alert" />
           <span>{current.error}</span>
@@ -512,7 +552,7 @@ export function RecordNightPage() {
         </div>
       ) : null}
 
-      {uid && current && !current.error && current.contextError ? (
+      {current && !current.error && current.contextError ? (
         <div className="rn-notice rn-notice--error" role="alert">
           <RecordNightIcon name="alert" />
           <span>{current.contextError}</span>
@@ -527,9 +567,9 @@ export function RecordNightPage() {
         </div>
       ) : null}
 
-      {uid && recordsLoading ? <RecordNightLoading label="Sto caricando i record..." /> : null}
+      {recordsLoading ? <RecordNightLoading label="Sto caricando i record..." /> : null}
 
-      {uid && current?.listsLoaded ? (
+      {current?.listsLoaded ? (
         <>
           {person ? (
             <MyRecords

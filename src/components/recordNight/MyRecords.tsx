@@ -112,6 +112,21 @@ export function getJoinedLabel(personName: string | null) {
 export const RECORD_NIGHT_LIMIT_NOTICE =
   "Limite di 2 record raggiunto: ritirane uno per sceglierne un altro.";
 
+// Tentativo nato da una richiesta senza account che un adulto ha collegato a
+// questa iscrizione (`fromGuestRequest`): l'etichetta avvisa il titolare, che
+// altrimenti non saprebbe da dove arriva.
+function OriginTag() {
+  return (
+    <>
+      <span className="rn-origin">
+        <RecordNightIcon name="link" />
+        Da una richiesta senza account
+      </span>
+      <p className="rn-origin-note">Un adulto l'ha collegata a questa iscrizione.</p>
+    </>
+  );
+}
+
 // Un tentativo approvato conta su un record aperto che si legge ancora; se il
 // record è sparito o nascosto la card dice "Tolto dall'elenco".
 function openRecordOf(
@@ -349,6 +364,7 @@ function ApprovedCard({
         </span>
       </div>
       <h3 className="rn-mine__title">{record.title}</h3>
+      {entry.fromGuestRequest ? <OriginTag /> : null}
       {record.notes ? <p className="rn-mine__notes">{record.notes}</p> : null}
       <div className="rn-mine__bottom">
         <ChallengerScore count={record.challengerCount} variant="mine" />
@@ -377,6 +393,7 @@ function GoneCard({ entry }: { entry: RecordNightEntry }) {
         <i aria-hidden="true" className="rn-led rn-led--off" />
         Tolto dall'elenco
       </span>
+      {entry.fromGuestRequest ? <OriginTag /> : null}
       {entry.proposedText ? (
         <p className="rn-quote rn-quote--muted">{entry.proposedText}</p>
       ) : (
@@ -425,6 +442,7 @@ function PendingCard({
         <i aria-hidden="true" className={closed ? "rn-led rn-led--off" : "rn-led"} />
         {closed ? "Non controllata in tempo" : "In attesa di approvazione"}
       </span>
+      {entry.fromGuestRequest ? <OriginTag /> : null}
       <p className="rn-quote">{entry.proposedText}</p>
       <ProposalPills entry={entry} />
       <p className="rn-private">
@@ -473,6 +491,7 @@ function RejectedCard({
         <RecordNightIcon name="x" />
         Non accettata
       </span>
+      {entry.fromGuestRequest ? <OriginTag /> : null}
       {entry.proposedText ? <p className="rn-quote rn-quote--muted">{entry.proposedText}</p> : null}
       {entry.rejectionReason ? (
         <div className="rn-reason">
