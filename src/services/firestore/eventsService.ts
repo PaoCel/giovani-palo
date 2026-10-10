@@ -161,6 +161,11 @@ function mapEvent(
         : LEGAL_DOC_VERSIONS.photo,
     templateId: typeof data.templateId === "string" ? data.templateId : null,
     questionsEnabled: data.questionsEnabled === true,
+    recordsEnabled: data.recordsEnabled === true,
+    recordsCloseAt:
+      typeof data.recordsCloseAt === "string" && data.recordsCloseAt
+        ? data.recordsCloseAt
+        : null,
     requiresParentalConsent: data.requiresParentalConsent === true,
     requiresPhotoRelease: data.requiresPhotoRelease === true,
     createdBy: typeof data.createdBy === "string" ? data.createdBy : "",
@@ -226,6 +231,15 @@ function normalizeEventInput(input: EventWriteInput) {
     imageConsentVersionId: input.imageConsentVersionId ?? LEGAL_DOC_VERSIONS.photo,
     templateId: (input.templateId ?? "").trim() || null,
     questionsEnabled: input.questionsEnabled ?? false,
+    // Notte dei Record: scritti solo se l'editor li passa. Un valore assente non
+    // deve riportare a false/null ciò che l'attività ha già (e Firestore rifiuta
+    // `undefined`).
+    ...(input.recordsEnabled !== undefined
+      ? { recordsEnabled: input.recordsEnabled }
+      : {}),
+    ...(input.recordsCloseAt !== undefined
+      ? { recordsCloseAt: input.recordsCloseAt }
+      : {}),
     requiresParentalConsent: input.requiresParentalConsent ?? false,
     requiresPhotoRelease: input.requiresPhotoRelease ?? false,
   };

@@ -1,0 +1,1475 @@
+/* Scheda admin "Record" (Notte dei Record). Classi con prefisso rna-.
+   Pelle del pannello admin (token di base.css): niente a che vedere con la
+   grafica scura che vedono i ragazzi. */
+
+/* Colonna larga solo per questa scheda: le altre restano a 760px. */
+.page.page--rna-wide {
+  width: min(1040px, calc(100vw - 20px));
+  max-width: 1040px;
+}
+
+.rna {
+  --rna-gap: 1.25rem;
+  position: relative;
+  display: grid;
+  gap: var(--rna-gap);
+  min-width: 0;
+  color: var(--text);
+}
+
+.rna h2,
+.rna h3,
+.rna h4,
+.rna h5,
+.rna p,
+.rna ul,
+.rna dl,
+.rna dd,
+.rna blockquote,
+.rna fieldset {
+  margin: 0;
+}
+
+.rna ul,
+.rna fieldset {
+  padding: 0;
+}
+
+.rna fieldset {
+  min-width: 0;
+  border: 0;
+}
+
+/* --- Intestazione e riquadri riepilogo ----------------------------------- */
+
+.rna-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.4rem;
+}
+
+.rna-head h2 {
+  font-family: "Fraunces", serif;
+  font-weight: 500;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--heading);
+}
+
+.rna-head p {
+  margin-top: 0.45rem;
+  max-width: 36rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.rna-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.rna-tile {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 20px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.rna-tile__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-tile__tag {
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+.rna-tile__value {
+  color: var(--heading);
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.rna-tile__value span {
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.rna-tile__value--text {
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.rna-tile__value--text::first-letter {
+  text-transform: uppercase;
+}
+
+.rna-tile small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* --- Sezioni ------------------------------------------------------------- */
+
+.rna-section {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.rna-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.rna-section__head h3 {
+  color: var(--heading);
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.rna-proposals,
+.rna-records {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.rna-empty {
+  padding: 1.1rem 1.2rem;
+  border: 1px dashed var(--surface-border-strong);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.rna-empty-inline {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.rna-loading {
+  padding: 1.5rem 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.rna-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--primary-soft);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.rna-notice--error {
+  background: var(--danger-soft);
+  color: #8d3028;
+}
+
+/* --- Card proposta ------------------------------------------------------- */
+
+.rna-proposal {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  grid-template-areas:
+    "head head"
+    "quote facts"
+    "similar similar"
+    "actions actions"
+    "panel panel";
+  gap: 0.85rem 1.5rem;
+  min-width: 0;
+  padding: 1.1rem 1.25rem 1.15rem;
+  border: 1px solid var(--surface-border);
+  border-top: 3px solid var(--accent);
+  border-radius: 20px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.rna-proposal__head {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rna-proposal__who {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.rna-proposal__who h4 {
+  color: var(--heading);
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.rna-proposal__who small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.rna-avatar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 13px;
+  background: var(--accent-soft);
+  color: #876134;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.rna-quote {
+  grid-area: quote;
+  align-self: start;
+  color: var(--heading);
+  font-family: "Fraunces", serif;
+  font-size: 1.3rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rna-quote span {
+  color: var(--accent);
+}
+
+.rna-facts {
+  grid-area: facts;
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.rna-facts dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-facts dd {
+  margin-top: 0.15rem;
+  color: var(--heading);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rna-muted {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.rna-similar {
+  grid-area: similar;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  background: var(--primary-soft);
+  color: var(--heading);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.rna-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rna-proposal > .rna-panel-wrap {
+  grid-area: panel;
+}
+
+/* --- Pannelli inline (Approva, Nuovo, Modifica, Unisci, Rifiuta...) ------ */
+
+.rna-panel-wrap {
+  min-width: 0;
+}
+
+.rna-panel {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 1rem 1.1rem 1.05rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 16px;
+  background: var(--bg-soft);
+}
+
+.rna-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+}
+
+.rna-panel__head h5 {
+  color: var(--heading);
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.rna-panel__note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.rna-panel__footnote {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.rna-panel__error {
+  padding: 0.6rem 0.8rem;
+  border-radius: 12px;
+  background: var(--danger-soft);
+  color: #8d3028;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.rna-panel__ok {
+  padding: 0.55rem 0.8rem;
+  border-radius: 12px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.rna-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.rna-confirm {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 16px;
+  background: var(--bg-soft);
+  color: var(--heading);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* --- Campi --------------------------------------------------------------- */
+
+.rna-field {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.rna-field label,
+.rna-field__top label {
+  color: var(--heading);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.rna-field__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.rna-counter {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rna-field__hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.rna-field__error {
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.rna-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.rna-field-row > .rna-field {
+  flex: 1 1 14rem;
+}
+
+.rna-field-row > .rna-field--narrow {
+  flex: 0 1 8.5rem;
+}
+
+.rna-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.8rem;
+  padding: 0.62rem 0.85rem;
+  border: 1px solid rgba(20, 39, 70, 0.16);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.rna-input:hover {
+  border-color: rgba(20, 39, 70, 0.26);
+}
+
+.rna-input:focus,
+.rna-input:focus-visible {
+  outline: 2px solid transparent;
+  border-color: rgba(35, 93, 144, 0.55);
+  box-shadow: 0 0 0 4px rgba(35, 93, 144, 0.14);
+}
+
+.rna-input[aria-invalid="true"] {
+  border-color: rgba(177, 78, 68, 0.6);
+  box-shadow: 0 0 0 4px rgba(177, 78, 68, 0.08);
+}
+
+.rna-input--select {
+  padding-right: 2.4rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2366758a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 8 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  background-size: 1.1rem;
+}
+
+.rna-input--area {
+  min-height: 5.2rem;
+  resize: vertical;
+}
+
+/* --- Scelta del record (Unisci a…) --------------------------------------- */
+
+.rna-choices {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  max-height: 19rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.rna-choices__label {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.rna-choice:hover {
+  border-color: var(--surface-border-strong);
+}
+
+.rna-choice:has(input:checked) {
+  border-color: rgba(35, 93, 144, 0.5);
+  background: var(--primary-soft);
+}
+
+.rna-choice:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-choice input {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.2rem;
+  accent-color: var(--primary);
+}
+
+.rna-choice__body {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.rna-choice__body strong {
+  color: var(--heading);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.rna-choice__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* --- Motivi rapidi (Rifiuta) --------------------------------------------- */
+
+.rna-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rna-quick__label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-chip-button {
+  padding: 0.42rem 0.85rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--heading);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.rna-chip-button:hover:not(:disabled) {
+  border-color: rgba(35, 93, 144, 0.4);
+  background: var(--primary-soft);
+}
+
+.rna-chip-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-chip-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Pulsanti -------------------------------------------------------------- */
+
+.rna .button--ghost.rna-danger {
+  border-color: rgba(177, 78, 68, 0.28);
+  color: #9b3f36;
+}
+
+.rna .button--ghost.rna-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.rna .button--primary.rna-danger-solid {
+  background: linear-gradient(135deg, #c0584d, #a1423a);
+  box-shadow: 0 14px 28px rgba(177, 78, 68, 0.2);
+}
+
+/* --- Pill categoria -------------------------------------------------------- */
+
+.rna-pill {
+  --rna-cat-bg: var(--primary-soft);
+  --rna-cat-fg: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  background: var(--rna-cat-bg);
+  color: var(--rna-cat-fg);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.rna-pill[data-category="velocita"] {
+  --rna-cat-bg: var(--accent-soft);
+  --rna-cat-fg: #876134;
+}
+
+.rna-pill[data-category="precisione"] {
+  --rna-cat-bg: var(--success-soft);
+  --rna-cat-fg: var(--success);
+}
+
+.rna-pill[data-category="equilibrio"] {
+  --rna-cat-bg: #eee8f5;
+  --rna-cat-fg: #755c90;
+}
+
+.rna-pill[data-category="mente"] {
+  --rna-cat-bg: rgba(44, 107, 125, 0.13);
+  --rna-cat-fg: #2c6b7d;
+}
+
+.rna-pill[data-category="fantasia"] {
+  --rna-cat-bg: rgba(177, 78, 68, 0.12);
+  --rna-cat-fg: #9b4038;
+}
+
+/* --- Riga record ------------------------------------------------------------ */
+
+.rna-record {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 1rem 1.2rem 1.05rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 20px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.rna-record__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
+}
+
+.rna-record__main {
+  display: grid;
+  gap: 0.4rem;
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.rna-record__main h4 {
+  color: var(--heading);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.rna-record__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.rna-record__count {
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.rna-record__notes {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.rna-record__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+/* --- Nomi degli iscritti --------------------------------------------------- */
+
+.rna-entries {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.rna-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  list-style: none;
+}
+
+.rna-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.32rem 0.45rem 0.32rem 0.8rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--heading);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.rna-chip span {
+  overflow-wrap: anywhere;
+}
+
+.rna-chip svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+}
+
+.rna-chip:hover {
+  border-color: rgba(35, 93, 144, 0.4);
+}
+
+.rna-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-chip--open {
+  border-color: rgba(35, 93, 144, 0.5);
+  background: var(--primary-soft);
+}
+
+.rna-chip--more {
+  padding-right: 0.85rem;
+  border-style: dashed;
+  background: transparent;
+  color: var(--primary);
+}
+
+.rna-chip-menu {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 14px;
+  background: var(--bg-soft);
+  color: var(--heading);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.rna-chip-menu__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* --- Elenco persone (Iscrivi qualcuno) ------------------------------------- */
+
+.rna-people {
+  max-height: 19rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.rna-people li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.8rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.rna-people li:first-child {
+  border-top: 0;
+}
+
+/* Persona già a 2 record: riga visibile ma spenta. */
+.rna-people__row--full .rna-avatar,
+.rna-people__row--full .rna-people__who strong {
+  opacity: 0.55;
+}
+
+.rna-people__row--full .rna-people__who small {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.rna-people__who {
+  display: grid;
+  flex: 1;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.rna-people__who strong {
+  color: var(--heading);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.rna-people__who small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+/* --- Sezioni chiuse ---------------------------------------------------------- */
+
+.rna-closed-group {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.rna-closed {
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: var(--surface-strong);
+}
+
+.rna-closed > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.15rem;
+  border-radius: 16px;
+  color: var(--heading);
+  font-weight: 800;
+  list-style: none;
+  cursor: pointer;
+}
+
+.rna-closed > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rna-closed > summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-closed > summary svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+
+.rna-closed[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.rna-closed__body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0 1.15rem 1.1rem;
+}
+
+.rna-closed__hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.rna-list {
+  display: grid;
+  list-style: none;
+}
+
+.rna-list__item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--surface-border);
+}
+
+.rna-list__item:first-child {
+  border-top: 0;
+}
+
+.rna-list__body {
+  display: grid;
+  flex: 1;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.rna-list__body strong {
+  color: var(--heading);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.rna-list__quote {
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.rna-list__reason {
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.rna-list__reason span {
+  margin-right: 0.3rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-list__date {
+  display: grid;
+  flex-shrink: 0;
+  gap: 0.1rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-align: right;
+}
+
+.rna-list__date span:first-child {
+  color: var(--heading);
+  font-weight: 800;
+}
+
+/* Segno accanto al nome degli adulti nell'elenco "Iscrivi qualcuno". */
+.rna-tag {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #876134;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+}
+
+/* --- Chi gestisce le proposte: elenco con interruttori --------------------- */
+
+.rna-closed--nested {
+  background: var(--bg-soft);
+}
+
+.rna-staff {
+  display: grid;
+  list-style: none;
+}
+
+.rna-staff--scroll {
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.rna-staff li + li {
+  border-top: 1px solid var(--surface-border);
+}
+
+/* L'intera riga è l'interruttore: la casella vera copre la riga (invisibile,
+   ma raggiungibile da tastiera e dai lettori di schermo). */
+.rna-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.2rem;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+.rna-switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rna-switch__who {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.rna-switch__who strong {
+  color: var(--heading);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.rna-switch__who small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.rna-switch__track {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.9rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: rgba(20, 39, 70, 0.22);
+  transition: background 0.16s ease;
+}
+
+.rna-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 28, 48, 0.3);
+  transition: transform 0.16s ease;
+}
+
+.rna-switch input:checked ~ .rna-switch__track {
+  background: var(--primary);
+}
+
+.rna-switch input:checked ~ .rna-switch__track::after {
+  transform: translateX(1.2rem);
+}
+
+.rna-switch input:focus-visible ~ .rna-switch__track {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.rna-switch input:disabled {
+  cursor: progress;
+}
+
+.rna-switch input:disabled ~ .rna-switch__track {
+  opacity: 0.55;
+}
+
+.rna-switch--pending .rna-switch__track {
+  animation: rna-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes rna-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* --- Pagina di gestione (chi organizza la serata) -------------------------- */
+
+.rna-manage {
+  gap: 1.2rem;
+  padding-top: 0.6rem;
+  color: var(--text);
+}
+
+.rna-manage__head {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+
+.rna-manage__head h1 {
+  margin: 0;
+  color: var(--heading);
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.7rem, 6vw, 2.5rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.rna-manage__eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  margin-left: -0.3rem;
+  padding: 0 0.7rem 0 0.4rem;
+  border-radius: 999px;
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.rna-back svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.rna-back:hover {
+  background: var(--primary-soft);
+}
+
+.rna-back:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Pagina senza niente da gestire: accesso, permessi, attività non trovata. */
+.rna-state {
+  display: grid;
+  gap: 0.7rem;
+  justify-items: start;
+  max-width: 34rem;
+  padding: 1.4rem 1.3rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 20px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.rna-state h1 {
+  margin: 0;
+  color: var(--heading);
+  font-family: "Fraunces", serif;
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.rna-state p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.rna-state__action {
+  margin-top: 0.4rem;
+}
+
+/* --- Avviso in basso -------------------------------------------------------- */
+
+.rna-toast-region {
+  position: fixed;
+  right: 0;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  pointer-events: none;
+}
+
+.rna-toast {
+  max-width: min(100%, 30rem);
+  padding: 0.7rem 1.15rem;
+  border-radius: 999px;
+  background: var(--heading);
+  box-shadow: var(--shadow);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  animation: rna-toast-in 0.2s ease both;
+}
+
+@keyframes rna-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Schermi stretti (telefono, anche per chi organizza la serata) --------- */
+
+@media (max-width: 760px) {
+  .rna {
+    --rna-gap: 1.1rem;
+  }
+
+  /* Il riquadro della scadenza a tutta riga, gli altri due affiancati. */
+  .rna-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .rna-tile:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .rna-tile {
+    padding: 0.85rem 1rem;
+  }
+
+  .rna-tile__value {
+    font-size: 1.6rem;
+  }
+
+  /* La regola globale .button{width:100%} qui non serve: le righe di tasti
+     scelgono da sole come dividersi la riga. */
+  .rna .button {
+    width: auto;
+    min-height: 2.9rem;
+  }
+
+  .rna-proposal {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "quote"
+      "facts"
+      "similar"
+      "actions"
+      "panel";
+    padding: 1rem;
+  }
+
+  .rna-quote {
+    font-size: 1.2rem;
+  }
+
+  .rna-similar .button {
+    flex: 1 1 100%;
+  }
+
+  /* Approva in evidenza sulla sua riga, gli altri due affiancati. */
+  .rna-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rna-actions > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .rna-record {
+    padding: 0.95rem 1rem 1rem;
+  }
+
+  .rna-record__top {
+    gap: 0.8rem;
+  }
+
+  .rna-record__main {
+    flex-basis: 100%;
+  }
+
+  .rna-record__actions {
+    display: grid;
+    flex-basis: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rna-record__actions > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .rna-section__head .button {
+    flex: 1 1 100%;
+  }
+
+  .rna-head .button {
+    min-height: 2.75rem;
+  }
+
+  .rna-panel {
+    padding: 0.9rem;
+  }
+
+  .rna-panel__note {
+    text-align: left;
+  }
+
+  .rna-panel__actions {
+    justify-content: stretch;
+  }
+
+  .rna-panel__actions .button {
+    flex: 1 1 8rem;
+  }
+
+  .rna-input {
+    min-height: 3rem;
+  }
+
+  .rna-choice {
+    padding: 0.8rem 0.85rem;
+  }
+
+  .rna-choice input {
+    width: 1.3rem;
+    height: 1.3rem;
+  }
+
+  .rna-chip {
+    min-height: 2.6rem;
+    padding-left: 0.9rem;
+  }
+
+  .rna-chip-button {
+    min-height: 2.6rem;
+    padding: 0.5rem 0.95rem;
+  }
+
+  .rna-chip-menu__actions .button {
+    flex: 1 1 8rem;
+  }
+
+  .rna-people li {
+    gap: 0.6rem;
+    padding: 0.6rem 0.7rem;
+  }
+
+  .rna-closed > summary {
+    min-height: 3.2rem;
+  }
+
+  .rna-closed__body {
+    padding: 0 0.9rem 1rem;
+  }
+
+  .rna-list__item {
+    flex-wrap: wrap;
+  }
+
+  .rna-list__item > .button {
+    flex: 1 1 100%;
+  }
+
+  .rna-list__date {
+    flex-basis: 100%;
+    text-align: left;
+  }
+
+  .rna-state {
+    padding: 1.2rem 1.1rem;
+  }
+
+  .rna-state__action .button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .rna-head {
+    flex-wrap: wrap;
+  }
+
+  .rna-head > :first-child {
+    flex: 1 1 100%;
+  }
+
+  .rna-panel__actions .button {
+    flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rna-toast,
+  .rna-closed > summary svg,
+  .rna-switch__track,
+  .rna-switch__track::after {
+    animation: none;
+    transition: none;
+  }
+}

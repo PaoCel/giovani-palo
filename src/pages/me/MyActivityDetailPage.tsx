@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -24,6 +24,12 @@ import {
   getRegistrationStatusTone,
 } from "@/utils/registrations";
 import { getRegistrationLookupFromSession } from "@/utils/session";
+
+// Card della Notte dei Record: caricata a parte (con il suo CSS) solo per le
+// attività che hanno il modulo attivo.
+const RecordNightEntryCard = lazy(async () => ({
+  default: (await import("@/components/recordNight/RecordNightEntryCard")).RecordNightEntryCard,
+}));
 
 type PersonalCampPatrol = {
   id: string;
@@ -451,6 +457,17 @@ export function MyActivityDetailPage() {
           <h1 className="camp-youth-title">Caricamento iscrizione...</h1>
         </section>
       )}
+
+      {data?.event.recordsEnabled ? (
+        <Suspense fallback={null}>
+          <RecordNightEntryCard
+            canReadRecords={Boolean(session?.isAuthenticated && !session.isAnonymous)}
+            className="rn-entry--inset"
+            event={data.event}
+            stakeId={stakeId}
+          />
+        </Suspense>
+      ) : null}
 
       {error ? (
         <div className="notice notice--warning">

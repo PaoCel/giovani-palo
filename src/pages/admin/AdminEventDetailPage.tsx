@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
 import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
+import { RecordNightAdminTab } from "@/components/admin/recordNight/RecordNightAdminTab";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
@@ -64,6 +65,7 @@ type AdminEventTab =
   | "consents"
   | "overnight"
   | "questions"
+  | "records"
   | "surveys"
   | "gallery"
   | "stats";
@@ -307,7 +309,7 @@ function getParentAuthorizationBadge(
   return { label: "Email mancante", tone: "warning" };
 }
 
-function getAdminEventTabFromPath(pathname: string): AdminEventTab {
+function getAdminEventTabFromPath(pathname: string, search = ""): AdminEventTab {
   if (pathname.endsWith("/committees") || pathname.endsWith("/comitati")) {
     return "committees";
   }
@@ -340,6 +342,15 @@ function getAdminEventTabFromPath(pathname: string): AdminEventTab {
     return "stats";
   }
 
+  // La scheda Record vive sulla rotta di base con `?tab=records` (nessuna
+  // rotta nuova da registrare); `/records` è riconosciuto se la si aggiunge.
+  if (
+    pathname.endsWith("/records") ||
+    new URLSearchParams(search).get("tab") === "records"
+  ) {
+    return "records";
+  }
+
   return "details";
 }
 
@@ -355,6 +366,8 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
       return `/admin/events/${eventId}/rooms`;
     case "questions":
       return `/admin/events/${eventId}/questions`;
+    case "records":
+      return `/admin/events/${eventId}?tab=records`;
     case "surveys":
       return `/admin/events/${eventId}/surveys`;
     case "gallery":
@@ -372,7 +385,7 @@ export function AdminEventDetailPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
   const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
-  const routeTab = getAdminEventTabFromPath(location.pathname);
+  const routeTab = getAdminEventTabFromPath(location.pathname, location.search);
   const isCampManagementTab = routeTab === "committees";
   const isStatsTab = routeTab === "stats";
   const isCampManagerOnly = isCampManagementTab && Boolean(session && !session.isAdmin);
@@ -884,7 +897,8 @@ export function AdminEventDetailPage() {
   const activeTab = isCampManagerOnly
     ? "committees"
     : (!resolvedEvent.overnight && routeTab === "overnight") ||
-        (!resolvedEvent.questionsEnabled && routeTab === "questions")
+        (!resolvedEvent.questionsEnabled && routeTab === "questions") ||
+        (!resolvedEvent.recordsEnabled && routeTab === "records")
       ? "details"
       : routeTab;
   const isCampOvernight = resolvedEvent.activityType === "camp";
@@ -896,6 +910,7 @@ export function AdminEventDetailPage() {
     let count = 5;
     if (resolvedEvent.overnight) count += 1;
     if (resolvedEvent.questionsEnabled) count += 1;
+    if (resolvedEvent.recordsEnabled) count += 1;
     if (count >= 7) return "admin-subtabs admin-subtabs--six";
     if (count === 6) return "admin-subtabs admin-subtabs--six";
     if (count === 5) return "admin-subtabs admin-subtabs--five";
@@ -1810,7 +1825,7 @@ export function AdminEventDetailPage() {
   }
 
   return (
-    <div className={`page page--activity-ios page--admin-activity-detail${activeTab === "overnight" ? " page--room-planner" : ""}`}>
+    <div className={`page page--activity-ios page--admin-activity-detail${activeTab === "overnight" ? " page--room-planner" : ""}${activeTab === "records" ? " page--rna-wide" : ""}`}>
       {error ? (
         <div className="notice notice--warning">
           <div>
@@ -2052,6 +2067,21 @@ export function AdminEventDetailPage() {
           >
             <AppIcon name="bell" />
             <span>Domande</span>
+          </button>
+        ) : null}
+        {resolvedEvent.recordsEnabled ? (
+          <button
+            aria-pressed={activeTab === "records"}
+            className={
+              activeTab === "records"
+                ? "admin-subtabs__item admin-subtabs__item--active"
+                : "admin-subtabs__item"
+            }
+            onClick={() => openTab("records")}
+            type="button"
+          >
+            <AppIcon name="sparkles" />
+            <span>Record</span>
           </button>
         ) : null}
         <button
@@ -3285,6 +3315,14 @@ export function AdminEventDetailPage() {
             </article>
           )}
         </section>
+      ) : null}
+
+      {activeTab === "records" && resolvedEvent.recordsEnabled ? (
+        <RecordNightAdminTab
+          canManageStaff={session?.isAdmin === true}
+          event={resolvedEvent}
+          stakeId={stakeId}
+        />
       ) : null}
 
       {activeTab === "surveys" ? (

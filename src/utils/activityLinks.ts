@@ -35,6 +35,18 @@ export function getActivityRegistrationPath(eventId: string, stakeId?: string) {
   return `/activities/${eventId}/register${query ? `?${query}` : ""}`;
 }
 
+// Notte dei Record dell'attività (docs/NOTTE_DEI_RECORD.md).
+export function getRecordNightPath(eventId: string, stakeId?: string) {
+  const params = new URLSearchParams();
+
+  if (stakeId) {
+    params.set("stake", stakeId);
+  }
+
+  const query = params.toString();
+  return `/activities/${eventId}/record${query ? `?${query}` : ""}`;
+}
+
 export function getAbsoluteUrl(path: string) {
   if (typeof window === "undefined") {
     return path;

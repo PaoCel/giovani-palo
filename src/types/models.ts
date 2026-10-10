@@ -313,6 +313,10 @@ export interface Event {
   imageConsentVersionId?: string;
   templateId: string | null;
   questionsEnabled: boolean;
+  // Notte dei Record (docs/NOTTE_DEI_RECORD.md). `recordsCloseAt` null = le
+  // iscrizioni ai record chiudono a `startDate`.
+  recordsEnabled?: boolean;
+  recordsCloseAt?: string | null;
   requiresParentalConsent: boolean;
   requiresPhotoRelease: boolean;
   createdBy: string;
@@ -503,6 +507,9 @@ export interface EventWriteInput {
   allowGuestRegistration?: boolean;
   requireLoginForEdit?: boolean;
   questionsEnabled?: boolean;
+  // Assenti = il salvataggio non tocca il valore già scritto sull'attività.
+  recordsEnabled?: boolean;
+  recordsCloseAt?: string | null;
   requiresParentalConsent?: boolean;
   requiresPhotoRelease?: boolean;
 }
@@ -824,4 +831,83 @@ export interface ConsentAuditLog {
   userAgent: string | null;
   actorUserId: string | null;
   createdAt: string;
+}
+
+// Notte dei Record (docs/NOTTE_DEI_RECORD.md). Record e tentativi li scrive
+// solo la callable: il client li legge. Gli elenchi di valori stanno anche in
+// functions/lib/recordNight.js e in src/utils/recordNight.ts.
+export type RecordNightCategory =
+  | "resistenza"
+  | "velocita"
+  | "precisione"
+  | "equilibrio"
+  | "mente"
+  | "fantasia";
+
+export type RecordNightMeasure =
+  | "count_in_time"
+  | "count_streak"
+  | "longest_time"
+  | "fastest_time"
+  | "distance"
+  | "other";
+
+// `hidden` = tolto dall'admin. Agli altri si mostra solo `open` con iscritti.
+export type RecordNightRecordStatus = "open" | "hidden";
+export type RecordNightEntryKind = "proposal" | "challenge";
+export type RecordNightEntryStatus = "pending" | "approved" | "rejected" | "withdrawn";
+
+export interface RecordNightRecord {
+  id: string;
+  title: string;
+  category: RecordNightCategory;
+  measure: RecordNightMeasure;
+  // Solo per `count_in_time` (10-60 secondi), altrimenti null.
+  durationSeconds: number | null;
+  notes: string;
+  // Tentativi `approved`, mantenuto dal server nella stessa transazione.
+  challengerCount: number;
+  status: RecordNightRecordStatus;
+  // Tentativo la cui approvazione ha creato il record (null se creato da un
+  // admin con "Nuovo record"). Annullare quell'approvazione a record vuoto lo
+  // nasconde.
+  createdFromEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
+// Chi ha ritirato un tentativo: il titolare, lo staff (anche nascondendo il
+// record) o il sistema (iscrizione all'attività annullata o cancellata).
+export type RecordNightWithdrawnBy = "self" | "staff" | "system";
+
+export interface RecordNightEntry {
+  id: string;
+  // Iscrizione all'attività: `user_<uid>` o `child_...`, mai `guest_`.
+  registrationId: string;
+  // Account che gestisce il tentativo: la persona stessa (`user_`) o il genitore
+  // (`child_`). Lo vede e lo modifica solo lui, oltre allo staff.
+  ownerUid: string | null;
+  participantName: string;
+  kind: RecordNightEntryKind;
+  // Solo `proposal`: parole del ragazzo, mai modificate dopo l'approvazione.
+  proposedText: string | null;
+  proposedMeasure: RecordNightMeasure | null;
+  proposedDurationSeconds: number | null;
+  proposedNeeds: string;
+  // Null finché la proposta è in attesa o rifiutata.
+  recordId: string | null;
+  status: RecordNightEntryStatus;
+  // Per "Annulla" dopo il ritiro; null se il ritiro è d'ufficio o dello staff.
+  statusBeforeWithdraw: "pending" | "approved" | null;
+  withdrawnBy: RecordNightWithdrawnBy | null;
+  // Ritirato perché lo staff ha nascosto il record: tornerà `approved` se il
+  // record viene mostrato di nuovo e limite e unicità lo consentono.
+  withdrawnWithRecordHide: boolean;
+  rejectionReason: string;
+  createdByAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+  decidedBy: string | null;
 }

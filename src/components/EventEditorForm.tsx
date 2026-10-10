@@ -100,6 +100,9 @@ interface EventEditorValues {
   allowGuestRegistration: boolean;
   requireLoginForEdit: boolean;
   questionsEnabled: boolean;
+  recordsEnabled: boolean;
+  // Valore di un campo datetime-local; vuoto = chiude all'inizio dell'attività.
+  recordsCloseAt: string;
   requiresAccount: boolean;
   requiresParentAuthorization: boolean;
   requiresEmergencyContacts: boolean;
@@ -139,6 +142,31 @@ const eventEditorSteps: EventEditorStep[] = [
   },
 ];
 
+// Un valore scritto ma illeggibile non deve far saltare l'apertura dell'editor
+// (toDatetimeLocalValue lancia su una data non valida).
+function toDatetimeLocalValueSafe(isoDate?: string | null) {
+  if (!isoDate || Number.isNaN(new Date(isoDate).getTime())) {
+    return "";
+  }
+
+  return toDatetimeLocalValue(isoDate);
+}
+
+const RECORDS_CLOSE_TOO_LATE_MESSAGE =
+  "La chiusura delle iscrizioni ai record non può essere dopo l'inizio dell'attività.";
+
+// La chiusura delle iscrizioni ai record non può cadere dopo l'inizio
+// dell'attività: la serata sarebbe già cominciata.
+function isRecordsCloseAfterStart(recordsCloseAt: string, startDate: string) {
+  if (!recordsCloseAt || !startDate) {
+    return false;
+  }
+
+  const closes = new Date(recordsCloseAt).getTime();
+  const starts = new Date(startDate).getTime();
+  return !Number.isNaN(closes) && !Number.isNaN(starts) && closes > starts;
+}
+
 function getInitialValues(event?: Event | null): EventEditorValues {
   const initialActivityType: ActivityType =
     event?.activityType ?? (event?.overnight ? "overnight" : "standard");
@@ -172,6 +200,8 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     allowGuestRegistration: event?.allowGuestRegistration ?? true,
     requireLoginForEdit: event?.requireLoginForEdit ?? true,
     questionsEnabled: event?.questionsEnabled ?? false,
+    recordsEnabled: event?.recordsEnabled ?? false,
+    recordsCloseAt: toDatetimeLocalValueSafe(event?.recordsCloseAt),
     requiresAccount: event?.requiresAccount ?? initialIsStrong,
     requiresParentAuthorization:
       event?.requiresParentAuthorization ?? initialIsStrong,
@@ -213,6 +243,9 @@ export function EventEditorForm({
   const isLastStep = currentStepIndex === eventEditorSteps.length - 1;
   const progress = ((currentStepIndex + 1) / eventEditorSteps.length) * 100;
   const isSimplifiedStatusMode = statusMode === "simplified";
+  const recordsCloseAtTooLate =
+    values.recordsEnabled &&
+    isRecordsCloseAfterStart(values.recordsCloseAt, values.startDate);
 
   useEffect(() => {
     setValues(getInitialValues(initialEvent));
@@ -374,6 +407,11 @@ export function EventEditorForm({
       }
     }
 
+    if (stepId === "settings" && recordsCloseAtTooLate) {
+      setFieldErrors({ recordsCloseAt: true });
+      return RECORDS_CLOSE_TOO_LATE_MESSAGE;
+    }
+
     const parsedYear = Number(values.year);
 
     if (
@@ -488,6 +526,12 @@ export function EventEditorForm({
       allowGuestRegistration: values.allowGuestRegistration,
       requireLoginForEdit: values.requireLoginForEdit,
       questionsEnabled: values.questionsEnabled,
+      // Notte dei Record: la data resta salvata anche a modulo spento, così
+      // riaccenderlo non fa perdere la scadenza già scelta.
+      recordsEnabled: values.recordsEnabled,
+      recordsCloseAt: values.recordsCloseAt
+        ? fromDatetimeLocalValue(values.recordsCloseAt)
+        : null,
       // Flag MVP legacy: i toggle sono stati rimossi dall'editor. Sostituiti
       // dal flusso magic-link Brevo (requiresParentAuthorization) per minori
       // e da requiresImageConsent + checkbox in form per maggiorenni.
@@ -1031,6 +1075,55 @@ export function EventEditorForm({
                   />
                   <span>Abilita domande dei partecipanti (caminetto)</span>
                 </label>
+
+                <label className="toggle-field">
+                  <input
+                    type="checkbox"
+                    checked={values.recordsEnabled}
+                    onChange={(event) =>
+                      updateValue("recordsEnabled", event.target.checked)
+                    }
+                  />
+                  <span>
+                    Notte dei Record
+                    <small>
+                      I ragazzi iscritti propongono e sfidano record prima
+                      della serata.
+                    </small>
+                  </span>
+                </label>
+
+                {values.recordsEnabled ? (
+                  <label className="field">
+                    {renderFieldLabel(
+                      "Chiusura iscrizioni ai record",
+                      "recordsCloseAt",
+                    )}
+                    <input
+                      aria-invalid={recordsCloseAtTooLate ? true : undefined}
+                      className={
+                        recordsCloseAtTooLate
+                          ? "input input--error"
+                          : getInputClass("recordsCloseAt")
+                      }
+                      type="datetime-local"
+                      value={values.recordsCloseAt}
+                      onChange={(event) =>
+                        updateValue("recordsCloseAt", event.target.value)
+                      }
+                    />
+                    {recordsCloseAtTooLate ? (
+                      <small className="field-error" role="alert">
+                        {RECORDS_CLOSE_TOO_LATE_MESSAGE}
+                      </small>
+                    ) : (
+                      <small>
+                        Se lo lasci vuoto, le iscrizioni ai record chiudono
+                        all'inizio dell'attività.
+                      </small>
+                    )}
+                  </label>
+                ) : null}
               </div>
 
               {isStrongAuthActivityValue ? (

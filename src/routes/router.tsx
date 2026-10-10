@@ -56,6 +56,28 @@ export const router = createBrowserRouter([
           "ActivityRegisterPage",
         ),
       },
+      // Notte dei Record: pagina pubblica (gli stati di accesso li gestisce la
+      // pagina) e indirizzo corto da condividere su WhatsApp.
+      {
+        path: "/activities/:eventId/record",
+        element: lazyPage(() => import("@/pages/public/RecordNightPage"), "RecordNightPage"),
+      },
+      // Gestione delle proposte per chi organizza la serata (admin, dirigenti,
+      // accompagnatori): l'accesso lo decide la pagina con il server.
+      {
+        path: "/activities/:eventId/record/gestisci",
+        element: lazyPage(
+          () => import("@/pages/public/RecordNightManagePage"),
+          "RecordNightManagePage",
+        ),
+      },
+      {
+        path: "/record",
+        element: lazyPage(
+          () => import("@/pages/public/RecordNightShortcutPage"),
+          "RecordNightShortcutPage",
+        ),
+      },
       {
         path: "/privacy",
         element: lazyPage(() => import("@/pages/public/PrivacyPage"), "PrivacyPage"),
