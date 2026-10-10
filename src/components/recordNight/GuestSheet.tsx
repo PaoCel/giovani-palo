@@ -112,6 +112,7 @@ export function GuestSheet({
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const firstRef = useRef<HTMLInputElement | null>(null);
   const keepWritingRef = useRef<HTMLButtonElement | null>(null);
+  const duplicateRef = useRef<HTMLParagraphElement | null>(null);
   const beforeConfirmRef = useRef<HTMLElement | null>(null);
   const busyRef = useRef(false);
   const ids = useId();
@@ -283,6 +284,16 @@ export function GuestSheet({
   // Errori che non stanno sotto un campo: il record da sfidare non c'è più.
   // Con il foglio bloccato lo spiega già l'avviso in cima: niente frase ripetuta.
   const formError = blocked ? null : (error ?? fieldErrors.recordId ?? fieldErrors.kind ?? null);
+
+  // L'avviso "c'è già una richiesta" compare sotto l'unità, a volte fuori dalla
+  // parte visibile del corpo: si porta in vista col minimo scroll, senza spostare
+  // il focus (chi sta scrivendo continua a scrivere) e senza animare se
+  // `prefers-reduced-motion` lo chiede.
+  useEffect(() => {
+    if (!duplicate) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    duplicateRef.current?.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+  }, [duplicate]);
 
   function renderFieldError(key: GuestFieldKey) {
     const message = fieldErrors[key];
@@ -464,7 +475,7 @@ export function GuestSheet({
               {renderFieldError("unitId")}
               <div aria-live="polite">
                 {duplicate ? (
-                  <p className="rn-notice" id={fieldId("duplicate")}>
+                  <p className="rn-notice rn-notice--inline" id={fieldId("duplicate")} ref={duplicateRef}>
                     <RecordNightIcon name="alert" />
                     <span>{GUEST_COPY.duplicateChallenge}</span>
                   </p>
