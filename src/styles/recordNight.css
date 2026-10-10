@@ -2144,6 +2144,307 @@ html.rn-skin .install-hint__icon {
   }
 }
 
+/* ---------- richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md) ----------
+   Portate da .claude/mockups/notte-dei-record/senza-account/senza-account.css
+   (parte partecipante), con gli stessi token e le stesse misure. */
+
+/* Card "Accedi" con la strada secondaria */
+.rn-gate--guest { margin-top: 14px; }
+.rn-gate--guest .rn-gate__title { margin-top: 0; }
+
+.rn-gate--guest .rn-gate__action .rn-btn {
+  width: 100%;
+  min-height: 54px;
+  font-size: 17px;
+}
+
+.rn-gate__hint {
+  margin-top: 10px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--tb-muted);
+}
+
+.rn-gate__alt {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.rn-gate__alt-label {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--tb-soft);
+}
+
+.rn-gate__alt .rn-btn { width: 100%; }
+
+/* Elenco record in sola lettura */
+.rn-rec--read { grid-template-columns: 72px 1fr; }
+
+.rn-rec__score--glyph { padding: 10px 4px; }
+
+.rn-rec__score--glyph .rn-ico {
+  width: 34px;
+  height: 34px;
+  stroke-width: 1.9;
+}
+
+/* Sezione "Le tue richieste da questo telefono" */
+#rn-reqs-title { scroll-margin-top: 84px; }
+
+.rn-req-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.rn-withdrawn--first {
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.rn-mine--in .rn-pill {
+  color: var(--tb-ink);
+  background: rgba(11, 13, 18, 0.12);
+  border-color: rgba(11, 13, 18, 0.28);
+}
+
+.rn-mine--in .rn-pill .rn-ico { color: var(--tb-ink); }
+
+/* Una proposta approvata non ha categoria: il colore è quello del LED. */
+.rn-mine--plain { --cat: var(--tb-led); }
+.rn-mine__top .rn-stamp:only-child { margin-left: auto; }
+
+/* Il record sfidato dentro una richiesta (e nel foglio Sfida). */
+.rn-req-record {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--tb-line);
+  border-left: 4px solid var(--cat, var(--tb-line-strong));
+}
+
+.rn-req-record__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--tb-display);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tb-muted);
+}
+
+.rn-req-record__kind .rn-ico { width: 14px; height: 14px; stroke-width: 2.2; }
+
+.rn-req-record strong {
+  font-family: var(--tb-display);
+  font-size: 25px;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--tb-text);
+  overflow-wrap: anywhere;
+}
+
+.rn-mine--no .rn-req-record,
+.rn-mine--gone .rn-req-record { background: rgba(255, 255, 255, 0.025); }
+
+/* Sulla card colorata (Ci sei) la riga di stato segue l'inchiostro della card. */
+.rn-mine--in .rn-private { color: rgba(11, 13, 18, 0.78); font-weight: 600; }
+.rn-mine--in .rn-private .rn-ico { color: rgba(11, 13, 18, 0.7); }
+
+.rn-private--read { align-items: flex-start; }
+.rn-private--read .rn-ico { margin-top: 2px; }
+.rn-mine__bottom .rn-private { margin-top: 0; }
+
+/* Messaggio di stato in chiaro (non collegata, tolta, chiusa). */
+.rn-state-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--tb-line-strong);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--tb-text);
+}
+
+.rn-state-line .rn-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--tb-muted);
+}
+
+.rn-no-label--soft { color: var(--tb-soft); }
+
+/* Etichetta sul tentativo di chi ha l'account: "Da una richiesta senza account". */
+.rn-origin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 5px 12px 5px 9px;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.32);
+  font-family: var(--tb-display);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--tb-soft);
+}
+
+.rn-origin .rn-ico { width: 15px; height: 15px; flex-shrink: 0; stroke-width: 2; color: var(--tb-led); }
+
+.rn-origin-note {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--tb-muted);
+}
+
+.rn-mine--in .rn-origin {
+  border-color: rgba(11, 13, 18, 0.5);
+  color: var(--tb-ink);
+}
+
+.rn-mine--in .rn-origin .rn-ico { color: var(--tb-ink); }
+.rn-mine--in .rn-origin-note { color: rgba(11, 13, 18, 0.7); }
+
+/* Foglio "Senza account" */
+.rn-g-login {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+  padding: 16px;
+  border-radius: var(--tb-radius-md);
+  border: 2px solid rgba(255, 178, 30, 0.55);
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(255, 178, 30, 0.14), transparent 60%),
+    rgba(255, 178, 30, 0.05);
+}
+
+.rn-req-record + .rn-g-login { margin-top: 14px; }
+.rn-sheet__body > .rn-req-record:first-child { margin-top: 6px; }
+
+.rn-g-login__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.rn-g-login__ico {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 178, 30, 0.16);
+  color: var(--tb-led);
+}
+
+.rn-g-login__ico .rn-ico { width: 20px; height: 20px; stroke-width: 2; }
+
+.rn-g-login__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-family: var(--tb-display);
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--tb-text);
+}
+
+.rn-g-login__text {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--tb-soft);
+}
+
+.rn-g-login .rn-btn { width: 100%; }
+
+.rn-g-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  font-family: var(--tb-display);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tb-muted);
+}
+
+.rn-g-sep::before,
+.rn-g-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--tb-line-strong);
+}
+
+.rn-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.rn-field-row > .rn-field { margin-top: 0; }
+
+.rn-input--select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  color-scheme: dark;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c3c9d5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px;
+}
+
+.rn-input--select option {
+  background-color: var(--tb-panel-2);
+  color: var(--tb-text);
+}
+
+.rn-input--select:invalid,
+.rn-input--select.rn-input--placeholder { color: #7d8496; }
+
+/* La nota del foglio sta in fondo al corpo, sopra i tasti: non è fissa. */
+.rn-sheet__note--strong {
+  text-align: left;
+  color: var(--tb-soft);
+}
+
+.rn-sheet__note--body { margin-top: 22px; }
+
 /* ---------- micro-animazioni, spente con prefers-reduced-motion ---------- */
 @media (prefers-reduced-motion: no-preference) {
   .rn { animation: rn-enter 0.24s ease both; }
