@@ -11,6 +11,9 @@ lo sfida la sera. Prima edizione: viaggio al tempio del 16 ottobre 2026
 - Nome: **Notte dei Record**. "Guinness" è un marchio, non si usa.
 - Elenco visibile a chi ha fatto login nel palo (qualsiasi ruolo, anche chi non
   è ancora iscritto all'attività). Mai senza login: testi scritti da minori.
+  **Superato il 2026-10-10:** chi non ha account vede un elenco ridotto (solo
+  titoli dello staff) e può segnarsi con nome, cognome e unità; vedi
+  `docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md`.
 - Chi si candida resta **sempre anonimo** agli altri: si mostra solo il numero
   di iscritti. I nomi li vedono gli admin, chi gestisce i record, il ragazzo e il
   genitore che l'ha iscritto.
