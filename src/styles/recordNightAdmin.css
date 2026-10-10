@@ -2446,6 +2446,16 @@
   cursor: not-allowed;
 }
 
+/* Messaggio d'errore di una carta che riceve il focus dopo un'azione fallita. */
+.rna-panel__error[tabindex="-1"]:focus {
+  outline: none;
+}
+
+.rna-panel__error[tabindex="-1"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Titoli di sezione che ricevono il focus da programma (dopo un'azione che fa
    sparire la carta): l'anello si vede solo da tastiera. */
 .rna-section__head h3[tabindex="-1"]:focus {
@@ -2580,12 +2590,12 @@
   }
 
   .rna-chip {
-    min-height: 2.6rem;
+    min-height: 2.75rem;
     padding-left: 0.9rem;
   }
 
   .rna-chip-button {
-    min-height: 2.6rem;
+    min-height: 2.75rem;
     padding: 0.5rem 0.95rem;
   }
 
