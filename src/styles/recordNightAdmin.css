@@ -1280,6 +1280,1048 @@
   }
 }
 
+/* =====================================================================
+   Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md)
+   Coda "Da collegare", sezioni "Collegate" / "Non collegate" / "Richieste
+   ritirate", etichetta di origine sui tentativi, interruttore e anteprima
+   dell'editor attività. Token e misure dei mockup approvati.
+   ===================================================================== */
+
+/* --- Filtri e selezione della coda ------------------------------------ */
+
+.rna-queue-tools {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.rna-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-right: -0.5rem;
+  padding: 0.15rem 0.5rem 0.4rem 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.6rem), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 1.6rem), transparent);
+}
+
+.rna-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.rna-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  min-height: 2.75rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--heading);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rna-filter:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-filter b {
+  min-width: 1.3rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.rna-filter small {
+  color: var(--primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rna-filter--on {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.rna-filter--on b {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.rna-filter--on small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.rna-filter--loose {
+  border-style: dashed;
+  border-color: rgba(155, 106, 31, 0.5);
+  color: #7a5418;
+}
+
+.rna-filter--loose.rna-filter--on {
+  border-style: solid;
+  background: #8a5f1b;
+  border-color: #8a5f1b;
+  color: #fff;
+}
+
+.rna-queue-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.rna-queue-bar p {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.rna-queue-bar .button {
+  margin-left: auto;
+}
+
+.rna-queue-bar .button svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* --- Carta richiesta --------------------------------------------------- */
+
+.rna-req {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1.05rem 1.1rem 1.1rem;
+  border: 1px solid var(--surface-border);
+  border-top: 3px solid var(--primary);
+  border-radius: 20px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.rna-req--picked {
+  border-color: rgba(35, 93, 144, 0.38);
+  box-shadow:
+    0 0 0 3px rgba(35, 93, 144, 0.1),
+    var(--shadow-soft);
+}
+
+.rna-req--selected {
+  border-color: var(--primary);
+  background: linear-gradient(180deg, rgba(35, 93, 144, 0.07), var(--surface-strong) 55%);
+  box-shadow:
+    0 0 0 3px rgba(35, 93, 144, 0.16),
+    var(--shadow-soft);
+}
+
+.rna-req__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rna-req__who {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.rna-req__who h4 {
+  color: var(--heading);
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.rna-req__who small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.rna-unit {
+  padding: 0.08rem 0.55rem;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rna-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #876134;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.rna-kind--challenge {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rna-req__body {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.rna-req__quote {
+  color: var(--heading);
+  font-family: "Fraunces", serif;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rna-req__quote span {
+  color: var(--accent);
+}
+
+.rna-req__record {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--bg-soft);
+}
+
+.rna-req__record strong {
+  color: var(--heading);
+  font-size: 0.98rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.rna-req__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.rna-req__facts b {
+  color: var(--heading);
+  font-weight: 700;
+}
+
+/* Badge "N richieste con lo stesso nome". */
+.rna-dup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.28rem 0.7rem 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.rna-dup svg {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+}
+
+.rna-dupgroup {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border: 1.5px dashed rgba(155, 106, 31, 0.45);
+  border-radius: 24px;
+  background: rgba(155, 106, 31, 0.05);
+}
+
+.rna-dupgroup > .rna-dup {
+  margin-left: 0.3rem;
+}
+
+/* Le altre richieste dello stesso nome: righe che si aprono con un tocco. */
+.rna-dupmore {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 3.2rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: var(--surface-strong);
+  color: var(--heading);
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rna-dupmore:hover {
+  border-color: var(--surface-border-strong);
+}
+
+.rna-dupmore:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-dupmore span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rna-dupmore small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.rna-dupmore svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+
+.rna-dupmore[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+/* --- Suggerimenti e verifica ------------------------------------------ */
+
+.rna-sugg {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.rna-sugg__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-sugg__label span {
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.rna-sugg__group {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.rna-choice--off {
+  cursor: not-allowed;
+  background: var(--bg-soft);
+}
+
+.rna-choice--off:hover {
+  border-color: var(--surface-border);
+}
+
+.rna-choice--off input,
+.rna-choice--off strong,
+.rna-choice--off .rna-tag,
+.rna-choice--off .rna-choice__meta > span:not(.rna-flag) {
+  opacity: 0.6;
+}
+
+.rna-choice__meta .rna-tag {
+  margin-left: 0;
+}
+
+.rna-tag--user {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.rna-tag--child {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rna-tag--manual {
+  background: var(--accent-soft);
+  color: #876134;
+}
+
+.rna-flag {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.rna-flag--soft {
+  color: var(--warning);
+}
+
+.rna-none {
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--surface-border-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.rna-search {
+  position: relative;
+}
+
+.rna-search svg {
+  position: absolute;
+  top: 50%;
+  left: 0.85rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.rna-search .rna-input {
+  padding-left: 2.5rem;
+}
+
+/* La spunta obbligatoria prima di Collega (e "Ho controllato i titoli"). */
+.rna-verify {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1.5px solid rgba(155, 106, 31, 0.4);
+  border-radius: 14px;
+  background: rgba(155, 106, 31, 0.07);
+  color: var(--heading);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.rna-verify input {
+  flex-shrink: 0;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-top: 0.05rem;
+  accent-color: var(--primary);
+}
+
+.rna-verify:has(input:checked) {
+  border-color: rgba(45, 107, 86, 0.5);
+  background: var(--success-soft);
+}
+
+.rna-verify:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-verify--needed {
+  border-color: rgba(177, 78, 68, 0.6);
+  background: var(--danger-soft);
+}
+
+.rna-req__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.rna-req__hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.rna-req .rna-panel {
+  margin-top: 0.1rem;
+}
+
+/* Casella di selezione per il rifiuto in blocco. */
+.rna-pick {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  margin: -0.35rem -0.35rem -0.35rem 0;
+}
+
+.rna-pick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rna-pick input:disabled {
+  cursor: not-allowed;
+}
+
+.rna-pick i {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(20, 39, 70, 0.3);
+  border-radius: 8px;
+  background: #fff;
+  color: #fff;
+}
+
+.rna-pick input:disabled + i {
+  opacity: 0.45;
+}
+
+.rna-pick i svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  stroke-width: 2.6;
+  opacity: 0;
+}
+
+.rna-pick input:checked + i {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.rna-pick input:checked + i svg {
+  opacity: 1;
+}
+
+.rna-pick input:focus-visible + i {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-queue-all {
+  justify-self: start;
+  padding-left: 0.2rem;
+}
+
+/* Barra del rifiuto in blocco: resta in vista mentre si sceglie. */
+.rna-bulk {
+  position: sticky;
+  bottom: 0.8rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border-radius: 20px;
+  background: var(--heading);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(16, 28, 48, 0.32);
+}
+
+.rna-bulk__count {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.rna-bulk__count small {
+  display: block;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.rna .rna-bulk .button {
+  width: auto;
+  min-height: 2.8rem;
+  padding-inline: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.rna-bulk .button--ghost {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: #fff;
+}
+
+.rna-bulk .button--primary {
+  background: linear-gradient(135deg, #c0584d, #a1423a);
+  box-shadow: none;
+}
+
+.rna-bulk .button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.rna .rna-bulk .rna-bulk__x {
+  width: 2.8rem;
+  padding: 0;
+}
+
+.rna-bulk__x svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* Conferma del rifiuto in blocco: stessa barra, testo a capo e due tasti. */
+.rna-bulk--confirm {
+  flex-wrap: wrap;
+  padding: 0.85rem 0.8rem 0.8rem 1rem;
+}
+
+.rna-bulk--confirm .rna-bulk__count {
+  flex: 1 1 100%;
+  white-space: normal;
+}
+
+.rna-bulk--confirm .rna-bulk__count small {
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.rna-bulk__error {
+  flex: 1 1 100%;
+  color: #ffd9d4;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.rna-bulk__buttons {
+  display: flex;
+  flex: 1 1 100%;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* --- Tentativi nati da una richiesta: etichetta di origine ------------ */
+
+.rna-origin {
+  grid-area: origin;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  min-width: 0;
+}
+
+.rna-origin__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem 0.25rem 0.55rem;
+  border: 1.5px dashed rgba(35, 93, 144, 0.45);
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.rna-origin__pill svg {
+  flex-shrink: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.rna-origin__typed {
+  color: var(--muted);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.rna-origin__confirm {
+  flex: 1 1 100%;
+}
+
+.rna-linkbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9b3f36;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rna-linkbtn:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.rna-linkbtn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rna-linkbtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rna-linkbtn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.rna-linkbtn--primary {
+  color: var(--primary);
+}
+
+.rna-linkbtn--primary:hover:not(:disabled) {
+  background: var(--primary-soft);
+}
+
+.rna-sugg .rna-linkbtn {
+  justify-self: start;
+  padding-left: 0.2rem;
+}
+
+/* La carta proposta ha le sue aree: la riga dell'origine sta fra intestazione e testo. */
+.rna-proposal--origin {
+  grid-template-areas:
+    "head head"
+    "origin origin"
+    "quote facts"
+    "similar similar"
+    "actions actions"
+    "panel panel";
+}
+
+/* Piccolo segno sul nome degli iscritti nati da una richiesta. */
+.rna-chip .rna-chip__origin {
+  display: inline-grid;
+  place-items: center;
+}
+
+.rna-chip .rna-chip__origin svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--primary);
+}
+
+.rna-chip-menu .rna-origin {
+  grid-area: auto;
+}
+
+/* --- Sezioni chiuse: richieste collegate ------------------------------- */
+
+.rna-state-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.12rem 0.6rem;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.rna-state-chip--ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rna-state-chip--no {
+  background: var(--danger-soft);
+  color: #9b3f36;
+}
+
+.rna-state-chip--off {
+  background: rgba(20, 39, 70, 0.08);
+  color: var(--muted);
+}
+
+.rna-list__link {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0.25rem 0.5rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.rna-list__link svg {
+  flex-shrink: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.15rem;
+  color: var(--muted);
+}
+
+.rna-list__link > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rna-list__link > .rna-unit {
+  flex: 0 0 auto;
+}
+
+.rna-list__link b {
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.rna-list__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+}
+
+.rna-list__item--stack {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.rna-list__panel {
+  flex: 1 1 100%;
+}
+
+.rna-list__item--stack > .rna-list__panel {
+  margin-top: 0.2rem;
+}
+
+.rna-confirm--unlink {
+  margin-top: 0.2rem;
+  border-color: rgba(177, 78, 68, 0.3);
+  background: rgba(255, 246, 245, 0.85);
+}
+
+.rna-confirm--unlink .rna-confirm__title {
+  color: var(--heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.rna .rna-confirm__list {
+  display: grid;
+  list-style: disc;
+  gap: 0.35rem;
+  padding-left: 1.2rem;
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* --- Avviso "Il titolo lo vedono tutti" (Approva, Nuovo, Modifica) ------ */
+
+.rna-panel__warn,
+.rna-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid rgba(155, 106, 31, 0.32);
+  border-radius: 12px;
+  background: var(--warning-soft);
+  color: #6f4b12;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.rna-panel__warn svg,
+.rna-warn svg {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+}
+
+/* --- Editor attività: interruttore e anteprima pubblica ----------------- */
+
+.rna-guest-toggle {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+}
+
+.rna-guest-toggle__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  margin-left: 0;
+  padding: 0.08rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(20, 39, 70, 0.08);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rna-guest-toggle__status--on {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rna-preview {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1.5px dashed rgba(35, 93, 144, 0.4);
+  border-radius: 1.1rem;
+  background: rgba(244, 247, 252, 0.7);
+}
+
+.rna-preview__head {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.rna-preview__head h5 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.rna-preview__head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.rna-preview .rna-warn,
+.rna-preview .rna-empty-inline,
+.rna-preview .field-error {
+  margin: 0;
+}
+
+.rna-preview__list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rna-preview__item {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.rna-preview__item strong {
+  color: var(--heading);
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.rna-preview__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.rna-preview__meta .rna-pill {
+  font-size: 0.68rem;
+}
+
+.rna-preview__never {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.rna-preview__never span {
+  padding: 0.12rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(20, 39, 70, 0.07);
+  text-decoration: line-through;
+  text-decoration-color: rgba(20, 39, 70, 0.4);
+}
+
+.rna-preview__never b {
+  font-weight: 800;
+  color: var(--heading);
+  text-decoration: none;
+}
+
 /* --- Schermi stretti (telefono, anche per chi organizza la serata) --------- */
 
 @media (max-width: 760px) {
@@ -1448,6 +2490,46 @@
   .rna-state__action .button {
     width: 100%;
   }
+
+  /* Carta richiesta: i due tasti uno sotto l'altro, a tutta larghezza. */
+  .rna-req {
+    padding: 1rem;
+  }
+
+  .rna-req__actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rna .rna-req__actions .button {
+    width: 100%;
+  }
+
+  .rna-proposal--origin {
+    grid-template-areas:
+      "head"
+      "origin"
+      "quote"
+      "facts"
+      "similar"
+      "actions"
+      "panel";
+  }
+
+  .rna-dupgroup {
+    padding: 0.6rem;
+  }
+
+  .rna-filters {
+    scroll-padding-inline: 0.5rem;
+  }
+
+  .rna-bulk__buttons .button {
+    flex: 1 1 8rem;
+  }
+
+  .rna-preview {
+    padding: 0.85rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1467,6 +2549,7 @@
 @media (prefers-reduced-motion: reduce) {
   .rna-toast,
   .rna-closed > summary svg,
+  .rna-dupmore svg,
   .rna-switch__track,
   .rna-switch__track::after {
     animation: none;
