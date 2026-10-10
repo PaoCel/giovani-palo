@@ -193,26 +193,3 @@ export function groupRequestsByPerson(requests: ReadonlyArray<RecordNightStaffRe
   }
   return groups;
 }
-
-// Tentativo -> testo dello stato per lo staff ("In attesa", "Ci sei"...).
-export function getEntryStateChip(entry: RecordNightEntry | undefined) {
-  if (!entry) return null;
-  switch (entry.status) {
-    case "pending":
-      return { label: "In attesa", tone: "" } as const;
-    case "approved":
-      return { label: "Ci sei", tone: "ok" } as const;
-    case "rejected":
-      return { label: "Non accettata", tone: "no" } as const;
-    default:
-      return {
-        label:
-          entry.withdrawnBy === "staff"
-            ? "Ritirata da un adulto"
-            : entry.withdrawnBy === "system"
-              ? "Iscrizione annullata"
-              : "Ritirata dalla persona",
-        tone: "off",
-      } as const;
-  }
-}

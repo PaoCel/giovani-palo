@@ -15,6 +15,7 @@ import {
   getRecordNightCloseAt,
   getRecordNightWindow,
 } from "@/utils/recordNight";
+import { describeBulkRejectResult } from "@/utils/recordNightGuest";
 
 import "@/styles/recordNightAdmin.css";
 
@@ -337,10 +338,8 @@ export function RecordNightAdminTab({
       runRequest(
         "req-rejectMany",
         () => queue.rejectMany(targets.map((request) => request.id)),
-        (value) =>
-          value.rejectedCount === 1
-            ? "1 richiesta segnata come non collegabile."
-            : `${value.rejectedCount} richieste segnate come non collegabili.`,
+        // Quelle già gestite nel frattempo si saltano senza errore: l'esito lo dice.
+        (value) => describeBulkRejectResult(value),
       ),
     reopen: (request) =>
       runRequest(
@@ -641,7 +640,7 @@ export function RecordNightAdminTab({
             {queue.sections.linked.length > 0 ? (
               <ClosedSection
                 count={queue.sections.linked.length}
-                hint="Richieste già collegate a un'iscrizione. Scollega riporta la richiesta in «Da collegare»."
+                hint="Richieste già collegate a un'iscrizione, divise per stato del tentativo. Scollega riporta la richiesta in «Da collegare», da qualunque stato."
                 title="Collegate"
               >
                 <LinkedRequestsList
@@ -665,10 +664,10 @@ export function RecordNightAdminTab({
             {queue.sections.withdrawn.length > 0 ? (
               <ClosedSection
                 count={queue.sections.withdrawn.length}
-                hint="Richieste ritirate da chi le ha inviate."
+                hint="Richieste ritirate da chi le ha inviate. Con Riapri la richiesta torna in «Da collegare»: dopo la chiusura, o se il telefono è andato perso, è l'unica strada."
                 title="Richieste ritirate"
               >
-                <WithdrawnRequestsList requests={queue.sections.withdrawn} />
+                <WithdrawnRequestsList ctx={ctx} requests={queue.sections.withdrawn} />
               </ClosedSection>
             ) : null}
 

@@ -50,7 +50,7 @@ export interface RnaRequests {
   ) => Promise<RnaRunResult<RecordNightRequestActionResult>>;
   rejectMany: (
     requests: ReadonlyArray<RecordNightStaffRequest>,
-  ) => Promise<RnaRunResult<{ rejectedCount: number }>>;
+  ) => Promise<RnaRunResult<{ rejectedCount: number; skippedCount: number }>>;
   reopen: (
     request: RecordNightStaffRequest,
   ) => Promise<RnaRunResult<RecordNightRequestActionResult>>;

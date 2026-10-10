@@ -2,12 +2,12 @@ import { useId, useRef, useState } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
 import type { RecordNightEntry, RecordNightStaffRequest } from "@/types";
+import { getStaffLinkedState, groupLinkedRequests } from "@/utils/recordNightGuest";
 
 import {
   REGISTRATION_TYPE_LABEL,
   describeRequest,
   formatShortDateTime,
-  getEntryStateChip,
   getRegistrationType,
   getRequestPersonName,
 } from "./helpers";
@@ -33,17 +33,35 @@ export function LinkedRequestsList({
   requests: ReadonlyArray<RecordNightStaffRequest>;
   entriesById: ReadonlyMap<string, RecordNightEntry>;
 }) {
+  // Divise per stato del tentativo (in attesa, approvate, non accettate, ritirate):
+  // Scollega resta disponibile da ogni stato, anche da un tentativo già ritirato o
+  // non accettato.
+  const groups = groupLinkedRequests(requests);
   return (
-    <ul className="rna-list">
-      {requests.map((request) => (
-        <LinkedRow
-          ctx={ctx}
-          entry={request.linkedEntryId ? entriesById.get(request.linkedEntryId) : undefined}
-          key={request.id}
-          request={request}
-        />
+    <div className="rna-linked-groups">
+      {groups.map((group) => (
+        <section
+          aria-label={`${group.label} (${group.requests.length})`}
+          className="rna-linked-group"
+          key={group.key}
+        >
+          <h4 className="rna-linked-group__title">
+            {group.label}
+            <span>{group.requests.length}</span>
+          </h4>
+          <ul className="rna-list">
+            {group.requests.map((request) => (
+              <LinkedRow
+                ctx={ctx}
+                entry={request.linkedEntryId ? entriesById.get(request.linkedEntryId) : undefined}
+                key={request.id}
+                request={request}
+              />
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -67,8 +85,11 @@ function LinkedRow({
   const person = registrationId
     ? ctx.participants.list.find((item) => item.registrationId === registrationId)
     : undefined;
-  const attemptName = entry?.participantName || person?.name || "chi è collegato";
-  const chip = getEntryStateChip(entry);
+  const knownName = entry?.participantName || person?.name || "";
+  const attemptName = knownName || "chi è collegato";
+  // Lo stato del tentativo lo dà il server con la richiesta: il testo dice tutto,
+  // il colore è solo un aiuto.
+  const state = getStaffLinkedState(request);
   const panelId = `${baseId}-unlink`;
   const details = [
     person?.unitName ?? "",
@@ -88,22 +109,20 @@ function LinkedRow({
       <div className="rna-list__body">
         <div className="rna-list__head">
           <strong>{typedName}</strong>
-          {chip ? (
-            <span
-              className={
-                chip.tone ? `rna-state-chip rna-state-chip--${chip.tone}` : "rna-state-chip"
-              }
-            >
-              {chip.label}
-            </span>
-          ) : null}
+          <span
+            className={
+              state.tone ? `rna-state-chip rna-state-chip--${state.tone}` : "rna-state-chip"
+            }
+          >
+            {state.label}
+          </span>
         </div>
         <p className="rna-list__quote">{describeRequest(request)}</p>
         {registrationId ? (
           <p className="rna-list__link">
             <RnaIcon name="link" />
             <span>
-              Collegata a <b>{attemptName}</b>
+              Collegata a {knownName ? <b>{knownName}</b> : "un'iscrizione"}
               {details.length > 0 ? ` · ${details.join(" · ")}` : ""}
             </span>
           </p>
@@ -214,36 +233,67 @@ function NotLinkedRow({ ctx, request }: { ctx: RnaContext; request: RecordNightS
 }
 
 // ---------------------------------------------------------------------------
-// Richieste ritirate (sola lettura)
+// Richieste ritirate (si possono riaprire)
 // ---------------------------------------------------------------------------
 
+// Il telefono ritira da solo finché la finestra è aperta; dopo la chiusura, o con
+// il telefono perso, "Riapri" è l'unica strada: la richiesta torna in "Da collegare".
 export function WithdrawnRequestsList({
+  ctx,
   requests,
 }: {
+  ctx: RnaContext;
   requests: ReadonlyArray<RecordNightStaffRequest>;
 }) {
   return (
     <ul className="rna-list">
-      {requests.map((request) => {
-        const name = getRequestPersonName(request);
-        const date = formatShortDateTime(request.updatedAt);
-        return (
-          <li className="rna-list__item" key={request.id}>
-            <Avatar name={name} />
-            <div className="rna-list__body">
-              <strong>{name}</strong>
-              <p className="rna-list__link">
-                <span className="rna-unit">{request.unitName || "Unità non indicata"}</span>
-              </p>
-              <p className="rna-list__quote">{describeRequest(request)}</p>
-            </div>
-            <small className="rna-list__date">
-              <span>Ritirata da chi l'ha inviata</span>
-              {date ? <span>{date}</span> : null}
-            </small>
-          </li>
-        );
-      })}
+      {requests.map((request) => (
+        <WithdrawnRow ctx={ctx} key={request.id} request={request} />
+      ))}
     </ul>
+  );
+}
+
+function WithdrawnRow({ ctx, request }: { ctx: RnaContext; request: RecordNightStaffRequest }) {
+  const [error, setError] = useState<string | null>(null);
+  const name = getRequestPersonName(request);
+  const date = formatShortDateTime(request.updatedAt);
+
+  async function reopen() {
+    setError(null);
+    const result = await ctx.requests.reopen(request);
+    if (!result.ok) setError(result.message);
+  }
+
+  return (
+    <li className="rna-list__item">
+      <Avatar name={name} />
+      <div className="rna-list__body">
+        <strong>{name}</strong>
+        <p className="rna-list__link">
+          <span className="rna-unit">{request.unitName || "Unità non indicata"}</span>
+        </p>
+        <p className="rna-list__quote">{describeRequest(request)}</p>
+        <small className="rna-list__date rna-list__date--inline">
+          <span>Ritirata da chi l'ha inviata</span>
+          {date ? <span>{date}</span> : null}
+        </small>
+        {error ? (
+          <p className="rna-panel__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <button
+        aria-label={`Riapri la richiesta di ${name}`}
+        className="button button--ghost button--small"
+        disabled={ctx.busy}
+        onClick={() => void reopen()}
+        type="button"
+      >
+        <AppIcon name="refresh" />
+        <span>{ctx.busyKey === `req-reopen:${request.id}` ? "Un momento..." : "Riapri"}</span>
+      </button>
+    </li>
   );
 }
