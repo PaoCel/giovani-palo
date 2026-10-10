@@ -1372,6 +1372,15 @@ service cloud.firestore {
             || isRecordNightStaff(stakeId, activityId);
           allow create, update, delete: if false;
         }
+
+        // `recordRequests`: richieste di chi non ha un account
+        // (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md). Portano nome, cognome e unità
+        // digitati da un minore: non le legge e non le scrive nessun client, nemmeno
+        // lo staff. Tutto passa dalle callable `recordNightGuest` e
+        // `recordNightAdmin` (Admin SDK), che calcolano anche i suggerimenti.
+        match /recordRequests/{requestId} {
+          allow read, write: if false;
+        }
       }
     }
 
