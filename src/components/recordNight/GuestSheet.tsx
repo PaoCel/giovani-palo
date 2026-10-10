@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import type { GuestActionOutcome } from "@/components/recordNight/hooks";
 import { MEASURE_ICONS, RecordNightIcon } from "@/components/recordNight/RecordNightIcon";
 import type {
+  RecordNightGuestRequest,
   RecordNightGuestUnit,
   RecordNightMeasure,
   RecordNightPublicRecord,
@@ -28,6 +29,7 @@ import {
 import {
   GUEST_COPY,
   GUEST_NAME_LIMITS,
+  hasActiveChallengeForPerson,
   validateGuestDraft,
   type GuestFieldErrors,
   type GuestFieldKey,
@@ -64,6 +66,9 @@ interface GuestSheetProps {
   // c'è più si segnala subito, senza creare la sessione.
   units: ReadonlyArray<RecordNightGuestUnit>;
   records: ReadonlyArray<RecordNightPublicRecord>;
+  // Le richieste di questo telefono: nel foglio Sfida servono a capire se la
+  // persona digitata ha già una richiesta per questo record.
+  phoneRequests: ReadonlyArray<RecordNightGuestRequest>;
   loginPath: string;
   // Le iscrizioni si sono chiuse (o l'invio si è spento) a foglio aperto: "Invia
   // richiesta" resta spento e il foglio lo spiega, senza perdere ciò che si è scritto.
@@ -83,6 +88,7 @@ export function GuestSheet({
   record = null,
   units,
   records,
+  phoneRequests,
   loginPath,
   blocked,
   opener,
@@ -222,7 +228,7 @@ export function GuestSheet({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busyRef.current || blocked) return;
+    if (busyRef.current || blocked || duplicate) return;
 
     const draft: RecordNightGuestDraft = propose
       ? { kind: "proposal", firstName, lastName, unitId, text, measure, durationSeconds: duration, needs }
@@ -264,6 +270,16 @@ export function GuestSheet({
   }
 
   const challengeRecord = !propose ? record : null;
+  // Sfida: la persona digitata ha già una richiesta valida per questo record da
+  // questo telefono. Un'altra persona dello stesso telefono no: nessun avviso.
+  const duplicate =
+    challengeRecord !== null &&
+    hasActiveChallengeForPerson(phoneRequests, {
+      recordId: challengeRecord.id,
+      firstName,
+      lastName,
+      unitName: units.find((unit) => unit.id === unitId)?.name ?? "",
+    });
   // Errori che non stanno sotto un campo: il record da sfidare non c'è più.
   // Con il foglio bloccato lo spiega già l'avviso in cima: niente frase ripetuta.
   const formError = blocked ? null : (error ?? fieldErrors.recordId ?? fieldErrors.kind ?? null);
@@ -446,6 +462,14 @@ export function GuestSheet({
                 ))}
               </select>
               {renderFieldError("unitId")}
+              <div aria-live="polite">
+                {duplicate ? (
+                  <p className="rn-notice" id={fieldId("duplicate")}>
+                    <RecordNightIcon name="alert" />
+                    <span>{GUEST_COPY.duplicateChallenge}</span>
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {propose ? (
@@ -643,8 +667,10 @@ export function GuestSheet({
                   </button>
                   <button
                     aria-busy={busy || undefined}
-                    aria-describedby={blocked ? fieldId("blocked") : undefined}
-                    aria-disabled={busy || blocked !== null || undefined}
+                    aria-describedby={
+                      blocked ? fieldId("blocked") : duplicate ? fieldId("duplicate") : undefined
+                    }
+                    aria-disabled={busy || blocked !== null || duplicate || undefined}
                     className="rn-btn rn-btn--led"
                     type="submit"
                   >

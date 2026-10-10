@@ -12,7 +12,9 @@ interface GuestOpenRecordsProps {
   canAct: boolean;
   // Il telefono ha già il massimo di richieste in coda: "Sfida" resta chiuso.
   atLimit: boolean;
-  // Record che questo telefono ha già sfidato con una richiesta valida.
+  // Record che questo telefono ha già sfidato (con una persona qualsiasi): solo
+  // un'etichetta, "Sfida" resta attivo perché lo stesso telefono può servire più
+  // persone.
   challengedIds: ReadonlySet<string>;
   busy: boolean;
   // Il tasto premuto: il foglio gli restituisce il focus alla chiusura.
@@ -85,19 +87,15 @@ export function GuestOpenRecords({
                       {getRecordNightMeasureShortLabel(record.measure, record.durationSeconds)}
                     </span>
                     <h4 className="rn-rec__title">{record.title}</h4>
+                    {challengedIds.has(record.id) ? (
+                      <p className="rn-rec__phone-note">
+                        <RecordNightIcon name="check" />
+                        {GUEST_COPY.challengedHere}
+                      </p>
+                    ) : null}
                     {canAct ? (
                       <div className="rn-rec__action">
-                        {challengedIds.has(record.id) ? (
-                          <button
-                            aria-label={`Richiesta inviata: ${record.title}`}
-                            className="rn-btn-sfida"
-                            disabled
-                            type="button"
-                          >
-                            <RecordNightIcon name="check" />
-                            Richiesta inviata
-                          </button>
-                        ) : atLimit ? (
+                        {atLimit ? (
                           <button
                             aria-describedby="rn-guest-limit-list"
                             aria-label={`Sfida: ${record.title}`}

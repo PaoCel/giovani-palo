@@ -14,6 +14,7 @@ import {
   GUEST_COPY,
   GUEST_STATE_TEXTS,
   getGuestStateText,
+  sortGuestRequestsByPerson,
   stripBidi,
 } from "@/utils/recordNightGuest";
 
@@ -322,10 +323,13 @@ export function GuestRequests({
   onWithdraw,
   onRestore,
 }: GuestRequestsProps) {
-  const cards = requests.filter((request) => request.state !== "withdrawn");
+  // Per persona, poi dalla più recente: su un telefono usato da più persone le
+  // loro richieste non si mescolano.
+  const sorted = sortGuestRequestsByPerson(requests);
+  const cards = sorted.filter((request) => request.state !== "withdrawn");
   // Dopo la chiusura le ritirate non si mostrano più (come "Ritirati" di MyRecords):
   // vale anche se la finestra si chiude a pagina aperta, prima di una nuova lettura.
-  const withdrawn = requests.filter(
+  const withdrawn = sorted.filter(
     (request) => request.state === "withdrawn" && request.canRestore && !closed,
   );
 

@@ -331,6 +331,7 @@ export function RecordNightGuestView({
           onClose={() => setSheet(null)}
           onSubmit={handleSubmit}
           opener={openerRef.current}
+          phoneRequests={guest.requests}
           record={sheet.mode === "challenge" ? sheet.record : null}
           records={context.records}
           units={context.units}
