@@ -104,7 +104,7 @@ Scritta solo dal server; nessun client la legge.
 
 ### Tentativo: due campi in più
 
-`sourceRequestId` (id richiesta, null altrove) e `fromGuestRequest: true`. Lo
+`sourceRequestId` (id richiesta) e `fromGuestRequest: true`, scritti **solo** sui tentativi collegati: gli altri non hanno il campo. Lo
 stato del tentativo resta quello di sempre. Il titolare (`ownerUid`) è quello
 dell'iscrizione scelta: l'utente per `user_`, il genitore per `child_`, null
 per `manual_`. `participantName` viene sempre dall'**iscrizione**, mai dal nome
@@ -118,7 +118,9 @@ in `firestore.indexes.json` o via REST e **verificare in produzione** che sia
 attivo. Il TTL cancella ma non è un controllo di accesso: le callable trattano
 come inesistente una richiesta con `expiresAt` passato. `cleanupDeletedActivity`
 cancella anche le richieste. Se la data del viaggio cambia, `expiresAt` non si
-ricalcola (limite accettato). I tentativi (`recordEntries`) non hanno scadenza,
+ricalcola (limite accettato, il viaggio è il 16/10: se slitta si rialza a mano). Se all'invio la
+scadenza calcolata è già passata la richiesta non nasce ("chiuse"). Il TTL
+cancella con un ritardo fino a circa un giorno. I tentativi (`recordEntries`) non hanno scadenza,
 come oggi.
 
 ## Callable
@@ -162,18 +164,23 @@ Stato mostrato al richiedente (`mine`), derivato dalla richiesta e dal tentativo
 | `removed` | `linked` + `withdrawn` (chiunque) | "Non sei più in elenco. Se non lo volevi, parlane con un dirigente." |
 
 Nessun campo dell'iscrizione, nessun altro tentativo della persona, nessun
-contatore passa al telefono.
+contatore passa al telefono. `mine` mostra il **testo della richiesta**, non
+quello del tentativo (se il titolare lo modifica i due divergono: è voluto). Il
+titolo del record sfidato c'è solo se il record è `open`, ha sfidanti e
+l'interruttore è acceso, altrimenti `null`. "Annulla" del ritiro può fallire se
+nel frattempo si sono riempiti i tetti: l'errore lo dice e la richiesta resta ritirata.
 
 ### `recordNightAdmin` (staff): nuove azioni
 
 - `listRequests {}` -> richieste con `status` `open`/`rejected`/`linked`/`withdrawn`,
-  più per ogni `open`: `duplicates` (altre richieste con lo stesso `personKey`)
+  per le `linked` anche `entryStatus` e `withdrawnBy` del tentativo; per ogni `open`: `duplicates` (altre richieste con lo stesso `personKey`)
   e `suggestions` (max 3: `registrationId`, nome, unità, tipo
   user/child/manual, `activeEntries`, `alreadyOnRecord`), calcolate dal nome
   (stessa logica di `roomMateSuggestions`, estratta in un modulo comune) con
   bonus se l'unità coincide. Solo iscrizioni attive `user_`/`child_`/`manual_`.
   Filtro "Senza abbinamento" per ripulire in fretta.
-- `linkRequest { requestId, registrationId, verified: true }` -> **una
+- `linkRequest { requestId, registrationId, verified: true }` (idempotente: già
+  collegata alla stessa iscrizione restituisce lo stato) -> **una
   transazione che rilegge tutto** (autorizzazione, attività, richiesta,
   iscrizione, tentativi della persona, record): i suggerimenti non valgono come
   prova. Richiesta `open`; iscrizione attiva; `challenge`: record non nascosto,
@@ -182,14 +189,20 @@ contatore passa al telefono.
   `assertNoDuplicateProposal`, crea tentativo `pending` (poi Approva/Unisci/Rifiuta
   come oggi). La richiesta passa a `linked`. `verified !== true` è un errore.
 - `rejectRequest { requestId, note? }` e `rejectRequests { requestIds (max 50), note? }`
-  -> `rejected`, nota interna. Solo richieste `open`.
-- `reopenRequest { requestId }` -> `rejected` -> `open`.
+  -> `rejected`, nota interna. Solo richieste `open`; ripetuto su una già
+  rifiutata non cambia nulla; il blocco rifiuta quelle ancora `open` e salta le
+  altre (`rejectedCount`, `skippedCount`).
+- `reopenRequest { requestId }` -> `rejected` o `withdrawn` -> `open`, senza tetti e senza controllo di finestra.
 - `unlinkRequest { requestId }` -> una transazione. Sul tentativo collegato, da
   **qualunque** stato (`pending`, `approved`, `rejected`, `withdrawn`): lo porta
   a `withdrawn`, `withdrawnBy: staff`, `statusBeforeWithdraw: null`,
   `withdrawnWithRecordHide: false` (nessun "Annulla" o "Mostra di nuovo" lo
-  rimette), contatore -1 solo se era `approved`, una volta sola. Richiesta a
-  `open`, legame cancellato. Se il tentativo è una proposta approvata che ha
+  rimette), contatore -1 solo se era `approved`, una volta sola. Se il tentativo
+  aveva creato un record e questo resta a zero, il record si nasconde (niente
+  doppioni dopo il ricollegamento). Richiesta a
+  `open`, legame cancellato. Collega di nuovo crea un tentativo **nuovo**: le
+  decisioni prese (approvazione) e le modifiche del titolare non tornano, e lo
+  scollegato resta fra i "Ritirati" del titolare. La conferma in riga lo dice. Se il tentativo è una proposta approvata che ha
   creato un record, prima si usa "Riporta in attesa" (esiste già): l'errore lo dice.
   È il ritorno universale dello staff: Scollega, poi Collega di nuovo.
 
@@ -224,7 +237,7 @@ ritirata non si ripristina con "Iscrivi qualcuno").
 | --- | --- | --- | --- | --- | --- |
 | 0. Nessuna richiesta | Accedi (primo, con ritorno alla pagina) oppure "Segnati senza account" -> foglio. Chiudere il foglio non salva nulla | come P | n/a | n/a | vede l'elenco (D1), nessun dato di nessuno |
 | 1. `open`, ricevuta | "Ricevuta, la controlla un adulto" (nulla sull'iscrizione). **Ritira** -> 2 | non la vede. Può inviarne un'altra: duplicato accettato in silenzio | nulla | "Da collegare": **Collega a…** -> 3 o 4, **Non collegabile** -> 7 (anche in blocco). Duplicati raggruppati, non rifiutati da soli | nulla |
-| 2. `withdrawn` dal richiedente | avviso "Ritiro fatto" con **Annulla** -> 1 (copre il toast); poi sezione "Ritirate" con **Ripristina** -> 1 (finestra aperta, tetti rispettati) | non la vede | nulla | sparisce dalla coda; sezione chiusa "Ritirate", sola lettura | nulla |
+| 2. `withdrawn` dal richiedente | avviso "Ritiro fatto" con **Annulla** -> 1 (copre il toast); poi sezione "Ritirate" con **Ripristina** -> 1 (finestra aperta, tetti rispettati) | non la vede | nulla | sparisce dalla coda; sezione chiusa "Richieste ritirate" con **Riapri** -> 1 (dopo la chiusura o con il telefono perso è l'unica strada) | nulla |
 | 3. `linked` + tentativo `pending` | "In attesa di approvazione", sola lettura. "Per ritirarti parlane con un dirigente" | non la vede | tentativo in "I tuoi record" con etichetta "Da una richiesta senza account": Modifica, **Ritira** (Annulla) | tentativo in "Proposte in attesa" con la stessa etichetta: Approva / Unisci / Rifiuta -> 4 o 5. Sulla richiesta **Scollega** -> 1 | nulla |
 | 4. `linked` + tentativo `approved` | "Ci sei", sola lettura | non la vede | "Ci sei", **Ritirati** | Riporta in attesa -> 3 (solo proposte), Ritira (staff) -> 8; **Scollega** -> 1 (se il record è nato da questo tentativo, prima Riporta in attesa) | conta fra gli sfidanti (anonimo) |
 | 5. `linked` + tentativo `rejected` | "Non accettata" + motivo. Può inviare un'altra richiesta (non conta nel limite) | non la vede | "Non accettata" + motivo | sezione "Non accettate" esistente: Riporta in attesa -> 3. **Scollega** -> 1 | nulla |
