@@ -45,14 +45,30 @@ export const MAX_BULK_REJECT_REQUESTS = 50;
 // Testi fissi della spec
 // ---------------------------------------------------------------------------
 
+// Frasi usate in più punti: una sola formulazione.
+const CLOSED_MESSAGE = "Le iscrizioni ai record sono chiuse.";
+const SUBMIT_UNAVAILABLE = "Non riesco a riceverla ora. Parlane con il dirigente della tua unità.";
+
 export const GUEST_COPY = {
   // Errore del server per chi ha già un account (stringa identica alla callable).
   account: "Hai un account: accedi",
-  // Nota fissa del foglio "Senza account".
+  // Nota del foglio "Senza account", in fondo al corpo, sopra i tasti.
   sheetNote:
     "Un adulto controlla ogni richiesta. Finché non è approvata non conta e non la vede nessuno. La vedi e la ritiri solo da questo telefono.",
-  // Sopra "Le tue richieste da questo telefono".
-  phoneOnlyNote: "Le vedi solo da questo telefono.",
+  // Sotto "Accedi" nel foglio: chi passa dall'accesso perde ciò che ha scritto.
+  sheetLoginHint: "Dopo l'accesso torni a questa pagina. Quello che hai scritto qui non si salva.",
+  // Sotto "Le tue richieste da questo telefono" (formulazione del mockup).
+  phoneOnlyNote: "Se cambi telefono o cancelli i dati del sito, non le trovi più.",
+  // Il telefono è al tetto di richieste in coda: lo si dice prima di compilare e
+  // all'invio.
+  phoneLimit:
+    "Hai già inviato il massimo di richieste da questo telefono. Ritirane una per inviarne un'altra.",
+  // "Annulla" o "Ripristina" con il tetto pieno: la richiesta resta ritirata.
+  restoreAtLimit:
+    "La richiesta resta ritirata. Per rimetterla ritira un'altra richiesta o parlane con un dirigente.",
+  // Foglio aperto mentre le iscrizioni si chiudono o l'invio si spegne.
+  intakeClosed: CLOSED_MESSAGE,
+  intakeUnavailable: SUBMIT_UNAVAILABLE,
   // Spunta dello staff per collegare una richiesta.
   verifiedLabel:
     "La persona mi ha confermato di aver inviato questa richiesta (di persona o tramite il suo dirigente)",
@@ -472,7 +488,7 @@ export class RecordNightGuestClientError extends Error {
 // cause diverse: è l'unico caso in cui si guarda il messaggio). Una prova in
 // tests/ li confronta con functions/lib/recordNightGuest.js.
 export const SERVER_GUEST_MESSAGES = {
-  closed: "Le iscrizioni ai record sono chiuse.",
+  closed: CLOSED_MESSAGE,
   disabled: "La Notte dei Record non è attiva per questa attività.",
   phoneCap: "Hai già inviato il massimo di richieste da questo telefono.",
   recordGone: "Questo record non è più disponibile.",
@@ -483,7 +499,7 @@ export const GUEST_GENERIC_ERROR =
 
 const UNAVAILABLE_BY_ACTION: Record<RecordNightGuestAction, string> = {
   load: GUEST_GENERIC_ERROR,
-  submit: "Non riesco a riceverla ora. Parlane con il dirigente della tua unità.",
+  submit: SUBMIT_UNAVAILABLE,
   withdraw: "Non riesco a ritirarla ora. Parlane con il dirigente della tua unità.",
   restore: "Non riesco a ripristinarla ora. Parlane con il dirigente della tua unità.",
 };
@@ -556,7 +572,10 @@ export function getRecordNightGuestErrorMessage(
     case "disabled":
       return SERVER_GUEST_MESSAGES.disabled;
     case "phone_limit":
-      return SERVER_GUEST_MESSAGES.phoneCap;
+      // Stesso errore del server, detto per ciò che si stava facendo: all'invio come
+      // liberare un posto, nel ripristino che la richiesta resta ritirata.
+      if (action === "restore") return GUEST_COPY.restoreAtLimit;
+      return action === "submit" ? GUEST_COPY.phoneLimit : SERVER_GUEST_MESSAGES.phoneCap;
     case "record_gone":
       return SERVER_GUEST_MESSAGES.recordGone;
     case "unavailable":
@@ -659,6 +678,22 @@ export function countOpenGuestRequests(requests: ReadonlyArray<Pick<RecordNightG
 
 export function isAtGuestPhoneLimit(requests: ReadonlyArray<Pick<RecordNightGuestRequest, "state">>) {
   return countOpenGuestRequests(requests) >= RECORD_NIGHT_GUEST_LIMITS.openPerPhone;
+}
+
+// Record che questo telefono ha già sfidato con una richiesta ancora valida (in
+// coda, in attesa o approvata): su quei record "Sfida" non serve. Una richiesta
+// ritirata, non collegata, non accettata o tolta dall'elenco non conta.
+const ACTIVE_CHALLENGE_STATES: ReadonlyArray<RecordNightGuestState> = ["received", "pending", "approved"];
+
+export function getChallengedRecordIds(
+  requests: ReadonlyArray<Pick<RecordNightGuestRequest, "kind" | "state" | "recordId">>,
+) {
+  const ids = new Set<string>();
+  for (const request of requests) {
+    if (request.kind !== "challenge" || !request.recordId) continue;
+    if (ACTIVE_CHALLENGE_STATES.includes(request.state)) ids.add(request.recordId);
+  }
+  return ids;
 }
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,7 @@ import {
   createSubmissionId,
   describeBulkRejectResult,
   filterStaffQueue,
+  getChallengedRecordIds,
   getGuestStateText,
   getRecordNightGuestErrorMessage,
   getStaffLinkedState,
@@ -484,9 +485,19 @@ test("errori: i testi della spec per account, chiusura, tetti e richiesta non ge
   const message = (code, text, action) => getRecordNightGuestErrorMessage(callableError(code, text), action);
   assert.equal(message("functions/permission-denied", "x"), "Hai un account: accedi");
   assert.equal(message("functions/failed-precondition", SERVER_GUEST_MESSAGES.closed), "Le iscrizioni ai record sono chiuse.");
+  // Il tetto del telefono si dice per ciò che si stava facendo: all'invio come
+  // liberare un posto, nel ripristino che la richiesta resta ritirata.
   assert.equal(
     message("functions/failed-precondition", SERVER_GUEST_MESSAGES.phoneCap),
-    "Hai già inviato il massimo di richieste da questo telefono.",
+    "Hai già inviato il massimo di richieste da questo telefono. Ritirane una per inviarne un'altra.",
+  );
+  assert.equal(
+    message("functions/failed-precondition", SERVER_GUEST_MESSAGES.phoneCap, "restore"),
+    "La richiesta resta ritirata. Per rimetterla ritira un'altra richiesta o parlane con un dirigente.",
+  );
+  assert.equal(
+    message("functions/failed-precondition", SERVER_GUEST_MESSAGES.phoneCap, "withdraw"),
+    SERVER_GUEST_MESSAGES.phoneCap,
   );
   assert.equal(
     message("functions/failed-precondition", "x", "submit"),
@@ -555,6 +566,19 @@ test("tabella degli stati: il motivo c'è solo per \"Non accettata\"; la chiusur
   assert.deepEqual(getGuestStateText("boh"), getGuestStateText("received"));
 });
 
+test("testi fissi: una sola formulazione per le frasi usate in più punti", () => {
+  assert.equal(GUEST_COPY.intakeClosed, SERVER_GUEST_MESSAGES.closed);
+  assert.equal(GUEST_COPY.intakeUnavailable, getRecordNightGuestErrorMessage(callableError("functions/failed-precondition", "x"), "submit"));
+  assert.equal(GUEST_COPY.phoneOnlyNote, "Se cambi telefono o cancelli i dati del sito, non le trovi più.");
+  assert.ok(GUEST_COPY.phoneLimit.startsWith(SERVER_GUEST_MESSAGES.phoneCap));
+  // Mai "tentativo" come parola per chi ha mandato la richiesta.
+  const forTheRequester = [
+    ...Object.values(GUEST_COPY).filter((text) => text !== GUEST_COPY.verifiedLabel),
+    ...Object.values(GUEST_STATE_TEXTS).flatMap((item) => [item.title, item.description, item.closed?.title, item.closed?.description]),
+  ].filter(Boolean);
+  for (const text of forTheRequester) assert.doesNotMatch(text, /tentativ/i, text);
+});
+
 test("testi fissi: nessun apostrofo al posto della lettera accentata", () => {
   const texts = [
     ...Object.values(GUEST_COPY),
@@ -588,6 +612,23 @@ test("record pubblici: per categoria nell'ordine fisso e per titolo, senza conte
   assert.deepEqual(groups.map((group) => group.category), ["resistenza", "mente"]);
   assert.deepEqual(groups[0].records.map((record) => record.id), ["b", "a"]);
   assert.deepEqual(groupPublicRecordsByCategory([]), []);
+});
+
+test("sfide già inviate: contano le richieste valide, non ritirate né respinte", () => {
+  const request = (kind, state, recordId) => ({ kind, state, recordId });
+  const ids = getChallengedRecordIds([
+    request("challenge", "received", "r1"),
+    request("challenge", "pending", "r2"),
+    request("challenge", "approved", "r3"),
+    request("challenge", "withdrawn", "r4"),
+    request("challenge", "not_linked", "r5"),
+    request("challenge", "rejected", "r6"),
+    request("challenge", "removed", "r7"),
+    request("proposal", "received", null),
+    request("challenge", "received", null),
+  ]);
+  assert.deepEqual([...ids].sort(), ["r1", "r2", "r3"]);
+  assert.equal(getChallengedRecordIds([]).size, 0);
 });
 
 test("tetto del telefono: contano solo le richieste in coda", () => {
