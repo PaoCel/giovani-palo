@@ -235,7 +235,7 @@ function parseKnownRegistrationId(value) {
   if (id.startsWith("guest_")) {
     throw new HttpsError("invalid-argument", "Le iscrizioni senza account non partecipano ai record.");
   }
-  if (!/^(user_.+|child_.+)$/u.test(id)) {
+  if (!/^(user_.+|child_.+|manual_.+)$/u.test(id)) {
     throw new HttpsError("invalid-argument", "registrationId non valido.");
   }
   return id;
@@ -417,9 +417,11 @@ function participantNameFromRegistration(registration) {
 
 // Account che gestisce l'iscrizione: `user_<uid>` -> quell'uid; `child_<parentUid>_<childId>`
 // -> l'uid del genitore (dal campo `parentUid` dell'iscrizione, altrimenti
-// dall'id). Qualunque altro prefisso non partecipa.
+// dall'id). `manual_<...>` (iscrizione inserita da un admin, senza account) ->
+// null: la gestisce solo lo staff. Qualunque altro prefisso non partecipa.
 function ownerUidFromRegistrationId(registrationId, registration) {
   if (/^user_.+$/u.test(registrationId)) return registrationId.slice("user_".length);
+  if (/^manual_.+$/u.test(registrationId)) return null;
   if (/^child_.+$/u.test(registrationId)) {
     if (ownObject(registration) && typeof registration.parentUid === "string" && registration.parentUid) {
       return registration.parentUid;
@@ -1177,7 +1179,7 @@ function byName(left, right) {
 // leggere tutte le iscrizioni dalle rules, quindi le passa il server, con i soli
 // campi che servono.
 async function adminListParticipants(ctx) {
-  const registrations = await readActiveRegistrations(ctx.refs, /^(user_|child_).+/u);
+  const registrations = await readActiveRegistrations(ctx.refs, /^(user_|child_|manual_).+/u);
   const participants = registrations
     .map((item) => ({
       registrationId: item.id,

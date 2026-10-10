@@ -3269,3 +3269,175 @@ test("restore: una proposta ritirata non torna in attesa se ne esiste una identi
   await P(parent, act, "propose", proposal("Salti"));
   await assertConsistent(act);
 });
+
+// ---------------------------------------------------------------------------
+// Iscrizioni inserite da un admin, senza account: manual_<...>
+// ---------------------------------------------------------------------------
+
+async function enrollManual(activityId, id, firstName, lastName, extra = {}) {
+  await adminDb.doc(`${activityPath(activityId)}/registrations/${id}`).set({
+    firstName,
+    lastName,
+    registrationStatus: "confirmed",
+    genderRoleCategory: "giovane_uomo",
+    unitName: "Roma 5",
+    ...extra,
+  });
+  return id;
+}
+
+test("manual_: listParticipants le include se attive (non le annullate); listStaff no", async () => {
+  const { boyA, parent, admin, superAdmin, leader } = pool;
+  const act = await newActivity({ members: [boyA] });
+  const paolo = await enrollManual(act, "manual_paolo_celestini_roma5", "Paolo", "Celestini", { phone: "3331112222", medicalNotes: "allergia" });
+  const anna = await enrollManual(act, "manual_anna_rossi_roma5", "Anna", "Rossi", { genderRoleCategory: "dirigente", unitNameSnapshot: "ignorato", unitName: "" });
+  await enrollManual(act, "manual_ex_iscritto_roma5", "Ex", "Iscritto", { registrationStatus: "cancelled" });
+  await enrollManual(act, "manual_vecchio_roma5", "Vecchio", "Campo", { status: "cancelled" });
+  await enrollManual(act, "manual_respinto_roma5", "Respinto", "Dal Genitore", { registrationStatus: "rejected_by_parent" });
+  await enrollChild(act, parent, "kid1", "Carlo");
+
+  for (const client of [admin, superAdmin, leader]) {
+    const { participants } = await A(client, act, "listParticipants");
+    const ids = participants.map((item) => item.registrationId).sort();
+    assert.deepEqual(ids, [`user_${boyA.uid}`, `child_${parent.uid}_kid1`, paolo, anna].sort(), `${client.name}: manual_ attive sì, annullate no`);
+    for (const item of participants) assert.deepEqual(Object.keys(item).sort(), ["isAdult", "name", "registrationId", "unitName"]);
+    const byId = Object.fromEntries(participants.map((item) => [item.registrationId, item]));
+    assert.equal(byId[paolo].name, "Paolo Celestini");
+    assert.equal(byId[paolo].unitName, "Roma 5");
+    assert.equal(byId[paolo].isAdult, false);
+    assert.equal(byId[anna].isAdult, true);
+    assert.ok(!JSON.stringify(participants).includes("3331112222") && !JSON.stringify(participants).includes("allergia"), "nessun dato personale");
+  }
+  // listStaff: solo iscrizioni user_ (una manual_ non ha un account da mettere in staff).
+  const { candidates } = await A(admin, act, "listStaff");
+  assert.deepEqual(candidates.map((item) => item.registrationId), [`user_${boyA.uid}`]);
+  assert.ok(!candidates.some((item) => item.registrationId.startsWith("manual_")));
+  // setStaff non ha un uid a cui agganciarsi.
+  await expectFail(A(admin, act, "setStaff", { uid: "manual_paolo_celestini_roma5", enabled: true }), "failed-precondition", /iscrizione attiva/u);
+  // context: nessuno agisce per una manual_.
+  assert.deepEqual((await P(boyA, act, "context")).people.map((person) => person.registrationId), [`user_${boyA.uid}`]);
+});
+
+test("manual_: staff addParticipant crea un tentativo approved senza titolare; limite di 2 e unicità valgono; ritiro staff", async () => {
+  const { boyA, boyB, admin, leader } = pool;
+  const act = await newActivity({ members: [boyA, boyB] });
+  const paolo = await enrollManual(act, "manual_paolo_celestini_roma5", "Paolo", "Celestini");
+  const r1 = await makeRecord(act, boyA, "Record uno");
+  const r2 = await makeRecord(act, boyB, "Record due");
+  const r3 = await makeRecord(act, boyA, "Record tre");
+  const entriesPath = `${activityPath(act)}/recordEntries`;
+
+  const added = await A(admin, act, "addParticipant", { recordId: r1.record.id, registrationId: paolo });
+  assert.equal(added.ok, true);
+  assert.equal(added.entry.status, "approved");
+  assert.equal(added.entry.kind, "challenge");
+  assert.equal(added.entry.ownerUid, null, "senza account: nessun titolare");
+  assert.equal(added.entry.registrationId, paolo);
+  assert.equal(added.entry.participantName, "Paolo Celestini");
+  assert.equal(added.entry.createdByAdmin, true);
+  assert.equal(added.entry.decidedBy, admin.uid);
+  assert.equal(added.record.challengerCount, 2, "il contatore sale");
+  const stored = await entryData(act, added.entry.id);
+  assert.equal(stored.ownerUid, null);
+  assert.equal((await recordData(act, r1.record.id)).challengerCount, 2);
+  // Lo vede lo staff con il nome; nessun ragazzo (ownerUid null: nemmeno con la query where ownerUid == null).
+  assert.ok((await getDocsFromServer(collection(admin.firestore, entriesPath))).docs.some((item) => item.id === added.entry.id));
+  await assert.rejects(getDocsFromServer(query(collection(boyA.firestore, entriesPath), where("ownerUid", "==", null))), /permission|insufficient/iu);
+  await assert.rejects(getDocFromServer(doc(boyA.firestore, `${entriesPath}/${added.entry.id}`)), /permission|insufficient/iu);
+
+  // Unicità: la stessa manual_ non entra due volte nello stesso record.
+  await expectFail(A(admin, act, "addParticipant", { recordId: r1.record.id, registrationId: paolo }), "failed-precondition", ADMIN_ALREADY_MSG);
+  // Limite di 2: il secondo record passa, il terzo no; lo stesso vale per un altro staff.
+  const second = await A(leader, act, "addParticipant", { recordId: r2.record.id, registrationId: paolo });
+  assert.equal(second.record.challengerCount, 2);
+  await expectFail(A(admin, act, "addParticipant", { recordId: r3.record.id, registrationId: paolo }), "failed-precondition", ADMIN_LIMIT_MSG);
+  assert.equal((await recordData(act, r3.record.id)).challengerCount, 1);
+  assert.equal((await entriesOfRegistration(act, paolo)).length, 2);
+
+  // Nessun utente, nemmeno lo staff come partecipante, agisce per una manual_ con propose/challenge.
+  for (const client of [boyA, boyB, pool.parent, admin, leader]) {
+    await expectFail(P(client, act, "propose", { ...proposal("Idea per Paolo"), registrationId: paolo }), "permission-denied", "Non puoi agire per questa iscrizione.");
+    await expectFail(P(client, act, "challenge", { recordId: r3.record.id, registrationId: paolo }), "permission-denied", "Non puoi agire per questa iscrizione.");
+  }
+  // Senza titolare, i tentativi della manual_ non si modificano né ritirano né ripristinano da un account.
+  for (const client of [boyA, admin]) {
+    for (const action of ["withdraw", "restore"]) await expectFail(P(client, act, action, { entryId: added.entry.id }), "not-found");
+    await expectFail(P(client, act, "edit", { entryId: added.entry.id, ...proposal("Presa") }), "not-found");
+  }
+  assert.equal((await entriesOfRegistration(act, paolo)).length, 2, "nessun tentativo in più");
+  assert.equal((await entryData(act, added.entry.id)).status, "approved");
+
+  // Il ritiro dello staff funziona e non ha «Annulla».
+  const removed = await A(admin, act, "withdrawEntry", { entryId: added.entry.id });
+  assert.equal(removed.entry.status, "withdrawn");
+  assert.equal(removed.entry.withdrawnBy, "staff");
+  assert.equal(removed.entry.statusBeforeWithdraw, null);
+  assert.equal(removed.record.challengerCount, 1);
+  assert.equal((await recordData(act, r1.record.id)).challengerCount, 1);
+  const again = await A(admin, act, "withdrawEntry", { entryId: added.entry.id });
+  assert.equal(again.entry.status, "withdrawn");
+  assert.equal((await recordData(act, r1.record.id)).challengerCount, 1, "ripetuto: nessun secondo decremento");
+  // Liberato un posto, lo staff può iscriverla al terzo record (e di nuovo al primo).
+  assert.equal((await A(admin, act, "addParticipant", { recordId: r3.record.id, registrationId: paolo })).record.challengerCount, 2);
+  await assertConsistent(act);
+});
+
+test("manual_: annullata o eliminata, il trigger ritira i suoi tentativi e scala i contatori; non si iscrive più", async () => {
+  const { boyA, admin } = pool;
+  for (const [label, apply] of [
+    ["registrationStatus cancelled", (ref) => ref.update({ registrationStatus: "cancelled" })],
+    ["registrationStatus rejected_by_parent", (ref) => ref.update({ registrationStatus: "rejected_by_parent" })],
+    ["iscrizione eliminata", (ref) => ref.delete()],
+  ]) {
+    const act = await newActivity({ members: [boyA] });
+    const manual = await enrollManual(act, "manual_anna_rossi_roma5", "Anna", "Rossi");
+    const other = await enrollManual(act, "manual_bruno_neri_roma5", "Bruno", "Neri");
+    const r1 = await makeRecord(act, boyA, "Record uno");
+    const r2 = await makeRecord(act, boyA, "Record due");
+    const first = await A(admin, act, "addParticipant", { recordId: r1.record.id, registrationId: manual });
+    const second = await A(admin, act, "addParticipant", { recordId: r2.record.id, registrationId: manual });
+    const kept = await A(admin, act, "addParticipant", { recordId: r1.record.id, registrationId: other });
+    assert.equal((await recordData(act, r1.record.id)).challengerCount, 3, label);
+
+    await apply(adminDb.doc(`${activityPath(act)}/registrations/${manual}`));
+    await waitFor(
+      () => entriesOfRegistration(act, manual),
+      (list) => list.length === 2 && list.every((entry) => entry.status === "withdrawn"),
+      `il ritiro d'ufficio dei tentativi della manual_ (${label})`,
+    );
+    for (const entry of [first.entry, second.entry]) {
+      const stored = await entryData(act, entry.id);
+      assert.equal(stored.withdrawnBy, "system", label);
+      assert.equal(stored.statusBeforeWithdraw, null, label);
+    }
+    await waitFor(async () => (await recordData(act, r1.record.id)).challengerCount, (count) => count === 2, `il contatore di r1 a 2 (${label})`);
+    assert.equal((await recordData(act, r2.record.id)).challengerCount, 1, label);
+    assert.equal((await entryData(act, kept.entry.id)).status, "approved", "gli altri non si toccano");
+    // Non più iscrivibile e non più nell'elenco.
+    const afterDelete = label === "iscrizione eliminata";
+    await expectFail(
+      A(admin, act, "addParticipant", { recordId: r2.record.id, registrationId: manual }),
+      afterDelete ? "not-found" : "failed-precondition",
+    );
+    assert.ok(!(await A(admin, act, "listParticipants")).participants.some((item) => item.registrationId === manual), label);
+    assert.ok((await A(admin, act, "listParticipants")).participants.some((item) => item.registrationId === other), label);
+    await assertConsistent(act);
+  }
+});
+
+test("manual_: nascondere un record ritira anche chi non ha account e mostrarlo lo rimette", async () => {
+  const { boyA, admin } = pool;
+  const act = await newActivity({ members: [boyA] });
+  const paolo = await enrollManual(act, "manual_paolo_celestini_roma5", "Paolo", "Celestini");
+  const r1 = await makeRecord(act, boyA, "Record uno");
+  const added = await A(admin, act, "addParticipant", { recordId: r1.record.id, registrationId: paolo });
+  const hidden = await A(admin, act, "updateRecord", { recordId: r1.record.id, ...recordInput("Record uno"), status: "hidden" });
+  assert.equal(hidden.withdrawnCount, 2);
+  assert.equal((await entryData(act, added.entry.id)).withdrawnBy, "staff");
+  const shown = await A(admin, act, "updateRecord", { recordId: r1.record.id, ...recordInput("Record uno"), status: "open" });
+  assert.equal(shown.restoredCount, 2);
+  assert.equal(shown.record.challengerCount, 2);
+  assert.equal((await entryData(act, added.entry.id)).status, "approved");
+  assert.equal((await entryData(act, added.entry.id)).ownerUid, null);
+  await assertConsistent(act);
+});

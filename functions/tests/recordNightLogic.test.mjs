@@ -1603,3 +1603,31 @@ test("in elenco ma iscrizione annullata o sparita: non è più staff (server), a
   await w.a("admin1", input);
   await w.a("leader1", input);
 });
+
+// Iscrizioni inserite da un admin, senza account: id `manual_<...>`.
+test("manual_: nessun titolare, nessun utente agisce per loro, solo lo staff le iscrive", () => {
+  const id = "manual_paolo_celestini_roma5";
+  assert.equal(ownerUidFromRegistrationId(id), null);
+  assert.equal(ownerUidFromRegistrationId(id, { parentUid: "p1" }), null, "un parentUid fuori posto non crea un titolare");
+  assert.equal(ownerUidFromRegistrationId(id, { userId: "u1" }), null);
+  throwsHttps(() => ownerUidFromRegistrationId("manual_"), "invalid-argument");
+  throwsHttps(() => ownerUidFromRegistrationId("Manual_x"), "invalid-argument");
+  // Nessun uid, nemmeno uno costruito apposta, può agire per una manual_.
+  for (const uid of ["p1", "manual", "manual_paolo", "paolo_celestini_roma5", "user", "child"]) {
+    assert.equal(canActForRegistration(uid, id), false, `uid ${uid}`);
+  }
+  assert.equal(canActForRegistration("p1", "user_p1"), true, "resta valido per la propria iscrizione");
+  // Lo staff può iscriverle; gli ospiti e gli id strani no.
+  const env = { stakeId: "s1", activityId: "a1" };
+  assert.equal(parseAdminRequest({ ...env, action: "addParticipant", recordId: "r1", registrationId: id }).fields.registrationId, id);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "addParticipant", recordId: "r1", registrationId: "manual_" }), "invalid-argument", /registrationId/);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "addParticipant", recordId: "r1", registrationId: "manuale_x" }), "invalid-argument", /registrationId/);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "addParticipant", recordId: "r1", registrationId: "guest_x" }), "invalid-argument", /senza account/);
+  // Il parsing della richiesta del partecipante non basta a farle agire: lo nega l'handler (canActForRegistration).
+  assert.equal(parseParticipantRequest({ ...env, action: "challenge", recordId: "r1", registrationId: id }).fields.registrationId, id);
+  // Il nome viene dai campi dell'iscrizione come per le altre.
+  assert.equal(participantNameFromRegistration({ firstName: "Paolo", lastName: "Celestini" }), "Paolo Celestini");
+  // Annullata: non è attiva.
+  assert.equal(isRegistrationActive({ firstName: "Paolo", registrationStatus: "confirmed" }), true);
+  assert.equal(isRegistrationActive({ firstName: "Paolo", registrationStatus: "cancelled" }), false);
+});
