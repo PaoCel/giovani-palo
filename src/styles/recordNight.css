@@ -1414,7 +1414,7 @@ html.rn-skin .install-hint__icon {
 
 .rn-btn-sfida:hover:not(:disabled) { background: color-mix(in srgb, var(--cat) 20%, transparent); }
 .rn-btn-sfida:active:not(:disabled) { transform: scale(0.96); }
-.rn-btn-sfida:disabled { opacity: 0.55; }
+.rn-btn-sfida:disabled { opacity: 0.55; cursor: default; }
 
 .rn-btn-sfida .rn-ico {
   width: 16px;
@@ -2181,6 +2181,7 @@ html.rn-skin .install-hint__icon {
 }
 
 .rn-gate__alt .rn-btn { width: 100%; }
+.rn-gate__alt .rn-notice { margin-top: 0; }
 
 /* Elenco record in sola lettura */
 .rn-rec--read { grid-template-columns: 72px 1fr; }
@@ -2387,6 +2388,17 @@ html.rn-skin .install-hint__icon {
 }
 
 .rn-g-login .rn-btn { width: 100%; }
+
+.rn-g-login__hint {
+  margin-top: -4px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--tb-muted);
+}
+
+/* Avviso in cima al foglio (iscrizioni chiuse o invio spento a foglio aperto). */
+.rn-sheet__banner > .rn-notice { margin: 0 18px 8px; }
 
 .rn-g-sep {
   display: flex;
