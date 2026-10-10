@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { GuestRecordsToggle } from "@/components/admin/recordNight/GuestRecordsToggle";
 import type {
   ActivityType,
   Event,
@@ -103,6 +104,8 @@ interface EventEditorValues {
   recordsEnabled: boolean;
   // Valore di un campo datetime-local; vuoto = chiude all'inizio dell'attività.
   recordsCloseAt: string;
+  // Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md): spento di default.
+  recordsGuestEnabled: boolean;
   requiresAccount: boolean;
   requiresParentAuthorization: boolean;
   requiresEmergencyContacts: boolean;
@@ -155,6 +158,9 @@ function toDatetimeLocalValueSafe(isoDate?: string | null) {
 const RECORDS_CLOSE_TOO_LATE_MESSAGE =
   "La chiusura delle iscrizioni ai record non può essere dopo l'inizio dell'attività.";
 
+const GUEST_REVIEW_MISSING_MESSAGE =
+  "Per accendere i record senza account controlla i titoli dell'anteprima e spunta «Ho controllato i titoli».";
+
 // La chiusura delle iscrizioni ai record non può cadere dopo l'inizio
 // dell'attività: la serata sarebbe già cominciata.
 function isRecordsCloseAfterStart(recordsCloseAt: string, startDate: string) {
@@ -202,6 +208,7 @@ function getInitialValues(event?: Event | null): EventEditorValues {
     questionsEnabled: event?.questionsEnabled ?? false,
     recordsEnabled: event?.recordsEnabled ?? false,
     recordsCloseAt: toDatetimeLocalValueSafe(event?.recordsCloseAt),
+    recordsGuestEnabled: event?.recordsGuestEnabled ?? false,
     requiresAccount: event?.requiresAccount ?? initialIsStrong,
     requiresParentAuthorization:
       event?.requiresParentAuthorization ?? initialIsStrong,
@@ -233,6 +240,9 @@ export function EventEditorForm({
   const [error, setError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // "Ho controllato i titoli": per accendere "Record senza account" si guarda
+  // l'anteprima pubblica e si spunta. Vale per questa apertura dell'editor.
+  const [guestTitlesReviewed, setGuestTitlesReviewed] = useState(false);
   const canHaveOvernight = eventSpansMultipleCalendarDays(
     values.startDate,
     values.endDate,
@@ -246,9 +256,17 @@ export function EventEditorForm({
   const recordsCloseAtTooLate =
     values.recordsEnabled &&
     isRecordsCloseAfterStart(values.recordsCloseAt, values.startDate);
+  // Già acceso sull'attività salvata: l'anteprima l'ha vista chi l'ha acceso.
+  const guestAlreadyEnabled = initialEvent?.recordsGuestEnabled === true;
+  const guestReviewMissing =
+    values.recordsEnabled &&
+    values.recordsGuestEnabled &&
+    !guestAlreadyEnabled &&
+    !guestTitlesReviewed;
 
   useEffect(() => {
     setValues(getInitialValues(initialEvent));
+    setGuestTitlesReviewed(false);
     setCurrentStepIndex(0);
     setFieldErrors({});
     setError(null);
@@ -412,6 +430,12 @@ export function EventEditorForm({
       return RECORDS_CLOSE_TOO_LATE_MESSAGE;
     }
 
+    // Non si salva acceso senza aver guardato i titoli che vedrebbero tutti.
+    if (stepId === "settings" && guestReviewMissing) {
+      setFieldErrors({ recordsGuestReviewed: true });
+      return GUEST_REVIEW_MISSING_MESSAGE;
+    }
+
     const parsedYear = Number(values.year);
 
     if (
@@ -532,6 +556,10 @@ export function EventEditorForm({
       recordsCloseAt: values.recordsCloseAt
         ? fromDatetimeLocalValue(values.recordsCloseAt)
         : null,
+      // Spento il modulo, si spegne anche questo: riaccenderlo rifà l'anteprima.
+      recordsGuestEnabled: values.recordsEnabled
+        ? values.recordsGuestEnabled
+        : false,
       // Flag MVP legacy: i toggle sono stati rimossi dall'editor. Sostituiti
       // dal flusso magic-link Brevo (requiresParentAuthorization) per minori
       // e da requiresImageConsent + checkbox in form per maggiorenni.
@@ -1123,6 +1151,26 @@ export function EventEditorForm({
                       </small>
                     )}
                   </label>
+                ) : null}
+
+                {values.recordsEnabled ? (
+                  <GuestRecordsToggle
+                    activityId={initialEvent?.id ?? null}
+                    alreadyEnabled={guestAlreadyEnabled}
+                    enabled={values.recordsGuestEnabled}
+                    onEnabledChange={(next) =>
+                      updateValue("recordsGuestEnabled", next)
+                    }
+                    onReviewedChange={(next) => {
+                      setGuestTitlesReviewed(next);
+                      if (next) {
+                        clearFieldError("recordsGuestReviewed");
+                      }
+                    }}
+                    reviewMissing={Boolean(fieldErrors.recordsGuestReviewed)}
+                    reviewed={guestTitlesReviewed}
+                    stakeId={initialEvent?.stakeId ?? null}
+                  />
                 ) : null}
               </div>
 
