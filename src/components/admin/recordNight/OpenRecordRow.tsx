@@ -364,9 +364,14 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
           <OriginLine ctx={ctx} entry={openEntry} />
           {confirmId === openEntry.id ? (
             <>
+              {/* "Iscrivi qualcuno" creerebbe un'iscrizione nuova e la richiesta
+                  resterebbe puntata a quella ritirata: per chi viene da una richiesta
+                  si torna indietro con Scollega e poi Collega. */}
               <p>
-                Ritirare {openEntry.participantName || "questa persona"} da questo record? Per
-                tornare indietro usa “Iscrivi qualcuno”.
+                Ritirare {openEntry.participantName || "questa persona"} da questo record?{" "}
+                {openEntry.fromGuestRequest
+                  ? "Per tornare indietro usa «Scollega» (sezione Collegate) e poi «Collega» di nuovo."
+                  : "Per tornare indietro usa “Iscrivi qualcuno”."}
               </p>
               <div className="rna-chip-menu__actions">
                 <button

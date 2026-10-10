@@ -10,10 +10,12 @@ import {
   formatShortDateTime,
   getRegistrationType,
   getRequestPersonName,
+  WITHDRAWN_BY_SELF_LABEL,
+  getWithdrawalLabel,
 } from "./helpers";
 import { RnaIcon } from "./icons";
 import { Avatar, useFocusReturn } from "./parts";
-import { UnlinkConfirm } from "./RequestParts";
+import { UnlinkConfirm, describeAttempt } from "./RequestParts";
 import type { RnaContext } from "./types";
 
 // Sezioni chiuse delle richieste senza account: "Collegate" (con Scollega),
@@ -90,6 +92,11 @@ function LinkedRow({
   // Lo stato del tentativo lo dà il server con la richiesta: il testo dice tutto,
   // il colore è solo un aiuto.
   const state = getStaffLinkedState(request);
+  // Su un record (iscrizione) o ancora proposta: lo dice il tentativo se lo conosco,
+  // altrimenti la richiesta (una sfida è sempre su un record).
+  const onRecord = entry
+    ? entry.recordId !== null
+    : request.kind === "challenge" || state.key === "approved";
   const panelId = `${baseId}-unlink`;
   const details = [
     person?.unitName ?? "",
@@ -114,7 +121,7 @@ function LinkedRow({
               state.tone ? `rna-state-chip rna-state-chip--${state.tone}` : "rna-state-chip"
             }
           >
-            {state.label}
+            {state.key === "withdrawn" ? getWithdrawalLabel(state.withdrawnBy) : state.label}
           </span>
         </div>
         <p className="rna-list__quote">{describeRequest(request)}</p>
@@ -146,7 +153,8 @@ function LinkedRow({
       </button>
       {confirming ? (
         <UnlinkConfirm
-          attemptName={attemptName}
+          attemptStatus={state.key}
+          subject={describeAttempt(attemptName, onRecord)}
           busy={ctx.busyKey === `req-unlink:${request.id}`}
           className="rna-list__panel"
           disabled={ctx.busy}
@@ -275,7 +283,7 @@ function WithdrawnRow({ ctx, request }: { ctx: RnaContext; request: RecordNightS
         </p>
         <p className="rna-list__quote">{describeRequest(request)}</p>
         <small className="rna-list__date rna-list__date--inline">
-          <span>Ritirata da chi l'ha inviata</span>
+          <span>{WITHDRAWN_BY_SELF_LABEL}</span>
           {date ? <span>{date}</span> : null}
         </small>
         {error ? (

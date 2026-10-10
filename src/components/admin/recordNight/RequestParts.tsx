@@ -11,12 +11,22 @@ import type { RnaContext } from "./types";
 // conferma di "Scollega" (sempre in riga, mai in una finestra) e l'etichetta
 // "Da una richiesta senza account" sui tentativi nati da una richiesta.
 
+// Stato dell'iscrizione collegata alla richiesta (come lo dà il server).
+export type AttemptStatus = "pending" | "approved" | "rejected" | "withdrawn" | "missing";
+
+// Con lo staff si parla di "iscrizione al record" (o di "proposta" finché non è
+// su un record), mai di "tentativo".
+export function describeAttempt(name: string, onRecord: boolean) {
+  return onRecord ? `L'iscrizione di ${name} al record` : `La proposta di ${name}`;
+}
+
 interface UnlinkConfirmProps {
   id: string;
   // Nome digitato da chi ha inviato la richiesta (testo di uno sconosciuto).
   typedName: string;
-  // Nome sull'iscrizione collegata.
-  attemptName: string;
+  // "L'iscrizione di X al record" o "La proposta di X" (vedi describeAttempt).
+  subject: string;
+  attemptStatus: AttemptStatus;
   // Iscrizione con un titolare (account o genitore): un `manual_` non ne ha.
   hasOwner: boolean;
   busy: boolean;
@@ -32,7 +42,8 @@ interface UnlinkConfirmProps {
 export function UnlinkConfirm({
   id,
   typedName,
-  attemptName,
+  subject,
+  attemptStatus,
   hasOwner,
   busy,
   disabled,
@@ -57,8 +68,20 @@ export function UnlinkConfirm({
         Scollegare la richiesta di {typedName}?
       </p>
       <ul className="rna-confirm__list">
-        <li>Il tentativo di {attemptName} viene ritirato.</li>
+        {attemptStatus === "missing" ? null : attemptStatus === "withdrawn" ? (
+          <li>{subject} è già ritirata e resta fra i «Ritirati».</li>
+        ) : attemptStatus === "rejected" ? (
+          <li>{subject}, non accettata, passa fra i «Ritirati».</li>
+        ) : (
+          <li>{subject} viene ritirata e resta fra i «Ritirati».</li>
+        )}
         <li>La richiesta torna in «Da collegare».</li>
+        <li>
+          {hasOwner
+            ? "L'eventuale approvazione e le modifiche di chi ha l'account non tornano."
+            : "L'eventuale approvazione non torna."}{" "}
+          «Collega» di nuovo crea un'iscrizione nuova.
+        </li>
         {hasOwner ? <li>Chi ha l'account vede «Tolto da un adulto».</li> : null}
       </ul>
       {error ? (
@@ -154,7 +177,11 @@ export function OriginLine({ ctx, entry }: { ctx: RnaContext; entry: RecordNight
       ) : null}
       {confirming && request ? (
         <UnlinkConfirm
-          attemptName={entry.participantName || "chi è collegato"}
+          attemptStatus={entry.status}
+          subject={describeAttempt(
+            entry.participantName || "chi è collegato",
+            entry.recordId !== null,
+          )}
           busy={busyHere}
           className="rna-origin__confirm"
           disabled={ctx.busy}

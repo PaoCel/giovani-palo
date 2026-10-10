@@ -122,17 +122,23 @@ export function isWithdrawnWithRecord(entry: RecordNightEntry, record: RecordNig
   );
 }
 
-// Chi ha ritirato il tentativo, per la sezione "Ritirati".
+// Chi ha ritirato l'iscrizione al record: UNA sola forma per ogni concetto, in
+// tutte le parti dello staff ("Ritirati", "Collegate", "Richieste ritirate").
+// Sono nomi, non participi: valgono per iscrizione, proposta e richiesta.
+export const WITHDRAWN_BY_SELF_LABEL = "Ritiro della persona";
+export const WITHDRAWN_BY_STAFF_LABEL = "Ritiro da un adulto";
+export const WITHDRAWN_BY_SYSTEM_LABEL = "Iscrizione annullata";
+
 export function getWithdrawalLabel(withdrawnBy: RecordNightEntry["withdrawnBy"]) {
   switch (withdrawnBy) {
     case "self":
-      return "Ritiro del partecipante";
+      return WITHDRAWN_BY_SELF_LABEL;
     case "staff":
-      return "Ritirato da un adulto";
+      return WITHDRAWN_BY_STAFF_LABEL;
     case "system":
-      return "Iscrizione annullata";
+      return WITHDRAWN_BY_SYSTEM_LABEL;
     default:
-      return "Ritirato";
+      return "Ritiro";
   }
 }
 

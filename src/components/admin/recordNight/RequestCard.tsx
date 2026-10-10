@@ -139,9 +139,11 @@ export function RequestCard({
   const picked: Candidate | null = (() => {
     if (!pickedId) return null;
     const suggested = suggestions.find((item) => item.registrationId === pickedId);
-    if (suggested) return suggested;
     const person = participants.list.find((item) => item.registrationId === pickedId);
-    return person ? toSearchCandidate(person) : null;
+    const found = suggested ?? (person ? toSearchCandidate(person) : null);
+    // Dopo una rilettura chi era scelto può non essere più selezionabile (ha già 2
+    // record, è già su questo record): non resta scelto.
+    return found && !isUnavailable(found) ? found : null;
   })();
 
   const pickedFromSearchOnly =

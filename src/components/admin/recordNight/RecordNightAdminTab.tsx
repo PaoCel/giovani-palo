@@ -20,7 +20,15 @@ import { describeBulkRejectResult } from "@/utils/recordNightGuest";
 import "@/styles/recordNightAdmin.css";
 
 import { ClosedSection, HiddenList, RejectedList, WithdrawnList } from "./ClosedSections";
-import { EMPTY_RECORD_EFFECT, HIDE_RECORD_EFFECT, SHOW_RECORD_EFFECT } from "./copy";
+import {
+  EMPTY_RECORD_EFFECT,
+  HIDE_RECORD_EFFECT,
+  REOPEN_WITHDRAWN_HINT,
+  SHOW_RECORD_EFFECT,
+  UNDO_LINK_HINT,
+  UNDO_REJECT_REQUEST_WHERE,
+  UNLINK_AGAIN_HINT,
+} from "./copy";
 import { getRequestPersonName, isWithdrawnWithRecord } from "./helpers";
 import { OpenRecordRow, type RecordRowPanel } from "./OpenRecordRow";
 import { ProposalCard } from "./ProposalCard";
@@ -142,7 +150,7 @@ export function RecordNightAdminTab({
 
   useEffect(() => {
     if (!flash) return undefined;
-    const timer = window.setTimeout(() => setFlash(null), 6000);
+    const timer = window.setTimeout(() => setFlash(null), 8000);
     return () => window.clearTimeout(timer);
   }, [flash]);
 
@@ -196,6 +204,9 @@ export function RecordNightAdminTab({
     key: string,
     task: () => Promise<StaffActionOutcome<T>>,
     doneMessage?: (value: T) => string,
+    // Dopo un errore si rilegge anche l'elenco delle persone (chi si cerca per
+    // nome): un'iscrizione può essere cambiata mentre si sceglieva.
+    options: { refreshParticipants?: boolean } = {},
   ): Promise<RnaRunResult<T>> {
     if (busyKey !== null) {
       return { ok: false, message: "Un'altra operazione è ancora in corso. Aspetta un momento." };
@@ -204,7 +215,19 @@ export function RecordNightAdminTab({
     setStaleNotice(null);
     try {
       const outcome = await task();
-      if (!outcome.ok) return { ok: false, message: outcome.message };
+      if (!outcome.ok) {
+        // Il hook ha già riletto la coda. Un'azione fallita di solito vuol dire che
+        // qualcosa è cambiato sotto i piedi (tentativi, iscrizioni, record): si
+        // rileggono anche quelli, altrimenti un suggerimento o una persona trovata
+        // con la ricerca resta selezionabile con i numeri vecchi.
+        try {
+          await load();
+        } catch {
+          setStaleNotice("Non riesco ad aggiornare l'elenco. Premi Aggiorna.");
+        }
+        if (options.refreshParticipants) void loadParticipants();
+        return { ok: false, message: outcome.message };
+      }
       let fresh = !outcome.stale;
       try {
         await load();
@@ -324,22 +347,29 @@ export function RecordNightAdminTab({
         `req-link:${request.id}`,
         () => queue.link(request.id, person.registrationId, verified),
         () =>
-          request.kind === "challenge"
-            ? `${person.name} è su «${request.recordTitle || "il record"}».`
-            : `La proposta di ${person.name} è in «Proposte in attesa».`,
+          `${
+            request.kind === "challenge"
+              ? `${person.name} è su «${request.recordTitle || "il record"}».`
+              : `La proposta di ${person.name} è in «Proposte in attesa».`
+          } ${UNDO_LINK_HINT}`,
+        { refreshParticipants: true },
       ),
     reject: (request, note) =>
       runRequest(
         `req-reject:${request.id}`,
         () => queue.reject(request.id, note || undefined),
-        () => `Richiesta di ${getRequestPersonName(request)} segnata come non collegabile.`,
+        () =>
+          `Richiesta di ${getRequestPersonName(request)} segnata come non collegabile. ${UNDO_REJECT_REQUEST_WHERE}`,
       ),
     rejectMany: (targets: ReadonlyArray<RecordNightStaffRequest>) =>
       runRequest(
         "req-rejectMany",
         () => queue.rejectMany(targets.map((request) => request.id)),
         // Quelle già gestite nel frattempo si saltano senza errore: l'esito lo dice.
-        (value) => describeBulkRejectResult(value),
+        (value) =>
+          value.rejectedCount > 0
+            ? `${describeBulkRejectResult(value)} ${UNDO_REJECT_REQUEST_WHERE}`
+            : describeBulkRejectResult(value),
       ),
     reopen: (request) =>
       runRequest(
@@ -351,7 +381,8 @@ export function RecordNightAdminTab({
       runRequest(
         `req-unlink:${request.id}`,
         () => queue.unlink(request.id),
-        () => `Richiesta di ${getRequestPersonName(request)} scollegata: è tornata in «Da collegare».`,
+        () =>
+          `Richiesta di ${getRequestPersonName(request)} scollegata: è tornata in «Da collegare». ${UNLINK_AGAIN_HINT}`,
       ),
   };
 
@@ -664,7 +695,7 @@ export function RecordNightAdminTab({
             {queue.sections.withdrawn.length > 0 ? (
               <ClosedSection
                 count={queue.sections.withdrawn.length}
-                hint="Richieste ritirate da chi le ha inviate. Con Riapri la richiesta torna in «Da collegare»: dopo la chiusura, o se il telefono è andato perso, è l'unica strada."
+                hint={REOPEN_WITHDRAWN_HINT}
                 title="Richieste ritirate"
               >
                 <WithdrawnRequestsList ctx={ctx} requests={queue.sections.withdrawn} />

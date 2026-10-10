@@ -22,3 +22,12 @@ export const REJECT_REQUEST_EFFECT = "Il telefono vede un testo neutro, qualunqu
 export const UNDO_REJECT_REQUEST_HINT = "Si annulla con “Riapri”.";
 // Lunghezza massima della nota interna di "Non collegabile" (la applica il server).
 export const STAFF_NOTE_LIMIT = 200;
+
+// Dove si annulla ciò che si è appena fatto sulle richieste (messaggio dopo l'azione).
+export const UNDO_LINK_HINT = "Si annulla con «Scollega» in «Collegate».";
+export const UNDO_REJECT_REQUEST_WHERE = "Si annulla con «Riapri» in «Non collegate».";
+export const UNLINK_AGAIN_HINT = "Per collegarla di nuovo usa «Collega».";
+
+// Richieste ritirate: si riaprono solo se la persona lo chiede.
+export const REOPEN_WITHDRAWN_HINT =
+  "Richieste ritirate da chi le ha inviate. Riapri solo se la persona lo chiede (per esempio dopo la chiusura, o se ha perso il telefono): l'ha ritirata lei. Con Riapri la richiesta torna in «Da collegare».";
