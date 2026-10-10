@@ -1,27 +1,69 @@
+import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { AppLoader } from "@/components/AppLoader";
+import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
+import { campManagementService } from "@/services/firestore/campManagementService";
 
 function isCampManagementAdminPath(pathname: string) {
   return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
 }
 
-function isAdultCampStaffSession(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
-  return (
-    session.profile.genderRoleCategory === "dirigente" ||
-    session.profile.genderRoleCategory === "accompagnatore"
-  );
+function campEventIdFromPath(pathname: string) {
+  return /^\/admin\/events\/([^/]+)\/(committees|comitati)$/.exec(pathname.split("?")[0])?.[1] ?? "";
 }
 
-function canAccessCampManagementPath(
-  session: NonNullable<ReturnType<typeof useAuth>["session"]>,
-  pathname: string,
-) {
-  return (
-    isCampManagementAdminPath(pathname) &&
-    (session.isAdmin || session.isUnitLeader || isAdultCampStaffSession(session))
-  );
+/**
+ * Comitati e pattuglie per chi non è admin né dirigente di unità: ci entra solo
+ * chi un admin ha messo nell'elenco staff del campeggio. La categoria del profilo
+ * è autodichiarata e non conta: lo decide il server.
+ */
+function CampStaffGate({ session, pathname }: {
+  session: NonNullable<ReturnType<typeof useAuth>["session"]>;
+  pathname: string;
+}) {
+  const stakeId = session.profile.stakeId;
+  const eventId = campEventIdFromPath(pathname);
+  const [state, setState] = useState<"loading" | "allowed" | "denied" | "error">("loading");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    campManagementService
+      .getStaffContext(stakeId, eventId)
+      .then((context) => {
+        if (!cancelled) setState(context.isStaff ? "allowed" : "denied");
+      })
+      .catch(() => {
+        // Rete o server: non è un "no", non mando lo staff vero a /me.
+        if (!cancelled) setState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stakeId, eventId, attempt]);
+
+  if (state === "loading") return <AppLoader label="Verifica accesso..." />;
+  if (state === "error") {
+    return (
+      <EmptyState
+        action={
+          <button
+            className="button button--ghost button--small"
+            onClick={() => setAttempt((current) => current + 1)}
+            type="button"
+          >
+            Riprova
+          </button>
+        }
+        description="Controlla la connessione e riprova."
+        title="Non riesco a verificare l'accesso"
+      />
+    );
+  }
+  return state === "allowed" ? <Outlet /> : <Navigate replace to="/me" />;
 }
 
 export function ProtectedRoute() {
@@ -85,8 +127,12 @@ export function AdminRoute() {
     return <Navigate replace to="/family" />;
   }
 
-  if (!session.isAdmin && !canAccessCampManagementPath(session, location.pathname)) {
-    return <Navigate replace to="/me" />;
+  if (!session.isAdmin && !session.isUnitLeader) {
+    return isCampManagementAdminPath(location.pathname) ? (
+      <CampStaffGate pathname={location.pathname} session={session} />
+    ) : (
+      <Navigate replace to="/me" />
+    );
   }
 
   return <Outlet />;

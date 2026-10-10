@@ -43,6 +43,48 @@ const campManagementSaveCallable = httpsCallable<
   CampManagementSaveResult
 >(functions, "campManagementSave");
 
+export interface CampStaffCandidate {
+  uid: string;
+  registrationId: string;
+  name: string;
+  unitName: string;
+  isAdult: boolean;
+  isStaff: boolean;
+}
+
+export interface CampStaffContext {
+  isStaff: boolean;
+  canManageStaff: boolean;
+}
+
+interface CampStaffResult {
+  ok: boolean;
+  isStaff?: boolean;
+  canManageStaff?: boolean;
+  candidates?: unknown;
+  staffUids?: unknown;
+}
+
+const campManagementStaffCallable = httpsCallable<
+  Record<string, unknown>,
+  CampStaffResult
+>(functions, "campManagementStaff");
+
+function mapCampStaffCandidate(value: unknown): CampStaffCandidate | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const uid = asString(item.uid);
+  if (!uid) return null;
+  return {
+    uid,
+    registrationId: asString(item.registrationId),
+    name: asString(item.name) || uid,
+    unitName: asString(item.unitName),
+    isAdult: item.isAdult === true,
+    isStaff: item.isStaff === true,
+  };
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -523,7 +565,62 @@ async function syncRegistrationCampAssignments(
   }
 }
 
+export function getCampStaffErrorMessage(error: unknown) {
+  const { code, message } = (error ?? {}) as { code?: string; message?: unknown };
+  if (
+    (code === "functions/failed-precondition" || code === "functions/permission-denied") &&
+    typeof message === "string" &&
+    message.trim()
+  ) {
+    return message;
+  }
+  return "Non è stato possibile completare l'operazione. Controlla la connessione e riprova.";
+}
+
 export const campManagementService = {
+  // Chi gestisce il campeggio lo decide il server (admin, dirigenti di unità,
+  // elenco scelto da un admin): la categoria del profilo è autodichiarata.
+  async getStaffContext(stakeId: string, eventId: string): Promise<CampStaffContext> {
+    const result = await campManagementStaffCallable({
+      stakeId,
+      activityId: eventId,
+      action: "context",
+    });
+    return {
+      isStaff: result.data.isStaff === true,
+      canManageStaff: result.data.canManageStaff === true,
+    };
+  },
+
+  async listStaff(stakeId: string, eventId: string): Promise<CampStaffCandidate[]> {
+    const result = await campManagementStaffCallable({
+      stakeId,
+      activityId: eventId,
+      action: "list",
+    });
+    return Array.isArray(result.data.candidates)
+      ? result.data.candidates
+          .map(mapCampStaffCandidate)
+          .filter((item): item is CampStaffCandidate => item !== null)
+      : [];
+  },
+
+  async setStaff(
+    stakeId: string,
+    eventId: string,
+    uid: string,
+    enabled: boolean,
+  ): Promise<string[]> {
+    const result = await campManagementStaffCallable({
+      stakeId,
+      activityId: eventId,
+      action: "set",
+      uid,
+      enabled,
+    });
+    return asStringArray(result.data.staffUids);
+  },
+
   getDefaultCampManagement(): CampManagementPlan {
     return normalizeCampManagement(null);
   },

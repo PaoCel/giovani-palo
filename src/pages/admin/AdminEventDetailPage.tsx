@@ -11,6 +11,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
+import { CampStaffSection } from "@/components/admin/CampStaffSection";
 import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
 import { RecordNightAdminTab } from "@/components/admin/recordNight/RecordNightAdminTab";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -48,6 +49,7 @@ import {
   getEventAudienceLabel,
   getEventStatusLabel,
   getEventStatusTone,
+  isCampEvent,
 } from "@/utils/events";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
@@ -2240,6 +2242,10 @@ export function AdminEventDetailPage() {
 
       {activeTab === "committees" ? (
         <section className="admin-detail-stack">
+          {session?.isAdmin && eventId && event && isCampEvent(event) ? (
+            <CampStaffSection eventId={eventId} stakeId={stakeId} />
+          ) : null}
+
           <div className="admin-inline-metrics admin-inline-metrics--four">
             <article className="admin-inline-metric">
               <strong>{campDraft.committees.length}</strong>

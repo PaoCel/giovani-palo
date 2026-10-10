@@ -102,15 +102,6 @@ function isCampManagementAdminPath(pathname: string) {
   return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
 }
 
-function isAdultCampStaffSession(
-  session: NonNullable<ReturnType<typeof useAuth>["session"]>,
-) {
-  return (
-    session.profile.genderRoleCategory === "dirigente" ||
-    session.profile.genderRoleCategory === "accompagnatore"
-  );
-}
-
 function isCompatibleRedirect(
   session: NonNullable<ReturnType<typeof useAuth>["session"]>,
   redirect: string,
@@ -121,8 +112,8 @@ function isCompatibleRedirect(
   if (redirect.startsWith("/admin")) {
     return (
       session.isAdmin ||
-      (isCampManagementAdminPath(redirect) &&
-        (session.isUnitLeader || isAdultCampStaffSession(session)))
+      // Chi gestisce il campeggio lo verifica la guardia della route (server).
+      (isCampManagementAdminPath(redirect) && !session.isParent)
     );
   }
   if (redirect.startsWith("/unit")) return session.isUnitLeader;
