@@ -2086,6 +2086,7 @@ module.exports = {
   buildRequestSuggestions,
   groupRequestDuplicates,
   hasDuplicateProposal,
+  normalizeForCompare,
   planUnlinkEntry,
   // Helper condivisi con recordNightGuest.js (che importa da qui, mai il contrario).
   refsFor,

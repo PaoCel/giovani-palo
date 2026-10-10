@@ -10,7 +10,8 @@
 //
 // Principi che questo file deve tenere:
 // - `submit` NON legge le iscrizioni né le richieste degli altri per decidere la
-//   risposta: legge solo le richieste dello STESSO telefono (tetti e idempotenza)
+//   risposta: legge solo le richieste dello STESSO telefono (tetti e idempotenza,
+//   anche per persona: stessa persona e stesso contenuto già aperti = quella richiesta)
 //   e il conteggio delle aperte dell'attività. Un nome iscritto, uno sconosciuto
 //   e un duplicato ricevono la stessa forma di risposta, gli stessi messaggi e
 //   le stesse letture.
@@ -42,6 +43,7 @@ const {
   cleanLine,
   getParticipantWindow,
   isRequestExpired,
+  normalizeForCompare,
   parseProposalFields,
   parseRequestEnvelope,
   pathId,
@@ -53,8 +55,11 @@ const {
 
 // Tetti per ingressi in `open` iniziati dal telefono (submit e restore). Sono un
 // freno agli errori e ai dispetti, non una difesa: una sessione anonima è gratis.
-const MAX_OPEN_PER_PHONE = 6;
-const MAX_CREATED_PER_PHONE = 20;
+// La difesa è la coda moderata, il tetto di 100 per attività e l'interruttore. Per
+// telefono sono larghi perché più persone senza account (fratelli, amici) possono
+// segnarsi dallo stesso telefono: ognuna è una persona diversa (`personKey`).
+const MAX_OPEN_PER_PHONE = 12;
+const MAX_CREATED_PER_PHONE = 40;
 const MAX_OPEN_PER_PERSON = 2;
 
 const NAME_MIN_LENGTH = 2;
@@ -195,9 +200,35 @@ function resolveRequestExpiry(activity, now) {
   return addDays(now, FALLBACK_EXPIRY_DAYS);
 }
 
+// Stessa richiesta della stessa persona: sfida = stesso record; proposta = stesso
+// testo normalizzato, stessa misura, stessa durata. "Serve qualcosa?" non conta.
+function hasSameContent(existing, fields) {
+  if (existing.kind !== fields.kind) return false;
+  if (fields.kind === "challenge") return existing.recordId === fields.recordId;
+  return (
+    normalizeForCompare(existing.proposedText) === normalizeForCompare(fields.text) &&
+    existing.proposedMeasure === fields.measure &&
+    (existing.proposedDurationSeconds ?? null) === (fields.durationSeconds ?? null)
+  );
+}
+
+// Doppione "per persona": una richiesta `open` dello stesso telefono con lo stesso
+// `personKey` e lo stesso contenuto. Non conta se è ritirata, rifiutata o collegata
+// (allora la nuova è una richiesta nuova) e non guarda altri telefoni: la risposta
+// a un doppione resta indistinguibile da una creazione. `phoneRequests` = viste
+// `{ id, data }`; con più corrispondenze vale la più vecchia.
+function findOwnDuplicate(phoneRequests, personKey, fields) {
+  return (
+    phoneRequests
+      .filter((request) => request.data.status === "open" && request.data.personKey === personKey && hasSameContent(request.data, fields))
+      .sort((left, right) => String(left.data.createdAt).localeCompare(String(right.data.createdAt)) || left.id.localeCompare(right.id))[0] ||
+    null
+  );
+}
+
 // Tetti del telefono per un ingresso in `open` (submit e restore), sui dati già
 // letti per `anonUid`: `phoneRequests` = richieste dello stesso telefono (dati
-// piatti, non scadute). `countCreated`: solo `submit` crea (il tetto di 20 create
+// piatti, non scadute). `countCreated`: solo `submit` crea (il tetto di 40 create
 // in tutto non si applica a `restore`). Si controllano PRIMA di contare la coda
 // dell'attività, che costa una lettura in più e un lock condiviso.
 function assertPhoneCaps({ phoneRequests, personKey, countCreated }) {
@@ -376,8 +407,14 @@ async function guestSubmit(ctx) {
   const expiresAt = resolveRequestExpiry(activity, now);
   if (!expiresAt) throw new HttpsError("failed-precondition", MESSAGES.closed);
 
-  // Prima i tetti del telefono (dati già letti), poi il resto: chi è al limite non costa altre letture.
+  // Stessa persona, stesso contenuto, già aperta da questo telefono: è quella richiesta.
+  // Prima dei tetti e senza creare né contare nulla, anche con il telefono al limite;
+  // risposta identica a una creazione. Persone diverse dallo stesso telefono no.
   const personKey = personKeyOf(fields.firstName, fields.lastName, fields.unitId);
+  const duplicate = findOwnDuplicate(phoneRequests, personKey, fields);
+  if (duplicate) return { requestId: duplicate.id };
+
+  // Poi i tetti del telefono (dati già letti), poi il resto: chi è al limite non costa altre letture.
   assertPhoneCaps({ phoneRequests: phoneRequests.map((request) => request.data), personKey, countCreated: true });
 
   const unitSnap = await tx.get(refs.units.doc(fields.unitId));
@@ -487,7 +524,7 @@ async function guestWithdraw(ctx) {
 }
 
 // "Annulla" / "Ripristina": solo `withdrawn` -> `open`, a finestra aperta e con
-// gli stessi tetti di `submit` (tranne le 20 create: qui non si crea nulla). Già
+// gli stessi tetti di `submit` (tranne le 40 create: qui non si crea nulla). Già
 // `open` (doppio tocco) non cambia nulla. L'interruttore spento non lo blocca.
 async function guestRestore(ctx) {
   const { tx, refs, fields, uid, activity, now, nowIso } = ctx;
@@ -573,6 +610,8 @@ module.exports = {
   resolveRequestExpiry,
   assertPhoneCaps,
   assertActivityCap,
+  hasSameContent,
+  findOwnDuplicate,
   deriveRequesterState,
   buildMineItem,
 };
