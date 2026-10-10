@@ -327,7 +327,7 @@ export function FamilyDashboardPage() {
                       {childRegistrations.map((registration) => {
                         const event = eventById.get(registration.eventId);
                         return (
-                          <div key={registration.id} className="family-reg-row">
+                          <div key={`${registration.eventId}:${registration.id}`} className="family-reg-row">
                             <StatusBadge
                               label={getRegistrationStatusLabel(registration.registrationStatus)}
                               tone={getRegistrationStatusTone(registration.registrationStatus)}
