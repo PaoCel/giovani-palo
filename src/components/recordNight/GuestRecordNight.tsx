@@ -247,7 +247,7 @@ export function RecordNightGuestView({
   const records = context?.records ?? [];
 
   return (
-    <div className="rn">
+    <div className="rn rn-guest">
       <RecordNightHero dayLabel={dayLabel} eventTitle={eventTitle} weekday={weekday} />
 
       {!context && contextStatus === "error" ? (

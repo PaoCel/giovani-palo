@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -99,8 +100,13 @@ export function GuestSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<GuestFieldErrors>({});
+  // Chiusura con testo scritto: conferma breve prima di perderlo.
+  const [confirming, setConfirming] = useState(false);
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const firstRef = useRef<HTMLInputElement | null>(null);
+  const keepWritingRef = useRef<HTMLButtonElement | null>(null);
+  const beforeConfirmRef = useRef<HTMLElement | null>(null);
   const busyRef = useRef(false);
   const ids = useId();
   const titleId = `${ids}-title`;
@@ -123,9 +129,58 @@ export function GuestSheet({
     // Solo all'apertura e alla chiusura: `opener` non cambia finché il foglio è aperto.
   }, []);
 
-  function requestClose() {
-    if (!busyRef.current) onClose();
+  // Mentre il foglio è aperto la pagina sotto non si raggiunge né con la tastiera
+  // né con uno screen reader (`inert`). Si toglie in fase di layout, nello stesso
+  // commit che rimuove il foglio: gli avvisi che la pagina mostra subito dopo
+  // (l'avviso di conferma) non nascono dentro una zona inerte.
+  useLayoutEffect(() => {
+    const layer = layerRef.current;
+    const changed: HTMLElement[] = [];
+    for (const element of Array.from(document.body.children)) {
+      if (element === layer || !(element instanceof HTMLElement) || element.inert) continue;
+      element.inert = true;
+      changed.push(element);
+    }
+    return () => {
+      for (const element of changed) element.inert = false;
+    };
+  }, []);
+
+  // Qualcosa di scritto o scelto: chiudere lo butterebbe via.
+  const dirty =
+    [firstName, lastName, text, needs].some((value) => value.trim() !== "") ||
+    unitId !== "" ||
+    measure !== null;
+
+  function cancelConfirm() {
+    setConfirming(false);
+    const target = beforeConfirmRef.current;
+    if (target && target.isConnected) target.focus();
+    else firstRef.current?.focus();
   }
+
+  // Esc, tocco sullo sfondo, "Chiudi" e "Annulla": con del testo si chiede
+  // conferma, a foglio vuoto si chiude subito. Con la conferma già aperta
+  // la richiesta di chiusura la annulla (si torna a scrivere).
+  function requestClose() {
+    if (busyRef.current) return;
+    if (confirming) {
+      cancelConfirm();
+      return;
+    }
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    const active = document.activeElement;
+    beforeConfirmRef.current = active instanceof HTMLElement ? active : null;
+    setConfirming(true);
+  }
+
+  // La conferma si apre con il focus sul tasto sicuro ("Continua").
+  useEffect(() => {
+    if (confirming) keepWritingRef.current?.focus();
+  }, [confirming]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
@@ -159,7 +214,7 @@ export function GuestSheet({
     if (key === "measure") {
       root.querySelector<HTMLInputElement>('input[name="rn-measure"]')?.focus();
     } else if (key === "durationSeconds") {
-      root.querySelector<HTMLButtonElement>(".rn-stepper__btn:not([disabled])")?.focus();
+      root.querySelector<HTMLButtonElement>('.rn-stepper__btn:not([aria-disabled="true"])')?.focus();
     } else {
       root.querySelector<HTMLElement>(`[id="${fieldId(key)}"]`)?.focus();
     }
@@ -230,10 +285,11 @@ export function GuestSheet({
 
   const sheet = (
     <div
-      className="rn-layer"
+      className="rn-layer rn-layer--guest"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
+      ref={layerRef}
     >
       <div
         aria-labelledby={titleId}
@@ -242,6 +298,7 @@ export function GuestSheet({
         onKeyDown={handleKeyDown}
         ref={sheetRef}
         role="dialog"
+        tabIndex={-1}
       >
         <form className="rn-sheet__form" noValidate onSubmit={(event) => void handleSubmit(event)}>
           <header className="rn-sheet__head">
@@ -253,9 +310,9 @@ export function GuestSheet({
               <p className="rn-sheet__sub">Senza account</p>
             </div>
             <button
+              aria-disabled={busy || undefined}
               aria-label="Chiudi"
               className="rn-icon-btn"
-              disabled={busy}
               onClick={requestClose}
               type="button"
             >
@@ -320,6 +377,7 @@ export function GuestSheet({
                 <input
                   aria-describedby={describedBy("firstName")}
                   aria-invalid={fieldErrors.firstName ? true : undefined}
+                  aria-required="true"
                   autoCapitalize="words"
                   autoComplete="off"
                   className="rn-input"
@@ -342,6 +400,7 @@ export function GuestSheet({
                 <input
                   aria-describedby={describedBy("lastName")}
                   aria-invalid={fieldErrors.lastName ? true : undefined}
+                  aria-required="true"
                   autoCapitalize="words"
                   autoComplete="off"
                   className="rn-input"
@@ -365,6 +424,7 @@ export function GuestSheet({
               <select
                 aria-describedby={describedBy("unitId")}
                 aria-invalid={fieldErrors.unitId ? true : undefined}
+                aria-required="true"
                 className={
                   unitId
                     ? "rn-input rn-input--select"
@@ -401,6 +461,7 @@ export function GuestSheet({
                   <textarea
                     aria-describedby={describedBy("text", fieldId("text-help"))}
                     aria-invalid={fieldErrors.text ? true : undefined}
+                    aria-required="true"
                     className="rn-input rn-input--area"
                     id={fieldId("text")}
                     maxLength={RECORD_NIGHT_LIMITS.text}
@@ -419,7 +480,9 @@ export function GuestSheet({
 
                 <fieldset
                   aria-describedby={fieldErrors.measure ? errorId("measure") : undefined}
+                  aria-required="true"
                   className="rn-field rn-fieldset"
+                  role="radiogroup"
                 >
                   <legend className="rn-label">Come si misura?</legend>
                   <div className="rn-tiles">
@@ -454,14 +517,15 @@ export function GuestSheet({
                     </span>
                     <div aria-labelledby={fieldId("duration")} className="rn-stepper" role="group">
                       <button
+                        aria-disabled={busy || duration <= RECORD_NIGHT_DURATION_RANGE.min || undefined}
                         aria-label={`Meno ${DURATION_STEP} secondi`}
                         className="rn-stepper__btn"
-                        disabled={busy || duration <= RECORD_NIGHT_DURATION_RANGE.min}
-                        onClick={() =>
+                        onClick={() => {
+                          if (busy) return;
                           setDuration((current) =>
                             Math.max(RECORD_NIGHT_DURATION_RANGE.min, current - DURATION_STEP),
-                          )
-                        }
+                          );
+                        }}
                         type="button"
                       >
                         <svg aria-hidden="true" className="rn-ico" viewBox="0 0 24 24">
@@ -475,14 +539,15 @@ export function GuestSheet({
                         <span className="rn-stepper__unit">secondi</span>
                       </output>
                       <button
+                        aria-disabled={busy || duration >= RECORD_NIGHT_DURATION_RANGE.max || undefined}
                         aria-label={`Più ${DURATION_STEP} secondi`}
                         className="rn-stepper__btn"
-                        disabled={busy || duration >= RECORD_NIGHT_DURATION_RANGE.max}
-                        onClick={() =>
+                        onClick={() => {
+                          if (busy) return;
                           setDuration((current) =>
                             Math.min(RECORD_NIGHT_DURATION_RANGE.max, current + DURATION_STEP),
-                          )
-                        }
+                          );
+                        }}
                         type="button"
                       >
                         <RecordNightIcon name="plus" />
@@ -523,34 +588,70 @@ export function GuestSheet({
             <p className="rn-sheet__note rn-sheet__note--strong rn-sheet__note--body">
               {GUEST_COPY.sheetNote}
             </p>
+            <p className="rn-sheet__privacy">
+              {GUEST_COPY.sheetPrivacy}{" "}
+              <a href="/privacy" rel="noopener noreferrer" target="_blank">
+                Informativa privacy
+                <span className="sr-only"> (si apre in una nuova scheda)</span>
+              </a>
+            </p>
           </div>
 
           <footer className="rn-sheet__foot">
-            {formError ? (
-              <p className="rn-form-error" role="alert">
-                <RecordNightIcon name="alert" />
-                <span>{formError}</span>
-              </p>
-            ) : null}
-            <div className="rn-sheet__buttons">
-              <button
-                className="rn-btn rn-btn--ghost"
-                disabled={busy}
-                onClick={requestClose}
-                type="button"
-              >
-                Annulla
-              </button>
-              <button
-                aria-busy={busy || undefined}
-                aria-describedby={blocked ? fieldId("blocked") : undefined}
-                className="rn-btn rn-btn--led"
-                disabled={busy || blocked !== null}
-                type="submit"
-              >
-                Invia richiesta
-              </button>
-            </div>
+            {confirming ? (
+              <div className="rn-sheet__confirm">
+                <p className="rn-sheet__confirm-text" role="alert">
+                  {GUEST_COPY.closeConfirm}
+                </p>
+                <div className="rn-sheet__buttons rn-sheet__buttons--even">
+                  <button
+                    aria-label="Chiudi senza inviare"
+                    className="rn-btn"
+                    onClick={onClose}
+                    type="button"
+                  >
+                    Chiudi
+                  </button>
+                  <button
+                    aria-label="Continua a scrivere"
+                    className="rn-btn rn-btn--led"
+                    onClick={cancelConfirm}
+                    ref={keepWritingRef}
+                    type="button"
+                  >
+                    Continua
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {formError ? (
+                  <p className="rn-form-error" role="alert">
+                    <RecordNightIcon name="alert" />
+                    <span>{formError}</span>
+                  </p>
+                ) : null}
+                <div className="rn-sheet__buttons">
+                  <button
+                    aria-disabled={busy || undefined}
+                    className="rn-btn rn-btn--ghost"
+                    onClick={requestClose}
+                    type="button"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    aria-busy={busy || undefined}
+                    aria-describedby={blocked ? fieldId("blocked") : undefined}
+                    aria-disabled={busy || blocked !== null || undefined}
+                    className="rn-btn rn-btn--led"
+                    type="submit"
+                  >
+                    Invia richiesta
+                  </button>
+                </div>
+              </>
+            )}
           </footer>
         </form>
       </div>

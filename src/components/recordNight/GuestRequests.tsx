@@ -40,7 +40,10 @@ function Who({ request }: { request: RecordNightGuestRequest }) {
     <div className="rn-pills">
       <span className="rn-pill">
         <RecordNightIcon name="user" />
-        {request.firstName} {request.lastName} · {request.unitName}
+        <bdi>
+          {request.firstName} {request.lastName}
+        </bdi>{" "}
+        · <bdi>{request.unitName}</bdi>
       </span>
     </div>
   );
@@ -95,7 +98,7 @@ function Body({
           {request.needs ? (
             <span className="rn-pill">
               <RecordNightIcon name="bag" />
-              Serve: {request.needs}
+              Serve: <bdi>{request.needs}</bdi>
             </span>
           ) : null}
         </div>
