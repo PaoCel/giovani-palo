@@ -2141,6 +2141,44 @@
   align-items: flex-start;
 }
 
+/* "Collegate": divise per stato del tentativo. */
+.rna-linked-groups {
+  display: grid;
+  gap: 1rem;
+}
+
+.rna-linked-group {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.rna-linked-group__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rna-linked-group__title span {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+/* Data del ritiro sotto il testo, non a destra: a destra c'è "Riapri". */
+.rna-list__date.rna-list__date--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  text-align: left;
+}
+
 .rna-list__panel {
   flex: 1 1 100%;
 }
