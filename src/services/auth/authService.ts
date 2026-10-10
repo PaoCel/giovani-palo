@@ -1,11 +1,14 @@
+import type { FirebaseError } from "firebase/app";
 import {
   EmailAuthProvider,
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   linkWithCredential,
   linkWithPopup,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInAnonymously,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -17,6 +20,7 @@ import { auth, googleProvider } from "@/services/firebase/app";
 import { logAuthFailure } from "@/services/firebase/debug";
 import { usersService } from "@/services/firestore/usersService";
 import type { AuthSession, GenderRoleCategory } from "@/types";
+import { linkOrSwitchToExistingAccount } from "@/utils/anonymousAccountSwitch";
 
 async function resetAnonymousSessionIfNeeded() {
   if (auth.currentUser?.isAnonymous) {
@@ -99,8 +103,18 @@ export const authService = {
 
   async signInWithGoogle() {
     try {
-      if (auth.currentUser?.isAnonymous) {
-        return await linkWithPopup(auth.currentUser, googleProvider);
+      const anonymousUser = auth.currentUser;
+
+      if (anonymousUser?.isAnonymous) {
+        // Se questo Google ha già un account il collegamento non è possibile:
+        // si lascia la sessione anonima e si entra in quell'account.
+        return await linkOrSwitchToExistingAccount({
+          link: () => linkWithPopup(anonymousUser, googleProvider),
+          readCredential: (caughtError) =>
+            GoogleAuthProvider.credentialFromError(caughtError as FirebaseError),
+          discardAnonymousSession: resetAnonymousSessionIfNeeded,
+          signInWithCredential: (credential) => signInWithCredential(auth, credential),
+        });
       }
 
       await resetAnonymousSessionIfNeeded();

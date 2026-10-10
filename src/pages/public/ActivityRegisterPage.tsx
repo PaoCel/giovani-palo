@@ -262,7 +262,8 @@ export function ActivityRegisterPage() {
     const confirmed = window.confirm(
       "Stai per avviare una nuova iscrizione per un'altra persona. " +
         "Conferma di aver già salvato il codice di recupero o il PDF " +
-        "dell'iscrizione precedente: senza quelli non potrai più modificarla.",
+        "dell'iscrizione precedente: senza quelli non potrai più modificarla. " +
+        "Le richieste ai record fatte da questo telefono non si vedranno più.",
     );
 
     if (!confirmed) {

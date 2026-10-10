@@ -6,6 +6,7 @@ import { italianMunicipalityOptions } from "@/config/cityOptions";
 import { useAuth } from "@/hooks/useAuth";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
 import type { GenderRoleCategory, OrganizationProfile } from "@/types";
+import { isRecordNightPath } from "@/utils/activityLinks";
 import {
   clearPendingAccountProfile,
   readPendingAccountProfile,
@@ -837,8 +838,9 @@ export function AuthAccessPanel({
 
       {session?.isAnonymous ? (
         <p className="auth-screen__note auth-screen__note--emphasis">
-          Hai già iniziato come ospite: se crei un account adesso, colleghiamo subito
-          l&apos;iscrizione appena fatta al tuo profilo.
+          {isRecordNightPath(redirect)
+            ? "Se hai già inviato richieste da questo telefono, restano alla verifica degli adulti: non si spostano sull'account."
+            : "Hai già iniziato come ospite: se crei un account adesso, colleghiamo subito l'iscrizione appena fatta al tuo profilo."}
         </p>
       ) : null}
 

@@ -47,6 +47,12 @@ export function getRecordNightPath(eventId: string, stakeId?: string) {
   return `/activities/${eventId}/record${query ? `?${query}` : ""}`;
 }
 
+// true se `path` (anche con query o hash) è la pagina pubblica della Notte dei
+// Record di un'attività, `/activities/<id>/record`. Non la pagina di gestione.
+export function isRecordNightPath(path: string | null | undefined) {
+  return typeof path === "string" && /^\/activities\/[^/?#]+\/record\/?(?:[?#]|$)/u.test(path);
+}
+
 export function getAbsoluteUrl(path: string) {
   if (typeof window === "undefined") {
     return path;
