@@ -11,8 +11,10 @@ import { getRecordNightMeasureShortLabel } from "@/utils/recordNight";
 import { AddParticipantPanel } from "./AddParticipantPanel";
 import { HIDE_RECORD_EFFECT, SHOW_RECORD_EFFECT } from "./copy";
 import { formatPeopleCount, formatRecordersCount } from "./helpers";
+import { RnaIcon } from "./icons";
 import { CategoryPill, useFocusReturn } from "./parts";
 import { RecordForm } from "./RecordForm";
+import { OriginLine } from "./RequestParts";
 import type { RnaContext } from "./types";
 
 export type RecordRowPanel = "add" | "edit" | "hide";
@@ -310,7 +312,11 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
               <button
                 aria-controls={isOpen ? menuId : undefined}
                 aria-expanded={isOpen}
-                aria-label={`${name}: azioni`}
+                aria-label={
+                  entry.fromGuestRequest
+                    ? `${name}, da una richiesta senza account: azioni`
+                    : `${name}: azioni`
+                }
                 className={isOpen ? "rna-chip rna-chip--open" : "rna-chip"}
                 onClick={() => {
                   setError(null);
@@ -324,6 +330,11 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
                 type="button"
               >
                 <span>{name}</span>
+                {entry.fromGuestRequest ? (
+                  <span aria-hidden="true" className="rna-chip__origin">
+                    <RnaIcon name="link" />
+                  </span>
+                ) : null}
                 <AppIcon name="ellipsis" />
               </button>
             </li>
@@ -350,6 +361,7 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
           id={menuId}
           role="group"
         >
+          <OriginLine ctx={ctx} entry={openEntry} />
           {confirmId === openEntry.id ? (
             <>
               <p>

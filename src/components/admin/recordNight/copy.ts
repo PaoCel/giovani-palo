@@ -12,3 +12,13 @@ export const EMPTY_RECORD_EFFECT =
 
 // Come si torna indietro dopo Approva, Unisci e Rifiuta.
 export const UNDO_DECISION_HINT = "Si annulla con “Riporta in attesa”.";
+
+// Richieste senza account (coda "Da collegare").
+export const REQUESTS_INTRO =
+  "Persone senza account che si sono segnate da un telefono. Non contano finché non le colleghi a un'iscrizione.";
+export const REQUESTS_EMPTY =
+  "Nessuna richiesta da collegare. Quando qualcuno si segna senza account, la trovi qui.";
+export const REJECT_REQUEST_EFFECT = "Il telefono vede un testo neutro, qualunque sia il motivo.";
+export const UNDO_REJECT_REQUEST_HINT = "Si annulla con “Riapri”.";
+// Lunghezza massima della nota interna di "Non collegabile" (la applica il server).
+export const STAFF_NOTE_LIMIT = 200;

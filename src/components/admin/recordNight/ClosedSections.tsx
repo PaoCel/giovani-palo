@@ -12,6 +12,7 @@ import {
   isWithdrawnWithRecord,
 } from "./helpers";
 import { Avatar, CategoryPill } from "./parts";
+import { OriginLine } from "./RequestParts";
 import type { RnaContext } from "./types";
 
 // Sezioni chiuse in fondo alla scheda: servono a tornare indietro (riportare
@@ -88,6 +89,7 @@ function RejectedRow({ ctx, entry }: { ctx: RnaContext; entry: RecordNightEntry 
       <div className="rna-list__body">
         <strong>{name}</strong>
         {entry.proposedText ? <p className="rna-list__quote">“{entry.proposedText}”</p> : null}
+        <OriginLine ctx={ctx} entry={entry} />
         <p className="rna-list__reason">
           <span>Motivo</span> {entry.rejectionReason || "Non indicato"}
         </p>
@@ -217,13 +219,15 @@ function HiddenRow({
 }
 
 // ---------------------------------------------------------------------------
-// Ritirati (sola lettura)
+// Ritirati (sola lettura, tranne "Scollega" sui tentativi nati da una richiesta)
 // ---------------------------------------------------------------------------
 
 export function WithdrawnList({
+  ctx,
   entries,
   recordsById,
 }: {
+  ctx: RnaContext;
   entries: ReadonlyArray<RecordNightEntry>;
   recordsById: ReadonlyMap<string, RecordNightRecord>;
 }) {
@@ -245,6 +249,7 @@ export function WithdrawnList({
                     ? `“${entry.proposedText}”`
                     : "Record non più disponibile"}
               </p>
+              <OriginLine ctx={ctx} entry={entry} />
             </div>
             <small className="rna-list__date">
               <span>{getWithdrawalLabel(entry.withdrawnBy)}</span>

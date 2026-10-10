@@ -3,6 +3,8 @@ import type {
   RecordNightEntry,
   RecordNightMeasure,
   RecordNightRecord,
+  RecordNightRegistrationType,
+  RecordNightStaffRequest,
 } from "@/types";
 import {
   RECORD_NIGHT_LIMITS,
@@ -137,4 +139,80 @@ export function getWithdrawalLabel(withdrawnBy: RecordNightEntry["withdrawnBy"])
 // "3 persone", "1 persona".
 export function formatPeopleCount(count: number) {
   return count === 1 ? "1 persona" : `${count} persone`;
+}
+
+// ---------------------------------------------------------------------------
+// Richieste senza account
+// ---------------------------------------------------------------------------
+
+// Nome e cognome come li ha digitati chi ha inviato la richiesta (testo di uno
+// sconosciuto: si mostra sempre come testo, mai come markup).
+export function getRequestPersonName(request: Pick<RecordNightStaffRequest, "firstName" | "lastName">) {
+  return `${request.firstName} ${request.lastName}`.replace(/\s+/gu, " ").trim() || "Senza nome";
+}
+
+// Tipo di iscrizione dal prefisso dell'id: è lo stesso criterio del server.
+export function getRegistrationType(registrationId: string): RecordNightRegistrationType {
+  if (registrationId.startsWith("user_")) return "user";
+  if (registrationId.startsWith("child_")) return "child";
+  return "manual";
+}
+
+export const REGISTRATION_TYPE_LABEL: Record<RecordNightRegistrationType, string> = {
+  user: "Account",
+  child: "Iscritto dal genitore",
+  manual: "Inserito a mano",
+};
+
+// "Sfida: Plank più lungo" / "Proposta: “Testo”".
+export function describeRequest(
+  request: Pick<RecordNightStaffRequest, "kind" | "recordTitle" | "proposedText">,
+) {
+  if (request.kind === "challenge") {
+    return `Sfida: ${request.recordTitle || "record non più disponibile"}`;
+  }
+  return `Proposta: “${request.proposedText ?? ""}”`;
+}
+
+// Richieste dello stesso nome e della stessa unità (stesso `personKey`) una
+// accanto all'altra, nell'ordine in cui compare la prima di ognuna. Restano
+// richieste separate: nessuna si rifiuta da sola.
+export function groupRequestsByPerson(requests: ReadonlyArray<RecordNightStaffRequest>) {
+  const groups: RecordNightStaffRequest[][] = [];
+  const byKey = new Map<string, RecordNightStaffRequest[]>();
+  for (const request of requests) {
+    const key = request.personKey || request.id;
+    const group = byKey.get(key);
+    if (group) {
+      group.push(request);
+    } else {
+      const created = [request];
+      byKey.set(key, created);
+      groups.push(created);
+    }
+  }
+  return groups;
+}
+
+// Tentativo -> testo dello stato per lo staff ("In attesa", "Ci sei"...).
+export function getEntryStateChip(entry: RecordNightEntry | undefined) {
+  if (!entry) return null;
+  switch (entry.status) {
+    case "pending":
+      return { label: "In attesa", tone: "" } as const;
+    case "approved":
+      return { label: "Ci sei", tone: "ok" } as const;
+    case "rejected":
+      return { label: "Non accettata", tone: "no" } as const;
+    default:
+      return {
+        label:
+          entry.withdrawnBy === "staff"
+            ? "Ritirata da un adulto"
+            : entry.withdrawnBy === "system"
+              ? "Iscrizione annullata"
+              : "Ritirata dalla persona",
+        tone: "off",
+      } as const;
+  }
 }

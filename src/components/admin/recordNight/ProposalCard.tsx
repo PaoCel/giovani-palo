@@ -23,6 +23,7 @@ import {
 } from "./helpers";
 import { Avatar, CategoryPill, useFocusReturn } from "./parts";
 import { RecordForm } from "./RecordForm";
+import { OriginLine } from "./RequestParts";
 import { UNDO_DECISION_HINT } from "./copy";
 import type { RnaContext } from "./types";
 
@@ -112,7 +113,10 @@ export function ProposalCard({ ctx, entry, openRecords }: ProposalCardProps) {
   const panelId = `${baseId}-panel`;
 
   return (
-    <article className="rna-proposal" aria-label={`Proposta di ${name}`}>
+    <article
+      aria-label={`Proposta di ${name}`}
+      className={entry.fromGuestRequest ? "rna-proposal rna-proposal--origin" : "rna-proposal"}
+    >
       <header className="rna-proposal__head">
         <Avatar name={name} />
         <div className="rna-proposal__who">
@@ -120,6 +124,8 @@ export function ProposalCard({ ctx, entry, openRecords }: ProposalCardProps) {
           {entry.createdAt ? <small>Proposta del {formatShortDateTime(entry.createdAt)}</small> : null}
         </div>
       </header>
+
+      <OriginLine ctx={ctx} entry={entry} />
 
       <blockquote className="rna-quote">
         <span aria-hidden="true">“</span>

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
+import { useRecordNightRequestQueue, type StaffActionOutcome } from "@/components/recordNight/hooks";
+import { useAuth } from "@/hooks/useAuth";
 import {
   getRecordNightErrorMessage,
   recordNightService,
   type RecordNightParticipantOption,
   type RecordNightRecordInput,
 } from "@/services/firestore/recordNightService";
-import type { Event, RecordNightEntry, RecordNightRecord } from "@/types";
+import type { Event, RecordNightEntry, RecordNightRecord, RecordNightStaffRequest } from "@/types";
 import {
   formatRecordNightDeadline,
   getRecordNightCloseAt,
@@ -18,12 +20,24 @@ import "@/styles/recordNightAdmin.css";
 
 import { ClosedSection, HiddenList, RejectedList, WithdrawnList } from "./ClosedSections";
 import { EMPTY_RECORD_EFFECT, HIDE_RECORD_EFFECT, SHOW_RECORD_EFFECT } from "./copy";
-import { isWithdrawnWithRecord } from "./helpers";
+import { getRequestPersonName, isWithdrawnWithRecord } from "./helpers";
 import { OpenRecordRow, type RecordRowPanel } from "./OpenRecordRow";
 import { ProposalCard } from "./ProposalCard";
 import { StaffSection } from "./StaffSection";
 import { RecordForm } from "./RecordForm";
-import type { RnaContext, RnaFreshData, RnaParticipants, RnaRunResult } from "./types";
+import { RequestQueue } from "./RequestQueue";
+import {
+  LinkedRequestsList,
+  NotLinkedRequestsList,
+  WithdrawnRequestsList,
+} from "./RequestSections";
+import type {
+  RnaContext,
+  RnaFreshData,
+  RnaParticipants,
+  RnaRequests,
+  RnaRunResult,
+} from "./types";
 
 interface RecordNightAdminTabProps {
   event: Event;
@@ -73,6 +87,10 @@ export function RecordNightAdminTab({
   const flashSeq = useRef(0);
   const newButton = useRef<HTMLButtonElement>(null);
   const baseId = useId();
+  const { session } = useAuth();
+  // Richieste di chi non ha un account: la scheda è solo per chi gestisce i record
+  // (la callable lo rifiuta agli altri).
+  const queue = useRecordNightRequestQueue(stakeId, activityId, true);
 
   const load = useCallback(async (): Promise<RnaFreshData> => {
     const seq = (requestSeq.current += 1);
@@ -152,6 +170,9 @@ export function RecordNightAdminTab({
           "L'operazione è andata a buon fine, ma non riesco ad aggiornare l'elenco. Premi Aggiorna.",
         );
       }
+      // Gli abbinamenti suggeriti dipendono dai tentativi: se ci sono richieste in
+      // coda li rilegge (iscritto già a 2 record, già su questo record).
+      if (queue.openCount > 0) void queue.reload();
       if (doneMessage) {
         const text =
           typeof doneMessage === "function"
@@ -166,27 +187,57 @@ export function RecordNightAdminTab({
     }
   }
 
+  // Azioni sulle richieste: il blocco è lo stesso di `run` (una sola azione per
+  // volta in tutta la scheda). L'azione è un comando del hook della coda, che
+  // rilegge da solo la coda e restituisce già il testo d'errore per l'utente; qui
+  // si rileggono record e tentativi, che il collegamento cambia.
+  async function runRequest<T>(
+    key: string,
+    task: () => Promise<StaffActionOutcome<T>>,
+    doneMessage?: (value: T) => string,
+  ): Promise<RnaRunResult<T>> {
+    if (busyKey !== null) {
+      return { ok: false, message: "Un'altra operazione è ancora in corso. Aspetta un momento." };
+    }
+    setBusyKey(key);
+    setStaleNotice(null);
+    try {
+      const outcome = await task();
+      if (!outcome.ok) return { ok: false, message: outcome.message };
+      let fresh = !outcome.stale;
+      try {
+        await load();
+      } catch {
+        fresh = false;
+      }
+      if (!fresh) {
+        setStaleNotice(
+          "L'operazione è andata a buon fine, ma non riesco ad aggiornare l'elenco. Premi Aggiorna.",
+        );
+      }
+      if (doneMessage) {
+        flashSeq.current += 1;
+        setFlash({ id: flashSeq.current, text: doneMessage(outcome.value) });
+      }
+      return { ok: true, value: outcome.value };
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   function notify(text: string) {
     flashSeq.current += 1;
     setFlash({ id: flashSeq.current, text });
   }
 
-  const ctx: RnaContext = {
-    stakeId,
-    activityId,
-    busy: busyKey !== null,
-    busyKey,
-    participants: {
-      status: participantStatus,
-      list: participantList,
-      reload: () => void loadParticipants(),
-    },
-    notify,
-    run,
-  };
+  function refreshAll() {
+    void reload();
+    void queue.reload();
+  }
 
   const model = useMemo(() => {
     const recordsById = new Map(records.map((record) => [record.id, record]));
+    const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
     const pending = entries.filter((entry) => entry.status === "pending");
     const rejected = entries.filter((entry) => entry.status === "rejected").sort(byMostRecentUpdate);
     // Chi è stato ritirato insieme a un record nascosto compare nella riga del
@@ -235,6 +286,7 @@ export function RecordNightAdminTab({
 
     return {
       recordsById,
+      entriesById,
       pending,
       rejected,
       withdrawn,
@@ -249,6 +301,75 @@ export function RecordNightAdminTab({
       enrollments: countedEntries.length,
     };
   }, [entries, records]);
+
+  const requestsById = useMemo(
+    () => new Map(queue.requests.map((request) => [request.id, request])),
+    [queue.requests],
+  );
+
+  const requestsCtx: RnaRequests = {
+    status: queue.status,
+    error: queue.error,
+    list: queue.requests,
+    byId: requestsById,
+    openCount: queue.openCount,
+    openLimit: queue.openLimit,
+    recordsById: model.recordsById,
+    activeEntryCounts: model.activeCounts,
+    takenByRecord: model.takenByRecord,
+    reload: () => void queue.reload(),
+    link: (request, person, verified) =>
+      runRequest(
+        `req-link:${request.id}`,
+        () => queue.link(request.id, person.registrationId, verified),
+        () =>
+          request.kind === "challenge"
+            ? `${person.name} è su «${request.recordTitle || "il record"}».`
+            : `La proposta di ${person.name} è in «Proposte in attesa».`,
+      ),
+    reject: (request, note) =>
+      runRequest(
+        `req-reject:${request.id}`,
+        () => queue.reject(request.id, note || undefined),
+        () => `Richiesta di ${getRequestPersonName(request)} segnata come non collegabile.`,
+      ),
+    rejectMany: (targets: ReadonlyArray<RecordNightStaffRequest>) =>
+      runRequest(
+        "req-rejectMany",
+        () => queue.rejectMany(targets.map((request) => request.id)),
+        (value) =>
+          value.rejectedCount === 1
+            ? "1 richiesta segnata come non collegabile."
+            : `${value.rejectedCount} richieste segnate come non collegabili.`,
+      ),
+    reopen: (request) =>
+      runRequest(
+        `req-reopen:${request.id}`,
+        () => queue.reopen(request.id),
+        () => `La richiesta di ${getRequestPersonName(request)} è tornata in «Da collegare».`,
+      ),
+    unlink: (request) =>
+      runRequest(
+        `req-unlink:${request.id}`,
+        () => queue.unlink(request.id),
+        () => `Richiesta di ${getRequestPersonName(request)} scollegata: è tornata in «Da collegare».`,
+      ),
+  };
+
+  const ctx: RnaContext = {
+    stakeId,
+    activityId,
+    busy: busyKey !== null,
+    busyKey,
+    participants: {
+      status: participantStatus,
+      list: participantList,
+      reload: () => void loadParticipants(),
+    },
+    requests: requestsCtx,
+    notify,
+    run,
+  };
 
   async function createRecord(input: RecordNightRecordInput) {
     setNewError(null);
@@ -295,9 +416,14 @@ export function RecordNightAdminTab({
     .join(" ");
   const closeAt = getRecordNightCloseAt(event);
   const windowState = getRecordNightWindow(event);
+  // La coda si mostra se c'è qualcosa da vedere o se i telefoni possono inviare:
+  // a modulo spento e senza richieste resta fuori dai piedi.
+  const showQueue =
+    queue.status === "ready" && (queue.requests.length > 0 || event.recordsGuestEnabled === true);
   const titleId = `${baseId}-title`;
   const pendingTitleId = `${baseId}-pending`;
   const openTitleId = `${baseId}-open`;
+  const queueTitleId = `${baseId}-queue`;
   const newPanelId = `${baseId}-new`;
 
   return (
@@ -312,7 +438,7 @@ export function RecordNightAdminTab({
         <button
           className="button button--ghost button--small"
           disabled={loading || ctx.busy}
-          onClick={() => void reload()}
+          onClick={refreshAll}
           type="button"
         >
           <AppIcon name="refresh" />
@@ -353,7 +479,7 @@ export function RecordNightAdminTab({
           <p>{loadError}</p>
           <button
             className="button button--ghost button--small"
-            onClick={() => void reload()}
+            onClick={refreshAll}
             type="button"
           >
             Riprova
@@ -375,6 +501,29 @@ export function RecordNightAdminTab({
 
       {!loadError && !(loading && records.length === 0 && entries.length === 0) ? (
         <>
+          {queue.error ? (
+            <div className="rna-notice rna-notice--error" role="alert">
+              <p>{queue.error}</p>
+              <button
+                className="button button--ghost button--small"
+                disabled={ctx.busy}
+                onClick={() => void queue.reload()}
+                type="button"
+              >
+                Riprova
+              </button>
+            </div>
+          ) : null}
+
+          {showQueue ? (
+            <RequestQueue
+              ctx={ctx}
+              ownUnitId={session?.profile.unitId ?? ""}
+              ownUnitName={session?.profile.unitName ?? ""}
+              titleId={queueTitleId}
+            />
+          ) : null}
+
           <section aria-labelledby={pendingTitleId} className="rna-section">
             <div className="rna-section__head">
               <h3 id={pendingTitleId}>Proposte in attesa ({model.pending.length})</h3>
@@ -485,7 +634,41 @@ export function RecordNightAdminTab({
 
             {model.withdrawn.length > 0 ? (
               <ClosedSection count={model.withdrawn.length} title="Ritirati">
-                <WithdrawnList entries={model.withdrawn} recordsById={model.recordsById} />
+                <WithdrawnList ctx={ctx} entries={model.withdrawn} recordsById={model.recordsById} />
+              </ClosedSection>
+            ) : null}
+
+            {queue.sections.linked.length > 0 ? (
+              <ClosedSection
+                count={queue.sections.linked.length}
+                hint="Richieste già collegate a un'iscrizione. Scollega riporta la richiesta in «Da collegare»."
+                title="Collegate"
+              >
+                <LinkedRequestsList
+                  ctx={ctx}
+                  entriesById={model.entriesById}
+                  requests={queue.sections.linked}
+                />
+              </ClosedSection>
+            ) : null}
+
+            {queue.sections.notLinked.length > 0 ? (
+              <ClosedSection
+                count={queue.sections.notLinked.length}
+                hint="Il telefono vede un testo neutro, qualunque sia il motivo. Con Riapri la richiesta torna da collegare."
+                title="Non collegate"
+              >
+                <NotLinkedRequestsList ctx={ctx} requests={queue.sections.notLinked} />
+              </ClosedSection>
+            ) : null}
+
+            {queue.sections.withdrawn.length > 0 ? (
+              <ClosedSection
+                count={queue.sections.withdrawn.length}
+                hint="Richieste ritirate da chi le ha inviate."
+                title="Richieste ritirate"
+              >
+                <WithdrawnRequestsList requests={queue.sections.withdrawn} />
               </ClosedSection>
             ) : null}
 

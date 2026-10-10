@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { AppIcon } from "@/components/AppIcon";
 import type { RecordNightCategory, RecordNightMeasure } from "@/types";
 import type { RecordNightRecordInput } from "@/services/firestore/recordNightService";
 import {
@@ -9,6 +10,7 @@ import {
   RECORD_NIGHT_MEASURES,
   measureNeedsDuration,
 } from "@/utils/recordNight";
+import { GUEST_COPY } from "@/utils/recordNightGuest";
 
 export interface RecordFormValues {
   title: string;
@@ -260,6 +262,12 @@ export function RecordForm({
           Regole e materiale. Possono restare vuote.
         </p>
       </div>
+
+      {/* Il titolo di un record lo vede chiunque apra l'elenco, anche senza account. */}
+      <p className="rna-panel__warn" role="note">
+        <AppIcon name="eye" />
+        <span>{GUEST_COPY.publicTitleReminder}</span>
+      </p>
 
       {footnote ? (
         <p className="rna-panel__footnote" id={ids.footnote}>
