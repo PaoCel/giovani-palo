@@ -17,7 +17,7 @@
 // Sezioni:
 //   A  context (senza login): forma esatta, nessun dato riservato
 //   B  flusso completo e collegamento su user_ / child_ / manual_
-//   C  tetti: 6 aperte per telefono, 2 per persona, 20 create, 100 per attività,
+//   C  tetti: 12 aperte per telefono, 2 per persona, 40 create, 100 per attività,
 //      anche su restore; non su reopenRequest / unlinkRequest
 //   D  submissionId idempotente
 //   E  account non anonimo, nomi, unità, payload
@@ -36,6 +36,8 @@
 //      mine.recordTitle, scadenza già passata all'invio, tetti del telefono prima della coda
 //   Q  GARE VERE (Promise.all sulle callable): link/ritiro, link/rifiuto, Scollega contro
 //      Annulla del titolare, contro «Mostra di nuovo», contro il trigger; poi le invarianti
+//   R  più persone dallo stesso telefono: idempotenza PER PERSONA (stessa persona + stesso
+//      contenuto già aperto = quella richiesta), persone diverse = richieste distinte
 //
 // Ogni scenario crea una propria attività (stato e tetti non si mescolano).
 // Le richieste "di contorno" dei test dello staff sono scritte via Admin SDK
@@ -48,8 +50,8 @@
 //    è `requestId` oppure `id`.
 //  - Il codice HTTPS degli errori "sul solo chiamante" non è nominato: si
 //    controlla il messaggio (che è nella spec) e che il codice non sia un crash.
-//  - 2 per persona e 20 create: messaggio fra i tre "sul solo chiamante"; il tetto
-//    di 6 usa esattamente "Hai già inviato il massimo...".
+//  - 2 per persona e 40 create: messaggio fra i due "sul solo chiamante" dei tetti; il tetto
+//    di 12 aperte usa esattamente "Hai già inviato il massimo...".
 //  - `open` nel context = modulo acceso e finestra aperta; `intakeOpen` in più
 //    l'interruttore acceso.
 //  - Con recordsEnabled falso il context può dare errore "non è attiva" oppure
@@ -57,7 +59,10 @@
 //  - Un submissionId usato da un'ALTRA sessione dà una richiesta nuova (mai la
 //    richiesta altrui).
 //  - rejectRequests: rifiuta le open e salta le altre (spec aggiornata), con rejectedCount e skippedCount.
-//  - Il 20 create in tutto non si prova su restore (non crea documenti).
+//  - Il tetto delle create in tutto (40) non si prova su restore (non crea documenti).
+//  - Duplicato «per persona»: stessa sessione, stesso personKey, richiesta `open` con lo stesso
+//    contenuto (sfida: stesso record; proposta: testo normalizzato, misura, durata; «serve» no).
+//    Si controlla dopo finestra/interruttore/scadenza e prima dei tetti; un altro telefono crea sempre.
 //  - Con l'interruttore recordsGuestEnabled spento (o assente) l'elenco pubblico del
 //    context è VUOTO (D1, ora scritto anche nella riga `context` della spec).
 //  - Gare vere: il Firestore emulator risolve i deadlock fra transazioni con un timeout dei lock
@@ -1042,7 +1047,7 @@ test("D1 stesso submissionId = stessa richiesta, in qualunque stato (anche dopo 
   await assertConsistent(act);
 });
 
-test("D2 un foglio nuovo = richiesta nuova; lo stesso token da un'altra sessione non restituisce mai la richiesta altrui", async () => {
+test("D2 stesso contenuto della stessa persona = la stessa richiesta (anche con token nuovo); contenuto diverso = richiesta nuova; il token di un'altra sessione non restituisce mai la richiesta altrui", async () => {
   const { phone1, phone2 } = pool;
   const act = await newActivity();
   const payload = proposalRequest(WHO.maria);
@@ -1055,27 +1060,51 @@ test("D2 un foglio nuovo = richiesta nuova; lo stesso token da un'altra sessione
   assert.equal((await requestData(act, mine.requestId)).anonUid, phone1.uid);
   assert.deepEqual((await mineItems(phone2, act)).map(idOf), [theirs.requestId]);
   assert.deepEqual((await mineItems(phone1, act)).map(idOf), [mine.requestId]);
-  // Stesso contenuto, token nuovo, stessa sessione: richiesta nuova.
+  // Stessa persona, stesso contenuto, token nuovo, stessa sessione: è quella richiesta (idempotenza per persona).
   const fresh = await submit(phone1, act, { ...payload, submissionId: randomUUID() });
-  assert.notEqual(fresh.requestId, mine.requestId);
-  assert.equal((await requestsOfPhone(act, phone1)).length, 2);
+  assert.deepEqual(stripVolatile(fresh), stripVolatile(mine), "stessa forma di risposta di una creazione");
+  assert.equal(fresh.requestId, mine.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 1, "nessun documento in più");
+  // «Serve qualcosa?» non conta, e nemmeno maiuscole e spazi nel testo.
+  const sameWithNeeds = await submit(phone1, act, { ...payload, submissionId: randomUUID(), needs: "Una corda", text: "  SALTI con la CORDA " });
+  assert.equal(sameWithNeeds.requestId, mine.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 1);
+  // Contenuto diverso (testo, durata o misura): richiesta nuova (una persona per variante: il tetto è 2 per persona).
+  for (const [who, variant] of [
+    [WHO.luca, { text: "Un'altra idea" }],
+    [WHO.sara, { durationSeconds: 45 }],
+    [WHO.paolo, { measure: "count_streak", durationSeconds: null }],
+  ]) {
+    const base = await submit(phone1, act, proposalRequest(who));
+    const other = await submit(phone1, act, proposalRequest(who, variant));
+    assert.notEqual(other.requestId, base.requestId, `contenuto diverso (${Object.keys(variant).join(", ")}) = richiesta nuova`);
+  }
+  assert.equal((await requestsOfPhone(act, phone1)).length, 7);
 });
 
-test("D3 il rinvio dell'ultima richiesta consentita non dà errore di tetto (doppio tocco sulla sesta)", async () => {
+test("D3 il rinvio al tetto non dà errore: stesso token o stessa persona con lo stesso contenuto restituiscono la richiesta già creata", async () => {
   const { phone1 } = pool;
   const act = await newActivity();
-  const people = [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara];
+  const people = [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara, WHO.paolo, WHO.paolo, WHO.elena, WHO.elena, WHO.marco, WHO.marco];
   let last;
   let lastPayload;
   for (const [index, who] of people.entries()) {
     lastPayload = proposalRequest(who, { text: `Idea ${index}` });
     last = await submit(phone1, act, lastPayload);
   }
-  assert.equal((await requestsOfPhone(act, phone1)).length, 6);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12);
+  // Doppio tocco sulla dodicesima (stesso token).
   const replay = await submit(phone1, act, lastPayload);
   assert.equal(replay.requestId, last.requestId, "il rinvio al tetto restituisce la richiesta già creata");
-  await expectFail(submit(phone1, act, proposalRequest(WHO.paolo)), "any", MAX_PHONE_MSG);
-  assert.equal((await requestsOfPhone(act, phone1)).length, 6);
+  // Foglio nuovo, stessa persona e stesso contenuto: è quella richiesta, anche col telefono al tetto.
+  const sameAgain = await submit(phone1, act, { ...lastPayload, submissionId: randomUUID() });
+  assert.deepEqual(stripVolatile(sameAgain), stripVolatile(last));
+  assert.equal(sameAgain.requestId, last.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12);
+  // Un'altra persona (o contenuto nuovo di una persona già a 2) trova il tetto del telefono.
+  await expectFail(submit(phone1, act, proposalRequest(WHO.giulia)), "any", MAX_PHONE_MSG);
+  await expectFail(submit(phone1, act, proposalRequest(WHO.marco, { text: "Una terza idea" })), "any", MAX_PHONE_MSG);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12);
 });
 
 // ---------------------------------------------------------------------------
@@ -1263,29 +1292,29 @@ test("E5 un altro telefono non ritira né ripristina: stesso errore di una richi
 // «Errori sul solo chiamante» della spec per i tetti del telefono.
 const PHONE_LIMIT_RE = /^(Hai già inviato il massimo di richieste da questo telefono\.|Non riesco a riceverla ora\. Parlane con il dirigente della tua unità\.)$/u;
 
-test("C1 tetto: 6 richieste aperte per telefono (proposte e sfide); un altro telefono e un posto liberato funzionano", async () => {
+test("C1 tetto: 12 richieste aperte per telefono (proposte e sfide); un altro telefono e un posto liberato funzionano", async () => {
   const { phone1, phone2, boyF } = pool;
   const act = await newActivity({ members: [boyF] });
   const r1 = await makeRecord(act, boyF, "Record del tetto");
-  const six = [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara];
+  const twelve = [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara, WHO.paolo, WHO.paolo, WHO.elena, WHO.elena, WHO.marco, WHO.marco];
   const ids = [];
-  for (const [index, who] of six.entries()) ids.push((await submit(phone1, act, proposalRequest(who, { text: `Idea ${index}` }))).requestId);
-  assert.equal((await requestsOfPhone(act, phone1)).length, 6);
+  for (const [index, who] of twelve.entries()) ids.push((await submit(phone1, act, proposalRequest(who, { text: `Idea ${index}` }))).requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12);
 
-  await expectFail(submit(phone1, act, proposalRequest(WHO.paolo)), "any", MAX_PHONE_MSG);
-  await expectFail(submit(phone1, act, challengeRequest(WHO.paolo, r1.record.id)), "any", MAX_PHONE_MSG);
-  assert.equal((await requestsOfPhone(act, phone1)).length, 6, "le richieste rifiutate dal tetto non lasciano dati");
+  await expectFail(submit(phone1, act, proposalRequest(WHO.giulia)), "any", MAX_PHONE_MSG);
+  await expectFail(submit(phone1, act, challengeRequest(WHO.giulia, r1.record.id)), "any", MAX_PHONE_MSG);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12, "le richieste rifiutate dal tetto non lasciano dati");
 
   // Un altro telefono, stesse persone: accettato in silenzio (lo staff vede il raggruppamento).
   assert.equal((await submit(phone2, act, proposalRequest(WHO.maria, { text: "Idea 0" }))).ok, true);
 
-  // Ritirare libera un posto; il tetto torna a 6.
+  // Ritirare libera un posto; il tetto torna a 12.
   await withdraw(phone1, act, ids[0]);
-  assert.equal((await submit(phone1, act, proposalRequest(WHO.paolo))).ok, true);
-  await expectFail(submit(phone1, act, proposalRequest(WHO.elena)), "any", MAX_PHONE_MSG);
+  assert.equal((await submit(phone1, act, proposalRequest(WHO.giulia))).ok, true);
+  await expectFail(submit(phone1, act, proposalRequest(WHO.tommaso)), "any", MAX_PHONE_MSG);
   // Le richieste non più aperte (rifiutate, collegate) non occupano il tetto.
   await rejectRequest(pool.admin, act, ids[1], "No.");
-  assert.equal((await submit(phone1, act, proposalRequest(WHO.elena))).ok, true);
+  assert.equal((await submit(phone1, act, proposalRequest(WHO.tommaso))).ok, true);
   await assertConsistent(act);
 });
 
@@ -1311,22 +1340,22 @@ test("C2 tetto: 2 richieste aperte per persona e telefono; nome normalizzato (ma
   await assertConsistent(act);
 });
 
-test("C3 tetto: 20 richieste create in tutto per telefono, anche se ritirate; il rinvio di un token vecchio resta valido", async () => {
+test("C3 tetto: 40 richieste create in tutto per telefono, anche se ritirate; il rinvio di un token vecchio resta valido", async () => {
   const phone = await newPhone();
   const act = await newActivity();
   const people = [WHO.maria, WHO.luca, WHO.sara, WHO.paolo, WHO.elena];
   const payloads = [];
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < 40; index += 1) {
     const payload = proposalRequest(people[index % people.length], { text: `Idea ${index}` });
     payloads.push(payload);
     const created = await submit(phone, act, payload);
     await withdraw(phone, act, created.requestId);
   }
   const mine = await requestsOfPhone(act, phone);
-  assert.equal(mine.length, 20);
+  assert.equal(mine.length, 40);
   assert.ok(mine.every((request) => request.status === "withdrawn"));
   await expectFail(submit(phone, act, proposalRequest(WHO.giulia)), "any", PHONE_LIMIT_RE);
-  assert.equal((await requestsOfPhone(act, phone)).length, 20, "la ventunesima non lascia dati");
+  assert.equal((await requestsOfPhone(act, phone)).length, 40, "la quarantunesima non lascia dati");
   // Rinvio di un token già usato: restituisce la richiesta già creata, non un errore di tetto.
   const replay = await submit(phone, act, payloads[0]);
   assert.equal(replay.requestId, mine.find((request) => request.submissionId === payloads[0].submissionId).id);
@@ -1398,24 +1427,25 @@ test("C4 tetto: 100 richieste aperte per attività, anche su restore; reopenRequ
   await assertConsistent(act);
 });
 
-test("C5 restore rispetta i tetti come submit: 6 per telefono e 2 per persona", async () => {
+test("C5 restore rispetta i tetti come submit: 12 per telefono e 2 per persona", async () => {
   const { phone2 } = pool;
   const phone = await newPhone();
   const act = await newActivity();
-  // Tetto del telefono: 1 ritirata + 6 aperte.
-  const parked = await submit(phone, act, proposalRequest(WHO.maria, { text: "Parcheggiata" }));
+  // Tetto del telefono: 1 ritirata + 12 aperte.
+  const parked = await submit(phone, act, proposalRequest(WHO.tommaso, { text: "Parcheggiata" }));
   await withdraw(phone, act, parked.requestId);
   const open = [];
-  for (const [index, who] of [WHO.luca, WHO.luca, WHO.sara, WHO.sara, WHO.paolo, WHO.paolo].entries()) {
+  const six = [WHO.luca, WHO.luca, WHO.sara, WHO.sara, WHO.paolo, WHO.paolo, WHO.maria, WHO.maria, WHO.elena, WHO.elena, WHO.marco, WHO.marco];
+  for (const [index, who] of six.entries()) {
     open.push((await submit(phone, act, proposalRequest(who, { text: `Aperta ${index}` }))).requestId);
   }
   await expectFail(restore(phone, act, parked.requestId), "any", MAX_PHONE_MSG);
   assert.equal((await requestData(act, parked.requestId)).status, "withdrawn", "ripristino rifiutato: la richiesta resta ritirata");
-  await withdraw(phone, act, open[5]);
+  await withdraw(phone, act, open[11]);
   assert.equal((await restore(phone, act, parked.requestId)).ok, true);
   assert.equal((await requestData(act, parked.requestId)).status, "open");
 
-  // Tetto per persona: una ritirata + due aperte della stessa persona.
+  // Tetto per persona: una ritirata + due aperte della stessa persona (contenuti diversi).
   const who = WHO.giulia;
   const a1 = await submit(phone2, act, proposalRequest(who, { text: "Giulia uno" }));
   await withdraw(phone2, act, a1.requestId);
@@ -1433,7 +1463,8 @@ test("C6 reopenRequest e unlinkRequest non controllano i tetti del telefono e de
   const phone = await newPhone();
   const act = await newActivity({ members: [boyA] });
   const open = [];
-  for (const [index, who] of [WHO.luca, WHO.luca, WHO.sara, WHO.sara, WHO.paolo, WHO.paolo].entries()) {
+  const twelve = [WHO.luca, WHO.luca, WHO.sara, WHO.sara, WHO.paolo, WHO.paolo, WHO.maria, WHO.maria, WHO.marco, WHO.marco, WHO.giulia, WHO.giulia];
+  for (const [index, who] of twelve.entries()) {
     open.push((await submit(phone, act, proposalRequest(who, { text: `Aperta ${index}` }))).requestId);
   }
   await expectFail(submit(phone, act, proposalRequest(WHO.elena)), "any", MAX_PHONE_MSG);
@@ -1444,7 +1475,7 @@ test("C6 reopenRequest e unlinkRequest non controllano i tetti del telefono e de
   assert.equal((await reopenRequest(admin, act, rejectedId)).ok, true, "reopenRequest oltre il tetto del telefono");
   assert.equal((await unlink(admin, act, linkedSeed)).ok, true, "unlinkRequest oltre i tetti del telefono e della persona");
   const mine = await requestsOfPhone(act, phone);
-  assert.equal(mine.filter((request) => request.status === "open").length, 8);
+  assert.equal(mine.filter((request) => request.status === "open").length, 14);
   assert.equal(mine.filter((request) => request.personKey === personKeyOf(WHO.luca)).filter((request) => request.status === "open").length, 3);
   // Il telefono non può invece aggiungerne altre.
   await expectFail(submit(phone, act, proposalRequest(WHO.tommaso)), "any", MAX_PHONE_MSG);
@@ -1499,7 +1530,8 @@ test("F1 oracolo: nome di una persona iscritta, sconosciuto e duplicato danno ri
     await record(label, "proposal", await newPhone(), proposalRequest(who, { text: "Torre di bicchieri" }));
     await record(label, "challenge", await newPhone(), challengeRequest(who, r1.record.id));
   }
-  // Duplicati: stessa persona e stesso contenuto da un'altra sessione, e dalla stessa sessione.
+  // Duplicati: stessa persona e stesso contenuto da un'ALTRA sessione (si crea, indistinguibile) e dalla STESSA
+  // sessione (è la richiesta già aperta: stessa risposta di una creazione, nessun documento nuovo).
   const dupWho = person("Duplicata", "Persona");
   const dupPhoneA = await newPhone();
   const dupPhoneB = await newPhone();
@@ -1509,6 +1541,8 @@ test("F1 oracolo: nome di una persona iscritta, sconosciuto e duplicato danno ri
   await record("duplicato dalla stessa sessione", "proposal", dupPhoneA, proposalRequest(dupWho, { text: "Stessa idea" }));
   await record("sconosciuta (sfida, primo invio)", "challenge", dupPhoneC, challengeRequest(dupWho, r1.record.id));
   await record("duplicato di sfida da un'altra sessione", "challenge", dupPhoneB, challengeRequest(dupWho, r1.record.id));
+  await record("duplicato di sfida dalla stessa sessione", "challenge", dupPhoneC, challengeRequest(dupWho, r1.record.id));
+  const sameSession = new Set(["duplicato dalla stessa sessione", "duplicato di sfida dalla stessa sessione"]);
 
   // 1. Stessa risposta (a meno di requestId e timestamp), per forma e per valori.
   const reference = stripVolatile(outcomes[0].res);
@@ -1520,12 +1554,18 @@ test("F1 oracolo: nome di una persona iscritta, sconosciuto e duplicato danno ri
     assert.equal(typeof res.requestId, "string", `${kind} «${label}»: requestId assente`);
     ids.add(res.requestId);
   }
-  assert.equal(ids.size, outcomes.length, "ogni invio con token nuovo è una richiesta nuova, anche i duplicati");
+  // Ogni invio con token nuovo è una richiesta nuova, anche il duplicato di un'altra sessione; solo il duplicato
+  // della STESSA sessione (stessa persona, stesso contenuto, ancora aperta) restituisce la richiesta già creata.
+  assert.equal(ids.size, outcomes.length - sameSession.size, "i duplicati della stessa sessione non creano richieste");
+  const firstOf = (kind, phone) => outcomes.find((item) => item.kind === kind && item.phone === phone && !sameSession.has(item.label));
+  for (const item of outcomes.filter((entry) => sameSession.has(entry.label))) {
+    assert.equal(item.res.requestId, firstOf(item.kind, item.phone).res.requestId, `${item.label}: deve essere la richiesta già aperta`);
+  }
 
   // 2. Stesso documento: stesse chiavi, tutte `open`, nessuna traccia dell'iscrizione.
   const requestForbidden = new Set(["registrationId", "linkedRegistrationId", "linkedEntryId", "suggestions", "matched", "registration", "entryId", "participantName"]);
   const keysByKind = { proposal: null, challenge: null };
-  for (const { label, kind, res } of outcomes) {
+  for (const { label, kind, res } of outcomes.filter((item) => !sameSession.has(item.label))) {
     const stored = await requestData(act, res.requestId);
     assert.equal(stored.status, "open", `${kind} «${label}»: stato iniziale`);
     const populated = Object.fromEntries(Object.entries(stored).filter(([, value]) => value !== null && value !== undefined && value !== ""));
@@ -1550,7 +1590,7 @@ test("F1 oracolo: nome di una persona iscritta, sconosciuto e duplicato danno ri
 
   // 4. L'invio non ha cambiato nulla né di record, né di tentativi, né di iscrizioni.
   assert.deepEqual(await snapshotWorld(act), before, "un invio ha modificato record, tentativi o iscrizioni");
-  assert.equal((await requestsRef(act).get()).size, outcomes.length, "nessun invio è stato scartato o accorpato");
+  assert.equal((await requestsRef(act).get()).size, outcomes.length - sameSession.size, "nessun invio di un'altra sessione è stato scartato o accorpato");
   assert.ok((await allDocs(requestsRef(act))).every((request) => request.status === "open"), "nessun duplicato rifiutato da solo");
   await assertConsistent(act);
 });
@@ -3214,29 +3254,31 @@ test("P7 submit: con data d'inizio presente e inizio + 7 giorni già passato la 
 test("P8 tetti: quello del telefono si controlla prima di quello della coda (solo l'esito)", async () => {
   const { boyA } = pool;
   const act = await newActivity({ members: [boyA] });
-  // Telefono al tetto: una ritirata e sei aperte.
+  // Telefono al tetto: una ritirata e dodici aperte (sei persone per due richieste).
   const atCap = await newPhone();
   const parked = (await submit(atCap, act, proposalRequest(WHO.tommaso, { text: "Ritirata" }))).requestId;
   await withdraw(atCap, act, parked);
-  for (const [index, who] of [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara].entries()) {
+  const sixPeople = [WHO.maria, WHO.luca, WHO.sara, WHO.paolo, WHO.elena, WHO.marco];
+  for (const [index, who] of sixPeople.flatMap((person_) => [person_, person_]).entries()) {
     await submit(atCap, act, proposalRequest(who, { text: `Aperta ${index}` }));
   }
   // Telefono con due aperte della stessa persona.
   const twoOfOne = await newPhone();
-  await submit(twoOfOne, act, proposalRequest(WHO.paolo, { text: "Prima" }));
-  await submit(twoOfOne, act, proposalRequest(WHO.paolo, { text: "Seconda" }));
+  await submit(twoOfOne, act, proposalRequest(WHO.giulia, { text: "Prima" }));
+  await submit(twoOfOne, act, proposalRequest(WHO.giulia, { text: "Seconda" }));
   // Telefono libero, con una richiesta ritirata.
   const free = await newPhone();
   const freeParked = (await submit(free, act, proposalRequest(WHO.elena, { text: "Libera" }))).requestId;
   await withdraw(free, act, freeParked);
-  // La coda sale a 100 aperte (8 sono già dei telefoni sopra).
-  await Promise.all(Array.from({ length: 92 }, (_, index) => seedRequest(act, { uid: `folla-${runId}-${index}` }, { who: WHO.giulia, text: `Folla ${index}` })));
+  // La coda sale a 100 aperte (14 sono già dei telefoni sopra).
+  await Promise.all(Array.from({ length: 86 }, (_, index) => seedRequest(act, { uid: `folla-${runId}-${index}` }, { who: WHO.giulia, text: `Folla ${index}` })));
   assert.equal((await requestsRef(act).where("status", "==", "open").get()).size, 100);
 
   // Coda piena e telefono al tetto: l'errore è quello del telefono.
-  await expectFail(submit(atCap, act, proposalRequest(WHO.marco)), "any", MAX_PHONE_MSG);
+  await expectFail(submit(atCap, act, proposalRequest(WHO.marco, { text: "Una nuova idea" })), "any", MAX_PHONE_MSG);
+  await expectFail(submit(atCap, act, proposalRequest(person("Irene", "Celeste"))), "any", MAX_PHONE_MSG);
   await expectFail(restore(atCap, act, parked), "any", MAX_PHONE_MSG);
-  await expectFail(submit(twoOfOne, act, proposalRequest(WHO.paolo, { text: "Terza" })), "any", MAX_PHONE_MSG);
+  await expectFail(submit(twoOfOne, act, proposalRequest(WHO.giulia, { text: "Terza" })), "any", MAX_PHONE_MSG);
   // Coda piena e telefono libero: l'errore neutro della coda.
   await expectFail(submit(free, act, proposalRequest(WHO.marco)), "any", CANNOT_RECEIVE_MSG);
   await expectFail(restore(free, act, freeParked), "any", CANNOT_RECEIVE_MSG);
@@ -3461,4 +3503,174 @@ test("Q5 gara vera: Scollega contro il trigger dell'iscrizione annullata (5 giri
     assert.equal((await recordData(act, r1.record.id)).challengerCount, 1, "il contatore è sceso una volta sola");
   }
   t.diagnostic(JSON.stringify(tally));
+});
+
+// ===========================================================================
+// R. Più persone senza account dallo stesso telefono (spec: «Più persone dallo stesso telefono»)
+// ===========================================================================
+// Il telefono è la sessione anonima; la persona è il personKey. Tetti: 12 aperte per telefono, 2 per
+// persona; submit è idempotente PER PERSONA (stessa persona + stesso contenuto già aperto = quella richiesta).
+
+test("R1 due persone dallo stesso telefono propongono lo STESSO testo: due richieste; la stessa persona che ripete ottiene la sua", async () => {
+  const { phone1 } = pool;
+  const act = await newActivity();
+  const first = await submit(phone1, act, proposalRequest(WHO.maria, { text: "Torre di bicchieri" }));
+  const second = await submit(phone1, act, proposalRequest(WHO.luca, { text: "Torre di bicchieri" }));
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.notEqual(second.requestId, first.requestId, "persone diverse = richieste distinte, anche con lo stesso testo");
+  const mine = await requestsOfPhone(act, phone1);
+  assert.equal(mine.length, 2);
+  assert.ok(mine.every((request) => request.status === "open" && request.proposedText === "Torre di bicchieri"));
+  assert.notEqual(mine[0].personKey, mine[1].personKey);
+  // La stessa persona che rimanda lo stesso foglio con un token nuovo: la sua richiesta, nessun documento.
+  const again = await submit(phone1, act, proposalRequest(WHO.maria, { text: "Torre di bicchieri" }));
+  assert.equal(again.requestId, first.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 2);
+  assert.deepEqual((await mineItems(phone1, act)).map(idOf).sort(), [first.requestId, second.requestId].sort());
+});
+
+test("R2 due persone dallo stesso telefono sfidano lo STESSO record: due richieste; lo staff le collega a due iscrizioni e il contatore sale di 2", async () => {
+  const { boyA, boyB, boyF, admin, phone1 } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyF] });
+  const r1 = await makeRecord(act, boyF, "Record sfidato in due");
+  const first = await submit(phone1, act, challengeRequest(WHO.maria, r1.record.id));
+  const second = await submit(phone1, act, challengeRequest(WHO.luca, r1.record.id));
+  assert.notEqual(second.requestId, first.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 2);
+  assert.equal((await recordData(act, r1.record.id)).challengerCount, 1, "una richiesta non conta");
+
+  await link(admin, act, first.requestId, `user_${boyA.uid}`);
+  await link(admin, act, second.requestId, `user_${boyB.uid}`);
+  assert.equal((await recordData(act, r1.record.id)).challengerCount, 3, "il contatore sale di 2");
+  assert.equal(await stateOf(phone1, act, first.requestId), "approved");
+  assert.equal(await stateOf(phone1, act, second.requestId), "approved");
+  assert.equal((await entriesFromRequest(act, first.requestId)).length, 1);
+  assert.equal((await entriesFromRequest(act, second.requestId)).length, 1);
+  await assertConsistent(act);
+  await assertMineMatchesData(phone1, act);
+});
+
+test("R3 la stessa persona che sfida due volte lo stesso record con un submissionId diverso: una sola richiesta, nessun errore anche con 12 aperte", async () => {
+  const { boyF, phone1 } = pool;
+  const act = await newActivity({ members: [boyF] });
+  const r1 = await makeRecord(act, boyF, "Record della doppia sfida");
+  const firstChallenge = await submit(phone1, act, challengeRequest(WHO.maria, r1.record.id));
+  await submit(phone1, act, proposalRequest(WHO.maria, { text: "Idea di Maria" }));
+  for (const who of [WHO.luca, WHO.sara, WHO.paolo, WHO.elena, WHO.marco]) {
+    await submit(phone1, act, proposalRequest(who, { text: `Prima di ${who.firstName}` }));
+    await submit(phone1, act, proposalRequest(who, { text: `Seconda di ${who.firstName}` }));
+  }
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12);
+  const again = await submit(phone1, act, challengeRequest(WHO.maria, r1.record.id));
+  assert.equal(again.ok, true, "al tetto, ma è la stessa richiesta: nessun errore");
+  assert.deepEqual(stripVolatile(again), stripVolatile(firstChallenge));
+  assert.equal(again.requestId, firstChallenge.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12, "nessun documento in più");
+  // Un contenuto nuovo della stessa persona (già a 2) o una persona nuova trovano il tetto.
+  await expectFail(submit(phone1, act, proposalRequest(WHO.maria, { text: "Una terza idea" })), "any", MAX_PHONE_MSG);
+  await expectFail(submit(phone1, act, proposalRequest(WHO.giulia)), "any", MAX_PHONE_MSG);
+});
+
+test("R4 sei persone per due richieste (una proposta e una sfida) = 12; la tredicesima di un'altra persona è rifiutata col messaggio del telefono", async () => {
+  const { boyF, phone1 } = pool;
+  const act = await newActivity({ members: [boyF] });
+  const r1 = await makeRecord(act, boyF, "Record delle sei persone");
+  const people = [WHO.maria, WHO.luca, WHO.sara, WHO.paolo, WHO.elena, WHO.marco];
+  for (const who of people) {
+    assert.equal((await submit(phone1, act, proposalRequest(who, { text: `Idea di ${who.firstName}` }))).ok, true);
+    assert.equal((await submit(phone1, act, challengeRequest(who, r1.record.id))).ok, true);
+  }
+  const mine = await requestsOfPhone(act, phone1);
+  assert.equal(mine.length, 12);
+  assert.equal(new Set(mine.map((request) => request.personKey)).size, 6);
+  await expectFail(submit(phone1, act, proposalRequest(WHO.giulia)), "any", MAX_PHONE_MSG);
+  await expectFail(submit(phone1, act, challengeRequest(WHO.giulia, r1.record.id)), "any", MAX_PHONE_MSG);
+  await expectFail(submit(phone1, act, proposalRequest(WHO.maria, { text: "Una terza di Maria" })), "any", MAX_PHONE_MSG);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12, "i rifiuti non lasciano dati");
+  // Gli identici a quelli aperti passano (sono le stesse richieste).
+  assert.equal((await submit(phone1, act, challengeRequest(WHO.paolo, r1.record.id))).ok, true);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 12);
+});
+
+for (const variant of ["ritirata", "rifiutata", "collegata"]) {
+  for (const kind of ["proposal", "challenge"]) {
+    test(`R5 una richiesta identica a una ${variant} (${kind}) non è un doppione: nasce una richiesta nuova`, async () => {
+      const { boyA, boyF, admin, phone1 } = pool;
+      const act = await newActivity({ members: [boyA, boyF] });
+      const r1 = await makeRecord(act, boyF, "Record dell'identica");
+      const payload = kind === "proposal" ? proposalRequest(WHO.maria, { text: "Torre di bicchieri" }) : challengeRequest(WHO.maria, r1.record.id);
+      const first = await submit(phone1, act, payload);
+      if (variant === "ritirata") await withdraw(phone1, act, first.requestId);
+      else if (variant === "rifiutata") await rejectRequest(admin, act, first.requestId, "Non collegabile.");
+      else await link(admin, act, first.requestId, `user_${boyA.uid}`);
+      const expectedStatus = { ritirata: "withdrawn", rifiutata: "rejected", collegata: "linked" }[variant];
+      assert.equal((await requestData(act, first.requestId)).status, expectedStatus);
+
+      const second = await submit(phone1, act, { ...payload, submissionId: randomUUID() });
+      assert.equal(second.ok, true);
+      assert.notEqual(second.requestId, first.requestId, "la ritirata/rifiutata/collegata non conta come doppione");
+      assert.equal((await requestData(act, second.requestId)).status, "open");
+      assert.equal((await requestData(act, first.requestId)).status, expectedStatus, "la vecchia resta com'era");
+      assert.equal((await requestsOfPhone(act, phone1)).length, 2);
+      // Ora che quella nuova è aperta, un terzo invio identico è proprio quella.
+      const third = await submit(phone1, act, { ...payload, submissionId: randomUUID() });
+      assert.equal(third.requestId, second.requestId);
+      assert.equal((await requestsOfPhone(act, phone1)).length, 2);
+      await assertConsistent(act);
+    });
+  }
+}
+
+test("R6 a finestra chiusa, a interruttore spento o con la scadenza già passata un invio identico a uno aperto dà ancora l'errore di finestra o interruttore", async () => {
+  const { phone1 } = pool;
+  const act = await newActivity();
+  const payload = proposalRequest(WHO.maria, { text: "Torre di bicchieri" });
+  const first = await submit(phone1, act, payload);
+  const identical = () => ({ ...payload, submissionId: randomUUID() });
+  const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString().slice(0, 10);
+
+  // Finestra chiusa.
+  await setActivity(act, { recordsCloseAt: inPast(1) });
+  await expectFail(submit(phone1, act, identical()), "any", CLOSED_MSG);
+  // Finestra aperta, interruttore spento.
+  await setActivity(act, { recordsCloseAt: inFuture(), recordsGuestEnabled: false });
+  await expectFail(submit(phone1, act, identical()), "any", CANNOT_RECEIVE_MSG);
+  // Interruttore acceso, inizio + 7 giorni già passato (la richiesta non nascerebbe).
+  await setActivity(act, { recordsGuestEnabled: true, startDate: daysAgo(10) });
+  await expectFail(submit(phone1, act, identical()), "any", CLOSED_MSG);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 1, "nessun documento in più");
+  // Tutto a posto: l'identico torna a essere la stessa richiesta.
+  await setActivity(act, { startDate: TRIP_DATE });
+  assert.equal((await submit(phone1, act, identical())).requestId, first.requestId);
+  assert.equal((await requestsOfPhone(act, phone1)).length, 1);
+});
+
+test("R7 mine mostra le richieste di entrambe le persone del telefono con stati indipendenti; il ritiro di una non tocca l'altra", async () => {
+  const { boyA, boyF, admin, phone1 } = pool;
+  const act = await newActivity({ members: [boyA, boyF] });
+  const maria = (await submit(phone1, act, proposalRequest(WHO.maria, { text: "Idea di Maria" }))).requestId;
+  const luca = (await submit(phone1, act, proposalRequest(WHO.luca, { text: "Idea di Luca" }))).requestId;
+  const states = async () => {
+    const items = await mineById(phone1, act);
+    return { maria: items.get(maria)?.state, luca: items.get(luca)?.state, count: items.size };
+  };
+  assert.deepEqual(await states(), { maria: "received", luca: "received", count: 2 });
+  const names = JSON.stringify(await mineItems(phone1, act));
+  assert.ok(names.includes("Maria") && names.includes("Luca"), "chi usa il telefono vede le richieste di entrambe");
+
+  await withdraw(phone1, act, maria);
+  assert.deepEqual(await states(), { maria: "withdrawn", luca: "received", count: 2 });
+  assert.equal((await requestData(act, luca)).status, "open", "il ritiro di una non tocca l'altra");
+  await link(admin, act, luca, `user_${boyA.uid}`);
+  assert.deepEqual(await states(), { maria: "withdrawn", luca: "pending", count: 2 });
+  await restore(phone1, act, maria);
+  assert.deepEqual(await states(), { maria: "received", luca: "pending", count: 2 });
+  await rejectRequest(admin, act, maria, "Non collegabile.");
+  assert.deepEqual(await states(), { maria: "not_linked", luca: "pending", count: 2 });
+  // Il ritiro di una richiesta collegata resta impossibile dal telefono, senza toccare l'altra.
+  await expectFail(withdraw(phone1, act, luca), "any");
+  assert.deepEqual(await states(), { maria: "not_linked", luca: "pending", count: 2 });
+  await assertMineMatchesData(phone1, act);
+  await assertConsistent(act);
 });
