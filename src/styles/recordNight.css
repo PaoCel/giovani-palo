@@ -2519,6 +2519,27 @@ html.rn-skin .install-hint__icon {
   overflow-wrap: anywhere;
 }
 
+/* Record già sfidato da questo telefono: un'etichetta, non un tasto spento
+   (un'altra persona dello stesso telefono può sfidarlo). */
+.rn-rec__phone-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--tb-soft);
+}
+
+.rn-rec__phone-note .rn-ico {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.4;
+  color: var(--cat);
+}
+
 /* Bersagli di almeno 44 px nelle schermate senza account (la vista e il suo
    foglio): "Sfida", "Ripristina", "Riprova", "Annulla" dell'avviso, "Chiudi".
    Scoped: gli altri flussi non cambiano. */
