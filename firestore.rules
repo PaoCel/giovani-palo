@@ -79,16 +79,20 @@ service cloud.firestore {
         && get(activityDocPath(stakeId, activityId)).data.activityType == 'camp';
     }
 
-    function isAdultCampRoleCategory(value) {
-      return value in ['dirigente', 'accompagnatore'];
+    function campStaffDocPath(stakeId, activityId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/management/campStaff;
     }
 
-    function hasOwnAdultCampRegistration(stakeId, activityId) {
-      return isSignedIn()
+    // Staff scelto da un admin per questo campeggio: uid in
+    // `management/campStaff.staffUids` (scritto solo dalla callable
+    // campManagementStaff) e iscrizione `user_<uid>` non annullata. Non conta
+    // `genderRoleCategory`: lo scrive chiunque nel proprio profilo e nella
+    // propria iscrizione.
+    function isListedCampStaff(stakeId, activityId) {
+      return isNonAnonymousSignedIn()
+        && exists(campStaffDocPath(stakeId, activityId))
+        && request.auth.uid in get(campStaffDocPath(stakeId, activityId)).data.staffUids
         && exists(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid))
-        && isAdultCampRoleCategory(
-          get(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid)).data.genderRoleCategory
-        )
         && get(registrationDocPath(stakeId, activityId, 'user_' + request.auth.uid)).data.registrationStatus != 'cancelled';
     }
 
@@ -97,11 +101,7 @@ service cloud.firestore {
         && (
           isStakeAdmin(stakeId)
           || isUnitLeaderOfStake(stakeId)
-          || (
-            currentUserExists()
-            && currentUser().stakeId == stakeId
-            && hasOwnAdultCampRegistration(stakeId, activityId)
-          )
+          || isListedCampStaff(stakeId, activityId)
         );
     }
 

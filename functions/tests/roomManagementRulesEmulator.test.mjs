@@ -148,6 +148,8 @@ before(async () => {
       updatedAt: "",
     }),
     adminDb.doc(`${activityPath}/management/camp`).set({ committees: [], patrols: [], manualLeaders: [], updatedAt: "" }),
+    // Lo staff del campo lo sceglie un admin: la categoria dichiarata non basta.
+    adminDb.doc(`${activityPath}/management/campStaff`).set({ staffUids: [uid("staff")], updatedAt: "", updatedBy: uid("admin") }),
     adminDb.doc(`stakes/${stakeId}/roomLayouts/foresteria`).set({ version: 1, name: "Foresteria test", floors: [layoutFloor], updatedAt: new Date() }),
   ]);
 

@@ -2,6 +2,8 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
+const { isAdultByAge } = require("./adultAge");
+
 const REGION = "europe-west1";
 
 const COMMITTEE_DEFINITIONS = [
@@ -375,41 +377,94 @@ function linkManualLeadersByName(registrationsSnapshot, plan) {
   };
 }
 
-async function assertCampManager(db, request, stakeId, activityId) {
+const MAX_STAFF = 100;
+
+function ownObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function staffUidsOf(staffDoc) {
+  return ownObject(staffDoc) && Array.isArray(staffDoc.staffUids)
+    ? staffDoc.staffUids.filter((item) => typeof item === "string" && item)
+    : [];
+}
+
+// Come le rules: conta solo `registrationStatus`; se manca, le rules negano.
+function isActiveRegistration(registration) {
+  return (
+    ownObject(registration) &&
+    typeof registration.registrationStatus === "string" &&
+    registration.registrationStatus !== "cancelled"
+  );
+}
+
+// Chi gestisce il campeggio (uguale alle rules): admin del palo o super_admin,
+// dirigente di unità del palo (ruolo assegnato da un admin), oppure un uid in
+// `management/campStaff.staffUids` con iscrizione `user_<uid>` non annullata. La
+// categoria dichiarata (`dirigente`, `accompagnatore`) non conta: la scrive
+// chiunque nel proprio profilo. Restituisce 'admin' | 'unit_leader' | 'listed' | null.
+function resolveCampAccess({ profile, stakeId, uid, staffUids, ownRegistration }) {
+  if (ownObject(profile)) {
+    if (profile.role === "super_admin") return "admin";
+    if (profile.stakeId === stakeId) {
+      if (profile.role === "admin") return "admin";
+      if (profile.role === "unit_leader") return "unit_leader";
+    }
+  }
+  return typeof uid === "string" && uid && Array.isArray(staffUids) && staffUids.includes(uid) && isActiveRegistration(ownRegistration)
+    ? "listed"
+    : null;
+}
+
+function campRefs(db, stakeId, activityId) {
+  const activityRef = db.doc(`stakes/${stakeId}/activities/${activityId}`);
+  return {
+    activityRef,
+    registrations: activityRef.collection("registrations"),
+    staff: activityRef.collection("management").doc("campStaff"),
+  };
+}
+
+function assertSignedIn(request) {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Login richiesto.");
   }
-
-  const userDoc = await db.doc(`users/${request.auth.uid}`).get();
-  if (!userDoc.exists) {
-    throw new HttpsError("permission-denied", "Profilo utente non trovato.");
-  }
-
-  const user = userDoc.data() || {};
-  const sameStake = user.role === "super_admin" || user.stakeId === stakeId;
-  const hasManagerRole =
-    user.role === "admin" || user.role === "super_admin" || user.role === "unit_leader";
-
-  if (sameStake && hasManagerRole) {
-    return user;
-  }
-
-  const registrationDoc = await db
-    .doc(`stakes/${stakeId}/activities/${activityId}/registrations/user_${request.auth.uid}`)
-    .get();
-  const registration = registrationDoc.exists ? registrationDoc.data() || {} : {};
-  const registrationStatus = asString(registration.registrationStatus) || asString(registration.status);
-  const isActiveAdultCampRegistration =
-    registrationDoc.exists &&
-    sameStake &&
-    isAdultCategory(registration.genderRoleCategory) &&
-    registrationStatus !== "cancelled";
-
-  if (!isActiveAdultCampRegistration) {
+  if (request.auth.token?.firebase?.sign_in_provider === "anonymous") {
     throw new HttpsError("permission-denied", "Servono privilegi comitato/pattuglia.");
   }
+}
 
-  return user;
+async function loadCampAccess(db, request, stakeId, activityId) {
+  assertSignedIn(request);
+  const uid = request.auth.uid;
+  const refs = campRefs(db, stakeId, activityId);
+  const userDoc = await db.doc(`users/${uid}`).get();
+  const profile = userDoc.exists ? userDoc.data() || {} : null;
+  const direct = resolveCampAccess({ profile, stakeId, uid });
+  if (direct) return { access: direct, refs };
+
+  const staffSnap = await refs.staff.get();
+  const staffUids = staffUidsOf(staffSnap.exists ? staffSnap.data() : null);
+  if (!staffUids.includes(uid)) return { access: null, refs };
+  const registrationSnap = await refs.registrations.doc(`user_${uid}`).get();
+  return {
+    access: resolveCampAccess({
+      profile,
+      stakeId,
+      uid,
+      staffUids,
+      ownRegistration: registrationSnap.exists ? registrationSnap.data() : null,
+    }),
+    refs,
+  };
+}
+
+async function assertCampManager(db, request, stakeId, activityId) {
+  const { access } = await loadCampAccess(db, request, stakeId, activityId);
+  if (!access) {
+    throw new HttpsError("permission-denied", "Servono privilegi comitato/pattuglia.");
+  }
+  return access;
 }
 
 async function syncRegistrationCampAssignments(db, registrationsSnapshot, plan, timestamp) {
@@ -455,7 +510,7 @@ const campManagementSave = onCall(
     const activityRef = db.doc(`stakes/${stakeId}/activities/${activityId}`);
     const activitySnapshot = await activityRef.get();
     if (!activitySnapshot.exists) {
-      throw new HttpsError("not-found", "Attivita non trovata.");
+      throw new HttpsError("not-found", "Attività non trovata.");
     }
 
     const activity = activitySnapshot.data() || {};
@@ -499,6 +554,133 @@ const campManagementSave = onCall(
   },
 );
 
+// Elenco aggiornato (senza doppioni, ordinato). Togliere chi non c'è è un no-op.
+function nextStaffUids(current, uid, enabled) {
+  const set = new Set(current);
+  if (enabled) set.add(uid);
+  else set.delete(uid);
+  if (set.size > MAX_STAFF) {
+    throw new HttpsError("failed-precondition", `Troppe persone in elenco (massimo ${MAX_STAFF}).`);
+  }
+  return [...set].sort();
+}
+
+// Chi si può mettere in staff: le iscrizioni `user_` non annullate, più chi è già
+// in elenco senza un'iscrizione attiva (annullata o sparita), così l'admin lo
+// vede e lo può togliere. Gli adulti (categoria adulta e maggiorenni) vengono
+// prima solo per comodità di lettura.
+async function listStaffCandidates(refs) {
+  const [registrations, staffSnap] = await Promise.all([refs.registrations.get(), refs.staff.get()]);
+  const staffUids = new Set(staffUidsOf(staffSnap.exists ? staffSnap.data() : null));
+  const candidates = [];
+  const seen = new Set();
+
+  for (const document of registrations.docs) {
+    if (!document.id.startsWith("user_")) continue;
+    const data = document.data() || {};
+    const uid = document.id.slice("user_".length);
+    const active = isActiveRegistration(data);
+    if (!active && !staffUids.has(uid)) continue;
+    seen.add(uid);
+    const name = getPublicName(data) || uid;
+    candidates.push({
+      uid,
+      registrationId: document.id,
+      name: active ? name : `${name} (iscrizione annullata)`,
+      unitName: getPublicUnitName(data),
+      isAdult: active && isAdultCategory(data.genderRoleCategory) && isAdultByAge(data.birthDate),
+      isStaff: staffUids.has(uid),
+    });
+  }
+  for (const uid of staffUids) {
+    if (seen.has(uid)) continue;
+    candidates.push({
+      uid,
+      registrationId: "",
+      name: `${uid} (senza iscrizione)`,
+      unitName: "",
+      isAdult: false,
+      isStaff: true,
+    });
+  }
+
+  return candidates.sort(
+    (left, right) =>
+      Number(right.isAdult) - Number(left.isAdult) ||
+      left.name.localeCompare(right.name, "it-IT") ||
+      left.uid.localeCompare(right.uid),
+  );
+}
+
+// Aggiunge o toglie un uid da `staffUids`. Aggiungere richiede una iscrizione
+// `user_<uid>` non annullata a questo campeggio.
+async function setStaffMember(db, refs, { uid, enabled }, adminUid) {
+  return db.runTransaction(async (tx) => {
+    const staffSnap = await tx.get(refs.staff);
+    const registrationSnap = enabled ? await tx.get(refs.registrations.doc(`user_${uid}`)) : null;
+    if (enabled && !(registrationSnap.exists && isActiveRegistration(registrationSnap.data()))) {
+      throw new HttpsError("failed-precondition", "Può gestire il campeggio solo chi ha un'iscrizione attiva.");
+    }
+    const current = staffUidsOf(staffSnap.exists ? staffSnap.data() : null);
+    const staffUids = nextStaffUids(current, uid, enabled);
+    const changed = staffUids.length !== current.length || staffUids.some((item, index) => item !== current[index]);
+    if (changed || !staffSnap.exists) {
+      const data = { staffUids, updatedAt: nowIso(), updatedBy: adminUid };
+      if (staffSnap.exists) tx.update(refs.staff, data);
+      else tx.create(refs.staff, data);
+    }
+    return staffUids;
+  });
+}
+
+const campManagementStaff = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    const db = getFirestore();
+    const stakeId = asString(request.data?.stakeId);
+    const activityId = asString(request.data?.activityId || request.data?.eventId);
+    const action = asString(request.data?.action);
+
+    if (!stakeId || !activityId) {
+      throw new HttpsError("invalid-argument", "stakeId e activityId sono obbligatori.");
+    }
+    if (!["context", "list", "set"].includes(action)) {
+      throw new HttpsError("invalid-argument", "Azione non valida.");
+    }
+
+    const { access, refs } = await loadCampAccess(db, request, stakeId, activityId);
+    const activitySnapshot = await refs.activityRef.get();
+    if (!activitySnapshot.exists || activitySnapshot.data()?.activityType !== "camp") {
+      throw new HttpsError("failed-precondition", "L'elenco staff esiste solo per i campeggi.");
+    }
+
+    if (action === "context") {
+      return { ok: true, isStaff: access !== null, canManageStaff: access === "admin" };
+    }
+    if (access !== "admin") {
+      throw new HttpsError("permission-denied", "Solo un admin sceglie chi gestisce il campeggio.");
+    }
+    if (action === "list") {
+      return { ok: true, candidates: await listStaffCandidates(refs) };
+    }
+
+    const uid = asString(request.data?.uid);
+    if (!uid || typeof request.data?.enabled !== "boolean") {
+      throw new HttpsError("invalid-argument", "uid ed enabled sono obbligatori.");
+    }
+    const staffUids = await setStaffMember(db, refs, { uid, enabled: request.data.enabled }, request.auth.uid);
+    logger.info("Camp staff updated.", { stakeId, activityId, by: request.auth.uid, enabled: request.data.enabled, total: staffUids.length });
+    return { ok: true, staffUids };
+  },
+);
+
 module.exports = {
   campManagementSave,
+  campManagementStaff,
+  resolveCampAccess,
+  nextStaffUids,
+  isAdultByAge,
 };
