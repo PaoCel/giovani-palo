@@ -39,6 +39,8 @@ export function RequestQueue({ ctx, ownUnitId, ownUnitName, titleId }: RequestQu
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const bulkButton = useRef<HTMLButtonElement>(null);
+  const selectToggle = useRef<HTMLButtonElement>(null);
+  const focusSelectToggle = useFocusReturn(selectToggle);
   const cancelBulkButton = useRef<HTMLButtonElement>(null);
   const focusBulk = useFocusReturn(bulkButton);
 
@@ -121,6 +123,8 @@ export function RequestQueue({ ctx, ownUnitId, ownUnitName, titleId }: RequestQu
     if (result.ok) {
       setSelected(new Set());
       setConfirmBulk(false);
+      // La barra e le carte scelte spariscono: il focus torna sul tasto "Fine".
+      focusSelectToggle();
     } else {
       setBulkError(result.message);
     }
@@ -146,7 +150,9 @@ export function RequestQueue({ ctx, ownUnitId, ownUnitName, titleId }: RequestQu
   return (
     <section aria-labelledby={titleId} className="rna-section">
       <div className="rna-section__head">
-        <h3 id={titleId}>Da collegare ({open.length})</h3>
+        <h3 id={titleId} tabIndex={-1}>
+          Da collegare ({open.length})
+        </h3>
       </div>
       <p className="rna-empty-inline">{REQUESTS_INTRO}</p>
 
@@ -212,6 +218,7 @@ export function RequestQueue({ ctx, ownUnitId, ownUnitName, titleId }: RequestQu
                 className="button button--ghost button--small"
                 disabled={ctx.busy}
                 onClick={() => (selecting ? leaveSelection() : setSelectMode(true))}
+                ref={selectToggle}
                 type="button"
               >
                 {selecting ? <AppIcon name="check" /> : <RnaIcon name="select" />}

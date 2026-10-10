@@ -423,6 +423,7 @@ function RejectPanel({ idPrefix, busy, disabled, error, onCancel, onReject }: Re
         <textarea
           aria-describedby={missing ? errorId : undefined}
           aria-invalid={missing ? true : undefined}
+          aria-required="true"
           className="rna-input rna-input--area"
           id={fieldId}
           maxLength={RECORD_NIGHT_LIMITS.reason}

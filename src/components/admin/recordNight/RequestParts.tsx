@@ -4,7 +4,7 @@ import type { RecordNightEntry } from "@/types";
 
 import { getRegistrationType, getRequestPersonName } from "./helpers";
 import { RnaIcon } from "./icons";
-import { useFocusReturn } from "./parts";
+import { rememberFocusNeighbour, useFocusReturn } from "./parts";
 import type { RnaContext } from "./types";
 
 // Pezzi condivisi dalle parti che toccano le richieste senza account: la
@@ -135,9 +135,21 @@ export function OriginLine({ ctx, entry }: { ctx: RnaContext; entry: RecordNight
   async function unlink() {
     if (!request) return;
     setError(null);
+    // La carta o la riga in cui sta il tasto sparisce: il focus va al vicino.
+    const container = unlinkButton.current?.closest("article, li, .rna-chip-menu") ?? null;
+    const fallback = container?.matches(".rna-proposal")
+      ? ctx.anchors.pending
+      : container?.matches(".rna-chip-menu")
+        ? ctx.anchors.records
+        : ctx.anchors.queue;
+    const restoreFocus = rememberFocusNeighbour(container, fallback);
     const result = await ctx.requests.unlink(request);
-    if (result.ok) setConfirming(false);
-    else setError(result.message);
+    if (result.ok) {
+      setConfirming(false);
+      restoreFocus();
+    } else {
+      setError(result.message);
+    }
   }
 
   function cancel() {

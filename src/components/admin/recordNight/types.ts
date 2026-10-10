@@ -68,6 +68,9 @@ export interface RnaContext {
   busyKey: string | null;
   participants: RnaParticipants;
   requests: RnaRequests;
+  // Titoli di sezione (tabIndex -1) su cui porta il focus un'azione che fa sparire
+  // l'elemento su cui si lavorava e non ha un vicino (vedi rememberFocusNeighbour).
+  anchors: { queue: string; pending: string; records: string };
   // Mostra un avviso in basso senza passare da `run` (nessuna rilettura).
   notify: (text: string) => void;
   // Esegue l'azione e ricarica i dati dal server. Se fallisce restituisce il

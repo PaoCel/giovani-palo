@@ -151,6 +151,13 @@ export function formatPeopleCount(count: number) {
 // Richieste senza account
 // ---------------------------------------------------------------------------
 
+// Testo scritto da uno sconosciuto: senza i caratteri che cambiano il verso di
+// lettura (U+202A-202E, U+2066-2069). Il server li accetta nei testi liberi e
+// uno solo basterebbe a rovesciare la riga e il testo che le sta intorno.
+export function stripBidi(value: string | null | undefined) {
+  return (value ?? "").replace(/[\u202A-\u202E\u2066-\u2069]/gu, "");
+}
+
 // Nome e cognome come li ha digitati chi ha inviato la richiesta (testo di uno
 // sconosciuto: si mostra sempre come testo, mai come markup).
 export function getRequestPersonName(request: Pick<RecordNightStaffRequest, "firstName" | "lastName">) {
@@ -177,7 +184,7 @@ export function describeRequest(
   if (request.kind === "challenge") {
     return `Sfida: ${request.recordTitle || "record non più disponibile"}`;
   }
-  return `Proposta: “${request.proposedText ?? ""}”`;
+  return `Proposta: “${stripBidi(request.proposedText)}”`;
 }
 
 // Richieste dello stesso nome e della stessa unità (stesso `personKey`) una

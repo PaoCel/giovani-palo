@@ -216,6 +216,7 @@ export function GuestRecordsToggle({
             >
               <input
                 aria-describedby={showHint && !reviewed ? hintId : undefined}
+                aria-required="true"
                 checked={reviewed}
                 disabled={preview.status !== "ready"}
                 id={reviewId}

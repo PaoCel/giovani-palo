@@ -96,6 +96,9 @@ export function RecordNightAdminTab({
   const flashSeq = useRef(0);
   const newButton = useRef<HTMLButtonElement>(null);
   const baseId = useId();
+  const openTitleId = `${baseId}-open`;
+  const pendingTitleId = `${baseId}-pending`;
+  const queueTitleId = `${baseId}-queue`;
   const { session } = useAuth();
   // Richieste di chi non ha un account: la scheda è solo per chi gestisce i record
   // (la callable lo rifiuta agli altri).
@@ -397,6 +400,7 @@ export function RecordNightAdminTab({
       reload: () => void loadParticipants(),
     },
     requests: requestsCtx,
+    anchors: { queue: queueTitleId, pending: pendingTitleId, records: openTitleId },
     notify,
     run,
   };
@@ -451,9 +455,6 @@ export function RecordNightAdminTab({
   const showQueue =
     queue.status === "ready" && (queue.requests.length > 0 || event.recordsGuestEnabled === true);
   const titleId = `${baseId}-title`;
-  const pendingTitleId = `${baseId}-pending`;
-  const openTitleId = `${baseId}-open`;
-  const queueTitleId = `${baseId}-queue`;
   const newPanelId = `${baseId}-new`;
 
   return (
@@ -556,7 +557,9 @@ export function RecordNightAdminTab({
 
           <section aria-labelledby={pendingTitleId} className="rna-section">
             <div className="rna-section__head">
-              <h3 id={pendingTitleId}>Proposte in attesa ({model.pending.length})</h3>
+              <h3 id={pendingTitleId} tabIndex={-1}>
+                Proposte in attesa ({model.pending.length})
+              </h3>
             </div>
             {model.pending.length === 0 ? (
               <p className="rna-empty">
@@ -573,7 +576,9 @@ export function RecordNightAdminTab({
 
           <section aria-labelledby={openTitleId} className="rna-section">
             <div className="rna-section__head">
-              <h3 id={openTitleId}>Record aperti ({model.withEntries.length})</h3>
+              <h3 id={openTitleId} tabIndex={-1}>
+                Record aperti ({model.withEntries.length})
+              </h3>
               <button
                 aria-controls={newOpen ? newPanelId : undefined}
                 aria-expanded={newOpen}

@@ -152,6 +152,7 @@ export function RecordForm({
         <input
           aria-describedby={fieldErrors.title ? ids.titleError : undefined}
           aria-invalid={fieldErrors.title ? true : undefined}
+          aria-required="true"
           className="rna-input"
           id={ids.title}
           maxLength={RECORD_NIGHT_LIMITS.title}
@@ -173,6 +174,7 @@ export function RecordForm({
           <select
             aria-describedby={fieldErrors.category ? ids.categoryError : undefined}
             aria-invalid={fieldErrors.category ? true : undefined}
+            aria-required="true"
             className="rna-input rna-input--select"
             id={ids.category}
             onChange={(event) =>
@@ -224,6 +226,7 @@ export function RecordForm({
             <input
               aria-describedby={fieldErrors.duration ? ids.durationError : undefined}
               aria-invalid={fieldErrors.duration ? true : undefined}
+              aria-required="true"
               className="rna-input"
               id={ids.duration}
               inputMode="numeric"

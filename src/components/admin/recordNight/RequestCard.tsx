@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
 import type { RecordNightRegistrationType, RecordNightStaffRequest } from "@/types";
@@ -13,9 +13,10 @@ import {
   getRegistrationType,
   getRequestPersonName,
   normalizeSearch,
+  stripBidi,
 } from "./helpers";
 import { RnaIcon } from "./icons";
-import { Avatar, CategoryPill, useFocusReturn } from "./parts";
+import { Avatar, CategoryPill, rememberFocusNeighbour, useFocusReturn } from "./parts";
 import type { RnaContext } from "./types";
 
 // Quante persone mostra la ricerca per nome: chi cerca restringe scrivendo.
@@ -68,12 +69,16 @@ export function RequestCard({
   onToggleSelect,
 }: RequestCardProps) {
   const [pickedId, setPickedId] = useState("");
-  const [verified, setVerified] = useState(false);
+  // La conferma "la persona mi ha confermato" vale per UNA persona: l'id di chi era
+  // scelto quando si è spuntato. Cambiando scelta (anche la prima, anche da ricerca)
+  // non vale più e va data di nuovo.
+  const [verifiedFor, setVerifiedFor] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const baseId = useId();
+  const articleRef = useRef<HTMLElement>(null);
   const rejectButton = useRef<HTMLButtonElement>(null);
   const focusReject = useFocusReturn(rejectButton);
 
@@ -157,19 +162,26 @@ export function RequestCard({
 
   const hasChoices =
     suggestions.length > 0 || pickedFromSearchOnly !== null || shownMatches.length > 0;
+  const verified = picked !== null && verifiedFor === picked.registrationId;
+  // Se la persona scelta sparisce dalle scelte (una rilettura la rende non
+  // selezionabile) la conferma cade con lei, e non ritorna se poi rientra.
+  const pickedKey = picked?.registrationId ?? "";
+  useEffect(() => {
+    if (verifiedFor && verifiedFor !== pickedKey) setVerifiedFor("");
+  }, [pickedKey, verifiedFor]);
   const ready = Boolean(picked && !isUnavailable(picked) && verified && !recordBlocked);
   const hintId = `${baseId}-hint`;
   const groupName = `${baseId}-pick`;
   const labelId = `${baseId}-label`;
   const searchId = `${baseId}-search`;
   const verifyId = `${baseId}-verify`;
+  const verifyHintId = `${baseId}-verify-hint`;
   const panelId = `${baseId}-reject`;
   const busyLink = ctx.busyKey === `req-link:${request.id}`;
 
   function pick(candidate: Candidate) {
-    // La conferma vale per la persona che ha inviato la richiesta: se la scelta
-    // cambia, si spunta di nuovo.
-    if (pickedId && pickedId !== candidate.registrationId) setVerified(false);
+    // Ogni cambio di scelta azzera la conferma: si può dare solo dopo aver scelto chi.
+    if (pickedId !== candidate.registrationId) setVerifiedFor("");
     setPickedId(candidate.registrationId);
     setError(null);
   }
@@ -177,18 +189,22 @@ export function RequestCard({
   async function link() {
     if (!picked || !verified || recordBlocked || isUnavailable(picked)) return;
     setError(null);
+    const restoreFocus = rememberFocusNeighbour(articleRef.current, ctx.anchors.queue);
     const result = await ctx.requests.link(
       request,
       { registrationId: picked.registrationId, name: picked.name },
       verified,
     );
-    if (!result.ok) setError(result.message);
+    if (result.ok) restoreFocus();
+    else setError(result.message);
   }
 
   async function reject(note: string) {
     setError(null);
+    const restoreFocus = rememberFocusNeighbour(articleRef.current, ctx.anchors.queue);
     const result = await ctx.requests.reject(request, note);
-    if (!result.ok) setError(result.message);
+    if (result.ok) restoreFocus();
+    else setError(result.message);
   }
 
   const className = [
@@ -212,7 +228,7 @@ export function RequestCard({
   }
 
   return (
-    <article aria-label={`Richiesta di ${name}`} className={className}>
+    <article aria-label={`Richiesta di ${name}`} className={className} ref={articleRef}>
       <header className="rna-req__head">
         <Avatar name={name} />
         <div className="rna-req__who">
@@ -270,7 +286,7 @@ export function RequestCard({
           <>
             <blockquote className="rna-req__quote">
               <span aria-hidden="true">“</span>
-              {request.proposedText ?? ""}
+              {stripBidi(request.proposedText)}
               <span aria-hidden="true">”</span>
             </blockquote>
             <p className="rna-req__facts">
@@ -279,7 +295,7 @@ export function RequestCard({
                 {getMeasureFullLabel(request.proposedMeasure, request.proposedDurationSeconds)}
               </span>
               <span>
-                <b>Serve</b> {request.proposedNeeds || "Niente"}
+                <b>Serve</b> {stripBidi(request.proposedNeeds) || "Niente"}
               </span>
             </p>
           </>
@@ -298,7 +314,12 @@ export function RequestCard({
             ) : null}
 
             {hasChoices ? (
-              <div aria-labelledby={labelId} className="rna-sugg__group" role="radiogroup">
+              <div
+                aria-labelledby={labelId}
+                aria-required="true"
+                className="rna-sugg__group"
+                role="radiogroup"
+              >
                 {suggestions.map((candidate) => (
                   <CandidateChoice
                     candidate={candidate}
@@ -396,14 +417,23 @@ export function RequestCard({
 
           <label className="rna-verify" htmlFor={verifyId}>
             <input
+              aria-describedby={picked ? undefined : verifyHintId}
+              aria-required="true"
               checked={verified}
-              disabled={ctx.busy}
+              disabled={ctx.busy || !picked}
               id={verifyId}
-              onChange={(event) => setVerified(event.target.checked)}
+              onChange={(event) =>
+                setVerifiedFor(event.target.checked && picked ? picked.registrationId : "")
+              }
               type="checkbox"
             />
             <span>{GUEST_COPY.verifiedLabel}</span>
           </label>
+          {picked ? null : (
+            <p className="rna-req__hint" id={verifyHintId}>
+              La conferma si può dare solo dopo aver scelto chi è.
+            </p>
+          )}
 
           <div className="rna-req__actions">
             <button
@@ -598,6 +628,7 @@ function RejectRequestPanel({
       <div className="rna-panel__actions">
         <button
           className="button button--ghost button--small"
+          aria-label={`Annulla: la richiesta di ${name} resta in coda`}
           disabled={disabled}
           onClick={onCancel}
           type="button"
@@ -605,6 +636,7 @@ function RejectRequestPanel({
           Annulla
         </button>
         <button
+          aria-label={`Segna come non collegabile la richiesta di ${name}`}
           className="button button--primary button--small rna-danger-solid"
           disabled={disabled}
           type="submit"

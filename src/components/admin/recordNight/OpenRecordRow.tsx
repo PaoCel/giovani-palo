@@ -12,7 +12,7 @@ import { AddParticipantPanel } from "./AddParticipantPanel";
 import { HIDE_RECORD_EFFECT, SHOW_RECORD_EFFECT } from "./copy";
 import { formatPeopleCount, formatRecordersCount } from "./helpers";
 import { RnaIcon } from "./icons";
-import { CategoryPill, useFocusReturn } from "./parts";
+import { CategoryPill, rememberFocusNeighbour, useFocusReturn } from "./parts";
 import { RecordForm } from "./RecordForm";
 import { OriginLine } from "./RequestParts";
 import type { RnaContext } from "./types";
@@ -266,7 +266,15 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
     }
   }
 
+  // Quando l'iscritto esce dall'elenco il suo nome sparisce con il menu: il focus
+  // passa al nome vicino (o al titolo "Record aperti" se non ce ne sono).
+  function focusAfterRemoval(entry: RecordNightEntry) {
+    const chip = chipRefs.current.get(entry.id)?.closest("li") ?? null;
+    return rememberFocusNeighbour(chip, ctx.anchors.records);
+  }
+
   async function withdraw(entry: RecordNightEntry) {
+    const restoreFocus = focusAfterRemoval(entry);
     const result = await ctx.run(
       `withdraw:${entry.id}`,
       () => recordNightService.withdrawEntry(ctx.stakeId, ctx.activityId, entry.id),
@@ -275,12 +283,14 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
     if (result.ok) {
       setOpenId(null);
       setConfirmId(null);
+      restoreFocus();
     } else {
       setError(result.message);
     }
   }
 
   async function reopen(entry: RecordNightEntry) {
+    const restoreFocus = focusAfterRemoval(entry);
     const result = await ctx.run(
       `reopen:${entry.id}`,
       () => recordNightService.reopen(ctx.stakeId, ctx.activityId, entry.id),
@@ -296,6 +306,7 @@ function EntryChips({ ctx, entries, recordTitle }: EntryChipsProps) {
     if (result.ok) {
       setOpenId(null);
       setConfirmId(null);
+      restoreFocus();
     } else {
       setError(result.message);
     }

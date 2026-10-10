@@ -12,9 +12,10 @@ import {
   getRequestPersonName,
   WITHDRAWN_BY_SELF_LABEL,
   getWithdrawalLabel,
+  stripBidi,
 } from "./helpers";
 import { RnaIcon } from "./icons";
-import { Avatar, useFocusReturn } from "./parts";
+import { Avatar, rememberFocusNeighbour, useFocusReturn } from "./parts";
 import { UnlinkConfirm, describeAttempt } from "./RequestParts";
 import type { RnaContext } from "./types";
 
@@ -80,6 +81,7 @@ function LinkedRow({
   const [error, setError] = useState<string | null>(null);
   const baseId = useId();
   const unlinkButton = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLLIElement>(null);
   const focusUnlink = useFocusReturn(unlinkButton);
 
   const typedName = getRequestPersonName(request);
@@ -105,13 +107,18 @@ function LinkedRow({
 
   async function unlink() {
     setError(null);
+    const restoreFocus = rememberFocusNeighbour(rowRef.current, ctx.anchors.queue);
     const result = await ctx.requests.unlink(request);
-    if (result.ok) setConfirming(false);
-    else setError(result.message);
+    if (result.ok) {
+      setConfirming(false);
+      restoreFocus();
+    } else {
+      setError(result.message);
+    }
   }
 
   return (
-    <li className="rna-list__item rna-list__item--stack">
+    <li className="rna-list__item rna-list__item--stack" ref={rowRef}>
       <Avatar name={typedName} />
       <div className="rna-list__body">
         <div className="rna-list__head">
@@ -196,17 +203,20 @@ export function NotLinkedRequestsList({
 
 function NotLinkedRow({ ctx, request }: { ctx: RnaContext; request: RecordNightStaffRequest }) {
   const [error, setError] = useState<string | null>(null);
+  const rowRef = useRef<HTMLLIElement>(null);
   const name = getRequestPersonName(request);
   const date = formatShortDateTime(request.createdAt);
 
   async function reopen() {
     setError(null);
+    const restoreFocus = rememberFocusNeighbour(rowRef.current, ctx.anchors.queue);
     const result = await ctx.requests.reopen(request);
-    if (!result.ok) setError(result.message);
+    if (result.ok) restoreFocus();
+    else setError(result.message);
   }
 
   return (
-    <li className="rna-list__item">
+    <li className="rna-list__item" ref={rowRef}>
       <Avatar name={name} />
       <div className="rna-list__body">
         <strong>{name}</strong>
@@ -217,7 +227,7 @@ function NotLinkedRow({ ctx, request }: { ctx: RnaContext; request: RecordNightS
         <p className="rna-list__quote">{describeRequest(request)}</p>
         {request.staffNote ? (
           <p className="rna-list__reason">
-            <span>Nota</span> {request.staffNote}
+            <span>Nota</span> {stripBidi(request.staffNote)}
           </p>
         ) : null}
         {error ? (
@@ -264,17 +274,20 @@ export function WithdrawnRequestsList({
 
 function WithdrawnRow({ ctx, request }: { ctx: RnaContext; request: RecordNightStaffRequest }) {
   const [error, setError] = useState<string | null>(null);
+  const rowRef = useRef<HTMLLIElement>(null);
   const name = getRequestPersonName(request);
   const date = formatShortDateTime(request.updatedAt);
 
   async function reopen() {
     setError(null);
+    const restoreFocus = rememberFocusNeighbour(rowRef.current, ctx.anchors.queue);
     const result = await ctx.requests.reopen(request);
-    if (!result.ok) setError(result.message);
+    if (result.ok) restoreFocus();
+    else setError(result.message);
   }
 
   return (
-    <li className="rna-list__item">
+    <li className="rna-list__item" ref={rowRef}>
       <Avatar name={name} />
       <div className="rna-list__body">
         <strong>{name}</strong>
