@@ -16,6 +16,7 @@ const campManagement = require("./lib/campManagement");
 const roomMates = require("./lib/roomMates");
 const roomManagement = require("./lib/roomManagement");
 const recordNight = require("./lib/recordNight");
+const recordNightGuest = require("./lib/recordNightGuest");
 
 exports.onRegistrationPendingParentAuth = parentAuthorization.onRegistrationPendingParentAuth;
 exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationGetContext;
@@ -37,6 +38,7 @@ exports.onRoomRegistrationDeleted = roomManagement.onRoomRegistrationDeleted;
 exports.onRoomActivityDeleted = roomManagement.onRoomActivityDeleted;
 exports.recordNightParticipant = recordNight.recordNightParticipant;
 exports.recordNightAdmin = recordNight.recordNightAdmin;
+exports.recordNightGuest = recordNightGuest.recordNightGuest;
 exports.onRecordNightRegistrationChanged = recordNight.onRecordNightRegistrationChanged;
 exports.onRecordNightActivityDeleted = recordNight.onRecordNightActivityDeleted;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");

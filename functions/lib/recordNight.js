@@ -9,6 +9,11 @@
 // La logica pura (limite, unicità, transizioni, delta del contatore, finestra
 // di iscrizione) sta in funzioni esportate e provate senza emulatore in
 // functions/tests/recordNightLogic.test.mjs.
+//
+// Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md): le invia il
+// telefono con recordNightGuest (functions/lib/recordNightGuest.js, che importa
+// da qui) e lo staff le gestisce con le azioni listRequests, linkRequest,
+// rejectRequest, rejectRequests, reopenRequest e unlinkRequest di questo file.
 
 const { getFirestore } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
@@ -16,6 +21,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 
 const { REGION } = require("./config");
+const { MIN_MATCH_SCORE, scoreCandidate, toTokens } = require("./nameMatch");
 
 // Se cambi questi elenchi aggiorna anche src/utils/recordNight.ts e
 // src/types/models.ts: il test di logica controlla che combacino.
@@ -41,7 +47,20 @@ const LIMITS = Object.freeze({
   needs: 120,
   reason: 200,
   participantName: 120,
+  staffNote: 200,
 });
+
+// Richieste senza account: `stakes/{s}/activities/{a}/recordRequests/{id}`.
+// Le scrive solo il server (rules `if false`); la scadenza è il campo TTL.
+const REQUEST_STATUSES = ["open", "linked", "rejected", "withdrawn"];
+const REQUEST_KINDS = ["proposal", "challenge"];
+// Tetto delle richieste `open` per attività: lo applica recordNightGuest agli
+// ingressi dal telefono; lo staff può superarlo (reopenRequest, unlinkRequest).
+const MAX_OPEN_REQUESTS_PER_ACTIVITY = 100;
+const MAX_BULK_REJECT = 50;
+const MAX_SUGGESTIONS = 3;
+// Bonus di ordinamento quando l'unità dichiarata coincide con quella dell'iscrizione.
+const SUGGESTION_UNIT_BONUS = 0.1;
 
 // Documento con l'elenco di chi gestisce i record oltre agli admin e ai dirigenti
 // di unità: `stakes/{s}/activities/{a}/management/recordNight`, campo `staffUids`.
@@ -83,6 +102,13 @@ const ADMIN_ACTION_KEYS = Object.freeze({
   // Solo admin e super_admin del palo.
   listStaff: [],
   setStaff: ["uid", "enabled"],
+  // Richieste senza account (coda "Da collegare").
+  listRequests: [],
+  linkRequest: ["requestId", "registrationId", "verified"],
+  rejectRequest: ["requestId", "note"],
+  rejectRequests: ["requestIds", "note"],
+  reopenRequest: ["requestId"],
+  unlinkRequest: ["requestId"],
 });
 
 // Azioni riservate agli admin del palo: non ai dirigenti di unità né a chi è in elenco.
@@ -246,6 +272,17 @@ function parseActingRegistrationId(value) {
   return value === undefined || value === null ? null : parseKnownRegistrationId(value);
 }
 
+// Elenco di richieste da rifiutare in blocco: 1-50 id, senza doppioni.
+function parseRequestIds(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new HttpsError("invalid-argument", "Campo «requestIds» non valido.");
+  }
+  if (value.length > MAX_BULK_REJECT) {
+    throw new HttpsError("invalid-argument", `Troppe richieste in una volta (massimo ${MAX_BULK_REJECT}).`);
+  }
+  return [...new Set(value.map((item) => pathId(item, "requestId")))];
+}
+
 function parseAdminRequest(data) {
   const base = parseRequestEnvelope(data, ADMIN_ACTION_KEYS);
   switch (base.action) {
@@ -266,7 +303,37 @@ function parseAdminRequest(data) {
       };
     case "listParticipants":
     case "listStaff":
+    case "listRequests":
       return { ...base, fields: {} };
+    case "linkRequest":
+      // La spunta dello staff conferma la RICHIESTA ("la persona mi ha confermato
+      // di averla inviata"), non solo il nome: senza, nessun collegamento.
+      if (data.verified !== true) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Serve la conferma della persona: spunta «La persona mi ha confermato di aver inviato questa richiesta».",
+        );
+      }
+      return {
+        ...base,
+        fields: {
+          requestId: pathId(data.requestId, "requestId"),
+          registrationId: parseKnownRegistrationId(data.registrationId),
+        },
+      };
+    case "rejectRequest":
+      return {
+        ...base,
+        fields: { requestId: pathId(data.requestId, "requestId"), note: cleanLine(data.note, "Nota", LIMITS.staffNote, false) },
+      };
+    case "rejectRequests":
+      return {
+        ...base,
+        fields: { requestIds: parseRequestIds(data.requestIds), note: cleanLine(data.note, "Nota", LIMITS.staffNote, false) },
+      };
+    case "reopenRequest":
+    case "unlinkRequest":
+      return { ...base, fields: { requestId: pathId(data.requestId, "requestId") } };
     case "setStaff":
       if (typeof data.enabled !== "boolean") {
         throw new HttpsError("invalid-argument", "Campo «enabled» non valido.");
@@ -387,17 +454,22 @@ function normalizeForCompare(value) {
     .trim();
 }
 
-// Doppio tocco o rinvio: la stessa proposta identica non si apre due volte.
-function assertNoDuplicateProposal(entries, fields, excludeId) {
+function hasDuplicateProposal(entries, fields, excludeId) {
   const wanted = normalizeForCompare(fields.text);
-  const duplicate = activeEntries(entries, excludeId).some(
+  return activeEntries(entries, excludeId).some(
     (entry) =>
       entry.kind === "proposal" &&
       normalizeForCompare(entry.proposedText) === wanted &&
       entry.proposedMeasure === fields.measure &&
       (entry.proposedDurationSeconds ?? null) === fields.durationSeconds,
   );
-  if (duplicate) throw new HttpsError("failed-precondition", "Questa proposta è già presente.");
+}
+
+// Doppio tocco o rinvio: la stessa proposta identica non si apre due volte.
+function assertNoDuplicateProposal(entries, fields, excludeId) {
+  if (hasDuplicateProposal(entries, fields, excludeId)) {
+    throw new HttpsError("failed-precondition", "Questa proposta è già presente.");
+  }
 }
 
 function isRegistrationActive(registration) {
@@ -690,6 +762,167 @@ function buildChallengeEntry({ registrationId, ownerUid, participantName, record
 }
 
 // ---------------------------------------------------------------------------
+// Richieste senza account: logica pura
+// ---------------------------------------------------------------------------
+
+// Data da qualunque forma in cui la legge il codice: Timestamp Firestore, la sua
+// copia JSON (`_seconds`/`seconds`), Date, stringa ISO, millisecondi.
+function requestDate(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") {
+    const fromNumber = new Date(value);
+    return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
+  }
+  if (typeof value === "object" && typeof value.toDate !== "function" && !(value instanceof Date)) {
+    const seconds = value.seconds ?? value._seconds;
+    if (typeof seconds === "number") {
+      const nanos = value.nanoseconds ?? value._nanoseconds;
+      return new Date(seconds * 1000 + Math.floor((typeof nanos === "number" ? nanos : 0) / 1e6));
+    }
+    return null;
+  }
+  return toDate(value);
+}
+
+// Il TTL di Firestore cancella con ritardo e non è un controllo di accesso: una
+// richiesta scaduta vale come inesistente per tutte le callable. Senza data
+// leggibile non si considera scaduta (lo staff la vede e la può ripulire).
+function isRequestExpired(requestData, now) {
+  const expires = requestDate(requestData && requestData.expiresAt);
+  return expires !== null && expires.getTime() <= now.getTime();
+}
+
+// Come vede una richiesta lo staff: elenco esplicito di campi, mai lo spread del
+// documento (niente `anonUid`, `submissionId`, `expiresAt`).
+function staffRequestView(id, data) {
+  const pick = (key) => (data[key] === undefined ? null : data[key]);
+  return {
+    id,
+    requestId: id,
+    status: pick("status"),
+    kind: pick("kind"),
+    firstName: pick("firstName"),
+    lastName: pick("lastName"),
+    unitId: pick("unitId"),
+    unitName: pick("unitName"),
+    personKey: pick("personKey"),
+    proposedText: pick("proposedText"),
+    proposedMeasure: pick("proposedMeasure"),
+    proposedDurationSeconds: pick("proposedDurationSeconds"),
+    proposedNeeds: pick("proposedNeeds"),
+    recordId: pick("recordId"),
+    staffNote: typeof data.staffNote === "string" ? data.staffNote : "",
+    linkedRegistrationId: pick("linkedRegistrationId"),
+    linkedEntryId: pick("linkedEntryId"),
+    linkedBy: pick("linkedBy"),
+    linkedAt: pick("linkedAt"),
+    decidedBy: pick("decidedBy"),
+    decidedAt: pick("decidedAt"),
+    createdAt: pick("createdAt"),
+    updatedAt: pick("updatedAt"),
+  };
+}
+
+function registrationTypeOf(registrationId) {
+  if (/^user_.+$/u.test(registrationId)) return "user";
+  if (/^child_.+$/u.test(registrationId)) return "child";
+  return "manual";
+}
+
+function unitNameOfRegistration(registration) {
+  return String(registration.unitName || registration.unitNameSnapshot || "");
+}
+
+function sameUnit(request, registration) {
+  if (request.unitId && registration.unitId && request.unitId === registration.unitId) return true;
+  const wanted = normalizeForCompare(request.unitName);
+  return wanted !== "" && wanted === normalizeForCompare(unitNameOfRegistration(registration));
+}
+
+// Suggerimenti per lo staff (max 3): confronto del nome digitato con le iscrizioni
+// attive `user_`/`child_`/`manual_` con la stessa logica di roomMateSuggestions;
+// l'unità coincidente alza il punteggio ma non fa entrare chi è sotto soglia. Non
+// sono una prova: linkRequest rilegge tutto. `registrations` = [{ id, data }],
+// `entriesByRegistration` = Map(registrationId -> tentativi in forma piatta).
+function buildRequestSuggestions(requestData, registrations, entriesByRegistration) {
+  const queryTokens = toTokens(`${requestData.firstName || ""} ${requestData.lastName || ""}`);
+  if (!queryTokens.length) return [];
+  const proposalFields = {
+    text: requestData.proposedText,
+    measure: requestData.proposedMeasure,
+    durationSeconds: requestData.proposedDurationSeconds ?? null,
+  };
+  const scored = [];
+  for (const registration of registrations) {
+    const name = participantNameFromRegistration(registration.data);
+    const base = scoreCandidate(queryTokens, toTokens(name));
+    if (base < MIN_MATCH_SCORE) continue;
+    const unitMatch = sameUnit(requestData, registration.data);
+    const entries = entriesByRegistration.get(registration.id) || [];
+    scored.push({
+      score: Math.min(1, base + (unitMatch ? SUGGESTION_UNIT_BONUS : 0)),
+      suggestion: {
+        registrationId: registration.id,
+        name,
+        unitName: unitNameOfRegistration(registration.data),
+        type: registrationTypeOf(registration.id),
+        activeEntries: activeEntries(entries).length,
+        alreadyOnRecord:
+          requestData.kind === "challenge"
+            ? activeEntries(entries).some((entry) => entry.recordId === requestData.recordId)
+            : hasDuplicateProposal(entries, proposalFields),
+      },
+    });
+  }
+  return scored
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.suggestion.name.localeCompare(right.suggestion.name, "it-IT") ||
+        left.suggestion.registrationId.localeCompare(right.suggestion.registrationId),
+    )
+    .slice(0, MAX_SUGGESTIONS)
+    .map((item) => item.suggestion);
+}
+
+// Richieste con lo stesso `personKey`: per ciascuna gli id delle altre.
+function groupRequestDuplicates(requests) {
+  const byKey = new Map();
+  for (const request of requests) {
+    if (typeof request.data.personKey !== "string" || !request.data.personKey) continue;
+    if (!byKey.has(request.data.personKey)) byKey.set(request.data.personKey, []);
+    byKey.get(request.data.personKey).push(request.id);
+  }
+  return (request) => (byKey.get(request.data.personKey) || []).filter((id) => id !== request.id);
+}
+
+// "Scollega": porta il tentativo collegato a `withdrawn` da QUALUNQUE stato
+// (pending, approved, rejected, withdrawn), per mano dello staff. Non passa da
+// ENTRY_TRANSITIONS (rejected -> withdrawn è vietata agli altri flussi) e azzera
+// tutto ciò che permetterebbe un "Annulla" o un "Mostra di nuovo": se il tentativo
+// era già ritirato dal titolare con `statusBeforeWithdraw`, anche quello va a null.
+// Il contatore scende di uno solo se era `approved`. Se è una proposta approvata
+// che ha creato il record, prima serve "Riporta in attesa" (esiste già).
+function planUnlinkEntry(entry, record, nowIso) {
+  if (entry.status === "approved" && record && record.createdFromEntryId === entry.id) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Questa proposta ha creato un record: prima usa «Riporta in attesa», poi scollega.",
+    );
+  }
+  return {
+    patch: {
+      status: "withdrawn",
+      statusBeforeWithdraw: null,
+      withdrawnBy: "staff",
+      withdrawnWithRecordHide: false,
+      updatedAt: nowIso,
+    },
+    delta: counterDelta(entry.status, "withdrawn"),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Accesso ai dati
 // ---------------------------------------------------------------------------
 
@@ -700,6 +933,8 @@ function refsFor(db, stakeId, activityId) {
     registrations: activityRef.collection("registrations"),
     records: activityRef.collection("records"),
     entries: activityRef.collection("recordEntries"),
+    requests: activityRef.collection("recordRequests"),
+    units: db.doc(`stakes/${stakeId}`).collection("units"),
     staff: activityRef.collection("management").doc(STAFF_DOC_ID),
   };
 }
@@ -1231,6 +1466,232 @@ async function adminSetStaff(ctx) {
   return { staffUids };
 }
 
+// ---------------------------------------------------------------------------
+// Richieste senza account: azioni dello staff
+// ---------------------------------------------------------------------------
+
+// Legge una richiesta; una richiesta scaduta vale come inesistente.
+async function readRequest(tx, refs, requestId, now) {
+  const snapshot = await tx.get(refs.requests.doc(requestId));
+  if (!snapshot.exists || isRequestExpired(snapshot.data() || {}, now)) {
+    throw new HttpsError("not-found", "Richiesta non trovata.");
+  }
+  return view(snapshot);
+}
+
+function writeRequestPatch(tx, requestView, patch) {
+  tx.update(requestView.ref, patch);
+  return staffRequestView(requestView.id, { ...requestView.data, ...patch });
+}
+
+function assertRequestOpen(requestView) {
+  if (requestView.data.status !== "open") {
+    throw new HttpsError("failed-precondition", "La richiesta non è più in attesa di essere collegata.");
+  }
+}
+
+// Coda "Da collegare": tutte le richieste non scadute, con per ogni `open` i
+// duplicati (stesso `personKey`) e fino a 3 suggerimenti. Solo lettura, fuori
+// dalla transazione di autorizzazione (come listParticipants).
+async function adminListRequests(ctx) {
+  const { refs, now } = ctx;
+  const [requestsSnap, registrations, entriesSnap, recordsSnap] = await Promise.all([
+    refs.requests.get(),
+    readActiveRegistrations(refs, /^(user_|child_|manual_).+/u),
+    refs.entries.get(),
+    refs.records.get(),
+  ]);
+  const requests = requestsSnap.docs
+    .map(view)
+    .filter((request) => !isRequestExpired(request.data, now))
+    .sort((left, right) => String(left.data.createdAt).localeCompare(String(right.data.createdAt)) || left.id.localeCompare(right.id));
+  const entriesByRegistration = new Map();
+  for (const entry of plainList(entriesSnap.docs.map(view))) {
+    if (!entriesByRegistration.has(entry.registrationId)) entriesByRegistration.set(entry.registrationId, []);
+    entriesByRegistration.get(entry.registrationId).push(entry);
+  }
+  const recordsById = new Map(recordsSnap.docs.map(view).map((record) => [record.id, record.data]));
+  const duplicatesOf = groupRequestDuplicates(requests);
+  const items = requests.map((request) => {
+    const item = staffRequestView(request.id, request.data);
+    if (request.data.kind === "challenge") {
+      const record = recordsById.get(request.data.recordId);
+      item.recordTitle = record ? String(record.title || "") : null;
+      item.recordStatus = record ? record.status ?? null : null;
+    }
+    if (request.data.status === "open") {
+      item.duplicates = duplicatesOf(request);
+      item.suggestions = buildRequestSuggestions(request.data, registrations, entriesByRegistration);
+    }
+    return item;
+  });
+  return {
+    requests: items,
+    openCount: requests.filter((request) => request.data.status === "open").length,
+    openLimit: MAX_OPEN_REQUESTS_PER_ACTIVITY,
+  };
+}
+
+// Collega una richiesta a un'iscrizione e crea il tentativo con le regole di
+// sempre. Rilegge tutto nella stessa transazione (autorizzazione e attività sono
+// già state lette da authorizeAdminCall): i suggerimenti non valgono come prova,
+// e `participantName` viene dall'ISCRIZIONE, mai dal nome digitato dal telefono.
+async function adminLinkRequest(ctx) {
+  const { tx, refs, fields, uid, now, nowIso } = ctx;
+  const request = await readRequest(tx, refs, fields.requestId, now);
+  const registrationSnap = await tx.get(refs.registrations.doc(fields.registrationId));
+  const siblings = plainList(await readEntriesOfRegistration(tx, refs, fields.registrationId));
+  const isChallenge = request.data.kind === "challenge";
+  const record = isChallenge && request.data.recordId ? await readRecord(tx, refs, request.data.recordId) : null;
+
+  assertRequestOpen(request);
+  if (!registrationSnap.exists) throw new HttpsError("not-found", "Iscrizione all'attività non trovata.");
+  const registration = registrationSnap.data() || {};
+  if (!isRegistrationActive(registration)) {
+    throw new HttpsError("failed-precondition", "L'iscrizione all'attività è annullata.");
+  }
+  const common = {
+    registrationId: fields.registrationId,
+    ownerUid: ownerUidFromRegistrationId(fields.registrationId, registration),
+    participantName: participantNameFromRegistration(registration),
+    nowIso,
+  };
+  const entryRef = refs.entries.doc();
+  let entryData;
+  let updatedRecord = null;
+  if (isChallenge) {
+    requireRecord(record);
+    assertRecordOpen(record, "Il record è nascosto: rendilo di nuovo visibile prima di collegare.");
+    // Stesso testo che vede chi riceve l'errore dalla richiesta duplicata (spec).
+    assertNotAlreadyInRecord(siblings, record.id, "self");
+    assertEntryLimit(siblings, "admin");
+    entryData = buildChallengeEntry({ ...common, recordId: record.id, createdByAdmin: true, decidedBy: uid });
+  } else if (request.data.kind === "proposal") {
+    const proposal = {
+      text: request.data.proposedText,
+      measure: request.data.proposedMeasure,
+      durationSeconds: request.data.proposedDurationSeconds ?? null,
+      needs: request.data.proposedNeeds || "",
+    };
+    assertEntryLimit(siblings, "admin");
+    assertNoDuplicateProposal(siblings, proposal);
+    entryData = buildProposalEntry({ ...common, fields: proposal });
+  } else {
+    throw new HttpsError("failed-precondition", "La richiesta non è valida.");
+  }
+
+  entryData = { ...entryData, sourceRequestId: request.id, fromGuestRequest: true };
+  tx.create(entryRef, entryData);
+  if (record && isChallenge) updatedRecord = writeCounter(tx, record, counterDelta(null, "approved"), nowIso);
+  const updatedRequest = writeRequestPatch(tx, request, {
+    status: "linked",
+    linkedRegistrationId: fields.registrationId,
+    linkedEntryId: entryRef.id,
+    linkedBy: uid,
+    linkedAt: nowIso,
+    updatedAt: nowIso,
+  });
+  return { entry: shape(entryRef.id, entryData), record: updatedRecord, request: updatedRequest };
+}
+
+function rejectedRequestPatch(requestData, note, uid, nowIso) {
+  return {
+    status: "rejected",
+    staffNote: note || (typeof requestData.staffNote === "string" ? requestData.staffNote : ""),
+    decidedBy: uid,
+    decidedAt: nowIso,
+    updatedAt: nowIso,
+  };
+}
+
+// "Non collegabile": solo richieste `open`. Il telefono vede un testo neutro
+// uguale per ogni motivo; la nota resta interna.
+async function adminRejectRequest(ctx) {
+  const { tx, refs, fields, uid, now, nowIso } = ctx;
+  const request = await readRequest(tx, refs, fields.requestId, now);
+  assertRequestOpen(request);
+  return { entry: null, record: null, request: writeRequestPatch(tx, request, rejectedRequestPatch(request.data, fields.note, uid, nowIso)) };
+}
+
+// Rifiuto in blocco (max 50): tutto o niente, nella stessa transazione. Una
+// richiesta non più `open` (collegata o ritirata nel frattempo) ferma l'azione,
+// così non si rifiuta per sbaglio ciò che è già stato lavorato.
+async function adminRejectRequests(ctx) {
+  const { tx, refs, fields, uid, now, nowIso } = ctx;
+  const snapshots = await tx.getAll(...fields.requestIds.map((id) => refs.requests.doc(id)));
+  const requests = snapshots.map((snapshot) => {
+    if (!snapshot.exists || isRequestExpired(snapshot.data() || {}, now)) {
+      throw new HttpsError("not-found", "Richiesta non trovata.");
+    }
+    return view(snapshot);
+  });
+  for (const request of requests) {
+    if (request.data.status !== "open") {
+      throw new HttpsError("failed-precondition", "Alcune richieste non sono più in attesa: aggiorna l'elenco.");
+    }
+  }
+  const updated = requests.map((request) =>
+    writeRequestPatch(tx, request, rejectedRequestPatch(request.data, fields.note, uid, nowIso)),
+  );
+  return { entry: null, record: null, request: null, requests: updated, rejectedCount: updated.length };
+}
+
+// "Riapri": una richiesta non collegabile torna in coda. Non controlla i tetti
+// (sono per gli ingressi dal telefono). Già `open` = niente da fare.
+async function adminReopenRequest(ctx) {
+  const { tx, refs, fields, uid, now, nowIso } = ctx;
+  const request = await readRequest(tx, refs, fields.requestId, now);
+  if (request.data.status === "open") {
+    return { entry: null, record: null, request: staffRequestView(request.id, request.data) };
+  }
+  if (request.data.status !== "rejected") {
+    throw new HttpsError("failed-precondition", "Si possono riaprire solo le richieste segnate come non collegabili.");
+  }
+  const updated = writeRequestPatch(tx, request, { status: "open", decidedBy: uid, decidedAt: nowIso, updatedAt: nowIso });
+  return { entry: null, record: null, request: updated };
+}
+
+// "Scollega": il ritorno universale dello staff. Tentativo collegato -> ritirato
+// dallo staff senza "Annulla" (da qualunque stato), contatore -1 una volta sola
+// se era approvato, richiesta di nuovo `open` e legame cancellato. Non controlla i
+// tetti. Già `open` = niente da fare.
+async function adminUnlinkRequest(ctx) {
+  const { tx, refs, fields, uid, now, nowIso } = ctx;
+  const request = await readRequest(tx, refs, fields.requestId, now);
+  if (request.data.status === "open") {
+    return { entry: null, record: null, request: staffRequestView(request.id, request.data) };
+  }
+  if (request.data.status !== "linked") {
+    throw new HttpsError("failed-precondition", "La richiesta non è collegata a nessuna iscrizione.");
+  }
+  let entry = null;
+  if (typeof request.data.linkedEntryId === "string" && request.data.linkedEntryId) {
+    const entrySnap = await tx.get(refs.entries.doc(request.data.linkedEntryId));
+    if (entrySnap.exists) entry = view(entrySnap);
+  }
+  const needsRecord = entry && entry.data.status === "approved" && typeof entry.data.recordId === "string" && entry.data.recordId;
+  const record = needsRecord ? await readRecord(tx, refs, entry.data.recordId) : null;
+
+  let updatedEntry = null;
+  let updatedRecord = null;
+  if (entry) {
+    const plan = planUnlinkEntry({ ...entry.data, id: entry.id }, record && record.data, nowIso);
+    updatedEntry = writeEntryPatch(tx, entry, plan.patch);
+    if (record && plan.delta !== 0) updatedRecord = writeCounter(tx, record, plan.delta, nowIso);
+  }
+  const updatedRequest = writeRequestPatch(tx, request, {
+    status: "open",
+    linkedRegistrationId: null,
+    linkedEntryId: null,
+    linkedBy: null,
+    linkedAt: null,
+    decidedBy: uid,
+    decidedAt: nowIso,
+    updatedAt: nowIso,
+  });
+  return { entry: updatedEntry, record: updatedRecord, request: updatedRequest };
+}
+
 const ADMIN_ACTIONS = Object.freeze({
   approve: adminApprove,
   merge: adminMerge,
@@ -1241,12 +1702,18 @@ const ADMIN_ACTIONS = Object.freeze({
   addParticipant: adminAddParticipant,
   withdrawEntry: adminWithdrawEntry,
   setStaff: adminSetStaff,
+  linkRequest: adminLinkRequest,
+  rejectRequest: adminRejectRequest,
+  rejectRequests: adminRejectRequests,
+  reopenRequest: adminReopenRequest,
+  unlinkRequest: adminUnlinkRequest,
 });
 
 // Solo lettura: dopo l'autorizzazione girano fuori dalla transazione.
 const READ_ONLY_ADMIN_ACTIONS = Object.freeze({
   listParticipants: adminListParticipants,
   listStaff: adminListStaff,
+  listRequests: adminListRequests,
 });
 
 // ---------------------------------------------------------------------------
@@ -1376,6 +1843,7 @@ function createRecordNightParticipantHandler({ db, clock = () => new Date() } = 
 // Chi può chiamare recordNightAdmin: admin del palo o super_admin, dirigente di
 // unità del palo, uid in `staffUids` con iscrizione attiva. Solo letture. Con `listStaff` e `setStaff`
 // serve un admin. Il modulo deve essere acceso (anche dopo la scadenza).
+// Restituisce `{ access, activity }`: l'attività è quella letta in questa transazione.
 async function authorizeAdminCall(tx, firestore, refs, uid, input) {
   const access = await resolveStaffAccessInTx(tx, firestore, refs, uid, input.stakeId);
   if (!access) {
@@ -1386,8 +1854,9 @@ async function authorizeAdminCall(tx, firestore, refs, uid, input) {
   }
   const activitySnap = await tx.get(refs.activityRef);
   if (!activitySnap.exists) throw new HttpsError("not-found", "Attività non trovata.");
-  assertRecordsEnabled(activitySnap.data() || {});
-  return access;
+  const activity = activitySnap.data() || {};
+  assertRecordsEnabled(activity);
+  return { access, activity };
 }
 
 function createRecordNightAdminHandler({ db, clock = () => new Date() } = {}) {
@@ -1401,12 +1870,13 @@ function createRecordNightAdminHandler({ db, clock = () => new Date() } = {}) {
     if (Object.hasOwn(READ_ONLY_ADMIN_ACTIONS, input.action)) {
       // Autorizzazione in una transazione breve, poi la lettura delle iscrizioni senza blocchi.
       await firestore.runTransaction((tx) => authorizeAdminCall(tx, firestore, refs, uid, input));
-      result = await READ_ONLY_ADMIN_ACTIONS[input.action]({ refs, uid, fields: input.fields });
+      result = await READ_ONLY_ADMIN_ACTIONS[input.action]({ refs, uid, fields: input.fields, now: clock() });
     } else {
       result = await firestore.runTransaction(async (tx) => {
-        const nowIso = clock().toISOString();
-        await authorizeAdminCall(tx, firestore, refs, uid, input);
-        return ADMIN_ACTIONS[input.action]({ tx, refs, uid, fields: input.fields, nowIso });
+        const now = clock();
+        const nowIso = now.toISOString();
+        const { activity } = await authorizeAdminCall(tx, firestore, refs, uid, input);
+        return ADMIN_ACTIONS[input.action]({ tx, refs, uid, fields: input.fields, activity, now, nowIso });
       });
     }
 
@@ -1417,6 +1887,7 @@ function createRecordNightAdminHandler({ db, clock = () => new Date() } = {}) {
       uid,
       entryId: result.entry?.id ?? null,
       recordId: result.record?.id ?? result.entry?.recordId ?? null,
+      requestId: result.request?.id ?? null,
     });
     return { ok: true, action: input.action, ...result };
   };
@@ -1462,12 +1933,15 @@ async function retireEntriesForRegistration(db, { stakeId, activityId, registrat
 }
 
 // Pulizia quando si cancella l'attività: record, tentativi (con i nomi dei
-// ragazzi) ed elenco dello staff non devono restare orfani. Idempotente.
+// ragazzi), richieste senza account ed elenco dello staff non devono restare
+// orfani. Idempotente.
 async function cleanupDeletedActivity(db, { stakeId, activityId }) {
   const refs = refsFor(db, stakeId, activityId);
   if ((await refs.activityRef.get()).exists) return false;
   await db.recursiveDelete(refs.entries);
   await db.recursiveDelete(refs.records);
+  // Richieste senza account: nome, cognome e unità digitati da un minore.
+  await db.recursiveDelete(refs.requests);
   await refs.staff.delete();
   return true;
 }
@@ -1560,4 +2034,27 @@ module.exports = {
   parseAdminRequest,
   parseProposalFields,
   parseRecordFields,
+  // Richieste senza account: logica pura dello staff.
+  REQUEST_STATUSES,
+  REQUEST_KINDS,
+  MAX_OPEN_REQUESTS_PER_ACTIVITY,
+  MAX_BULK_REJECT,
+  MAX_SUGGESTIONS,
+  requestDate,
+  isRequestExpired,
+  staffRequestView,
+  buildRequestSuggestions,
+  groupRequestDuplicates,
+  hasDuplicateProposal,
+  planUnlinkEntry,
+  // Helper condivisi con recordNightGuest.js (che importa da qui, mai il contrario).
+  refsFor,
+  view,
+  toDate,
+  ownObject,
+  assertExactKeys,
+  parseRequestEnvelope,
+  pathId,
+  cleanLine,
+  LIMITS,
 };
