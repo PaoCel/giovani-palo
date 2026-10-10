@@ -130,7 +130,7 @@ Risposte `{ ok, action, ... }`. Codice nuovo in `functions/lib/recordNightGuest.
 
 | Azione | Auth | Cosa fa |
 | --- | --- | --- |
-| `context {}` | nessuna | `{ open, closeAt, intakeOpen, units: [{id,name}], records: [{id,title,category,measure,durationSeconds}] }`. `records` = `open` con `challengerCount > 0`. `intakeOpen` = modulo acceso, finestra aperta, interruttore acceso |
+| `context {}` | nessuna | `{ open, closeAt, intakeOpen, units: [{id,name}], records: [{id,title,category,measure,durationSeconds}] }`. `records` = `open` con `challengerCount > 0`, **vuoto se l'interruttore è spento** (D1: i titoli diventano pubblici solo dopo l'anteprima). `intakeOpen` = modulo acceso, finestra aperta, interruttore acceso |
 | `submit { submissionId, kind, firstName, lastName, unitId, text?, measure?, durationSeconds?, needs?, recordId? }` | sessione **anonima** | crea la richiesta `open`; risposta sempre `{ ok, requestId }`. Un account vero riceve "Hai un account: accedi" |
 | `mine {}` | sessione anonima | richieste con `anonUid == uid`, con lo stato per il richiedente (sotto) |
 | `withdraw { requestId }` | anonima, titolare | solo `open` -> `withdrawn` |
@@ -276,13 +276,30 @@ screenshot aperto a schermo, confronto a misura reale).
 - **"Le tue richieste da questo telefono"**: carte con lo stato di `mine`.
 - **Gestisci**: sezione "Da collegare (N)" sopra le proposte in attesa, filtri
   per unità (la propria in alto) e "Senza abbinamento"; carta con nome digitato,
-  unità, testo, suggerimenti (nome, unità, "ha già N record"), la spunta di
-  verifica e **Collega**, **Non collegabile**, selezione per rifiutare in blocco.
-  Sezioni chiuse "Non collegate" e "Ritirate". Il conteggio entra in "N in
-  attesa" del link Gestisci.
-- **Editor attività**: interruttore "Richieste senza account" con l'anteprima
-  pubblica dell'elenco (D1).
-- **I tuoi record (con account)**: etichetta sui tentativi con `fromGuestRequest`.
+  unità, testo, suggerimenti (nome, unità, tipo account/figlio/inserito a mano,
+  "ha già N record", "già su questo record" non selezionabile), "Non è nessuna
+  di queste: cerca per nome" (riusa `listParticipants`), la spunta di verifica e
+  **Collega** (attivo solo con scelta e spunta), **Non collegabile**, selezione
+  per rifiutare in blocco (fino a 50). Sezioni chiuse "Collegate" (con
+  **Scollega** e conferma in riga), "Non collegate" (con **Riapri**) e
+  "Richieste ritirate" (si chiama così per non confondersi con "Ritirati" dei
+  tentativi). Il link Gestisci dice "N da collegare · M proposte".
+- **Editor attività**: interruttore "Record senza account" (non "senza account"
+  da solo: nello stesso foglio c'è "Consenti iscrizione senza account", che è
+  un'altra cosa) con l'anteprima pubblica; per accenderlo si spunta "Ho
+  controllato i titoli". L'avviso "Il titolo lo vedono tutti, anche senza
+  account: niente nomi." compare anche in Approva, "Nuovo record" e "Modifica il record".
+- **I tuoi record (con account)**: etichetta "Da una richiesta senza account" sui
+  tentativi con `fromGuestRequest`, più la riga "Un adulto l'ha collegata a
+  questa iscrizione."
+- **Ordine della pagina senza login**: intestazione, card "Hai un account?
+  Accedi" (sempre prima, anche se il telefono ha richieste), poi "Le tue
+  richieste da questo telefono" se ci sono, poi tabellone, regole, elenco. Con
+  l'interruttore spento resta il gate di oggi ("Accedi per vedere i record").
+  La nota "Un adulto controlla ogni richiesta…" sta sopra i tasti del foglio,
+  non fissa. Dopo l'invio: scroll alla sezione e avviso "Richiesta inviata.".
+  Mockup approvati da Paolo il 2026-10-10 in
+  `.claude/mockups/notte-dei-record/senza-account/` (fuori da git).
 
 Sessione anonima: si crea **solo** quando l'utente invia (non alla visita) e
 usa il `signInAnonymously` già in `AuthProvider`. L'elenco (`context`) non la richiede.
