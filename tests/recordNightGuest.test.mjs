@@ -32,7 +32,10 @@ import {
   describeBulkRejectResult,
   filterStaffQueue,
   getChallengedRecordIds,
+  getGuestPersonKey,
   getGuestStateText,
+  hasActiveChallengeForPerson,
+  sortGuestRequestsByPerson,
   getRecordNightGuestErrorMessage,
   getStaffLinkedState,
   groupLinkedRequests,
@@ -570,7 +573,18 @@ test("tabella degli stati: il motivo c'è solo per \"Non accettata\"; la chiusur
 test("testi fissi: una sola formulazione per le frasi usate in più punti", () => {
   assert.equal(GUEST_COPY.intakeClosed, SERVER_GUEST_MESSAGES.closed);
   assert.equal(GUEST_COPY.intakeUnavailable, getRecordNightGuestErrorMessage(callableError("functions/failed-precondition", "x"), "submit"));
-  assert.equal(GUEST_COPY.phoneOnlyNote, "Se cambi telefono o cancelli i dati del sito, non le trovi più.");
+  assert.equal(
+    GUEST_COPY.phoneOnlyNote,
+    "Le vede chiunque usi questo telefono. Se cambi telefono o cancelli i dati del sito, non le trovi più.",
+  );
+  assert.ok(GUEST_COPY.sheetNote.endsWith("La vede e la ritira chi usa questo telefono."));
+  assert.ok(!GUEST_COPY.sheetNote.includes("solo da questo telefono"));
+  assert.equal(GUEST_COPY.challengedHere, "Già richiesta da questo telefono");
+  assert.equal(GUEST_COPY.duplicateChallenge, "Per questa persona c'è già una richiesta per questo record.");
+  // Il numero del tetto non si scrive in nessun testo (cambia con il backend).
+  for (const text of [GUEST_COPY.phoneLimit, GUEST_COPY.restoreAtLimit, SERVER_GUEST_MESSAGES.phoneCap]) {
+    assert.doesNotMatch(text, /\d/, text);
+  }
   assert.ok(GUEST_COPY.phoneLimit.startsWith(SERVER_GUEST_MESSAGES.phoneCap));
   // Mai "tentativo" come parola per chi ha mandato la richiesta.
   const forTheRequester = [
@@ -645,6 +659,59 @@ test("sfide già inviate: contano le richieste valide, non ritirate né respinte
   ]);
   assert.deepEqual([...ids].sort(), ["r1", "r2", "r3"]);
   assert.equal(getChallengedRecordIds([]).size, 0);
+});
+
+test("telefono condiviso: la stessa persona non può sfidare due volte lo stesso record, un'altra sì", () => {
+  const request = (over) => ({
+    kind: "challenge",
+    state: "received",
+    recordId: "r1",
+    firstName: "Giulia",
+    lastName: "Bianchi",
+    unitName: "Roma 3",
+    ...over,
+  });
+  const list = [request({})];
+  const person = { recordId: "r1", firstName: "Giulia", lastName: "Bianchi", unitName: "Roma 3" };
+  assert.equal(hasActiveChallengeForPerson(list, person), true);
+  // Stessa normalizzazione: maiuscole, accenti, spazi.
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, firstName: "  GIULÌA ", lastName: "bianchi", unitName: "ROMA   3" }), true);
+  assert.equal(hasActiveChallengeForPerson([request({ lastName: "Dell’Orto" })], { ...person, lastName: "Dell'Orto" }), true);
+  // Persona diversa (nome, cognome o unità) o record diverso: nessun avviso.
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, firstName: "Marta" }), false);
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, lastName: "Rossi" }), false);
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, unitName: "Terni" }), false);
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, recordId: "r2" }), false);
+  // Solo richieste valide: ritirata, non collegata, non accettata o tolta non contano.
+  for (const state of ["withdrawn", "not_linked", "rejected", "removed"]) {
+    assert.equal(hasActiveChallengeForPerson([request({ state })], person), false, state);
+  }
+  for (const state of ["received", "pending", "approved"]) {
+    assert.equal(hasActiveChallengeForPerson([request({ state })], person), true, state);
+  }
+  // Una proposta con lo stesso nome non è una sfida allo stesso record.
+  assert.equal(hasActiveChallengeForPerson([request({ kind: "proposal", recordId: null })], person), false);
+  // Campi incompleti: non si dice nulla.
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, firstName: "" }), false);
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, unitName: "  " }), false);
+  assert.equal(hasActiveChallengeForPerson(list, { ...person, recordId: "" }), false);
+  assert.equal(getGuestPersonKey("Giulia", "Bianchi", "Roma 3"), "giulia bianchi|roma 3");
+});
+
+test("telefono condiviso: l'elenco delle richieste è per persona, poi dalla più recente", () => {
+  const request = (requestId, firstName, lastName, unitName, createdAt) => ({ requestId, firstName, lastName, unitName, createdAt });
+  const input = [
+    request("a1", "Marta", "Rossi", "Terni", "2026-10-10T10:00:00Z"),
+    request("b1", "Giulia", "Bianchi", "Roma 3", "2026-10-10T11:00:00Z"),
+    request("a2", "marta", "ROSSI", "terni", "2026-10-10T12:00:00Z"),
+    request("b2", "Giulia", "Bianchi", "Roma 3", "2026-10-10T13:00:00Z"),
+    request("c1", "Álvaro", "Neri", "Roma 3", "2026-10-10T09:00:00Z"),
+  ];
+  const sorted = sortGuestRequestsByPerson(input);
+  assert.deepEqual(sorted.map((item) => item.requestId), ["c1", "b2", "b1", "a2", "a1"]);
+  // Non modifica l'ingresso.
+  assert.deepEqual(input.map((item) => item.requestId), ["a1", "b1", "a2", "b2", "c1"]);
+  assert.deepEqual(sortGuestRequestsByPerson([]), []);
 });
 
 test("tetto del telefono: contano solo le richieste in coda", () => {

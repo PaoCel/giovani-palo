@@ -33,7 +33,7 @@ export const GUEST_NAME_LIMITS = { min: 2, max: 40 } as const;
 
 // Tetti di D4: un freno agli errori e ai dispetti, non una difesa.
 export const RECORD_NIGHT_GUEST_LIMITS = {
-  openPerPhone: 6,
+  openPerPhone: 12,
   openPerPerson: 2,
   openPerActivity: 100,
 } as const;
@@ -54,15 +54,22 @@ export const GUEST_COPY = {
   account: "Hai un account: accedi",
   // Nota del foglio "Senza account", in fondo al corpo, sopra i tasti.
   sheetNote:
-    "Un adulto controlla ogni richiesta. Finché non è approvata non conta e non la vede nessuno. La vedi e la ritiri solo da questo telefono.",
+    "Un adulto controlla ogni richiesta. Finché non è approvata non conta e non la vede nessun altro. La vede e la ritira chi usa questo telefono.",
   // Sotto la nota del foglio, prima del link all'informativa: cosa si raccoglie.
   sheetPrivacy: "Raccogliamo nome, cognome, unità e testo della richiesta. Li vede solo lo staff.",
   // Chiusura del foglio con del testo scritto.
   closeConfirm: "Chiudere senza inviare? Quello che hai scritto non si salva.",
   // Sotto "Accedi" nel foglio: chi passa dall'accesso perde ciò che ha scritto.
   sheetLoginHint: "Dopo l'accesso torni a questa pagina. Quello che hai scritto qui non si salva.",
-  // Sotto "Le tue richieste da questo telefono" (formulazione del mockup).
-  phoneOnlyNote: "Se cambi telefono o cancelli i dati del sito, non le trovi più.",
+  // Sotto "Le tue richieste da questo telefono": il telefono può essere di più
+  // persone, e le richieste restano su quel telefono.
+  phoneOnlyNote:
+    "Le vede chiunque usi questo telefono. Se cambi telefono o cancelli i dati del sito, non le trovi più.",
+  // Su un record che questo telefono ha già sfidato (con un'altra o la stessa persona).
+  challengedHere: "Già richiesta da questo telefono",
+  // Foglio Sfida: nome e unità coincidono con una richiesta di questo telefono per
+  // lo stesso record (il server restituirebbe la stessa richiesta).
+  duplicateChallenge: "Per questa persona c'è già una richiesta per questo record.",
   // Il telefono è al tetto di richieste in coda: lo si dice prima di compilare e
   // all'invio.
   phoneLimit:
@@ -692,11 +699,66 @@ export function isAtGuestPhoneLimit(requests: ReadonlyArray<Pick<RecordNightGues
   return countOpenGuestRequests(requests) >= RECORD_NIGHT_GUEST_LIMITS.openPerPhone;
 }
 
-// Record che questo telefono ha già sfidato con una richiesta ancora valida (in
-// coda, in attesa o approvata): su quei record "Sfida" non serve. Una richiesta
-// ritirata, non collegata, non accettata o tolta dall'elenco non conta.
+// Una richiesta di sfida conta finché è valida: in coda, in attesa o approvata.
+// Ritirata, non collegata, non accettata o tolta dall'elenco non conta.
 const ACTIVE_CHALLENGE_STATES: ReadonlyArray<RecordNightGuestState> = ["received", "pending", "approved"];
 
+// Persona come l'ha digitata chi invia: nome, cognome e unità senza maiuscole,
+// accenti e spazi doppi (come il server per il tetto per persona). L'unità è il
+// suo nome: quello scelto nel menu del foglio, o quello copiato nella richiesta.
+export function getGuestPersonKey(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+  unitName: string | null | undefined,
+) {
+  const part = (value: string | null | undefined) => foldText(normalizeGuestName(value ?? ""));
+  return `${part(firstName)} ${part(lastName)}|${part(unitName)}`;
+}
+
+// Questa persona ha già, da questo telefono, una richiesta valida (in coda, in
+// attesa o approvata) per lo stesso record? Persone diverse sullo stesso telefono
+// possono sfidare lo stesso record; la stessa persona no (il server restituirebbe
+// la stessa richiesta). Con nome, cognome o unità vuoti non si può dire: false.
+export function hasActiveChallengeForPerson(
+  requests: ReadonlyArray<
+    Pick<RecordNightGuestRequest, "kind" | "state" | "recordId" | "firstName" | "lastName" | "unitName">
+  >,
+  person: { recordId: string; firstName: string; lastName: string; unitName: string },
+) {
+  const complete = [person.recordId, person.firstName, person.lastName, person.unitName].every(
+    (value) => foldText(normalizeGuestName(value ?? "")) !== "",
+  );
+  if (!complete) return false;
+  const key = getGuestPersonKey(person.firstName, person.lastName, person.unitName);
+  return requests.some(
+    (request) =>
+      request.kind === "challenge" &&
+      request.recordId === person.recordId &&
+      ACTIVE_CHALLENGE_STATES.includes(request.state) &&
+      getGuestPersonKey(request.firstName, request.lastName, request.unitName) === key,
+  );
+}
+
+// "Le tue richieste da questo telefono": per persona (nome, cognome, unità
+// normalizzati), poi dalla più recente. Le richieste di due persone che usano lo
+// stesso telefono non si mescolano.
+export function sortGuestRequestsByPerson<
+  T extends Pick<RecordNightGuestRequest, "firstName" | "lastName" | "unitName" | "createdAt" | "requestId">,
+>(requests: ReadonlyArray<T>): T[] {
+  return [...requests].sort(
+    (left, right) =>
+      getGuestPersonKey(left.firstName, left.lastName, left.unitName).localeCompare(
+        getGuestPersonKey(right.firstName, right.lastName, right.unitName),
+        "it-IT",
+      ) ||
+      (right.createdAt ?? "").localeCompare(left.createdAt ?? "") ||
+      left.requestId.localeCompare(right.requestId),
+  );
+}
+
+// Record che questo telefono ha già sfidato con una richiesta valida (di una
+// persona qualsiasi): sul record compare solo un'etichetta, "Sfida" resta attivo
+// perché un'altra persona dello stesso telefono può sfidarlo.
 export function getChallengedRecordIds(
   requests: ReadonlyArray<Pick<RecordNightGuestRequest, "kind" | "state" | "recordId">>,
 ) {
