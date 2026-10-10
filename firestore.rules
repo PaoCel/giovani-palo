@@ -886,9 +886,21 @@ service cloud.firestore {
         && data.lastLoginAt is string;
     }
 
+    // stakeId assegnabile da chi si scrive il profilo: vuoto (nessun palo
+    // ancora scelto) oppure l'id di un palo che esiste. Niente barre: lo
+    // stakeId finisce in un path e non deve puntare a un altro documento.
+    function isEmptyOrExistingStake(stakeId) {
+      return stakeId == ''
+        || (
+          !stakeId.matches('.*/.*')
+          && exists(/databases/$(database)/documents/stakes/$(stakeId))
+        );
+    }
+
     function canCreateOwnUser(uid) {
       return isSelf(uid)
         && validUserPayload(request.resource.data)
+        && isEmptyOrExistingStake(request.resource.data.stakeId)
         && request.resource.data.role in ['participant', 'parent']
         && request.resource.data.mustChangePassword == false;
     }
@@ -916,10 +928,16 @@ service cloud.firestore {
             && request.resource.data.mustChangePassword == false
           )
         )
+        // stakeId decide i poteri di admin e dirigente (isStakeAdmin,
+        // isUnitLeaderOfStake): per i ruoli privilegiati, anche con stakeId
+        // vuoto, non lo cambia nessun self-update (solo i tool/Admin SDK).
+        // participant e parent possono cambiare palo, ma verso uno esistente.
         && (
-          resource.data.role in ['participant', 'parent']
-          || resource.data.stakeId == ''
-          || request.resource.data.stakeId == resource.data.stakeId
+          request.resource.data.stakeId == resource.data.stakeId
+          || (
+            resource.data.role in ['participant', 'parent']
+            && isEmptyOrExistingStake(request.resource.data.stakeId)
+          )
         )
         // I ruoli privilegiati non possono spostarsi di unità da soli:
         // unitId determina il confine di lettura dei dirigenti di unità

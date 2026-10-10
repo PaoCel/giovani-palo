@@ -954,10 +954,116 @@ describe("RULES: isolamento fra pali", () => {
     }
   });
 
-  // Lacuna nota, volutamente non asserita: canCreateOwnUser accetta qualunque
-  // stakeId, anche di un palo che non esiste. Correzione pianificata: richiedere
-  // exists(/databases/$(database)/documents/stakes/$(request.resource.data.stakeId)).
-  test.todo("canCreateOwnUser rifiuta uno stakeId che non esiste (richiede exists(/stakes/$(stakeId)))");
+});
+
+// ===========================================================================
+// 1b. RULES: stakeId del profilo utente (auto-assegnazione di poteri)
+// ===========================================================================
+// Un ruolo privilegiato senza palo (stakeId "") non deve potersi assegnare da
+// solo un palo: isStakeAdmin / isUnitLeaderOfStake leggono users/{uid}.stakeId.
+describe("RULES: stakeId del profilo utente", () => {
+  const NO_STAKE = { id: "", slug: "", name: "" };
+  const orphan = {};
+  let seq = 0;
+
+  before(async () => {
+    for (const [key, role] of [["orfano-admin", "admin"], ["orfano-leader", "unit_leader"]]) {
+      const user = await createUser({ key, role, firstName: key, lastName: "Test", stake: NO_STAKE });
+      orphan[role] = { ...user, client: await signIn(user.email) };
+    }
+  });
+
+  /** Account Auth vero senza ancora un profilo: il primo accesso dell'app. */
+  async function newcomer() {
+    const key = `nuovo-${++seq}`;
+    const userId = uid(key);
+    await adminAuth.createUser({ uid: userId, email: emailOf(key), emailVerified: true, password: PASSWORD });
+    track.uids.add(userId);
+    return { uid: userId, client: await signIn(emailOf(key)) };
+  }
+
+  const profileFor = (stake, role = "participant") => buildUserDocument({
+    firstName: "Nuovo", lastName: "Utente", email: null, role, stake, now: iso(),
+  });
+  const takeStake = (stake) => ({ stakeId: stake.id, stakeSlug: stake.slug, stakeName: stake.name, updatedAt: iso() });
+
+  for (const role of ["admin", "unit_leader"]) {
+    test(`${role} senza palo non si assegna da solo lo stakeId del palo A`, { timeout: 60_000 }, async () => {
+      const { uid: userId, client } = orphan[role];
+      await expectDenied(updateDoc(doc(client.db, `users/${userId}`), takeStake(x.A.stake)), `${role} si assegna A`);
+      assert.equal((await adminDb.doc(`users/${userId}`).get()).data().stakeId, "", "lo stakeId è rimasto vuoto");
+      // E niente poteri sul palo: né lettura delle iscrizioni né delle unità riservate.
+      await expectDenied(listAll(client.db, `stakes/${x.A.id}/activities/pub/registrations`), `${role} legge le iscrizioni di A`);
+      await expectDenied(listWhere(client.db, "users", where("stakeId", "==", x.A.id)), `${role} elenca gli utenti di A`);
+    });
+  }
+
+  test("admin senza palo può comunque aggiornare gli altri campi (login) lasciando lo stakeId vuoto", { timeout: 60_000 }, async () => {
+    const { uid: userId, client } = orphan.admin;
+    await expectAllowed(
+      updateDoc(doc(client.db, `users/${userId}`), { stakeId: "", updatedAt: iso(), lastLoginAt: iso() }),
+      "aggiornamento senza cambiare stakeId",
+    );
+  });
+
+  test("admin del palo A non si sposta da solo sul palo B", { timeout: 60_000 }, async () => {
+    await expectDenied(
+      updateDoc(doc(x.actors.adminA.db, `users/${x.actors.adminA.uid}`), takeStake(x.B.stake)),
+      "admin A si sposta su B",
+    );
+  });
+
+  test("unit_leader del palo A non si sposta da solo sul palo B", { timeout: 60_000 }, async () => {
+    await expectDenied(
+      updateDoc(doc(x.actors.leaderA.db, `users/${x.actors.leaderA.uid}`), takeStake(x.B.stake)),
+      "dirigente A si sposta su B",
+    );
+  });
+
+  test("un admin del palo A non assegna lo stakeId a un utente senza palo", { timeout: 60_000 }, async () => {
+    await expectDenied(
+      updateDoc(doc(x.actors.adminA.db, `users/${orphan.admin.uid}`), takeStake(x.A.stake)),
+      "admin A assegna A a un utente senza palo",
+    );
+  });
+
+  test("participant: cambia palo verso uno esistente, non verso uno che non esiste", { timeout: 60_000 }, async () => {
+    const { uid: userId, db } = x.actors.participantA;
+    const reference = doc(db, `users/${userId}`);
+    await expectDenied(
+      updateDoc(reference, { stakeId: `fantasma-${runId}`, updatedAt: iso() }),
+      "participant verso un palo inesistente",
+    );
+    await expectAllowed(updateDoc(reference, takeStake(x.B.stake)), "participant verso il palo B");
+    await expectAllowed(updateDoc(reference, takeStake(x.A.stake)), "participant torna al palo A");
+  });
+
+  test("onboarding: nuovo profilo participant o parent con palo esistente o vuoto", { timeout: 60_000 }, async () => {
+    for (const [stake, role] of [[x.A.stake, "participant"], [x.B.stake, "parent"], [NO_STAKE, "participant"]]) {
+      const { uid: userId, client } = await newcomer();
+      await expectAllowed(setDoc(doc(client.db, `users/${userId}`), profileFor(stake, role)), `crea ${role} (${stake.id || "senza palo"})`);
+    }
+  });
+
+  test("canCreateOwnUser rifiuta uno stakeId che non esiste", { timeout: 60_000 }, async () => {
+    const { uid: userId, client } = await newcomer();
+    const ghost = { id: `fantasma-${runId}`, slug: "fantasma", name: "Fantasma" };
+    await expectDenied(setDoc(doc(client.db, `users/${userId}`), profileFor(ghost)), "crea con palo inesistente");
+    assert.equal((await adminDb.doc(`users/${userId}`).get()).exists, false);
+  });
+
+  test("canCreateOwnUser rifiuta uno stakeId con barre (path diverso da stakes/{id})", { timeout: 60_000 }, async () => {
+    const { uid: userId, client } = await newcomer();
+    const sneaky = { id: `${x.A.id}/units/${x.A.unit1.id}`, slug: "x", name: "X" };
+    await expectDenied(setDoc(doc(client.db, `users/${userId}`), profileFor(sneaky)), "crea con stakeId a più segmenti");
+  });
+
+  test("canCreateOwnUser non crea ruoli privilegiati", { timeout: 60_000 }, async () => {
+    for (const role of ["admin", "unit_leader"]) {
+      const { uid: userId, client } = await newcomer();
+      await expectDenied(setDoc(doc(client.db, `users/${userId}`), profileFor(x.A.stake, role)), `crea ${role} nel palo A`);
+    }
+  });
 });
 
 // ===========================================================================
