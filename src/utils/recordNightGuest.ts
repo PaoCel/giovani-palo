@@ -15,6 +15,7 @@ import type {
   RecordNightPublicRecord,
   RecordNightRequestKind,
   RecordNightStaffRequest,
+  RecordNightWithdrawnBy,
 } from "@/types";
 import {
   RECORD_NIGHT_CATEGORIES,
@@ -690,8 +691,9 @@ const byUpdatedDesc = (left: RecordNightStaffRequest, right: RecordNightStaffReq
   right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id);
 
 // Le richieste per sezione della pagina Gestisci: "Da collegare" (le più vecchie
-// per prime), poi le sezioni chiuse "Non collegate" e "Ritirate" e le già
-// collegate (di cui si occupa la scheda del tentativo).
+// per prime), poi le sezioni chiuse "Non collegate" (con Riapri), "Richieste
+// ritirate" (dal telefono; anche queste si possono riaprire) e le collegate, che
+// groupLinkedRequests divide per stato del tentativo.
 export function splitStaffRequests(requests: ReadonlyArray<RecordNightStaffRequest>) {
   return {
     open: requests.filter((request) => request.status === "open").sort(byCreatedAsc),
@@ -699,6 +701,98 @@ export function splitStaffRequests(requests: ReadonlyArray<RecordNightStaffReque
     withdrawn: requests.filter((request) => request.status === "withdrawn").sort(byUpdatedDesc),
     linked: requests.filter((request) => request.status === "linked").sort(byUpdatedDesc),
   };
+}
+
+export type StaffLinkedKey = "pending" | "approved" | "rejected" | "withdrawn" | "missing";
+
+export interface StaffLinkedState {
+  key: StaffLinkedKey;
+  // Chi ha ritirato il tentativo, solo per `withdrawn`.
+  withdrawnBy: RecordNightWithdrawnBy | null;
+  // Testo breve per lo staff (stesso lessico delle schede dei tentativi).
+  label: string;
+  tone: "" | "ok" | "no" | "off";
+}
+
+// Stato leggibile di una richiesta collegata, dal tentativo (`entryStatus`,
+// `withdrawnBy` di listRequests). Senza tentativo (cancellato) è "missing".
+export function getStaffLinkedState(
+  request: Pick<RecordNightStaffRequest, "entryStatus" | "withdrawnBy">,
+): StaffLinkedState {
+  const withdrawnBy = request.withdrawnBy ?? null;
+  switch (request.entryStatus) {
+    case "pending":
+      return { key: "pending", withdrawnBy: null, label: "In attesa", tone: "" };
+    case "approved":
+      return { key: "approved", withdrawnBy: null, label: "Ci sei", tone: "ok" };
+    case "rejected":
+      return { key: "rejected", withdrawnBy: null, label: "Non accettata", tone: "no" };
+    case "withdrawn":
+      return {
+        key: "withdrawn",
+        withdrawnBy,
+        label:
+          withdrawnBy === "staff"
+            ? "Ritirata da un adulto"
+            : withdrawnBy === "system"
+              ? "Iscrizione annullata"
+              : withdrawnBy === "self"
+                ? "Ritirata dalla persona"
+                : "Ritirata",
+        tone: "off",
+      };
+    default:
+      return { key: "missing", withdrawnBy: null, label: "Tentativo non trovato", tone: "off" };
+  }
+}
+
+export const STAFF_LINKED_GROUP_LABELS: Record<StaffLinkedKey, string> = {
+  pending: "In attesa",
+  approved: "Approvate",
+  rejected: "Non accettate",
+  withdrawn: "Ritirate",
+  missing: "Tentativo non trovato",
+};
+
+export interface StaffLinkedGroup {
+  key: StaffLinkedKey;
+  label: string;
+  requests: RecordNightStaffRequest[];
+}
+
+// Le richieste collegate divise per stato del tentativo, in ordine fisso (in
+// attesa, approvate, non accettate, ritirate, senza tentativo) e senza gruppi
+// vuoti. Dentro il gruppo l'ordine di ingresso; le altre richieste si ignorano.
+export function groupLinkedRequests(requests: ReadonlyArray<RecordNightStaffRequest>): StaffLinkedGroup[] {
+  const order: StaffLinkedKey[] = ["pending", "approved", "rejected", "withdrawn", "missing"];
+  const groups = new Map<StaffLinkedKey, RecordNightStaffRequest[]>();
+  for (const request of requests) {
+    if (request.status !== "linked") continue;
+    const { key } = getStaffLinkedState(request);
+    groups.set(key, [...(groups.get(key) ?? []), request]);
+  }
+  return order
+    .filter((key) => groups.has(key))
+    .map((key) => ({ key, label: STAFF_LINKED_GROUP_LABELS[key], requests: groups.get(key) ?? [] }));
+}
+
+// Riga di esito del rifiuto in blocco: quante segnate e quante saltate perché
+// non erano più in coda (collegate, ritirate o già gestite nel frattempo).
+export function describeBulkRejectResult(result: { rejectedCount: number; skippedCount?: number }) {
+  const rejected = Math.max(0, Math.floor(result.rejectedCount || 0));
+  const skipped = Math.max(0, Math.floor(result.skippedCount || 0));
+  const parts: string[] = [];
+  if (rejected > 0) {
+    parts.push(
+      rejected === 1
+        ? "1 richiesta segnata come non collegabile."
+        : `${rejected} richieste segnate come non collegabili.`,
+    );
+  }
+  if (skipped > 0) {
+    parts.push(skipped === 1 ? "1 non era più in coda." : `${skipped} non erano più in coda.`);
+  }
+  return parts.length ? parts.join(" ") : "Nessuna richiesta da segnare.";
 }
 
 // "Senza abbinamento": nessun suggerimento calcolato dal server.
@@ -761,4 +855,83 @@ export function chunkRequestIds(ids: ReadonlyArray<string>, size = MAX_BULK_REJE
     chunks.push(unique.slice(index, index + size));
   }
   return chunks;
+}
+
+// ---------------------------------------------------------------------------
+// Caricamento e azioni: l'ultima richiesta vince
+// ---------------------------------------------------------------------------
+
+export type LatestRead<T> =
+  | { superseded: true }
+  | { superseded: false; ok: true; value: T }
+  | { superseded: false; ok: false; error: unknown };
+
+// Ogni lettura riceve un numero; una risposta (o un errore) di una lettura che
+// nel frattempo è stata superata da una più recente, o invalidata (cambio chiave,
+// smontaggio), si scarta: non copre mai una lettura più nuova.
+export function createLatestLoader<T>() {
+  let latest = 0;
+  return {
+    async run(read: () => Promise<T>): Promise<LatestRead<T>> {
+      latest += 1;
+      const mine = latest;
+      try {
+        const value = await read();
+        return mine === latest ? { superseded: false, ok: true, value } : { superseded: true };
+      } catch (error) {
+        return mine === latest ? { superseded: false, ok: false, error } : { superseded: true };
+      }
+    },
+    invalidate() {
+      latest += 1;
+    },
+  };
+}
+
+export type ActionRun<T> =
+  | { status: "busy" }
+  | { status: "done"; value: T; stale: boolean }
+  | { status: "failed"; error: unknown };
+
+// Un'azione per volta (niente doppio tocco), poi la rilettura. La rilettura si
+// sceglie DOPO l'azione con `getReload()`: durante l'azione la pagina può cambiare
+// (al primo invio nasce la sessione anonima e con lei la chiave di `mine`), e un
+// riferimento preso al clic leggerebbe una chiave vuota senza fare nulla.
+// `reload` restituisce false se la lettura non è riuscita (esito `stale`).
+export function createActionRunner(options: {
+  getReload: () => () => Promise<boolean>;
+  setBusy?: (busy: boolean) => void;
+  // Dopo un errore si rilegge, tranne dove non ha parlato col server (default sì).
+  reloadOnError?: (error: unknown) => boolean;
+}) {
+  let busy = false;
+
+  async function reload() {
+    try {
+      return await options.getReload()();
+    } catch {
+      return false;
+    }
+  }
+
+  return {
+    async run<T>(task: () => Promise<T>): Promise<ActionRun<T>> {
+      if (busy) return { status: "busy" };
+      busy = true;
+      options.setBusy?.(true);
+      try {
+        let value: T;
+        try {
+          value = await task();
+        } catch (error) {
+          if (!options.reloadOnError || options.reloadOnError(error)) await reload();
+          return { status: "failed", error };
+        }
+        return { status: "done", value, stale: !(await reload()) };
+      } finally {
+        busy = false;
+        options.setBusy?.(false);
+      }
+    },
+  };
 }

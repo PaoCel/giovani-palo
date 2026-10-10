@@ -982,7 +982,8 @@ export interface RecordNightGuestRequest {
   measure: RecordNightMeasure | null;
   durationSeconds: number | null;
   needs: string;
-  // Solo sfida; il titolo è null se il record non è più aperto.
+  // Solo sfida. Il titolo è null quando non è più pubblico (record nascosto o
+  // senza sfidanti, interruttore spento): la pagina non ne inventa uno.
   recordId: string | null;
   recordTitle: string | null;
   state: RecordNightGuestState;
@@ -1037,6 +1038,11 @@ export interface RecordNightStaffRequest {
   linkedEntryId: string | null;
   linkedBy: string | null;
   linkedAt: string | null;
+  // Solo `linked` in `listRequests`: stato del tentativo collegato e chi l'ha
+  // ritirato (se ritirato). Assenti o null sulle altre richieste, e null se il
+  // tentativo non esiste più.
+  entryStatus?: RecordNightEntryStatus | null;
+  withdrawnBy?: RecordNightWithdrawnBy | null;
   decidedBy: string | null;
   decidedAt: string | null;
   createdAt: string;

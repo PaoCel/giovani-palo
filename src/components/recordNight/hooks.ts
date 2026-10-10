@@ -12,13 +12,16 @@ import {
 import { getRecordNightErrorMessage } from "@/services/firestore/recordNightService";
 import type {
   RecordNightGuestContext,
+  RecordNightGuestMine,
   RecordNightGuestRequest,
 } from "@/types";
 import {
   RecordNightGuestClientError,
   chunkRequestIds,
   classifyGuestError,
+  createActionRunner,
   createGuestSubmissionKeeper,
+  createLatestLoader,
   getRecordNightGuestErrorMessage,
   splitStaffRequests,
   type GuestFieldErrors,
@@ -86,6 +89,13 @@ export function useMinuteClock() {
 // vince (una risposta vecchia non copre una nuova), un solo comando per volta e
 // rilettura dopo ogni azione. Nessun JSX: i componenti leggono lo stato e
 // chiamano le azioni, che non lanciano errori ma restituiscono un esito.
+//
+// L'ordine delle letture e la rilettura dopo l'azione stanno in due helper puri
+// (createLatestLoader, createActionRunner di utils/recordNightGuest.ts, provati in
+// tests/recordNightGuest.test.mjs). La rilettura usa SEMPRE il `load` più recente
+// (un ref aggiornato a ogni render): le azioni si creano al clic, ma durante
+// l'azione la pagina può cambiare (al primo invio nasce la sessione anonima e con
+// lei la chiave di `mine`).
 
 export type RecordNightLoadStatus = "idle" | "loading" | "ready" | "error";
 
@@ -115,33 +125,29 @@ interface GuestContextState {
 export function useRecordNightGuestContext(stakeId: string, activityId: string, enabled = true) {
   const key = enabled && stakeId && activityId ? `${stakeId}/${activityId}` : "";
   const [state, setState] = useState<GuestContextState | null>(null);
-  const requestRef = useRef(0);
+  const [loader] = useState(() => createLatestLoader<RecordNightGuestContext>());
 
   const load = useCallback(async () => {
     if (!key) return;
-    const request = ++requestRef.current;
-    try {
-      const context = await recordNightGuestService.getContext(stakeId, activityId);
-      if (request !== requestRef.current) return;
-      setState({ key, context, error: null });
-    } catch (error) {
-      if (request !== requestRef.current) return;
-      console.error("Notte dei Record: contesto pubblico non disponibile.", error);
-      setState((current) => ({
-        key,
-        context: current?.key === key ? current.context : null,
-        error: getRecordNightGuestErrorMessage(error, "load"),
-      }));
+    const read = await loader.run(() => recordNightGuestService.getContext(stakeId, activityId));
+    if (read.superseded) return;
+    if (read.ok) {
+      setState({ key, context: read.value, error: null });
+      return;
     }
-  }, [activityId, key, stakeId]);
+    console.error("Notte dei Record: contesto pubblico non disponibile.", read.error);
+    setState((current) => ({
+      key,
+      context: current?.key === key ? current.context : null,
+      error: getRecordNightGuestErrorMessage(read.error, "load"),
+    }));
+  }, [activityId, key, loader, stakeId]);
 
   useEffect(() => {
     void load();
-    return () => {
-      // Una risposta in volo di una chiave vecchia (o dopo lo smontaggio) non conta.
-      requestRef.current += 1;
-    };
-  }, [load]);
+    // Una risposta in volo di una chiave vecchia (o dopo lo smontaggio) non conta.
+    return () => loader.invalidate();
+  }, [load, loader]);
 
   const current = state?.key === key ? state : null;
   const context = current?.context ?? null;
@@ -186,9 +192,8 @@ export function useRecordNightGuestRequests(stakeId: string, activityId: string,
   const key = enabled && uid && stakeId && activityId ? `${stakeId}/${activityId}/${uid}` : "";
 
   const [state, setState] = useState<GuestMineState | null>(null);
-  const requestRef = useRef(0);
-  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [loader] = useState(() => createLatestLoader<RecordNightGuestMine>());
   // Un token per foglio: vedi createGuestSubmissionKeeper.
   const [keeper] = useState(() => createGuestSubmissionKeeper());
   // L'AuthProvider cambia funzione a ogni render: si usa sempre l'ultima.
@@ -197,81 +202,82 @@ export function useRecordNightGuestRequests(stakeId: string, activityId: string,
     signInRef.current = signInAnonymously;
   });
 
-  // true se la lettura è riuscita (o non c'era nulla da leggere).
+  // true se la lettura è riuscita (o non c'era nulla da leggere o è stata superata
+  // da una più recente).
   const load = useCallback(async () => {
     if (!key) return true;
-    const request = ++requestRef.current;
-    try {
-      const mine = await recordNightGuestService.mine(stakeId, activityId);
-      if (request !== requestRef.current) return true;
+    const read = await loader.run(() => recordNightGuestService.mine(stakeId, activityId));
+    if (read.superseded) return true;
+    if (read.ok) {
       setState({
         key,
-        open: mine.open,
-        closeAt: mine.closeAt,
-        requests: mine.requests,
+        open: read.value.open,
+        closeAt: read.value.closeAt,
+        requests: read.value.requests,
         loaded: true,
         error: null,
       });
       return true;
-    } catch (error) {
-      if (request !== requestRef.current) return true;
-      console.error("Notte dei Record: richieste del telefono non disponibili.", error);
-      setState((current) => {
-        const previous = current?.key === key ? current : null;
-        return {
-          key,
-          open: previous?.open ?? false,
-          closeAt: previous?.closeAt ?? null,
-          requests: previous?.requests ?? [],
-          loaded: previous?.loaded === true,
-          error: getRecordNightGuestErrorMessage(error, "load"),
-        };
-      });
-      return false;
     }
-  }, [activityId, key, stakeId]);
+    console.error("Notte dei Record: richieste del telefono non disponibili.", read.error);
+    setState((current) => {
+      const previous = current?.key === key ? current : null;
+      return {
+        key,
+        open: previous?.open ?? false,
+        closeAt: previous?.closeAt ?? null,
+        requests: previous?.requests ?? [],
+        loaded: previous?.loaded === true,
+        error: getRecordNightGuestErrorMessage(read.error, "load"),
+      };
+    });
+    return false;
+  }, [activityId, key, loader, stakeId]);
+
+  // Il `load` più recente, aggiornato nello stesso commit che cambia la chiave e
+  // prima dell'effetto che legge: la rilettura dopo un'azione non usa mai quello
+  // del momento del clic.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     void load();
-    return () => {
-      requestRef.current += 1;
-    };
-  }, [load]);
+    return () => loader.invalidate();
+  }, [load, loader]);
 
   // Un comando per volta. Dopo l'azione rilegge `mine`; dopo un errore del
   // server o della rete rilegge lo stesso: una risposta persa può aver creato la
   // richiesta, una richiesta può essere stata collegata nel frattempo.
+  const [runner] = useState(() =>
+    createActionRunner({
+      getReload: () => loadRef.current,
+      setBusy,
+      reloadOnError: (error) => !(error instanceof RecordNightGuestClientError),
+    }),
+  );
+
   const run = useCallback(
     async <T,>(
       action: RecordNightGuestAction,
       task: () => Promise<T>,
     ): Promise<GuestActionOutcome<T>> => {
-      if (busyRef.current) {
+      const result = await runner.run(task);
+      if (result.status === "busy") {
         return { ok: false, kind: "busy", message: BUSY_MESSAGE, fieldErrors: {} };
       }
-      busyRef.current = true;
-      setBusy(true);
-      try {
-        let value: T;
-        try {
-          value = await task();
-        } catch (error) {
-          if (!(error instanceof RecordNightGuestClientError)) await load();
-          return {
-            ok: false,
-            kind: classifyGuestError(error),
-            message: getRecordNightGuestErrorMessage(error, action),
-            fieldErrors: error instanceof RecordNightGuestClientError ? error.fieldErrors : {},
-          };
-        }
-        const fresh = await load();
-        return { ok: true, value, stale: !fresh };
-      } finally {
-        busyRef.current = false;
-        setBusy(false);
+      if (result.status === "failed") {
+        return {
+          ok: false,
+          kind: classifyGuestError(result.error),
+          message: getRecordNightGuestErrorMessage(result.error, action),
+          fieldErrors: result.error instanceof RecordNightGuestClientError ? result.error.fieldErrors : {},
+        };
       }
+      return { ok: true, value: result.value, stale: result.stale };
     },
-    [load],
+    [runner],
   );
 
   // Invia la richiesta. La sessione anonima si crea qui, e solo qui; con un
@@ -350,60 +356,51 @@ const EMPTY_QUEUE: RecordNightRequestQueue = { requests: [], openCount: 0, openL
 export function useRecordNightRequestQueue(stakeId: string, activityId: string, enabled = true) {
   const key = enabled && stakeId && activityId ? `${stakeId}/${activityId}` : "";
   const [state, setState] = useState<QueueState | null>(null);
-  const requestRef = useRef(0);
-  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [loader] = useState(() => createLatestLoader<RecordNightRequestQueue>());
 
-  // true se la lettura è riuscita (o non c'era nulla da leggere).
+  // true se la lettura è riuscita (o non c'era nulla da leggere o è stata superata
+  // da una più recente).
   const load = useCallback(async () => {
     if (!key) return true;
-    const request = ++requestRef.current;
-    try {
-      const queue = await recordNightRequestsService.list(stakeId, activityId);
-      if (request !== requestRef.current) return true;
-      setState({ key, queue, error: null });
+    const read = await loader.run(() => recordNightRequestsService.list(stakeId, activityId));
+    if (read.superseded) return true;
+    if (read.ok) {
+      setState({ key, queue: read.value, error: null });
       return true;
-    } catch (error) {
-      if (request !== requestRef.current) return true;
-      console.error("Notte dei Record: coda delle richieste non disponibile.", error);
-      setState((current) => ({
-        key,
-        queue: current?.key === key ? current.queue : null,
-        error: "Non riesco a caricare le richieste. Controlla la connessione e riprova.",
-      }));
-      return false;
     }
-  }, [activityId, key, stakeId]);
+    console.error("Notte dei Record: coda delle richieste non disponibile.", read.error);
+    setState((current) => ({
+      key,
+      queue: current?.key === key ? current.queue : null,
+      error: "Non riesco a caricare le richieste. Controlla la connessione e riprova.",
+    }));
+    return false;
+  }, [activityId, key, loader, stakeId]);
+
+  // Il `load` più recente: la rilettura dopo un'azione non usa quello del clic.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     void load();
-    return () => {
-      requestRef.current += 1;
-    };
-  }, [load]);
+    return () => loader.invalidate();
+  }, [load, loader]);
+
+  // La richiesta può essere cambiata sotto i piedi (collegata, ritirata): dopo
+  // un errore si rilegge sempre.
+  const [runner] = useState(() => createActionRunner({ getReload: () => loadRef.current, setBusy }));
 
   const run = useCallback(
     async <T,>(task: () => Promise<T>): Promise<StaffActionOutcome<T>> => {
-      if (busyRef.current) return { ok: false, message: BUSY_MESSAGE };
-      busyRef.current = true;
-      setBusy(true);
-      try {
-        let value: T;
-        try {
-          value = await task();
-        } catch (error) {
-          // La richiesta può essere cambiata sotto i piedi (collegata, ritirata): si rilegge.
-          await load();
-          return { ok: false, message: getRecordNightErrorMessage(error) };
-        }
-        const fresh = await load();
-        return { ok: true, value, stale: !fresh };
-      } finally {
-        busyRef.current = false;
-        setBusy(false);
-      }
+      const result = await runner.run(task);
+      if (result.status === "busy") return { ok: false, message: BUSY_MESSAGE };
+      if (result.status === "failed") return { ok: false, message: getRecordNightErrorMessage(result.error) };
+      return { ok: true, value: result.value, stale: result.stale };
     },
-    [load],
+    [runner],
   );
 
   // Collega a un'iscrizione. `verified` è la spunta dello staff: senza, nessuna chiamata.
@@ -423,19 +420,23 @@ export function useRecordNightRequestQueue(stakeId: string, activityId: string, 
     [activityId, run, stakeId],
   );
 
-  // Rifiuto in blocco, a gruppi da 50. Se un gruppo fallisce i precedenti restano
-  // rifiutati e il messaggio dice quanti.
+  // Rifiuto in blocco, a gruppi da 50. Le richieste non più in coda (collegate o
+  // ritirate nel frattempo) si saltano senza errore e si contano in `skippedCount`
+  // (descrivi l'esito con describeBulkRejectResult). Se un gruppo fallisce i
+  // precedenti restano rifiutati e il messaggio dice quanti.
   const rejectMany = useCallback(
     (requestIds: string[], note?: string) =>
-      run<{ rejectedCount: number }>(async () => {
+      run<{ rejectedCount: number; skippedCount: number }>(async () => {
         const total = new Set(requestIds).size;
         let rejectedCount = 0;
+        let skippedCount = 0;
         for (const chunk of chunkRequestIds(requestIds)) {
           try {
             const result = await recordNightRequestsService.rejectMany(stakeId, activityId, chunk, note);
             rejectedCount += result.rejectedCount;
+            skippedCount += result.skippedCount;
           } catch (error) {
-            if (rejectedCount === 0) throw error;
+            if (rejectedCount === 0 && skippedCount === 0) throw error;
             throw Object.assign(
               new Error(
                 `${getRecordNightErrorMessage(error)} Ne ho segnate ${rejectedCount} su ${total} come non collegabili: aggiorna l'elenco.`,
@@ -444,7 +445,7 @@ export function useRecordNightRequestQueue(stakeId: string, activityId: string, 
             );
           }
         }
-        return { rejectedCount };
+        return { rejectedCount, skippedCount };
       }),
     [activityId, run, stakeId],
   );
@@ -481,8 +482,9 @@ export function useRecordNightRequestQueue(stakeId: string, activityId: string, 
     // Con `status: "ready"` e un errore la rilettura non è riuscita: i dati possono essere vecchi.
     error: current?.error ?? null,
     requests,
-    // open = "Da collegare"; notLinked = "Non collegate"; withdrawn = "Ritirate";
-    // linked = già collegate.
+    // open = "Da collegare"; notLinked = "Non collegate" (si riaprono); withdrawn =
+    // "Richieste ritirate" dal telefono (si riaprono); linked = collegate (dividile
+    // per stato con groupLinkedRequests).
     sections,
     openCount: queue?.openCount ?? 0,
     openLimit: queue?.openLimit ?? 0,

@@ -6,6 +6,7 @@
 
 import type {
   RecordNightCategory,
+  RecordNightEntryStatus,
   RecordNightGuestContext,
   RecordNightGuestMine,
   RecordNightGuestRequest,
@@ -19,6 +20,7 @@ import type {
   RecordNightRequestStatus,
   RecordNightRequestSuggestion,
   RecordNightStaffRequest,
+  RecordNightWithdrawnBy,
 } from "@/types";
 import { RECORD_NIGHT_CATEGORIES, RECORD_NIGHT_MEASURES } from "../../utils/recordNight.ts";
 import { GUEST_STATE_TEXTS } from "../../utils/recordNightGuest.ts";
@@ -159,6 +161,16 @@ function asRecordStatus(value: unknown): RecordNightRecordStatus | null {
   return value === "open" || value === "hidden" ? value : null;
 }
 
+function asEntryStatus(value: unknown): RecordNightEntryStatus | null {
+  return value === "pending" || value === "approved" || value === "rejected" || value === "withdrawn"
+    ? value
+    : null;
+}
+
+function asWithdrawnBy(value: unknown): RecordNightWithdrawnBy | null {
+  return value === "self" || value === "staff" || value === "system" ? value : null;
+}
+
 function mapSuggestion(raw: Raw): RecordNightRequestSuggestion {
   return {
     registrationId: asString(raw.registrationId),
@@ -171,7 +183,8 @@ function mapSuggestion(raw: Raw): RecordNightRequestSuggestion {
 }
 
 // Una richiesta vista dallo staff (`listRequests` e gli esiti delle azioni; in
-// questi ultimi `duplicates` e `suggestions` non ci sono e restano vuoti).
+// questi ultimi `duplicates`, `suggestions`, `entryStatus` e `withdrawnBy` non ci
+// sono e restano vuoti o null).
 export function mapStaffRequest(raw: Raw): RecordNightStaffRequest {
   const id = asString(raw.id) || asString(raw.requestId);
   return {
@@ -195,6 +208,8 @@ export function mapStaffRequest(raw: Raw): RecordNightStaffRequest {
     linkedEntryId: asNullableString(raw.linkedEntryId),
     linkedBy: asNullableString(raw.linkedBy),
     linkedAt: asNullableString(raw.linkedAt),
+    entryStatus: asEntryStatus(raw.entryStatus),
+    withdrawnBy: asWithdrawnBy(raw.withdrawnBy),
     decidedBy: asNullableString(raw.decidedBy),
     decidedAt: asNullableString(raw.decidedAt),
     createdAt: asString(raw.createdAt),
@@ -224,5 +239,18 @@ export function mapStaffQueue(raw: unknown): RecordNightRequestQueue {
         ? asCount(data.openCount)
         : requests.filter((request) => request.status === "open").length,
     openLimit: asCount(data.openLimit),
+  };
+}
+
+// Conteggi del rifiuto in blocco (`rejectRequests`): rifiutate e saltate perché non
+// più in coda. Senza `rejectedCount` si contano le richieste restituite.
+export function mapBulkRejectCounts(raw: unknown, returnedRequests = 0) {
+  const data: Raw = isRaw(raw) ? raw : {};
+  return {
+    rejectedCount:
+      typeof data.rejectedCount === "number" && data.rejectedCount > 0
+        ? asCount(data.rejectedCount)
+        : returnedRequests,
+    skippedCount: asCount(data.skippedCount),
   };
 }

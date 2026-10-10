@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import {
+  mapBulkRejectCounts,
   mapGuestContext,
   mapGuestMine,
   mapGuestRequest,
@@ -23,12 +24,17 @@ import {
   chunkRequestIds,
   classifyGuestError,
   countOpenGuestRequests,
+  createActionRunner,
   createAnonymousSessionGate,
   createGuestSubmissionKeeper,
+  createLatestLoader,
   createSubmissionId,
+  describeBulkRejectResult,
   filterStaffQueue,
   getGuestStateText,
   getRecordNightGuestErrorMessage,
+  getStaffLinkedState,
+  groupLinkedRequests,
   groupPublicRecordsByCategory,
   isAtGuestPhoneLimit,
   isGuestIntakeOpen,
@@ -745,6 +751,274 @@ test("rifiuto in blocco: gruppi da 50 senza doppioni", () => {
   assert.deepEqual(chunkRequestIds(["a", "b", "c"], 2), [["a", "b"], ["c"]]);
 });
 
+test("mapper di mine: il titolo del record non c'è più = null, mai un testo inventato", () => {
+  const [withoutTitle, emptyTitle, titled] = mapGuestMine({
+    requests: [
+      { requestId: "r1", kind: "challenge", recordId: "rec1", recordTitle: null, state: "received" },
+      { requestId: "r2", kind: "challenge", recordId: "rec1", state: "pending" },
+      { requestId: "r3", kind: "challenge", recordId: "rec1", recordTitle: "Salti", state: "approved" },
+    ],
+  }).requests;
+  assert.equal(withoutTitle.recordTitle, null);
+  assert.equal(emptyTitle.recordTitle, null);
+  assert.equal(titled.recordTitle, "Salti");
+  assert.equal(mapGuestRequest({ requestId: "r4", kind: "proposal", recordTitle: 42 }).recordTitle, null);
+});
+
+// ---------------------------------------------------------------------------
+// Richieste collegate: stato del tentativo
+// ---------------------------------------------------------------------------
+
+test("richiesta collegata: il mapper legge entryStatus e withdrawnBy, null per le altre", () => {
+  const linked = mapStaffRequest({ id: "r1", status: "linked", entryStatus: "withdrawn", withdrawnBy: "staff" });
+  assert.deepEqual([linked.entryStatus, linked.withdrawnBy], ["withdrawn", "staff"]);
+  const open = mapStaffRequest({ id: "r2", status: "open" });
+  assert.deepEqual([open.entryStatus, open.withdrawnBy], [null, null]);
+  const odd = mapStaffRequest({ id: "r3", status: "linked", entryStatus: "boh", withdrawnBy: "alieno" });
+  assert.deepEqual([odd.entryStatus, odd.withdrawnBy], [null, null]);
+  const queue = mapStaffQueue({ requests: [{ id: "r4", status: "linked", entryStatus: "approved", withdrawnBy: null }] });
+  assert.equal(queue.requests[0].entryStatus, "approved");
+});
+
+test("richiesta collegata: stato leggibile per lo staff", () => {
+  const state = (entryStatus, withdrawnBy = null) => getStaffLinkedState({ entryStatus, withdrawnBy });
+  assert.deepEqual(state("pending"), { key: "pending", withdrawnBy: null, label: "In attesa", tone: "" });
+  assert.deepEqual(state("approved"), { key: "approved", withdrawnBy: null, label: "Ci sei", tone: "ok" });
+  assert.deepEqual(state("rejected"), { key: "rejected", withdrawnBy: null, label: "Non accettata", tone: "no" });
+  assert.deepEqual(state("withdrawn", "self"), { key: "withdrawn", withdrawnBy: "self", label: "Ritirata dalla persona", tone: "off" });
+  assert.equal(state("withdrawn", "staff").label, "Ritirata da un adulto");
+  assert.equal(state("withdrawn", "system").label, "Iscrizione annullata");
+  assert.equal(state("withdrawn", null).label, "Ritirata");
+  // Senza withdrawnBy sulle altre non si inventa nulla.
+  assert.equal(state("approved", "staff").withdrawnBy, null);
+  assert.equal(state(null).key, "missing");
+  assert.equal(state(undefined).label, "Tentativo non trovato");
+  assert.equal(getStaffLinkedState({}).key, "missing");
+});
+
+test("richieste collegate: gruppi per stato in ordine fisso, senza gruppi vuoti e senza le altre", () => {
+  const linked = (id, entryStatus, withdrawnBy = null) => staffRequest(id, { status: "linked", entryStatus, withdrawnBy });
+  const groups = groupLinkedRequests([
+    linked("a", "withdrawn", "self"),
+    linked("b", "pending"),
+    linked("c", "approved"),
+    linked("d", "withdrawn", "system"),
+    linked("e", null),
+    linked("f", "pending"),
+    staffRequest("g", { status: "open" }),
+    staffRequest("h", { status: "withdrawn" }),
+  ]);
+  assert.deepEqual(groups.map((group) => group.key), ["pending", "approved", "withdrawn", "missing"]);
+  assert.deepEqual(groups.map((group) => group.label), ["In attesa", "Approvate", "Ritirate", "Tentativo non trovato"]);
+  assert.deepEqual(groups[0].requests.map((request) => request.id), ["b", "f"]);
+  assert.deepEqual(groups[2].requests.map((request) => request.id), ["a", "d"]);
+  assert.deepEqual(groupLinkedRequests([]), []);
+  assert.deepEqual(groupLinkedRequests([staffRequest("x", { status: "open" })]), []);
+});
+
+// ---------------------------------------------------------------------------
+// Rifiuto in blocco: rifiutate e saltate
+// ---------------------------------------------------------------------------
+
+test("rifiuto in blocco: conteggi di rejectRequests {requests, rejectedCount, skippedCount}", () => {
+  assert.deepEqual(mapBulkRejectCounts({ rejectedCount: 3, skippedCount: 2 }, 3), { rejectedCount: 3, skippedCount: 2 });
+  assert.deepEqual(mapBulkRejectCounts({ rejectedCount: 0, skippedCount: 4 }, 0), { rejectedCount: 0, skippedCount: 4 });
+  // Risposta di una versione senza skippedCount, o di un'altra azione.
+  assert.deepEqual(mapBulkRejectCounts({ rejectedCount: 5 }, 5), { rejectedCount: 5, skippedCount: 0 });
+  assert.deepEqual(mapBulkRejectCounts({}, 2), { rejectedCount: 2, skippedCount: 0 });
+  assert.deepEqual(mapBulkRejectCounts(null, 0), { rejectedCount: 0, skippedCount: 0 });
+  assert.deepEqual(mapBulkRejectCounts({ rejectedCount: "3", skippedCount: -1 }, 0), { rejectedCount: 0, skippedCount: 0 });
+});
+
+test("rifiuto in blocco: l'esito dice quante segnate e quante non erano più in coda", () => {
+  assert.equal(describeBulkRejectResult({ rejectedCount: 1, skippedCount: 0 }), "1 richiesta segnata come non collegabile.");
+  assert.equal(describeBulkRejectResult({ rejectedCount: 3 }), "3 richieste segnate come non collegabili.");
+  assert.equal(
+    describeBulkRejectResult({ rejectedCount: 3, skippedCount: 2 }),
+    "3 richieste segnate come non collegabili. 2 non erano più in coda.",
+  );
+  assert.equal(describeBulkRejectResult({ rejectedCount: 1, skippedCount: 1 }), "1 richiesta segnata come non collegabile. 1 non era più in coda.");
+  assert.equal(describeBulkRejectResult({ rejectedCount: 0, skippedCount: 4 }), "4 non erano più in coda.");
+  assert.equal(describeBulkRejectResult({ rejectedCount: 0, skippedCount: 0 }), "Nessuna richiesta da segnare.");
+});
+
+// ---------------------------------------------------------------------------
+// Caricamento e azioni: l'ultima richiesta vince, la rilettura usa il load nuovo
+// ---------------------------------------------------------------------------
+
+const wait = async (predicate, message) => {
+  for (let step = 0; step < 100 && !predicate(); step += 1) await tick();
+  assert.ok(predicate(), message);
+};
+
+test("loader: una lettura superata o invalidata non si applica, nemmeno se è un errore", async () => {
+  const loader = createLatestLoader();
+  const gates = [];
+  const read = () => new Promise((resolve, reject) => gates.push({ resolve, reject }));
+
+  const first = loader.run(read);
+  const second = loader.run(read);
+  gates[1].resolve("nuova");
+  gates[0].resolve("vecchia");
+  assert.deepEqual(await second, { superseded: false, ok: true, value: "nuova" });
+  assert.deepEqual(await first, { superseded: true });
+
+  const failing = loader.run(read);
+  const winner = loader.run(read);
+  gates[2].reject(new Error("vecchia fallita"));
+  gates[3].resolve("buona");
+  assert.deepEqual(await failing, { superseded: true });
+  assert.equal((await winner).value, "buona");
+
+  const invalidated = loader.run(read);
+  loader.invalidate();
+  gates[4].resolve("tardiva");
+  assert.deepEqual(await invalidated, { superseded: true });
+
+  const failed = loader.run(() => Promise.reject(new Error("rete")));
+  const result = await failed;
+  assert.equal(result.superseded, false);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.message, "rete");
+});
+
+test("azioni: un comando per volta, e il pulsante occupato si segnala", async () => {
+  const busyStates = [];
+  const runner = createActionRunner({ getReload: () => async () => true, setBusy: (value) => busyStates.push(value) });
+  let release;
+  const first = runner.run(() => new Promise((resolve) => { release = resolve; }));
+  const second = await runner.run(async () => "mai");
+  assert.deepEqual(second, { status: "busy" });
+  release("fatto");
+  assert.deepEqual(await first, { status: "done", value: "fatto", stale: false });
+  assert.deepEqual(busyStates, [true, false]);
+  assert.deepEqual(await runner.run(async () => 1), { status: "done", value: 1, stale: false });
+});
+
+test("azioni: rilettura dopo l'azione e dopo un errore del server, non dopo un errore del client", async () => {
+  let reloads = 0;
+  const reload = async () => {
+    reloads += 1;
+    return true;
+  };
+  const runner = createActionRunner({
+    getReload: () => reload,
+    reloadOnError: (error) => !(error instanceof RecordNightGuestClientError),
+  });
+  const boom = new Error("server");
+  assert.deepEqual(await runner.run(async () => { throw boom; }), { status: "failed", error: boom });
+  assert.equal(reloads, 1, "errore del server: si rilegge (la risposta persa può aver creato la richiesta)");
+  const mine = new RecordNightGuestClientError("invalid", "Scrivi il nome.");
+  assert.deepEqual(await runner.run(async () => { throw mine; }), { status: "failed", error: mine });
+  assert.equal(reloads, 1, "errore del client: non ha parlato col server");
+  assert.equal((await runner.run(async () => "ok")).status, "done");
+  assert.equal(reloads, 2);
+});
+
+test("azioni: se la rilettura fallisce l'azione è riuscita ma l'elenco può essere vecchio", async () => {
+  const failing = createActionRunner({ getReload: () => async () => false });
+  assert.deepEqual(await failing.run(async () => "ok"), { status: "done", value: "ok", stale: true });
+  const throwing = createActionRunner({ getReload: () => async () => { throw new Error("rete"); } });
+  assert.deepEqual(await throwing.run(async () => "ok"), { status: "done", value: "ok", stale: true });
+  // Senza reloadOnError si rilegge anche dopo un errore (coda dello staff).
+  let reloads = 0;
+  const staff = createActionRunner({ getReload: () => async () => { reloads += 1; return true; } });
+  await staff.run(async () => { throw new Error("x"); });
+  assert.equal(reloads, 1);
+});
+
+// Il primo invio: la pagina non ha ancora la sessione anonima, quindi la chiave
+// di `mine` è vuota e il `load` del clic non fa nulla. Durante l'azione nasce la
+// sessione, la chiave cambia, parte una `mine` (effetto) che può rispondere
+// PRIMA che la richiesta esista. Il "server" fotografa la lista quando riceve la
+// chiamata e risponde quando decide il test.
+function firstSubmitHarness() {
+  const server = { requests: [] };
+  const reads = [];
+  const page = { shown: null };
+  const loader = createLatestLoader();
+  // Come il `load` dell'hook: chiave vuota = non fa nulla; altrimenti legge `mine` e
+  // applica il risultato solo se è ancora l'ultima lettura.
+  const makeLoad = (key) => async () => {
+    if (!key) return true;
+    const read = await loader.run(
+      () =>
+        new Promise((resolve) => {
+          const photo = [...server.requests];
+          reads.push({ photo, resolve: () => resolve(photo) });
+        }),
+    );
+    if (read.superseded) return true;
+    if (!read.ok) return false;
+    page.shown = read.value;
+    return true;
+  };
+  // Il `load` che la pagina ha adesso: prima della sessione, con la chiave vuota.
+  const state = { load: makeLoad("") };
+  return { server, reads, page, state, makeLoad };
+}
+
+test("primo invio: la rilettura dopo l'azione usa il load più recente (mine nata con la sessione risponde prima)", async () => {
+  const { server, reads, page, state, makeLoad } = firstSubmitHarness();
+  const runner = createActionRunner({ getReload: () => state.load });
+
+  const done = runner.run(async () => {
+    state.load = makeLoad("stake/act/anon1"); // nasce la sessione: la chiave non è più vuota
+    void state.load(); // l'effetto della pagina: parte `mine`
+    await tick();
+    server.requests.push("r1"); // il server crea la richiesta dopo la fotografia
+    reads[0].resolve(); // `mine` risponde adesso, con la lista vecchia
+    await tick();
+    return { requestId: "r1" };
+  });
+
+  await wait(() => reads.length === 2, "dopo l'azione deve partire una nuova lettura con il load aggiornato");
+  assert.deepEqual(reads[1].photo, ["r1"]);
+  reads[1].resolve();
+  assert.equal((await done).status, "done");
+  assert.deepEqual(page.shown, ["r1"], "la pagina mostra la richiesta appena inviata");
+});
+
+test("primo invio: la mine vecchia che risponde dopo la rilettura non copre la lista nuova", async () => {
+  const { server, reads, page, state, makeLoad } = firstSubmitHarness();
+  const runner = createActionRunner({ getReload: () => state.load });
+
+  const done = runner.run(async () => {
+    state.load = makeLoad("stake/act/anon1");
+    void state.load(); // mine nata con la sessione: ancora in volo
+    await tick();
+    server.requests.push("r1");
+    return { requestId: "r1" };
+  });
+
+  await wait(() => reads.length === 2, "rilettura dopo l'azione");
+  reads[1].resolve(); // la rilettura (lista nuova) arriva per prima
+  await done;
+  assert.deepEqual(page.shown, ["r1"]);
+  reads[0].resolve(); // la mine vecchia arriva tardi, con la lista vuota
+  await tick();
+  assert.deepEqual(page.shown, ["r1"], "una risposta superata non si applica");
+});
+
+test("controllo: con il load preso al momento del clic la lista resta vecchia (il bug segnalato)", async () => {
+  const { server, reads, page, state, makeLoad } = firstSubmitHarness();
+  const atClick = state.load; // chiave vuota: non fa nulla
+  const runner = createActionRunner({ getReload: () => atClick });
+
+  await runner.run(async () => {
+    state.load = makeLoad("stake/act/anon1");
+    void state.load();
+    await tick();
+    server.requests.push("r1");
+    reads[0].resolve();
+    await tick();
+    return { requestId: "r1" };
+  });
+  await tick();
+  assert.equal(reads.length, 1, "nessuna rilettura dopo l'azione");
+  assert.deepEqual(page.shown, [], "la pagina resta con la lista vuota e la richiesta non si vede");
+});
+
 // ---------------------------------------------------------------------------
 // Contratto con il backend (functions/lib, senza emulatori)
 // ---------------------------------------------------------------------------
@@ -956,6 +1230,9 @@ test("contratto: mine del server letto dal client, campo per campo", needsBacken
   assert.equal(read(request(), null, { windowOpen: false }).canWithdraw, false);
   const challenge = read(request({ kind: "challenge", recordId: "rec1" }), null, { recordTitle: "Salti" });
   assert.deepEqual([challenge.kind, challenge.recordId, challenge.recordTitle, challenge.text, challenge.measure], ["challenge", "rec1", "Salti", null, null]);
+  // Titolo non più pubblico (record nascosto o interruttore spento): resta null, il client non inventa un testo.
+  const hidden = read(request({ kind: "challenge", recordId: "rec1" }), null, { recordTitle: null });
+  assert.deepEqual([hidden.kind, hidden.recordId, hidden.recordTitle], ["challenge", "rec1", null]);
   const rejected = read(request({ status: "linked", linkedEntryId: "e1" }), { status: "rejected", rejectionReason: "Troppo rischioso." });
   assert.deepEqual([rejected.state, rejected.reason], ["rejected", "Troppo rischioso."]);
   assert.equal(read(request({ status: "linked", linkedEntryId: "e1" }), { status: "withdrawn" }).state, "removed");
@@ -993,7 +1270,16 @@ test("contratto: richiesta dello staff e suggerimenti del server letti dal clien
   assert.doesNotMatch(JSON.stringify(mapped), /uid-segreto|sub-segreto/u);
   // Ogni campo del server arriva al client (requestId è un doppione di id); il client
   // aggiunge solo quelli che metterà listRequests.
-  const expectedKeys = new Set([...Object.keys(view).filter((key) => key !== "requestId"), "recordTitle", "recordStatus", "duplicates", "suggestions"]);
+  const expectedKeys = new Set([
+    ...Object.keys(view).filter((key) => key !== "requestId"),
+    // Aggiunti da listRequests: sfida, collegata, in coda.
+    "recordTitle",
+    "recordStatus",
+    "entryStatus",
+    "withdrawnBy",
+    "duplicates",
+    "suggestions",
+  ]);
   assert.deepEqual(new Set(Object.keys(mapped)), expectedKeys);
 
   const registrations = [

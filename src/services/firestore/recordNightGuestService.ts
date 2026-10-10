@@ -22,6 +22,7 @@ import {
 
 import {
   mapGuestContext,
+  mapBulkRejectCounts,
   mapGuestMine,
   mapStaffQueue,
   mapStaffRequest,
@@ -56,6 +57,7 @@ interface RawAdminResult {
   request?: Record<string, unknown> | null;
   requests?: unknown;
   rejectedCount?: unknown;
+  skippedCount?: unknown;
   [key: string]: unknown;
 }
 
@@ -189,14 +191,16 @@ export const recordNightGuestService = {
 export type { RecordNightRequestQueue } from "./recordNightGuestMappers";
 
 // Esito di un'azione dello staff: il tentativo e il record toccati (null se non
-// toccati) e la richiesta com'è ora. `requests` e `rejectedCount` solo per il
-// rifiuto in blocco.
+// toccati) e la richiesta com'è ora. `requests`, `rejectedCount` e `skippedCount`
+// solo per il rifiuto in blocco: le richieste non più in coda (collegate, ritirate,
+// già rifiutate, scadute) vengono saltate e contate in `skippedCount`, senza errore.
 export interface RecordNightRequestActionResult {
   entry: RecordNightEntry | null;
   record: RecordNightRecord | null;
   request: RecordNightStaffRequest | null;
   requests: RecordNightStaffRequest[];
   rejectedCount: number;
+  skippedCount: number;
 }
 
 // Errore nel formato delle callable, così getRecordNightErrorMessage mostra il
@@ -216,10 +220,7 @@ function mapActionResult(raw: RawAdminResult): RecordNightRequestActionResult {
     record: raw.record ? mapRecordNightRecord(raw.record.id, raw.record) : null,
     request: raw.request ? mapStaffRequest(raw.request) : null,
     requests,
-    rejectedCount:
-      typeof raw.rejectedCount === "number" && raw.rejectedCount > 0
-        ? Math.floor(raw.rejectedCount)
-        : requests.length,
+    ...mapBulkRejectCounts(raw, requests.length),
   };
 }
 
@@ -269,7 +270,8 @@ export const recordNightRequestsService = {
     );
   },
 
-  // Rifiuto in blocco: da 1 a 50 richieste, tutto o niente. Per di più, a gruppi
+  // Rifiuto in blocco: da 1 a 50 richieste in una chiamata. Rifiuta quelle ancora
+  // in coda e salta le altre (`skippedCount`), senza errore. Per di più, a gruppi
   // (chunkRequestIds).
   async rejectMany(
     stakeId: string,
@@ -290,7 +292,8 @@ export const recordNightRequestsService = {
     );
   },
 
-  // "Riapri": una richiesta non collegabile torna in coda.
+  // "Riapri": una richiesta non collegabile o ritirata dal telefono torna in coda
+  // (anche dopo la chiusura e senza i tetti del telefono: sono dello staff).
   async reopen(
     stakeId: string,
     activityId: string,
