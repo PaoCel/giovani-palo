@@ -105,6 +105,28 @@ service cloud.firestore {
         );
     }
 
+    // Notte dei Record (docs/NOTTE_DEI_RECORD.md). Gestiscono i record: gli admin
+    // del palo, i dirigenti di unità (ruolo assegnato da un admin, non
+    // autodichiarabile) e gli uid in `staffUids` di
+    // `stakes/{s}/activities/{a}/management/recordNight`, scritto solo dal server
+    // su richiesta di un admin. Non conta `genderRoleCategory`: lo scrive chiunque
+    // nel proprio profilo. Non tocca le rules del campeggio.
+    function recordNightStaffDocPath(stakeId, activityId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/management/recordNight;
+    }
+
+    function isListedRecordNightStaff(stakeId, activityId) {
+      return isNonAnonymousSignedIn()
+        && exists(recordNightStaffDocPath(stakeId, activityId))
+        && request.auth.uid in get(recordNightStaffDocPath(stakeId, activityId)).data.staffUids;
+    }
+
+    function isRecordNightStaff(stakeId, activityId) {
+      return isStakeAdmin(stakeId)
+        || isUnitLeaderOfStake(stakeId)
+        || isListedRecordNightStaff(stakeId, activityId);
+    }
+
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -1318,6 +1340,37 @@ service cloud.firestore {
             && !('userId' in request.resource.data)
             && !('anonymousUid' in request.resource.data);
           allow delete: if isStakeAdmin(stakeId);
+        }
+
+        // Notte dei Record (docs/NOTTE_DEI_RECORD.md). Record e tentativi li scrive
+        // solo la callable (Admin SDK): i client leggono e basta.
+        // `records`: testi approvati da un admin ma scritti da minori, quindi mai
+        // senza login. I membri del palo (anche chi non è iscritto all'attività)
+        // leggono solo i record `open` e devono interrogare con
+        // `where('status', '==', 'open')`; lo staff (admin, dirigenti di unità,
+        // uid in elenco) legge tutto. Il client mostra poi
+        // solo quelli con `challengerCount > 0`; i nomi non stanno qui.
+        match /records/{recordId} {
+          allow get, list: if (
+              isNonAnonymousSignedIn()
+              && resource.data.status == 'open'
+              && currentUserExists()
+              && currentUser().stakeId == stakeId
+            )
+            || isRecordNightStaff(stakeId, activityId);
+          allow create, update, delete: if false;
+        }
+
+        // `recordEntries`: i tentativi portano i nomi dei ragazzi. Li legge il
+        // titolare (query `where ownerUid == uid`: un genitore vede quelli dei
+        // figli) e lo staff.
+        match /recordEntries/{entryId} {
+          allow get, list: if (
+              isNonAnonymousSignedIn()
+              && resource.data.ownerUid == request.auth.uid
+            )
+            || isRecordNightStaff(stakeId, activityId);
+          allow create, update, delete: if false;
         }
       }
     }
