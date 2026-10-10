@@ -29,7 +29,7 @@ import { organizationService } from "@/services/firestore/organizationService";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
 
 const PRIVACY_EMAIL = "privacy@gugditalia.it";
-const LAST_REVIEWED = "25 aprile 2026";
+const LAST_REVIEWED = "10 ottobre 2026";
 
 export function PrivacyPage() {
   const { data: organization } = useAsyncData(
@@ -119,7 +119,7 @@ export function PrivacyPage() {
               Chi non ha un account può segnarsi a un record indicando nome, cognome, unità e il
               testo della proposta. Questi dati li vede solo lo staff, che li usa per collegare la
               richiesta all&apos;iscrizione. Si cancellano in automatico circa 7 giorni dopo la
-              data del viaggio o dell&apos;attività (con un ritardo tecnico fino a un giorno). Se lo
+              data di inizio dell&apos;attività (con un ritardo tecnico fino a un giorno). Se lo
               staff collega una proposta a un&apos;iscrizione, il suo testo resta come una
               qualsiasi proposta fatta con un account. Le richieste restano legate a una sessione
               anonima di quel telefono, non a un account.
@@ -160,6 +160,8 @@ export function PrivacyPage() {
             <li><strong>Autorizzazioni genitore e PDF firmati:</strong> 24 mesi dopo la
               data di fine dell&apos;attività.</li>
             <li><strong>Tentativi di iscrizione (log tecnico):</strong> 90 giorni.</li>
+            <li><strong>Richieste senza account (Notte dei Record):</strong> circa 7 giorni dopo
+              la data di inizio dell&apos;attività, con un ritardo tecnico fino a un giorno.</li>
             <li><strong>Token di recupero per iscrizioni guest:</strong> 90 giorni dalla fine
               dell&apos;attività.</li>
             <li><strong>Notifiche admin:</strong> 365 giorni.</li>
