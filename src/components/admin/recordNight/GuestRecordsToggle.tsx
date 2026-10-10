@@ -128,6 +128,11 @@ export function GuestRecordsToggle({
             Chi non ha un account vede i record e può segnarsi con nome e unità. Un adulto controlla
             e collega ogni richiesta.
           </small>
+          <small>
+            Se lo spegni sparisce l'elenco pubblico per chi non ha un account e nessuno può più
+            inviare richieste. Quelle già inviate restano: i telefoni le vedono ancora e un adulto
+            può ancora collegarle.
+          </small>
           <i
             aria-hidden="true"
             className={
