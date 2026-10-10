@@ -1389,7 +1389,7 @@
 }
 
 .rna-queue-bar p {
-  color: var(--muted);
+  color: #56657a;
   font-size: 0.8rem;
   line-height: 1.4;
 }
@@ -1550,7 +1550,7 @@
   padding: 0.28rem 0.7rem 0.28rem 0.55rem;
   border-radius: 999px;
   background: var(--warning-soft);
-  color: var(--warning);
+  color: #6f4b12;
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1.3;
@@ -1700,7 +1700,7 @@
 }
 
 .rna-flag--soft {
-  color: var(--warning);
+  color: #7a5418;
 }
 
 .rna-none {
@@ -1982,7 +1982,7 @@
 }
 
 .rna-origin__typed {
-  color: var(--muted);
+  color: #56657a;
   font-size: 0.76rem;
   overflow-wrap: anywhere;
 }
@@ -2075,7 +2075,7 @@
   padding: 0.12rem 0.6rem;
   border-radius: 999px;
   background: var(--warning-soft);
-  color: var(--warning);
+  color: #6f4b12;
   font-size: 0.7rem;
   font-weight: 800;
   line-height: 1.4;
@@ -2093,7 +2093,7 @@
 
 .rna-state-chip--off {
   background: rgba(20, 39, 70, 0.08);
-  color: var(--muted);
+  color: #56657a;
 }
 
 .rna-list__link {
@@ -2252,7 +2252,7 @@
   padding: 0.08rem 0.55rem;
   border-radius: 999px;
   background: rgba(20, 39, 70, 0.08);
-  color: var(--muted);
+  color: #56657a;
   font-size: 0.68rem;
   font-style: normal;
   font-weight: 800;
@@ -2342,7 +2342,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  color: var(--muted);
+  color: #56657a;
   font-size: 0.76rem;
 }
 
@@ -2358,6 +2358,104 @@
   font-weight: 800;
   color: var(--heading);
   text-decoration: none;
+}
+
+/* --- Accessibilità delle richieste senza account ------------------------- */
+
+/* Testo piccolo su fondi tenui (pannelli, carte, gruppi): contrasto sopra 4,5. */
+.rna-panel .rna-field__hint,
+.rna-panel .rna-panel__note,
+.rna-panel .rna-panel__footnote,
+.rna-req__who small,
+.rna-req__facts,
+.rna-req__hint,
+.rna-req__record .rna-record__meta,
+.rna-linked-group__title span {
+  color: #56657a;
+}
+
+/* Testo scritto da sconosciuti: va a capo ovunque (anche 40 lettere senza spazi a
+   360 px) e ogni elemento che lo mostra ha il suo isolamento bidirezionale, così
+   un carattere di rovesciamento (U+202E) non scavalca il testo intorno. */
+.rna-confirm,
+.rna-panel,
+.rna-req,
+.rna-req__body,
+.rna-dupgroup,
+.rna-sugg,
+.rna-sugg__group,
+.rna-list,
+.rna-linked-groups,
+.rna-linked-group {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.rna-confirm__title,
+.rna-confirm__list li,
+.rna-panel__note,
+.rna-panel__error,
+.rna-panel__ok,
+.rna-list__reason,
+.rna-list__quote,
+.rna-list__body strong,
+.rna-list__link b,
+.rna-quote,
+.rna-req__quote,
+.rna-req__facts,
+.rna-req__who h4,
+.rna-origin__typed,
+.rna-dupmore span,
+.rna-toast {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.rna-confirm__title,
+.rna-confirm__list li,
+.rna-panel__note,
+.rna-list__reason,
+.rna-list__quote,
+.rna-list__body strong,
+.rna-list__link b,
+.rna-quote,
+.rna-req__quote,
+.rna-req__facts,
+.rna-req__who h4,
+.rna-origin__typed,
+.rna-dupmore span {
+  unicode-bidi: isolate;
+}
+
+/* Bersagli di tocco da 44 px sui tasti delle richieste (.button--small è 39). */
+.rna-req .button,
+.rna-list__item > .button,
+.rna-confirm .button,
+.rna-queue-bar .button,
+.rna-bulk .button {
+  min-height: 2.75rem;
+}
+
+/* La spunta resta spenta finché non si è scelto chi. */
+.rna-verify:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.rna-verify input:disabled {
+  cursor: not-allowed;
+}
+
+/* Titoli di sezione che ricevono il focus da programma (dopo un'azione che fa
+   sparire la carta): l'anello si vede solo da tastiera. */
+.rna-section__head h3[tabindex="-1"]:focus {
+  outline: none;
+}
+
+.rna-section__head h3[tabindex="-1"]:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
 }
 
 /* --- Schermi stretti (telefono, anche per chi organizza la serata) --------- */
