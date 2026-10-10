@@ -38,6 +38,7 @@ import {
   groupLinkedRequests,
   groupPublicRecordsByCategory,
   isAtGuestPhoneLimit,
+  stripBidi,
   isGuestIntakeOpen,
   normalizeGuestName,
   splitStaffRequests,
@@ -582,6 +583,16 @@ test("testi fissi: una sola formulazione per le frasi usate in più punti", () =
 test("testi fissi: cosa si raccoglie e conferma di chiusura", () => {
   assert.equal(GUEST_COPY.sheetPrivacy, "Raccogliamo nome, cognome, unità e testo della richiesta. Li vede solo lo staff.");
   assert.equal(GUEST_COPY.closeConfirm, "Chiudere senza inviare? Quello che hai scritto non si salva.");
+});
+
+test("stripBidi: toglie i caratteri di verso e lascia il resto", () => {
+  assert.equal(stripBidi("ab\u202Ecd\u202A\u202B\u202C\u202D\u2066\u2067\u2068\u2069ef"), "abcdef");
+  assert.equal(stripBidi("Più à è ’ — 3"), "Più à è ’ — 3");
+  assert.equal(stripBidi(""), "");
+  assert.equal(stripBidi(null), "");
+  assert.equal(stripBidi(undefined), "");
+  // Anche nel motivo di un rifiuto, che il telefono mostra.
+  assert.equal(getGuestStateText("rejected", { reason: "\u202ETroppo rischioso.\u202C" }).description, "Troppo rischioso.");
 });
 
 test("testi fissi: nessun apostrofo al posto della lettera accentata", () => {

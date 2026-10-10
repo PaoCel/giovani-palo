@@ -112,6 +112,14 @@ export function normalizeGuestName(value: string) {
     .replace(/[‘’ʼ]/gu, "'");
 }
 
+// Testo scritto da uno sconosciuto, senza i caratteri che cambiano il verso di
+// lettura (U+202A-202E, U+2066-2069): il server li accetta nei testi liberi e
+// uno solo basterebbe a rovesciare la riga e la virgoletta che le sta intorno.
+// Stesso insieme di stripBidi del lato staff (components/admin/recordNight/helpers.ts).
+export function stripBidi(value: string | null | undefined) {
+  return (value ?? "").replace(/[\u202A-\u202E\u2066-\u2069]/gu, "");
+}
+
 const NAME_LABELS: Record<GuestNameField, string> = { firstName: "nome", lastName: "cognome" };
 
 function nameMessage(field: GuestNameField, problem: GuestNameProblem) {
@@ -642,7 +650,7 @@ export function getGuestStateText(
   const entry = GUEST_STATE_TEXTS[state] ?? GUEST_STATE_TEXTS.received;
   if (options.closed && entry.closed) return { ...entry.closed };
   if (state === "rejected") {
-    return { title: entry.title, description: (options.reason ?? "").trim() };
+    return { title: entry.title, description: stripBidi(options.reason).trim() };
   }
   return { title: entry.title, description: entry.description };
 }
