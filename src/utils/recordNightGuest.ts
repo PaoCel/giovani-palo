@@ -55,6 +55,10 @@ export const GUEST_COPY = {
   // Nota del foglio "Senza account", in fondo al corpo, sopra i tasti.
   sheetNote:
     "Un adulto controlla ogni richiesta. Finché non è approvata non conta e non la vede nessuno. La vedi e la ritiri solo da questo telefono.",
+  // Sotto la nota del foglio, prima del link all'informativa: cosa si raccoglie.
+  sheetPrivacy: "Raccogliamo nome, cognome, unità e testo della richiesta. Li vede solo lo staff.",
+  // Chiusura del foglio con del testo scritto.
+  closeConfirm: "Chiudere senza inviare? Quello che hai scritto non si salva.",
   // Sotto "Accedi" nel foglio: chi passa dall'accesso perde ciò che ha scritto.
   sheetLoginHint: "Dopo l'accesso torni a questa pagina. Quello che hai scritto qui non si salva.",
   // Sotto "Le tue richieste da questo telefono" (formulazione del mockup).

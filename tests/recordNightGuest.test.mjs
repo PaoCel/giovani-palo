@@ -579,6 +579,11 @@ test("testi fissi: una sola formulazione per le frasi usate in più punti", () =
   for (const text of forTheRequester) assert.doesNotMatch(text, /tentativ/i, text);
 });
 
+test("testi fissi: cosa si raccoglie e conferma di chiusura", () => {
+  assert.equal(GUEST_COPY.sheetPrivacy, "Raccogliamo nome, cognome, unità e testo della richiesta. Li vede solo lo staff.");
+  assert.equal(GUEST_COPY.closeConfirm, "Chiudere senza inviare? Quello che hai scritto non si salva.");
+});
+
 test("testi fissi: nessun apostrofo al posto della lettera accentata", () => {
   const texts = [
     ...Object.values(GUEST_COPY),
