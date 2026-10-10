@@ -36,7 +36,7 @@ Tutte approvate nella forma "Proposta". Questa colonna è quindi la decisione; "
 | D1 | Chi non ha account vede l'elenco dei record? Il 09/10: "solo con login, testi di minori". | **Sì, sola lettura, solo ciò che scrive lo staff**: titolo, categoria, come si misura. Mai parole dei ragazzi, nomi, unità, note o numeri di iscritti. Pagina `noindex`. **Prima di accendere l'interruttore** l'editor mostra l'anteprima pubblica (titoli e categorie dei record aperti) da rivedere; i titoli già approvati quando l'elenco era solo per loggati diventano visibili solo dopo quel passaggio. L'"Approva" ricorda: "Il titolo lo vedono tutti, anche senza account: niente nomi". | Senza account si può solo proporre, non sfidare. |
 | D2 | Dopo il collegamento, chi ha fatto la richiesta può ritirarsi dal suo telefono? | **No**: il telefono vede lo stato; per ritirarsi chiede a un adulto (Scollega o Ritira). Prima del collegamento invece ritira e annulla da solo. | Sì, con Annulla: costa precedenza col titolare dell'account, errori che non devono rivelare altri tentativi, più test. Si può aggiungere dopo. |
 | D3 | Quanto si conservano le richieste? | **Fino a 7 giorni dopo la data del viaggio**, poi cancellate in automatico (TTL Firestore), qualunque stato. | Cancellare subito le non collegate alla chiusura. |
-| D4 | Limiti anti-spam. | **6 richieste aperte per telefono, 2 per persona, 100 in coda per attività**; interruttore "Richieste senza account" nell'editor attività, **spento di default** (lo accendi tu). Sono un freno agli errori e ai dispetti, **non una difesa**: chi cancella i dati del sito riparte. La difesa è la coda moderata, il tetto, l'interruttore e il rifiuto in blocco. | Numeri diversi. App Check o Turnstile solo se si vede abuso. |
+| D4 | Limiti anti-spam. | **12 richieste aperte per telefono, 2 per persona, 100 in coda per attività** (erano 6: lo stesso telefono può servire più persone, vedi "Più persone dallo stesso telefono"); interruttore "Richieste senza account" nell'editor attività, **spento di default** (lo accendi tu). Sono un freno agli errori e ai dispetti, **non una difesa**: chi cancella i dati del sito riparte. La difesa è la coda moderata, il tetto, l'interruttore e il rifiuto in blocco. | Numeri diversi. App Check o Turnstile solo se si vede abuso. |
 | D5 | Priorità e data. | Questa feature prima della Fase 2, in produzione **entro mar 13/10**, così si usa mer-gio prima della chiusura (gio 15/10, 21:00). La Fase 2 (scaletta, risultati) corre in parallelo solo su file disgiunti. | Fase 2 prima. |
 
 Assunzioni che seguo salvo stop: (a) "collegare a un account" = collegare
@@ -139,7 +139,7 @@ Risposte `{ ok, action, ... }`. Codice nuovo in `functions/lib/recordNightGuest.
 | `restore { requestId }` | anonima, titolare | solo `withdrawn` -> `open`, con gli stessi tetti di `submit` |
 
 Tetti dentro la transazione, per ogni ingresso **iniziato da un telefono** in
-`open` (`submit` e `restore`): 6 richieste `open` per `anonUid` (e 20 create in
+`open` (`submit` e `restore`): 12 richieste `open` per `anonUid` (e 40 create in
 tutto), 2 `open` per `personKey` per `anonUid`, 100 `open` per attività. Gli
 ingressi iniziati dallo staff (`reopenRequest`, `unlinkRequest`) non li
 controllano: la coda può superare 100 per mano dello staff, mai di un telefono.
@@ -262,7 +262,7 @@ ritirata non si ripristina con "Iscrivi qualcuno").
    record"); non si presumono duplicate.
 6. Cambia telefono o cancella i dati del sito: non vede più la richiesta; la
    pagina lo dice ("Le vedi solo da questo telefono"), lo staff la gestisce.
-7. Fratelli dallo stesso telefono: fino a 6 richieste, 2 per persona.
+7. Più persone dallo stesso telefono: fino a 12 richieste, 2 per persona (vedi sotto).
 8. Prova a ritirare dopo la chiusura: messaggio di chiusura, nessuna azione.
 9. Lo staff collega la persona sbagliata: **Scollega** (la persona collegata
    vede "Tolto da un adulto" e può ritirarsi da sola prima); l'etichetta "Da
@@ -271,6 +271,32 @@ ritirata non si ripristina con "Iscrivi qualcuno").
     collegamento dà "Già in gara per questo record" o "Questa proposta è già
     presente": lo staff la segna non collegabile.
 11. Lo staff rifiuta per errore: **Riapri**; il telefono non ha visto nulla di diverso.
+
+## Più persone dallo stesso telefono
+
+Caso reale (Paolo, 2026-10-10): fratelli o amici senza account che si passano
+un telefono. Il "telefono" è la sessione anonima; la "persona" è `personKey`
+(nome, cognome, unità normalizzati).
+
+- Persone diverse dallo stesso telefono sono richieste distinte: ognuna fino a 2,
+  fino a 12 in tutto. Possono proporre lo stesso testo o sfidare lo stesso
+  record: il server le crea tutte (lo staff le unisce).
+- **Idempotenza per persona, non per telefono**: se la stessa sessione ha già una
+  richiesta `open` con lo stesso `personKey` e lo stesso contenuto (sfida: stesso
+  record; proposta: stesso testo, misura, durata) `submit` restituisce quella,
+  con la stessa risposta di una creazione, anche se il telefono è al tetto.
+  Una richiesta ritirata, rifiutata o collegata non conta come duplicata.
+- "Sfida" non si spegne mai per un record già sfidato dal telefono: l'etichetta
+  "Già richiesta da questo telefono" informa, e solo se nome, cognome e unità
+  digitati coincidono con una richiesta attiva per quel record il foglio avvisa e
+  blocca l'invio.
+- Le richieste di un telefono le vede e le ritira **chiunque lo usi**
+  (carte ordinate per persona; il sottotitolo e la nota del foglio lo dicono).
+  È il prezzo di non avere un account: chi vuole riservatezza usa il login.
+- Dopo il collegamento il telefono vede lo stato di ogni sua richiesta, quindi
+  chi lo usa vede anche lo stato "Ci sei" delle altre persone: accettato.
+- Due omonimi con la stessa unità dallo stesso telefono contano come una
+  persona sola (tetto 2 in due): caso raro, lo staff li distingue al collegamento.
 
 ## UI
 
@@ -334,7 +360,7 @@ usa il `signInAnonymously` già in `AuthProvider`. L'elenco (`context`) non la r
   per il richiedente, effetti di Scollega da ogni stato.
 - Callable (emulatore, utenti veri): flusso completo; **invio di un nome iscritto,
   uno sconosciuto e un duplicato = risposte identiche** (stessa forma e messaggi);
-  tetti 6/2/100 anche su `restore`, non su `reopen`/`unlink`; account vero
+  tetti 12/2/100 anche su `restore`, non su `reopen`/`unlink`; account vero
   rifiutato; collegamento senza `verified` rifiutato; limite di 2 e unicità;
   Scollega da ogni stato (contatore una volta sola, nessun "Annulla" residuo);
   chiusura, interruttore, `recordsEnabled` spento; trigger sull'iscrizione
