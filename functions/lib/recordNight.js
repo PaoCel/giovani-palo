@@ -20,6 +20,7 @@ const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 
+const { isAdultByAge } = require("./adultAge");
 const { REGION } = require("./config");
 const { MIN_MATCH_SCORE, scoreCandidate, toTokens } = require("./nameMatch");
 
@@ -1428,7 +1429,7 @@ async function adminListParticipants(ctx) {
       registrationId: item.id,
       name: participantNameFromRegistration(item.data),
       unitName: String(item.data.unitName || item.data.unitNameSnapshot || ""),
-      isAdult: ADULT_ROLE_CATEGORIES.has(item.data.genderRoleCategory),
+      isAdult: ADULT_ROLE_CATEGORIES.has(item.data.genderRoleCategory) && isAdultByAge(item.data.birthDate),
     }))
     .sort(byName);
   return { participants };
@@ -1447,7 +1448,7 @@ async function adminListStaff(ctx) {
       registrationId: item.id,
       name: participantNameFromRegistration(item.data),
       unitName: String(item.data.unitName || item.data.unitNameSnapshot || ""),
-      isAdult: ADULT_ROLE_CATEGORIES.has(item.data.genderRoleCategory),
+      isAdult: ADULT_ROLE_CATEGORIES.has(item.data.genderRoleCategory) && isAdultByAge(item.data.birthDate),
     }))
     .map((item) => ({ ...item, isStaff: staffUids.has(item.uid) }))
     .sort((left, right) => Number(right.isAdult) - Number(left.isAdult) || byName(left, right));

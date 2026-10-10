@@ -188,7 +188,7 @@ async function enroll(activityId, client, extra = {}) {
 
 // Iscrizione di un adulto (staff "per iscrizione" se dirigente/accompagnatore e non annullata).
 async function enrollAdult(activityId, client, category = "dirigente", extra = {}) {
-  await enroll(activityId, client, { genderRoleCategory: category, fullName: `Adulto ${client.name}`, ...extra });
+  await enroll(activityId, client, { genderRoleCategory: category, fullName: `Adulto ${client.name}`, birthDate: "1985-01-01", ...extra });
 }
 
 // Iscrizione di un figlio: child_<parentUid>_<childId>, con parentUid come le scrive l'app.
@@ -1310,7 +1310,7 @@ test("listStaff: candidati = iscrizioni user_ attive, adulti prima, sei campi, i
   const act = await newActivity();
   await enroll(act, boyA, { ...sensitive, unitName: "Rione Primo" });
   await enroll(act, boyB, { ...sensitive, unitNameSnapshot: "Rione Secondo (copia)" });
-  await enrollAdult(act, adultLeader, "dirigente", { ...sensitive });
+  await enrollAdult(act, adultLeader, "dirigente", { ...sensitive, birthDate: "1985-01-01" });
   await enrollAdult(act, adultCompanion, "accompagnatore");
   await enrollAdult(act, adultCancelled, "dirigente", { registrationStatus: "cancelled" });
   await enrollAdult(act, legacyCancelled, "accompagnatore", { status: "cancelled" });
@@ -2960,7 +2960,7 @@ test("listParticipants: solo registrationId, name, unitName, isAdult; niente gue
   await enroll(act, boyA, { ...sensitive, unitName: "Rione Primo", userId: boyA.uid });
   await enroll(act, boyB, { ...sensitive, unitNameSnapshot: "Rione Secondo (copia)" });
   const kid = await enrollChild(act, parent, "kid1", "Carlo", { ...sensitive, unitName: "Rione Primo" });
-  await enrollAdult(act, adultLeader, "dirigente", { ...sensitive });
+  await enrollAdult(act, adultLeader, "dirigente", { ...sensitive, birthDate: "1985-01-01" });
   await enrollAdult(act, adultCompanion, "accompagnatore");
   // Esclusi: annullate (nuovo e vecchio campo), respinte, ospiti.
   await enrollAdult(act, adultCancelled, "dirigente", { registrationStatus: "cancelled" });
@@ -3290,7 +3290,7 @@ test("manual_: listParticipants le include se attive (non le annullate); listSta
   const { boyA, parent, admin, superAdmin, leader } = pool;
   const act = await newActivity({ members: [boyA] });
   const paolo = await enrollManual(act, "manual_paolo_celestini_roma5", "Paolo", "Celestini", { phone: "3331112222", medicalNotes: "allergia" });
-  const anna = await enrollManual(act, "manual_anna_rossi_roma5", "Anna", "Rossi", { genderRoleCategory: "dirigente", unitNameSnapshot: "ignorato", unitName: "" });
+  const anna = await enrollManual(act, "manual_anna_rossi_roma5", "Anna", "Rossi", { genderRoleCategory: "dirigente", birthDate: "1985-01-01", unitNameSnapshot: "ignorato", unitName: "" });
   await enrollManual(act, "manual_ex_iscritto_roma5", "Ex", "Iscritto", { registrationStatus: "cancelled" });
   await enrollManual(act, "manual_vecchio_roma5", "Vecchio", "Campo", { status: "cancelled" });
   await enrollManual(act, "manual_respinto_roma5", "Respinto", "Dal Genitore", { registrationStatus: "rejected_by_parent" });

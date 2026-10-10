@@ -195,6 +195,17 @@ test("riserva una stanza staff, rispetta note e ricalcolo", () => {
   assert.equal(proposed.assignments.noted, undefined);
 });
 
+test("un minorenne con categoria adulta non va in una stanza staff", () => {
+  const rooms = [room("staff", "staff_male", 2)];
+  const kid = registration("kid", "accompagnatore", { birthDate: "2012-05-05" });
+  const adult = registration("adult", "accompagnatore");
+  const withKid = plan(rooms, { assignments: { kid: "staff" }, adultGenders: { kid: "male" } });
+  assert.match(assignmentProblem(kid, rooms[0], withKid, [kid, adult], DATE) ?? "", /Minorenne con categoria adulta/u);
+  assert.ok(validateRoomPlan(withKid, [kid, adult], DATE).some((error) => /Minorenne con categoria adulta/u.test(error)));
+  const withAdult = plan(rooms, { assignments: { adult: "staff" }, adultGenders: { adult: "male" } });
+  assert.equal(assignmentProblem(adult, rooms[0], withAdult, [kid, adult], DATE), null);
+});
+
 test("assegna deterministicamente oltre cento giovani senza superare i letti", () => {
   const registrations = Array.from({ length: 120 }, (_, index) =>
     registration(`p-${String(index).padStart(3, "0")}`, index % 2 ? "giovane_donna" : "giovane_uomo"),

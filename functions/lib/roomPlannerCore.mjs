@@ -8,6 +8,7 @@ const ROOM_CATEGORIES = new Set([
 ]);
 const YOUTH_CATEGORIES = new Set(["giovane_uomo", "giovane_donna"]);
 const ADULT_CATEGORIES = new Set(["dirigente", "accompagnatore"]);
+const ADULT_AGE = 18;
 const INELIGIBLE_STATUSES = new Set([
   "draft",
   "waitlist",
@@ -206,6 +207,9 @@ export function assignmentProblem(person, room, plan, registrations, referenceDa
     return room.category === "girls" ? null : "Le giovani donne possono essere assegnate solo alle stanze ragazze.";
   }
   if (!isAdult(person)) return "La categoria dell'iscrizione non è gestibile nel piano stanze.";
+  // La categoria la dichiara chi si iscrive: un minorenne "accompagnatore" non va
+  // in una stanza staff.
+  if (age !== null && age < ADULT_AGE) return "Minorenne con categoria adulta: correggi la categoria dell'iscrizione prima di assegnarlo.";
 
   const adultGender = plan?.adultGenders?.[person.id];
   if (adultGender !== "male" && adultGender !== "female") {
