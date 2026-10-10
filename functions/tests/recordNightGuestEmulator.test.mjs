@@ -31,6 +31,11 @@
 //   M  listRequests: duplicati e suggerimenti
 //   N  trigger dell'iscrizione annullata e cleanup dell'attività
 //   O  sequenze casuali con seed fisso e invarianti
+//   P  aggiornamenti della spec (2026-10-10 sera): link/reject idempotenti, Scollega che
+//      nasconde il record rimasto a zero, entryStatus/withdrawnBy in listRequests,
+//      mine.recordTitle, scadenza già passata all'invio, tetti del telefono prima della coda
+//   Q  GARE VERE (Promise.all sulle callable): link/ritiro, link/rifiuto, Scollega contro
+//      Annulla del titolare, contro «Mostra di nuovo», contro il trigger; poi le invarianti
 //
 // Ogni scenario crea una propria attività (stato e tetti non si mescolano).
 // Le richieste "di contorno" dei test dello staff sono scritte via Admin SDK
@@ -51,17 +56,16 @@
 //    open/intakeOpen falsi e nessun record: si accettano entrambi.
 //  - Un submissionId usato da un'ALTRA sessione dà una richiesta nuova (mai la
 //    richiesta altrui).
-//  - rejectRequests con un id non valido: o errore e nessuna modifica, o le sole
-//    richieste open rifiutate.
+//  - rejectRequests: rifiuta le open e salta le altre (spec aggiornata), con rejectedCount e skippedCount.
 //  - Il 20 create in tutto non si prova su restore (non crea documenti).
 //  - Con l'interruttore recordsGuestEnabled spento (o assente) l'elenco pubblico del
-//    context è VUOTO: D1 dice che i titoli diventano visibili solo dopo l'anteprima
-//    dello staff e l'accensione. La riga `context` della spec non lo ripete.
+//    context è VUOTO (D1, ora scritto anche nella riga `context` della spec).
+//  - Gare vere: il Firestore emulator risolve i deadlock fra transazioni con un timeout dei lock
+//    di secondi che arriva come INTERNAL (su Firestore vero è ABORTED e il Admin SDK riprova):
+//    nei test Q è ammesso solo se dura 4+ secondi, viene contato in `t.diagnostic` e le invarianti
+//    devono reggere lo stesso.
 //  - A capo e tab dentro un nome sono spazi bianchi: accettati se normalizzati
 //    (come negli altri campi di testo del modulo), non vanno salvati com'erano.
-// Esito dell'ultima corsa (2026-10-10, backend d7fb82b): tutto verde tranne M2a, che
-// segnala un difetto vero del backend (bonus unità annullato dal tetto a 1 quando il
-// nome coincide esattamente: recordNight.js buildRequestSuggestions).
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -496,7 +500,8 @@ async function assertConsistent(activityId) {
   const requestMap = new Map(requestDocs.map((request) => [request.id, request]));
   for (const entry of entryDocs) {
     if (entry.sourceRequestId === undefined || entry.sourceRequestId === null) {
-      assert.ok(!entry.fromGuestRequest, `tentativo ${entry.id} con fromGuestRequest ma senza sourceRequestId`);
+      // Spec: sourceRequestId e fromGuestRequest li hanno SOLO i tentativi collegati; gli altri non hanno il campo.
+      assert.ok(!("sourceRequestId" in entry) && !("fromGuestRequest" in entry), `tentativo ${entry.id} non nato da una richiesta ma con sourceRequestId/fromGuestRequest`);
       continue;
     }
     assert.equal(entry.fromGuestRequest, true, `tentativo ${entry.id} con sourceRequestId ma senza fromGuestRequest`);
@@ -957,6 +962,10 @@ test("B3 tentativo collegato: il titolare lo modifica, lo ritira e lo ripristina
   assert.equal((await entryData(act, proposalEntry.id)).proposedText, "Testo corretto dal titolare");
   assert.equal((await requestData(act, proposalId)).proposedText, "Idea originale", "la richiesta resta com'è stata inviata");
   assert.equal(await stateOf(phone1, act, proposalId), "pending");
+  // Spec: mine mostra il testo della richiesta, non quello del tentativo (se il titolare lo modifica divergono: è voluto).
+  const shown = JSON.stringify((await mineById(phone1, act)).get(proposalId));
+  assert.ok(shown.includes("Idea originale"), `mine non mostra il testo della richiesta: ${shown}`);
+  assert.ok(!shown.includes("Testo corretto dal titolare"), "mine mostra il testo modificato dal titolare");
 
   // Ritira (sfida approvata): contatore -1; il telefono vede «removed».
   const withdrawnChallenge = await P(boyA, act, "withdraw", { entryId: challengeEntry.id });
@@ -1881,9 +1890,11 @@ test("H3 finestra chiusa: il telefono non invia, non ritira, non ripristina; lo 
   assert.equal((await recordData(act, r1.record.id)).challengerCount, 2);
   await rejectRequest(admin, act, toReject, "Non è iscritto.");
   await reopenRequest(leader, act, toReopen);
+  await reopenRequest(admin, act, parkedMine); // ritirata dal telefono: dopo la chiusura Riapri è l'unica strada
   await unlink(admin, act, toUnlink);
   await A(leader, act, "rejectRequests", { requestIds: bulk });
   const after = await requestStatuses(act);
+  assert.equal(after[parkedMine], "open");
   assert.equal(after[toLink], "linked");
   assert.equal(after[toLinkChallenge], "linked");
   assert.equal(after[toReject], "rejected");
@@ -1923,8 +1934,10 @@ test("H4 richiesta con expiresAt passato: inesistente per il telefono e per lo s
   await expectFail(rejectRequest(admin, act, expiredOpen, "No."), absent);
   await expectFail(reopenRequest(admin, act, expiredRejected), absent);
   await expectFail(unlink(admin, act, expiredLinked), absent);
-  // rejectRequests su una scaduta: errore oppure nessun effetto (controllato sotto).
-  await capture(A(admin, act, "rejectRequests", { requestIds: [expiredOpen] }));
+  // rejectRequests su una scaduta: saltata come inesistente, senza errore.
+  const bulk = await A(admin, act, "rejectRequests", { requestIds: [expiredOpen, expiredLinked] });
+  assert.equal(bulk.rejectedCount, 0);
+  assert.equal(bulk.skippedCount, 2);
   assert.deepEqual(await requestStatuses(act), statuses);
   assert.deepEqual(await snapshotWorld(act), world);
   assert.equal((await recordData(act, r1.record.id)).challengerCount, 2, "la scollegata scaduta non ha mosso il contatore");
@@ -2391,6 +2404,14 @@ test("L1 rejectRequest: open -> rejected; la nota interna non arriva mai al tele
   assert.equal(new Set(shapes).size, 1, `«non collegata» ha forme diverse: ${shapes.join(" | ")}`);
   assertNoLeak(response, ["NOTA-INTERNA-TRE", "NOTA-INTERNA-BULK", admin.uid, leader.uid, "NOTA-INTERNA"], "mine");
 
+  // Ripetuto su una già rifiutata (anche da un altro membro dello staff): niente da fare, niente cambia.
+  const repeated = await rejectRequest(leader, act, withNote, "ALTRA-NOTA");
+  assert.equal(repeated.ok, true, "rejectRequest su una già rifiutata è idempotente");
+  const unchanged = await requestData(act, withNote);
+  assert.equal(unchanged.status, "rejected");
+  assert.equal(unchanged.staffNote, "NOTA-INTERNA-TRE", "la seconda nota non riscrive la prima");
+  assert.equal(unchanged.decidedBy, admin.uid, "la decisione resta di chi ha rifiutato per primo");
+
   // Nota: fino a 200 caratteri.
   const longNote = await seedRequest(act, phone1, { who: WHO.paolo });
   await expectFail(rejectRequest(admin, act, longNote, "n".repeat(201)), "invalid-argument");
@@ -2409,7 +2430,7 @@ test("L1 rejectRequest: open -> rejected; la nota interna non arriva mai al tele
   await assertConsistent(act);
 });
 
-test("L2 rejectRequests: 50 richieste aperte in blocco; 51, vuoto o malformato rifiutati; id non apribili: errore senza effetti oppure solo le aperte", async () => {
+test("L2 rejectRequests: 50 aperte in blocco con rejectedCount e skippedCount; 51, vuoto o malformato rifiutati; le non aperte si saltano", async () => {
   const { boyA, admin, phone1 } = pool;
   const act = await newActivity({ members: [boyA] });
   const fifty = await Promise.all(Array.from({ length: 50 }, (_, index) => seedRequest(act, phone1, { who: WHO.maria, text: `Coda ${index}` })));
@@ -2422,26 +2443,30 @@ test("L2 rejectRequests: 50 richieste aperte in blocco; 51, vuoto o malformato r
   await expectFail(A(admin, act, "rejectRequests", { requestIds: [123] }), "invalid-argument");
   assert.ok((await statuses()).every((status) => status === "open"), "le richieste rifiutate per payload non cambiano");
 
-  // Id non apribili nell'elenco: o errore e nessun effetto, o solo le aperte rifiutate.
+  // Il blocco rifiuta le richieste ancora `open` e salta le altre (collegata, inesistente): risposta con i conteggi.
   const extraOpen = await seedRequest(act, phone1, { who: WHO.luca });
   const linkedId = await seedRequest(act, phone1, { who: WHO.sara });
   await link(admin, act, linkedId, `user_${boyA.uid}`);
-  const mixed = await capture(A(admin, act, "rejectRequests", { requestIds: [fifty[0], linkedId, "richiesta-che-non-esiste", extraOpen] }));
+  const mixed = await A(admin, act, "rejectRequests", { requestIds: [fifty[0], linkedId, "richiesta-che-non-esiste", extraOpen] });
+  assert.equal(mixed.ok, true);
+  assert.equal(mixed.rejectedCount, 2);
+  assert.equal(mixed.skippedCount, 2);
+  assert.deepEqual(listOf(mixed, "rejectRequests").map(idOf).sort(), [fifty[0], extraOpen].sort(), "requests = le sole rifiutate");
   const afterMixed = await requestStatuses(act);
-  assert.equal(afterMixed[linkedId], "linked", "una collegata non si rifiuta in blocco");
-  if (mixed.ok) {
-    assert.equal(afterMixed[fifty[0]], "rejected");
-    assert.equal(afterMixed[extraOpen], "rejected");
-  } else {
-    assert.equal(afterMixed[fifty[0]], "open", "errore: nessuna modifica parziale");
-    assert.equal(afterMixed[extraOpen], "open");
-  }
+  assert.equal(afterMixed[linkedId], "linked", "una collegata si salta, non si rifiuta");
+  assert.equal(afterMixed[fifty[0]], "rejected");
+  assert.equal(afterMixed[extraOpen], "rejected");
+  assert.equal((await entriesFromRequest(act, linkedId)).length, 1);
 
   // Esattamente 50 aperte: tutte rifiutate, con la nota interna.
-  const open = (await allDocs(requestsRef(act))).filter((request) => request.status === "open").map((request) => request.id).slice(0, 50);
-  assert.ok(open.length >= 40);
+  const topUp = await seedRequest(act, phone1, { who: WHO.paolo });
+  const open = (await allDocs(requestsRef(act))).filter((request) => request.status === "open").map((request) => request.id);
+  assert.equal(open.length, 50, `aperte prima del blocco da 50: ${open.length}`);
+  assert.ok(open.includes(topUp));
   const res = await A(admin, act, "rejectRequests", { requestIds: open, note: "Doppioni." });
   assert.equal(res.ok, true);
+  assert.equal(res.rejectedCount, 50);
+  assert.equal(res.skippedCount, 0);
   const after = await allDocs(requestsRef(act));
   for (const id of open) {
     const request = after.find((item) => item.id === id);
@@ -2449,10 +2474,23 @@ test("L2 rejectRequests: 50 richieste aperte in blocco; 51, vuoto o malformato r
     assert.equal(request.staffNote, "Doppioni.");
     assert.equal(request.decidedBy, admin.uid);
   }
+  // Ripetuto sulle stesse (già rifiutate) e su una sola collegata: tutte saltate, nessun errore, nessun cambio.
+  const repeat = await A(admin, act, "rejectRequests", { requestIds: open.slice(0, 5), note: "Seconda volta." });
+  assert.equal(repeat.rejectedCount, 0);
+  assert.equal(repeat.skippedCount, 5);
+  assert.equal((await requestData(act, open[0])).staffNote, "Doppioni.", "il blocco ripetuto non riscrive la nota");
+  const onlyLinked = await A(admin, act, "rejectRequests", { requestIds: [linkedId] });
+  assert.equal(onlyLinked.rejectedCount, 0);
+  assert.equal(onlyLinked.skippedCount, 1);
+  assert.equal((await requestData(act, linkedId)).status, "linked");
+  // Doppioni nell'elenco: una richiesta sola.
+  const dup = await seedRequest(act, phone1, { who: WHO.elena });
+  assert.equal((await A(admin, act, "rejectRequests", { requestIds: [dup, dup] })).ok, true);
+  assert.equal((await requestData(act, dup)).status, "rejected");
   await assertConsistent(act);
 });
 
-test("L3 reopenRequest: rejected -> open, il telefono torna a «received» identico a prima; ciò che non è rifiutato non cambia", async () => {
+test("L3 reopenRequest: rejected e withdrawn -> open, il telefono torna a «received» identico a prima; ciò che è aperto o collegato non cambia", async () => {
   const { boyA, admin, leader } = pool;
   const phone = await newPhone();
   const act = await newActivity({ members: [boyA] });
@@ -2460,6 +2498,7 @@ test("L3 reopenRequest: rejected -> open, il telefono torna a «received» ident
   const before = (await mineById(phone, act)).get(created.requestId);
   assert.equal(before.state, "received");
 
+  // Rifiutata per errore, poi riaperta.
   await rejectRequest(admin, act, created.requestId, "Per errore.");
   assert.equal(await stateOf(phone, act, created.requestId), "not_linked");
   assert.equal((await reopenRequest(leader, act, created.requestId)).ok, true);
@@ -2468,21 +2507,57 @@ test("L3 reopenRequest: rejected -> open, il telefono torna a «received» ident
   assert.equal(request.decidedBy, leader.uid);
   const after = (await mineById(phone, act)).get(created.requestId);
   assert.deepEqual(stripVolatile(after), stripVolatile(before), "dopo Riapri il telefono non vede nulla di diverso");
-  // E può ritirare come prima.
+
+  // Ritirata dal telefono, poi riaperta dallo staff (spec: rejected o withdrawn -> open).
+  assert.equal((await withdraw(phone, act, created.requestId)).ok, true);
+  assert.equal(await stateOf(phone, act, created.requestId), "withdrawn");
+  assert.equal((await reopenRequest(admin, act, created.requestId)).ok, true);
+  const reopened = await requestData(act, created.requestId);
+  assert.equal(reopened.status, "open");
+  assert.equal(reopened.decidedBy, admin.uid);
+  const afterWithdraw = (await mineById(phone, act)).get(created.requestId);
+  assert.equal(afterWithdraw.state, "received");
+  assert.deepEqual(stripVolatile(afterWithdraw), stripVolatile(before), "una richiesta ritirata e riaperta torna com'era");
+  // Il telefono può ritirare di nuovo (la finestra è aperta).
   assert.equal((await withdraw(phone, act, created.requestId)).ok, true);
 
-  // Ciò che non è rifiutato non si riapre: errore o nessun effetto.
+  // Già aperta o collegata: non cambia (errore o nessun effetto).
   const openId = await seedRequest(act, phone, { who: WHO.luca });
-  const withdrawnId = await seedRequest(act, phone, { who: WHO.sara, status: "withdrawn" });
   const linkedId = await seedRequest(act, phone, { who: WHO.paolo });
   await link(admin, act, linkedId, `user_${boyA.uid}`);
-  for (const id of [openId, withdrawnId, linkedId]) await capture(reopenRequest(admin, act, id));
+  for (const id of [openId, linkedId]) await capture(reopenRequest(admin, act, id));
   const statuses = await requestStatuses(act);
   assert.equal(statuses[openId], "open");
-  assert.equal(statuses[withdrawnId], "withdrawn");
   assert.equal(statuses[linkedId], "linked");
   assert.equal((await entriesFromRequest(act, linkedId)).length, 1);
   await expectFail(reopenRequest(admin, act, "richiesta-che-non-esiste"), ["not-found", "failed-precondition"]);
+  await assertConsistent(act);
+});
+
+test("L4 reopenRequest di una richiesta ritirata: anche a finestra chiusa e senza tetti (telefono e persona oltre il limite)", async () => {
+  const { admin, leader } = pool;
+  const phone = await newPhone();
+  const act = await newActivity();
+  const parked = (await submit(phone, act, proposalRequest(WHO.maria, { text: "Ritirata" }))).requestId;
+  await withdraw(phone, act, parked);
+  // Il telefono è al tetto (6 aperte) e la persona ha già 2 aperte.
+  for (const [index, who] of [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara].entries()) {
+    await submit(phone, act, proposalRequest(who, { text: `Aperta ${index}` }));
+  }
+  await expectFail(restore(phone, act, parked), "any", MAX_PHONE_MSG);
+  await setActivity(act, { recordsCloseAt: inPast(1) });
+  await expectFail(restore(phone, act, parked), "any", CLOSED_MSG);
+
+  assert.equal((await reopenRequest(leader, act, parked)).ok, true, "Riapri: nessun tetto e nessuna finestra");
+  assert.equal((await requestData(act, parked)).status, "open");
+  assert.equal((await requestData(act, parked)).decidedBy, leader.uid);
+  const mine = await requestsOfPhone(act, phone);
+  assert.equal(mine.filter((request) => request.status === "open").length, 7);
+  assert.equal(mine.filter((request) => request.personKey === personKeyOf(WHO.maria) && request.status === "open").length, 3);
+  assert.equal(await stateOf(phone, act, parked), "received");
+  // Dopo la chiusura il telefono non la ritira; lo staff la vede in coda come aperta.
+  await expectFail(withdraw(phone, act, parked), "any", CLOSED_MSG);
+  assert.equal((await queueById(admin, act)).get(parked).status, "open");
   await assertConsistent(act);
 });
 
@@ -2879,4 +2954,511 @@ for (const seed of GUEST_FUZZ_SEEDS) {
 test("O2 sequenze casuali richieste senza account: nell'insieme dei seed ogni azione nuova è riuscita almeno una volta", () => {
   const missing = ["submit", "withdraw", "restore", "link", "unlink", "rejectRequest", "rejectRequests", "reopenRequest"].filter((name) => !(guestFuzzCoverage[name] > 0));
   assert.deepEqual(missing, [], `azioni mai riuscite nelle sequenze casuali: ${missing.join(", ")} (copertura: ${JSON.stringify(guestFuzzCoverage)})`);
+});
+
+// ===========================================================================
+// P. Aggiornamenti della spec (revisione 2026-10-10 sera)
+// ===========================================================================
+
+// ---- C: linkRequest e rejectRequest idempotenti ----
+
+test("P1 linkRequest è idempotente sulla stessa iscrizione (ok, nessun secondo tentativo, contatore invariato); con un'altra iscrizione dà errore", async () => {
+  const { boyA, boyB, boyF, admin, leader, phone1 } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyF] });
+  const r1 = await makeRecord(act, boyF, "Record dell'idempotenza");
+  const proposalId = await seedRequest(act, phone1, { who: WHO.maria, text: "Torre di bicchieri" });
+  const challengeId = await seedRequest(act, phone1, { who: WHO.luca, kind: "challenge", recordId: r1.record.id });
+  await link(admin, act, proposalId, `user_${boyA.uid}`);
+  await link(admin, act, challengeId, `user_${boyB.uid}`);
+  const proposalEntry = (await requestData(act, proposalId)).linkedEntryId;
+  const challengeEntry = (await requestData(act, challengeId)).linkedEntryId;
+  const world = await snapshotWorld(act);
+  const counter = async () => (await recordData(act, r1.record.id)).challengerCount;
+  assert.equal(await counter(), 2);
+
+  // Doppio tocco o risposta persa: stessa iscrizione = stato attuale.
+  for (const [requestId, registrationId, entryId, staff] of [
+    [proposalId, `user_${boyA.uid}`, proposalEntry, admin],
+    [challengeId, `user_${boyB.uid}`, challengeEntry, leader],
+  ]) {
+    const again = await link(staff, act, requestId, registrationId);
+    assert.equal(again.ok, true, "link ripetuto sulla stessa iscrizione");
+    if (again.entry) assert.equal(again.entry.id, entryId, "restituisce il tentativo già creato");
+    assert.equal((await requestData(act, requestId)).linkedEntryId, entryId);
+    assert.equal((await entriesFromRequest(act, requestId)).length, 1, "nessun secondo tentativo");
+  }
+  assert.equal(await counter(), 2, "contatore invariato");
+  assert.deepEqual(await snapshotWorld(act), world, "il collegamento ripetuto non cambia nulla");
+
+  // Un'iscrizione diversa: errore (prima va scollegata).
+  await expectFail(link(admin, act, proposalId, `user_${boyB.uid}`), "failed-precondition");
+  await expectFail(link(admin, act, challengeId, `user_${boyA.uid}`), "failed-precondition");
+  assert.equal((await requestData(act, proposalId)).linkedRegistrationId, `user_${boyA.uid}`);
+  assert.equal((await requestData(act, challengeId)).linkedRegistrationId, `user_${boyB.uid}`);
+  assert.deepEqual(await snapshotWorld(act), world);
+
+  // Anche se il titolare ha ritirato il tentativo: stessa iscrizione = stato attuale, nessun tentativo nuovo.
+  await P(boyA, act, "withdraw", { entryId: proposalEntry });
+  assert.equal((await link(admin, act, proposalId, `user_${boyA.uid}`)).ok, true);
+  assert.equal((await entriesFromRequest(act, proposalId)).length, 1);
+  assert.equal((await entryData(act, proposalEntry)).status, "withdrawn");
+  assert.equal(await stateOf(phone1, act, proposalId), "removed");
+  await assertConsistent(act);
+});
+
+test("P2 due collegamenti insieme alla stessa iscrizione: riescono entrambi, un solo tentativo", async () => {
+  const { boyA, boyF, admin, leader, phone1 } = pool;
+  const act = await newActivity({ members: [boyA, boyF] });
+  const r1 = await makeRecord(act, boyF, "Record del doppio tocco dello staff");
+  const requestId = await seedRequest(act, phone1, { who: WHO.maria, kind: "challenge", recordId: r1.record.id });
+  const settled = await Promise.allSettled([
+    link(admin, act, requestId, `user_${boyA.uid}`),
+    link(leader, act, requestId, `user_${boyA.uid}`),
+    link(admin, act, requestId, `user_${boyA.uid}`),
+  ]);
+  assert.deepEqual(settled.map((item) => item.status), ["fulfilled", "fulfilled", "fulfilled"], JSON.stringify(settled.map((item) => (item.status === "fulfilled" ? "ok" : item.reason?.message))));
+  assert.equal((await entriesFromRequest(act, requestId)).length, 1, "un solo tentativo");
+  assert.equal((await recordData(act, r1.record.id)).challengerCount, 2);
+  await assertConsistent(act);
+});
+
+// ---- B: unlinkRequest nasconde il record rimasto a zero ----
+
+const HIDE_UNLINK_CASES = [
+  ["ritirato dal titolare", false, (c) => P(c.owner, c.act, "withdraw", { entryId: c.entryId })],
+  ["ritirato dallo staff", false, (c) => A(c.admin, c.act, "withdrawEntry", { entryId: c.entryId })],
+  [
+    "ritirato d'ufficio (iscrizione annullata)",
+    true,
+    async (c) => {
+      await registrationDoc(c.act, c.registrationId).update({ registrationStatus: "cancelled" });
+      await waitFor(async () => (await entryData(c.act, c.entryId)).status, (status) => status === "withdrawn", "il ritiro d'ufficio");
+    },
+  ],
+];
+for (const [label, cancelled, prepare] of HIDE_UNLINK_CASES) {
+  test(`P3 unlinkRequest su tentativo «${label}» che ha creato il record rimasto a zero: il record si nasconde, nessun doppione dopo il ricollegamento`, async () => {
+    const { boyA, admin, phone1, signedOut } = pool;
+    const act = await newActivity({ members: [boyA] });
+    const registrationId = `user_${boyA.uid}`;
+    const title = "Torre di bicchieri in 60 secondi";
+    const requestId = await seedRequest(act, phone1, { who: WHO.maria, text: "Torre di bicchieri" });
+    await link(admin, act, requestId, registrationId);
+    const entryId = (await requestData(act, requestId)).linkedEntryId;
+    const approved = await A(admin, act, "approve", { entryId, ...recordInput(title) });
+    const recordId = approved.record.id;
+    assert.equal((await recordData(act, recordId)).createdFromEntryId, entryId);
+    await prepare({ act, admin, owner: boyA, entryId, registrationId });
+    const before = await recordData(act, recordId);
+    assert.equal(before.challengerCount, 0, "il tentativo ritirato ha lasciato il record a zero");
+    assert.equal(before.status, "open");
+
+    assert.equal((await unlink(admin, act, requestId)).ok, true);
+    const hidden = await recordData(act, recordId);
+    assert.equal(hidden.status, "hidden", "il record rimasto vuoto si nasconde");
+    assert.equal(hidden.challengerCount, 0);
+    const entry = await entryData(act, entryId);
+    assert.equal(entry.status, "withdrawn");
+    assert.equal(entry.withdrawnBy, "staff");
+    assert.equal((await requestData(act, requestId)).status, "open");
+    assert.ok(!(await G(signedOut, act, "context")).records.some((record) => record.title === title), "il titolo non è più pubblico");
+    await assertConsistent(act);
+
+    if (!cancelled) {
+      // Collega di nuovo: tentativo nuovo, approvazione di nuovo: un record nuovo, il vecchio resta nascosto.
+      await link(admin, act, requestId, registrationId);
+      const relinked = (await requestData(act, requestId)).linkedEntryId;
+      assert.notEqual(relinked, entryId);
+      const again = await A(admin, act, "approve", { entryId: relinked, ...recordInput(title) });
+      assert.notEqual(again.record.id, recordId);
+      const sameTitle = (await allDocs(recordsRef(act))).filter((record) => record.title === title);
+      assert.equal(sameTitle.length, 2);
+      assert.deepEqual(sameTitle.map((record) => record.status).sort(), ["hidden", "open"], "un solo record visibile con quel titolo");
+      assert.equal((await G(signedOut, act, "context")).records.filter((record) => record.title === title).length, 1, "nessun doppione pubblico");
+      await assertConsistent(act);
+    }
+  });
+}
+
+test("P4 unlinkRequest non nasconde un record con altri sfidanti né uno che il tentativo non ha creato", async () => {
+  const { boyA, boyB, boyF, admin, phone1 } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyF] });
+
+  // (i) Il tentativo ha creato il record, ma c'è un altro sfidante.
+  const proposalId = await seedRequest(act, phone1, { who: WHO.maria, text: "Torre di bicchieri" });
+  await link(admin, act, proposalId, `user_${boyA.uid}`);
+  const proposalEntry = (await requestData(act, proposalId)).linkedEntryId;
+  const created = await A(admin, act, "approve", { entryId: proposalEntry, ...recordInput("Torre con due sfidanti") });
+  await P(boyB, act, "challenge", { recordId: created.record.id });
+  await P(boyA, act, "withdraw", { entryId: proposalEntry });
+  assert.equal((await recordData(act, created.record.id)).challengerCount, 1);
+  await unlink(admin, act, proposalId);
+  assert.equal((await recordData(act, created.record.id)).status, "open", "con un altro sfidante il record resta aperto");
+  assert.equal((await recordData(act, created.record.id)).challengerCount, 1);
+
+  // (ii) Il record non è nato da questo tentativo: anche se resta a zero non si nasconde.
+  const made = await makeRecord(act, boyF, "Record di Fiora");
+  await P(boyF, act, "withdraw", { entryId: made.entry.id });
+  const challengeId = await seedRequest(act, phone1, { who: WHO.luca, kind: "challenge", recordId: made.record.id });
+  await link(admin, act, challengeId, `user_${boyA.uid}`);
+  const challengeEntry = (await requestData(act, challengeId)).linkedEntryId;
+  assert.equal((await recordData(act, made.record.id)).challengerCount, 1);
+  await P(boyA, act, "withdraw", { entryId: challengeEntry });
+  assert.equal((await recordData(act, made.record.id)).challengerCount, 0);
+  await unlink(admin, act, challengeId);
+  assert.equal((await recordData(act, made.record.id)).status, "open", "il tentativo non ha creato il record: resta com'era");
+  await assertConsistent(act);
+});
+
+// ---- E: listRequests per le collegate ----
+
+test("P5 listRequests: per le collegate entryStatus e withdrawnBy del tentativo", async () => {
+  const { boyA, boyB, boyC, boyD, boyE, boyF, admin, phone1 } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyC, boyD, boyE, boyF] });
+  const r1 = await makeRecord(act, boyF, "Record della coda");
+  const manualId = await enrollManual(act, "manual_mario", "Mario", "Manuale");
+  const make = async (who, kind, registrationId) => {
+    const requestId = await seedRequest(act, phone1, { who, kind, recordId: kind === "challenge" ? r1.record.id : null });
+    await link(admin, act, requestId, registrationId);
+    return requestId;
+  };
+  const ids = {
+    pending: await make(WHO.maria, "proposal", `user_${boyA.uid}`),
+    approved: await make(WHO.luca, "challenge", `user_${boyB.uid}`),
+    rejected: await make(WHO.sara, "proposal", `user_${boyC.uid}`),
+    self: await make(WHO.paolo, "challenge", `user_${boyD.uid}`),
+    staff: await make(WHO.elena, "challenge", manualId),
+    system: await make(WHO.marco, "challenge", `user_${boyE.uid}`),
+  };
+  const open = await seedRequest(act, phone1, { who: WHO.giulia });
+  await A(admin, act, "reject", { entryId: (await requestData(act, ids.rejected)).linkedEntryId, reason: "No." });
+  await P(boyD, act, "withdraw", { entryId: (await requestData(act, ids.self)).linkedEntryId });
+  await A(admin, act, "withdrawEntry", { entryId: (await requestData(act, ids.staff)).linkedEntryId });
+  await registrationDoc(act, `user_${boyE.uid}`).update({ registrationStatus: "cancelled" });
+  await waitFor(async () => (await entryData(act, (await requestData(act, ids.system)).linkedEntryId)).status, (status) => status === "withdrawn", "il ritiro d'ufficio");
+
+  const queue = await queueById(admin, act);
+  const expected = {
+    pending: ["pending", null],
+    approved: ["approved", null],
+    rejected: ["rejected", null],
+    self: ["withdrawn", "self"],
+    staff: ["withdrawn", "staff"],
+    system: ["withdrawn", "system"],
+  };
+  for (const [label, [entryStatus, withdrawnBy]] of Object.entries(expected)) {
+    const item = queue.get(ids[label]);
+    assert.equal(item.status, "linked", label);
+    assert.equal(item.entryStatus, entryStatus, `${label}: entryStatus`);
+    assert.equal(item.withdrawnBy ?? null, withdrawnBy, `${label}: withdrawnBy`);
+  }
+  assert.equal(queue.get(open).status, "open");
+  assert.ok(queue.get(open).entryStatus === undefined || queue.get(open).entryStatus === null, "una richiesta aperta non ha un tentativo");
+});
+
+// ---- G: mine.recordTitle ----
+
+test("P6 mine.recordTitle: c'è solo se il record è open, ha sfidanti e l'interruttore è acceso; altrimenti null", async () => {
+  const { boyF, admin, phone1 } = pool;
+  const act = await newActivity({ members: [boyF] });
+  const title = "Titolo pubblico del record";
+  const made = await makeRecord(act, boyF, title);
+  const challenge = (await submit(phone1, act, challengeRequest(WHO.maria, made.record.id))).requestId;
+  const proposalRes = (await submit(phone1, act, proposalRequest(WHO.luca))).requestId;
+  const recordTitle = async (requestId) => (await mineById(phone1, act)).get(requestId).recordTitle ?? null;
+
+  assert.equal(await recordTitle(challenge), title, "record open, con sfidanti, interruttore acceso");
+  assert.equal(await recordTitle(proposalRes), null, "una proposta non ha un record");
+
+  await setActivity(act, { recordsGuestEnabled: false });
+  assert.equal(await recordTitle(challenge), null, "interruttore spento: il titolo non è pubblico");
+  assert.equal((await mineItems(phone1, act)).length, 2, "le richieste si vedono lo stesso");
+  await setActivity(act, { recordsGuestEnabled: true });
+  assert.equal(await recordTitle(challenge), title);
+
+  const recordInputFor = recordInput(title);
+  await A(admin, act, "updateRecord", { recordId: made.record.id, ...recordInputFor, status: "hidden" });
+  assert.equal(await recordTitle(challenge), null, "record nascosto");
+  await A(admin, act, "updateRecord", { recordId: made.record.id, ...recordInputFor, status: "open" });
+  assert.equal(await recordTitle(challenge), title);
+
+  await P(pool.boyF, act, "withdraw", { entryId: made.entry.id });
+  assert.equal((await recordData(act, made.record.id)).challengerCount, 0);
+  assert.equal(await recordTitle(challenge), null, "record aperto ma senza sfidanti");
+  // Il titolo mai nel resto della risposta quando è null.
+  assert.ok(!JSON.stringify(await G(phone1, act, "mine")).includes(title));
+});
+
+// ---- H: scadenza già passata all'invio ----
+
+test("P7 submit: con data d'inizio presente e inizio + 7 giorni già passato la richiesta non nasce («chiuse»); con inizio recente nasce", async () => {
+  const phone = await newPhone();
+  const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString().slice(0, 10);
+  const tenDaysAgo = daysAgo(10);
+  const late = await newActivity({ startDate: tenDaysAgo }); // finestra ancora aperta (recordsCloseAt fra 48 ore)
+  await expectFail(submit(phone, late, proposalRequest(WHO.maria)), "any", CLOSED_MSG);
+  assert.equal((await requestsOfPhone(late, phone)).length, 0, "la richiesta non deve nascere");
+  assert.equal((await requestsRef(late).get()).size, 0);
+
+  const threeDaysAgo = daysAgo(3);
+  const recent = await newActivity({ startDate: threeDaysAgo });
+  const created = await submit(phone, recent, proposalRequest(WHO.maria));
+  const expires = (await requestData(recent, created.requestId)).expiresAt.toMillis();
+  const start = Date.parse(`${threeDaysAgo}T00:00:00.000Z`);
+  assert.ok(Math.abs(expires - (start + 7 * DAY)) <= 1.5 * DAY, `expiresAt ${new Date(expires).toISOString()} non è inizio + 7 giorni`);
+  assert.ok(expires > Date.now(), "la richiesta nasce con una scadenza nel futuro");
+});
+
+// ---- F: tetti del telefono prima di quello della coda ----
+
+test("P8 tetti: quello del telefono si controlla prima di quello della coda (solo l'esito)", async () => {
+  const { boyA } = pool;
+  const act = await newActivity({ members: [boyA] });
+  // Telefono al tetto: una ritirata e sei aperte.
+  const atCap = await newPhone();
+  const parked = (await submit(atCap, act, proposalRequest(WHO.tommaso, { text: "Ritirata" }))).requestId;
+  await withdraw(atCap, act, parked);
+  for (const [index, who] of [WHO.maria, WHO.maria, WHO.luca, WHO.luca, WHO.sara, WHO.sara].entries()) {
+    await submit(atCap, act, proposalRequest(who, { text: `Aperta ${index}` }));
+  }
+  // Telefono con due aperte della stessa persona.
+  const twoOfOne = await newPhone();
+  await submit(twoOfOne, act, proposalRequest(WHO.paolo, { text: "Prima" }));
+  await submit(twoOfOne, act, proposalRequest(WHO.paolo, { text: "Seconda" }));
+  // Telefono libero, con una richiesta ritirata.
+  const free = await newPhone();
+  const freeParked = (await submit(free, act, proposalRequest(WHO.elena, { text: "Libera" }))).requestId;
+  await withdraw(free, act, freeParked);
+  // La coda sale a 100 aperte (8 sono già dei telefoni sopra).
+  await Promise.all(Array.from({ length: 92 }, (_, index) => seedRequest(act, { uid: `folla-${runId}-${index}` }, { who: WHO.giulia, text: `Folla ${index}` })));
+  assert.equal((await requestsRef(act).where("status", "==", "open").get()).size, 100);
+
+  // Coda piena e telefono al tetto: l'errore è quello del telefono.
+  await expectFail(submit(atCap, act, proposalRequest(WHO.marco)), "any", MAX_PHONE_MSG);
+  await expectFail(restore(atCap, act, parked), "any", MAX_PHONE_MSG);
+  await expectFail(submit(twoOfOne, act, proposalRequest(WHO.paolo, { text: "Terza" })), "any", MAX_PHONE_MSG);
+  // Coda piena e telefono libero: l'errore neutro della coda.
+  await expectFail(submit(free, act, proposalRequest(WHO.marco)), "any", CANNOT_RECEIVE_MSG);
+  await expectFail(restore(free, act, freeParked), "any", CANNOT_RECEIVE_MSG);
+  assert.equal((await requestsRef(act).where("status", "==", "open").get()).size, 100, "nessuna richiesta nata o riaperta");
+});
+
+// ===========================================================================
+// Q. GARE VERE: chiamate simultanee nell'emulatore, poi le invarianti
+// ===========================================================================
+// Ogni esito ammesso dalla spec va bene, purché reggano: contatore == tentativi approved,
+// al massimo 2 attivi per iscrizione, richiesta linked coerente con il tentativo, nessun
+// tentativo attivo orfano (assertConsistent). Errori ammessi: failed-precondition e not-found.
+
+const RACE_OK_CODES = new Set(["functions/failed-precondition", "functions/not-found"]);
+// Il Firestore emulator risolve un deadlock fra due transazioni che leggono e poi scrivono lo stesso
+// documento con un timeout dei lock di parecchi secondi, e il Admin SDK non lo riprova: arriva come
+// INTERNAL dopo 4+ secondi. Su Firestore vero il conflitto è ABORTED e viene riprovato. Qui è un
+// esito «nessun effetto» ammesso (si conta e si riporta), ma un INTERNAL veloce è un crash vero.
+const LOCK_TIMEOUT_MS = 4000;
+const race = (...promises) =>
+  Promise.allSettled(
+    promises.map((promise) => {
+      const started = Date.now();
+      return Promise.resolve(promise).catch((error) => {
+        if (error && typeof error === "object") error.elapsedMs = Date.now() - started;
+        throw error;
+      });
+    }),
+  );
+const raceOutcomes = (settled) => settled.map((item) => (item.status === "fulfilled" ? "ok" : item.reason?.code ?? "errore"));
+const fulfilledCount = (settled) => settled.filter((item) => item.status === "fulfilled").length;
+// Restituisce quante chiamate sono finite nel timeout dei lock dell'emulatore.
+function assertRaceClean(settled, label) {
+  let lockTimeouts = 0;
+  for (const item of settled) {
+    if (item.status !== "rejected") continue;
+    const code = item.reason?.code;
+    if (RACE_OK_CODES.has(code)) continue;
+    if (code === "functions/internal" && (item.reason?.elapsedMs ?? 0) >= LOCK_TIMEOUT_MS) {
+      lockTimeouts += 1;
+      continue;
+    }
+    assert.fail(`${label}: esito imprevisto ${JSON.stringify(raceOutcomes(settled))}: ${item.reason?.message} (${item.reason?.elapsedMs} ms)`);
+  }
+  return lockTimeouts;
+}
+const RACE_NAMES = ["Alba", "Berta", "Cinzia", "Dora", "Elisa", "Fulvia", "Giada", "Irene", "Lidia", "Marta"];
+
+test("Q1 gara vera: collegamento contro ritiro del telefono (10 giri): vince uno solo", async (t) => {
+  const { boyF, admin } = pool;
+  const act = await newActivity({ members: [boyF] });
+  const r1 = await makeRecord(act, boyF, "Record della gara uno");
+  const phone = await newPhone();
+  const tally = { linked: 0, withdrawn: 0, lockTimeouts: 0 };
+  for (let round = 0; round < 10; round += 1) {
+    const registrationId = await enrollManual(act, `manual_gara_${round}`, "Gara", `Numero${RACE_NAMES[round]}`);
+    const created = await submit(phone, act, challengeRequest(person(RACE_NAMES[round], "Lunari"), r1.record.id));
+    const settled = await race(link(admin, act, created.requestId, registrationId), withdraw(phone, act, created.requestId));
+    const timeouts = assertRaceClean(settled, `giro ${round}`);
+    tally.lockTimeouts += timeouts;
+    if (timeouts === 0) assert.equal(fulfilledCount(settled), 1, `giro ${round}: ${JSON.stringify(raceOutcomes(settled))}`);
+    else assert.ok(fulfilledCount(settled) <= 1);
+    const request = await requestData(act, created.requestId);
+    if (request.status === "linked") {
+      assert.equal((await entriesFromRequest(act, created.requestId)).length, 1);
+      tally.linked += 1;
+    } else {
+      assert.ok(request.status === "withdrawn" || (request.status === "open" && timeouts > 0), `stato ${request.status} dopo ${JSON.stringify(raceOutcomes(settled))}`);
+      assert.equal((await entriesFromRequest(act, created.requestId)).length, 0, "ritiro vinto: nessun tentativo");
+      tally.withdrawn += 1;
+    }
+    await assertConsistent(act);
+  }
+  t.diagnostic(JSON.stringify(tally));
+});
+
+test("Q2 gara vera: collegamento contro rejectRequest e rejectRequests dello staff (10 giri ciascuno)", async (t) => {
+  const { boyF, admin, leader, phone1 } = pool;
+  const act = await newActivity({ members: [boyF] });
+  const r1 = await makeRecord(act, boyF, "Record della gara due");
+  const tally = { single: { linked: 0, rejected: 0 }, bulk: { linked: 0, rejected: 0 }, lockTimeouts: 0 };
+  for (const variant of ["single", "bulk"]) {
+    for (let round = 0; round < 10; round += 1) {
+      const registrationId = await enrollManual(act, `manual_gara_${variant}_${round}`, "Gara", `Numero${RACE_NAMES[round]}`);
+      const requestId = await seedRequest(act, phone1, { who: person(RACE_NAMES[round], "Lunari"), kind: "challenge", recordId: r1.record.id });
+      const rejection = variant === "single" ? rejectRequest(leader, act, requestId, "Gara") : A(leader, act, "rejectRequests", { requestIds: [requestId] });
+      const settled = await race(link(admin, act, requestId, registrationId), rejection);
+      const timeouts = assertRaceClean(settled, `${variant} giro ${round}`);
+      tally.lockTimeouts += timeouts;
+      const request = await requestData(act, requestId);
+      if (timeouts === 0) {
+        if (variant === "single") assert.equal(fulfilledCount(settled), 1, `${variant} giro ${round}: ${JSON.stringify(raceOutcomes(settled))}`);
+        else assert.ok(fulfilledCount(settled) >= 1, `${variant} giro ${round}: ${JSON.stringify(raceOutcomes(settled))}`);
+      }
+      if (request.status === "linked") {
+        assert.equal((await entriesFromRequest(act, requestId)).length, 1);
+        tally[variant].linked += 1;
+      } else {
+        assert.ok(request.status === "rejected" || (request.status === "open" && timeouts > 0), `stato ${request.status} dopo ${JSON.stringify(raceOutcomes(settled))}`);
+        assert.equal((await entriesFromRequest(act, requestId)).length, 0, "rifiuto vinto: nessun tentativo");
+        tally[variant].rejected += 1;
+      }
+      await assertConsistent(act);
+    }
+  }
+  t.diagnostic(JSON.stringify(tally));
+});
+
+for (const [label, kind] of [["sfida approvata", "challenge"], ["proposta in attesa", "proposal"]]) {
+  test(`Q3 gara vera: Scollega contro «Annulla» del titolare (${label}, 5 giri)`, async (t) => {
+    const { boyA, boyB, boyC, boyD, boyE, boyF, admin, phone1 } = pool;
+    const members = [boyA, boyB, boyC, boyD, boyE];
+    const act = await newActivity({ members: [...members, boyF] });
+    const r1 = await makeRecord(act, boyF, "Record della gara tre");
+    const tally = { restoredThenUnlinked: 0, unlinkedFirst: 0, lockTimeouts: 0 };
+    for (const [round, member] of members.entries()) {
+      const requestId = await seedRequest(act, phone1, {
+        who: person(RACE_NAMES[round], "Lunari"), kind, recordId: kind === "challenge" ? r1.record.id : null, text: `Idea della gara ${round}`,
+      });
+      await link(admin, act, requestId, `user_${member.uid}`);
+      const entryId = (await requestData(act, requestId)).linkedEntryId;
+      await P(member, act, "withdraw", { entryId });
+      const settled = await race(unlink(admin, act, requestId), P(member, act, "restore", { entryId }));
+      const timeouts = assertRaceClean(settled, `giro ${round}`);
+      tally.lockTimeouts += timeouts;
+      const entry = await entryData(act, entryId);
+      if (settled[0].status === "fulfilled") {
+        // Lo scollegamento è riuscito: in qualunque ordine il tentativo finisce ritirato dallo staff, senza «Annulla».
+        assert.equal(entry.status, "withdrawn", "alla fine il tentativo scollegato è ritirato");
+        assert.equal(entry.withdrawnBy, "staff");
+        assert.equal(entry.statusBeforeWithdraw ?? null, null, "nessun «Annulla» residuo");
+        assert.ok(!entry.withdrawnWithRecordHide);
+        assert.equal((await requestData(act, requestId)).status, "open");
+        if (settled[1].status === "fulfilled") tally.restoredThenUnlinked += 1;
+        else tally.unlinkedFirst += 1;
+      } else {
+        assert.ok(timeouts > 0, `lo scollegamento deve riuscire in ogni ordine: ${JSON.stringify(raceOutcomes(settled))}`);
+      }
+      await assertConsistent(act);
+    }
+    t.diagnostic(JSON.stringify(tally));
+  });
+}
+
+test("Q4 gara vera: Scollega contro «Mostra di nuovo» (updateRecord open su un record nascosto, 5 giri)", async (t) => {
+  const { boyA, boyF, admin, leader, phone1 } = pool;
+  const tally = { lockTimeouts: 0, bothOk: 0 };
+  for (let round = 0; round < 5; round += 1) {
+    const act = await newActivity({ members: [boyA, boyF] });
+    const title = `Record nascosto ${round}`;
+    const r1 = await makeRecord(act, boyF, title);
+    const requestId = await seedRequest(act, phone1, { who: WHO.maria, kind: "challenge", recordId: r1.record.id });
+    await link(admin, act, requestId, `user_${boyA.uid}`);
+    const entryId = (await requestData(act, requestId)).linkedEntryId;
+    await A(admin, act, "updateRecord", { recordId: r1.record.id, ...recordInput(title), status: "hidden" });
+    assert.equal((await entryData(act, entryId)).withdrawnWithRecordHide, true);
+
+    const settled = await race(
+      unlink(admin, act, requestId),
+      A(leader, act, "updateRecord", { recordId: r1.record.id, ...recordInput(title), status: "open" }),
+    );
+    const timeouts = assertRaceClean(settled, `giro ${round}`);
+    tally.lockTimeouts += timeouts;
+    if (timeouts === 0) {
+      assert.deepEqual(raceOutcomes(settled), ["ok", "ok"], "scollegare e mostrare di nuovo riescono entrambi");
+      tally.bothOk += 1;
+    }
+    const entry = await entryData(act, entryId);
+    if (settled[0].status === "fulfilled") {
+      assert.equal(entry.status, "withdrawn", "il tentativo scollegato non rientra con il record");
+      assert.equal(entry.withdrawnBy, "staff");
+      assert.equal(entry.statusBeforeWithdraw ?? null, null);
+      assert.ok(!entry.withdrawnWithRecordHide);
+      assert.equal((await requestData(act, requestId)).status, "open");
+    }
+    if (settled[1].status === "fulfilled") {
+      const record = await recordData(act, r1.record.id);
+      assert.equal(record.status, "open");
+      assert.equal(record.challengerCount, settled[0].status === "fulfilled" ? 1 : 2, "rientra solo chi ha creato il record (e chi non è stato scollegato)");
+    }
+    await assertConsistent(act);
+  }
+  t.diagnostic(JSON.stringify(tally));
+});
+
+test("Q5 gara vera: Scollega contro il trigger dell'iscrizione annullata (5 giri)", async (t) => {
+  const { boyA, boyB, boyC, boyD, boyE, boyF, admin, phone1 } = pool;
+  const members = [boyA, boyB, boyC, boyD, boyE];
+  const act = await newActivity({ members: [...members, boyF] });
+  const r1 = await makeRecord(act, boyF, "Record della gara cinque");
+  const tally = { lockTimeouts: 0 };
+  for (const [round, member] of members.entries()) {
+    const requestId = await seedRequest(act, phone1, { who: person(RACE_NAMES[round], "Lunari"), kind: "challenge", recordId: r1.record.id });
+    await link(admin, act, requestId, `user_${member.uid}`);
+    const entryId = (await requestData(act, requestId)).linkedEntryId;
+    const settled = await race(
+      unlink(admin, act, requestId),
+      registrationDoc(act, `user_${member.uid}`).update({ registrationStatus: "cancelled" }),
+    );
+    tally.lockTimeouts += assertRaceClean(settled, `giro ${round}`);
+    assert.equal(settled[1].status, "fulfilled", "l'annullamento dell'iscrizione è una scrittura normale");
+    // Il trigger gira in coda: si attende che le invarianti tornino vere e restino tali.
+    await waitFor(
+      async () => {
+        try {
+          await assertConsistent(act);
+          return (await entryData(act, entryId)).status === "withdrawn";
+        } catch {
+          return false;
+        }
+      },
+      (done) => done === true,
+      `invarianti dopo il trigger (giro ${round})`,
+    );
+    await pause(700);
+    await assertConsistent(act);
+    const entry = await entryData(act, entryId);
+    assert.equal(entry.status, "withdrawn");
+    assert.ok(["staff", "system"].includes(entry.withdrawnBy), `withdrawnBy ${entry.withdrawnBy}`);
+    assert.equal(entry.statusBeforeWithdraw ?? null, null);
+    if (settled[0].status === "fulfilled") assert.equal((await requestData(act, requestId)).status, "open", "lo scollegamento è riuscito");
+    assert.equal((await recordData(act, r1.record.id)).challengerCount, 1, "il contatore è sceso una volta sola");
+  }
+  t.diagnostic(JSON.stringify(tally));
 });
