@@ -2504,6 +2504,21 @@ html.rn-skin .install-hint__icon {
   unicode-bidi: isolate;
 }
 
+/* Pillole con testo di sconosciuti (nome e unità, "Serve: ..."): il testo scorre
+   come una frase e va a capo anche dentro una parola da 40 lettere, senza
+   schiacciare nessun pezzo; l'icona resta in alto a sinistra. */
+.rn-pill--flow {
+  align-items: flex-start;
+  border-radius: 18px;
+}
+
+.rn-pill--flow .rn-ico { flex-shrink: 0; margin-top: 2px; }
+
+.rn-pill__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Bersagli di almeno 44 px nelle schermate senza account (la vista e il suo
    foglio): "Sfida", "Ripristina", "Riprova", "Annulla" dell'avviso, "Chiudi".
    Scoped: gli altri flussi non cambiano. */
