@@ -871,6 +871,8 @@ export interface RecordNightRecord {
   notes: string;
   // Tentativi `approved`, mantenuto dal server nella stessa transazione.
   challengerCount: number;
+  // "Idea dello staff": si vede a tutti anche a zero iscritti.
+  featured: boolean;
   status: RecordNightRecordStatus;
   // Tentativo la cui approvazione ha creato il record (null se creato da un
   // admin con "Nuovo record"). Annullare quell'approvazione a record vuoto lo

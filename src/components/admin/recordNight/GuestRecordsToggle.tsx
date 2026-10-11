@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { recordNightService } from "@/services/firestore/recordNightService";
 import type { RecordNightRecord } from "@/types";
-import { getRecordNightMeasureShortLabel } from "@/utils/recordNight";
+import { getRecordNightMeasureShortLabel, isRecordVisibleToParticipants } from "@/utils/recordNight";
 import { GUEST_COPY, groupPublicRecordsByCategory } from "@/utils/recordNightGuest";
 
 import { CategoryPill } from "./parts";
@@ -81,11 +81,11 @@ export function GuestRecordsToggle({
     };
   }, [activityId, attempt, stakeId]);
 
-  // Quello che vedrebbe un visitatore: record aperti con iscritti, per categoria.
+  // Quello che vedrebbe un visitatore: record aperti con iscritti o idee dello staff, per categoria.
   const visible = useMemo(() => {
     if (preview.status !== "ready") return [];
     const open = preview.records
-      .filter((record) => record.status === "open" && record.challengerCount > 0)
+      .filter(isRecordVisibleToParticipants)
       .map((record) => ({
         id: record.id,
         title: record.title,

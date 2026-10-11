@@ -18,6 +18,8 @@ export interface RecordFormValues {
   measure: RecordNightMeasure;
   durationSeconds: number | null;
   notes: string;
+  // "Idea dello staff"; ignorato dai form che non mostrano la spunta.
+  featured?: boolean;
 }
 
 interface RecordFormProps {
@@ -31,6 +33,8 @@ interface RecordFormProps {
   busyLabel: string;
   // Riga di spiegazione sopra i tasti ("Compare a tutti come ...").
   footnote?: string;
+  // Mostra la spunta "Idea dello staff" (non ha senso quando si approva una proposta).
+  showFeatured?: boolean;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
@@ -57,6 +61,7 @@ export function RecordForm({
   submitLabel,
   busyLabel,
   footnote,
+  showFeatured = false,
   busy,
   error,
   onCancel,
@@ -73,6 +78,7 @@ export function RecordForm({
         : "",
   );
   const [notes, setNotes] = useState(initial.notes);
+  const [featured, setFeatured] = useState(initial.featured === true);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -92,6 +98,8 @@ export function RecordForm({
     durationError: `${idPrefix}-duration-error`,
     notes: `${idPrefix}-notes`,
     notesHint: `${idPrefix}-notes-hint`,
+    featured: `${idPrefix}-featured`,
+    featuredHint: `${idPrefix}-featured-hint`,
     footnote: `${idPrefix}-footnote`,
     error: `${idPrefix}-error`,
   };
@@ -127,6 +135,7 @@ export function RecordForm({
       measure,
       durationSeconds,
       notes: notes.trim(),
+      ...(showFeatured ? { featured } : {}),
     });
   }
 
@@ -265,6 +274,24 @@ export function RecordForm({
           Regole e materiale. Possono restare vuote.
         </p>
       </div>
+
+      {showFeatured ? (
+        <div className="rna-field rna-field--wide">
+          <label className="toggle-field" htmlFor={ids.featured}>
+            <input
+              aria-describedby={ids.featuredHint}
+              checked={featured}
+              id={ids.featured}
+              onChange={(event) => setFeatured(event.target.checked)}
+              type="checkbox"
+            />
+            <span>Idea dello staff</span>
+          </label>
+          <p className="rna-field__hint" id={ids.featuredHint}>
+            Si vede subito a tutti, anche senza iscritti, con «Sii il primo».
+          </p>
+        </div>
+      ) : null}
 
       {/* Il titolo di un record lo vede chiunque apra l'elenco, anche senza account. */}
       <p className="rna-panel__warn" role="note">

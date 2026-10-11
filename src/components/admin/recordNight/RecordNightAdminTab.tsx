@@ -297,8 +297,9 @@ export function RecordNightAdminTab({
     }
 
     const open = records.filter((record) => record.status === "open").sort(byMostEntries);
-    const withEntries = open.filter((record) => record.challengerCount > 0);
-    const withoutEntries = open.filter((record) => record.challengerCount === 0);
+    // Le idee dello staff si vedono ai ragazzi anche a zero iscritti: stanno nell'elenco.
+    const withEntries = open.filter((record) => record.challengerCount > 0 || record.featured);
+    const withoutEntries = open.filter((record) => record.challengerCount === 0 && !record.featured);
     const hidden = records.filter((record) => record.status === "hidden").sort(byMostEntries);
 
     // Persone e iscrizioni che oggi compaiono nell'elenco: tentativi approvati
@@ -612,6 +613,7 @@ export function RecordNightAdminTab({
                     measure: "count_in_time",
                     durationSeconds: null,
                     notes: "",
+                    featured: false,
                   }}
                   onCancel={() => {
                     setNewOpen(false);
@@ -619,6 +621,7 @@ export function RecordNightAdminTab({
                     window.requestAnimationFrame(() => newButton.current?.focus());
                   }}
                   onSubmit={(input) => void createRecord(input)}
+                  showFeatured
                   submitLabel="Crea il record"
                 />
               </div>

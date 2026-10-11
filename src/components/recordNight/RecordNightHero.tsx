@@ -31,7 +31,8 @@ export function RecordNightHero({ eventTitle, dayLabel, weekday }: RecordNightHe
         </span>
       </h1>
       <p className="rn-lede">
-        Una prova da un minuto, {evening}. Scegli un record da sfidare o inventane uno tuo.
+        Una prova da un minuto, {evening}. Iscriviti a uno o due di questi record, oppure proponine
+        uno nuovo.
       </p>
     </section>
   );

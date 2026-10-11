@@ -55,8 +55,10 @@ export function ChallengerScore({
   count: number;
   variant: "mine" | "list";
 }) {
-  const label = getRecordChallengerLabel(Math.max(count, 1));
+  // Dentro "I tuoi record" ci sei tu, quindi almeno 1; nell'elenco 0 = idea dello staff.
+  const label = getRecordChallengerLabel(variant === "mine" ? Math.max(count, 1) : count);
   const open = count < 2;
+  const idea = variant === "list" && count === 0;
 
   if (variant === "list") {
     return (
@@ -68,7 +70,7 @@ export function ChallengerScore({
               <i />
               <i />
             </span>
-            <span aria-hidden="true">Record da stabilire</span>
+            <span aria-hidden="true">{idea ? "Sii il primo" : "Record da stabilire"}</span>
           </>
         ) : (
           <>

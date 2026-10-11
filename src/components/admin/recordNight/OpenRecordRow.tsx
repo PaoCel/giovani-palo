@@ -109,6 +109,7 @@ export function OpenRecordRow({
             <CategoryPill category={record.category} />
             <span>{getRecordNightMeasureShortLabel(record.measure, record.durationSeconds)}</span>
             <span className="rna-record__count">{formatRecordersCount(record.challengerCount)}</span>
+            {record.featured ? <span className="rna-record__count">Idea dello staff</span> : null}
           </p>
           {record.notes ? <p className="rna-record__notes">{record.notes}</p> : null}
         </div>
@@ -181,9 +182,11 @@ export function OpenRecordRow({
                 measure: record.measure,
                 durationSeconds: record.durationSeconds,
                 notes: record.notes,
+                featured: record.featured,
               }}
               onCancel={() => close(focusEdit)}
               onSubmit={(input) => void save(input)}
+              showFeatured
               submitLabel="Salva le modifiche"
             />
           ) : null}

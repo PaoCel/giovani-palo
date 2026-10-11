@@ -79,6 +79,8 @@ export interface RecordNightRecordInput {
   measure: RecordNightMeasure;
   durationSeconds?: number | null;
   notes?: string;
+  // Solo "Nuovo record" e "Modifica": "idea dello staff" visibile anche senza iscritti.
+  featured?: boolean;
 }
 
 export interface RecordNightUpdateRecordInput extends RecordNightRecordInput {
@@ -186,6 +188,7 @@ export function mapRecordNightRecord(id: string, data: DocumentData): RecordNigh
       typeof data.challengerCount === "number" && data.challengerCount > 0
         ? Math.floor(data.challengerCount)
         : 0,
+    featured: data.featured === true,
     status: data.status === "hidden" ? "hidden" : "open",
     createdFromEntryId: asNullableString(data.createdFromEntryId),
     createdAt: asString(data.createdAt),
@@ -444,7 +447,7 @@ export const recordNightService = {
   },
 
   // "Nuovo record": nasce `open` con 0 iscritti, quindi invisibile ai ragazzi
-  // finché qualcuno non ci entra con `addParticipant`.
+  // finché qualcuno non ci entra con `addParticipant`, salvo `featured`.
   createRecord(stakeId: string, activityId: string, input: RecordNightRecordInput) {
     return callAdmin(stakeId, activityId, "createRecord", {
       title: input.title,
@@ -452,6 +455,7 @@ export const recordNightService = {
       measure: input.measure,
       durationSeconds: durationFor(input.measure, input.durationSeconds),
       notes: input.notes ?? "",
+      featured: input.featured === true,
     });
   },
 
@@ -469,6 +473,8 @@ export const recordNightService = {
       durationSeconds: durationFor(input.measure, input.durationSeconds),
       // Se assente il server lascia le note com'erano.
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      // Se assente il server lascia "idea dello staff" com'era.
+      ...(input.featured !== undefined ? { featured: input.featured } : {}),
       status: input.status,
     });
   },

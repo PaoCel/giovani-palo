@@ -102,16 +102,18 @@ export function measureNeedsDuration(value: RecordNightMeasure) {
 // Record e tentativi
 // ---------------------------------------------------------------------------
 
-// Agli altri si mostra un record solo se è aperto e ha almeno un iscritto.
+// Agli altri si mostra un record solo se è aperto e ha almeno un iscritto,
+// oppure è un'"idea dello staff" (si vede anche a zero iscritti).
 export function isRecordVisibleToParticipants(record: RecordNightRecord) {
-  return record.status === "open" && record.challengerCount > 0;
+  return record.status === "open" && (record.challengerCount > 0 || record.featured);
 }
 
+// 0 iscritti (idea dello staff) = "Idea dello staff · sii il primo",
 // 1 iscritto = "Record da stabilire", 2 o più = "Sfida · N sfidanti".
 export function getRecordChallengerLabel(count: number) {
   if (count >= 2) return `Sfida · ${count} sfidanti`;
   if (count === 1) return "Record da stabilire";
-  return "";
+  return "Idea dello staff · sii il primo";
 }
 
 export function isEntryActive(entry: Pick<RecordNightEntry, "status">) {
