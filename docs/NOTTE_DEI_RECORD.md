@@ -55,6 +55,23 @@ lo sfida la sera. Prima edizione: viaggio al tempio del 16 ottobre 2026
 - **Riportare in attesa** l'approvazione che ha creato un record rimasto vuoto lo
   nasconde (il titolo non resta leggibile al palo).
 
+## Decisioni (2026-10-11, Paolo)
+
+- **Idee dello staff**: lo staff prepara dei record in anticipo, così chi si
+  iscrive trova già un elenco. Un record con `featured: true` si vede a tutti
+  anche a zero iscritti, con "Idea dello staff · sii il primo"; appena qualcuno ci
+  entra funziona come gli altri (1 iscritto = "Record da stabilire"). Scelta
+  fra tre strade (flag, adulti come primi sfidanti, solo suggerimenti nel
+  modulo): flag, perché non finge partecipazione.
+- Copy della pagina: "Iscriviti a uno o due di questi record, oppure proponine uno
+  nuovo." (il limite di 2 a testa resta, quindi "due" e non "più").
+- Prima serie di 14 idee in `functions/lib/recordNightIdeas.js`, scritte da
+  `functions/scripts/seedRecordNightIdeas.js` (dry-run di default, id fissi,
+  non sovrascrive i record già presenti).
+- Regole di sicurezza: apnea solo da fermi e seduti, con un adulto che
+  cronometra; niente respiri forzati prima. Tutte le prove restano da 60 secondi
+  al massimo, al chiuso, senza cibo o bevande a gara.
+
 ## Fasi
 
 | Fase | Cosa | Entro |
@@ -89,13 +106,16 @@ Documento canonico, scritto **solo dal server** (callable).
 | `durationSeconds` | int \| null | solo per `count_in_time` (10-60) |
 | `notes` | string ≤ 200 | regole e materiale, scritte dall'admin; può essere vuoto |
 | `challengerCount` | int ≥ 0 | tentativi `approved`; mantenuto dal server |
+| `featured` | bool | "idea dello staff": visibile anche a 0 iscritti. Default false (assente = false). Lo scrive solo l'admin (`createRecord`, `updateRecord`) o lo script di seed; l'approvazione di una proposta scrive false |
 | `status` | `open` \| `hidden` | `hidden` = tolto dallo staff |
 | `createdFromEntryId` | string \| null | tentativo la cui approvazione ha creato il record; null se creato con "Nuovo record" |
 | `createdAt`, `updatedAt` | string ISO | |
 | `createdBy` | uid dello staff | |
 
-Agli altri si mostra un record solo se `status == open` e `challengerCount > 0`.
-Testo: 1 iscritto = "Record da stabilire", 2+ = "Sfida · N sfidanti".
+Agli altri si mostra un record solo se `status == open` e (`challengerCount > 0`
+o `featured`). Testo: 0 (idea dello staff) = "Idea dello staff · sii il primo",
+1 iscritto = "Record da stabilire", 2+ = "Sfida · N sfidanti". Un record
+`featured` non si nasconde da solo quando "Riporta in attesa" lo svuota.
 
 `measure` (etichetta nel modulo "Come si misura?"; direzione per la fase 2):
 
@@ -245,10 +265,11 @@ possa agire per `registrationId` (la propria `user_` o una `child_<uid>_*`).
 - `reopen { entryId }` → da `approved` o `rejected` a `pending`, `recordId`
   null; se era `approved`, `challengerCount - 1`, e se il record era nato da
   quell'approvazione e scende a 0 diventa `hidden`
-- `createRecord { title, category, measure, durationSeconds?, notes? }` → record
+- `createRecord { title, category, measure, durationSeconds?, notes?, featured? }` → record
   `open` con `challengerCount 0` (invisibile finché qualcuno non ci entra con
-  `addParticipant`): serve per chi non ha account e propone un record nuovo
-- `updateRecord { recordId, title, category, measure, durationSeconds?, notes?, status }`
+  `addParticipant`, salvo `featured: true`): serve per chi non ha account e propone
+  un record nuovo, e per le idee dello staff
+- `updateRecord { recordId, title, category, measure, durationSeconds?, notes?, featured?, status }`
   → in più `withdrawnCount`, `restoredCount`, `notRestoredCount`. Con
   `status: hidden` ritira i tentativi `approved` del record (`withdrawnBy: staff`,
   `withdrawnWithRecordHide`, senza "Annulla") e porta il contatore a 0. Con

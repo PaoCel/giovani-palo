@@ -132,7 +132,7 @@ Risposte `{ ok, action, ... }`. Codice nuovo in `functions/lib/recordNightGuest.
 
 | Azione | Auth | Cosa fa |
 | --- | --- | --- |
-| `context {}` | nessuna | `{ open, closeAt, intakeOpen, units: [{id,name}], records: [{id,title,category,measure,durationSeconds}] }`. `records` = `open` con `challengerCount > 0`, **vuoto se l'interruttore è spento** (D1: i titoli diventano pubblici solo dopo l'anteprima). `intakeOpen` = modulo acceso, finestra aperta, interruttore acceso |
+| `context {}` | nessuna | `{ open, closeAt, intakeOpen, units: [{id,name}], records: [{id,title,category,measure,durationSeconds}] }`. `records` = `open` con `challengerCount > 0` o `featured` (idea dello staff, dal 2026-10-11), **vuoto se l'interruttore è spento** (D1: i titoli diventano pubblici solo dopo l'anteprima). `intakeOpen` = modulo acceso, finestra aperta, interruttore acceso |
 | `submit { submissionId, kind, firstName, lastName, unitId, text?, measure?, durationSeconds?, needs?, recordId? }` | sessione **anonima** | crea la richiesta `open`; risposta sempre `{ ok, requestId }`. Un account vero riceve "Hai un account: accedi" |
 | `mine {}` | sessione anonima | richieste con `anonUid == uid`, con lo stato per il richiedente (sotto) |
 | `withdraw { requestId }` | anonima, titolare | solo `open` -> `withdrawn` |
