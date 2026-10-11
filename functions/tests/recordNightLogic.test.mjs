@@ -32,12 +32,15 @@ const {
   createRecordNightAdminHandler,
   createRecordNightParticipantHandler,
   getParticipantWindow,
+  isRecordPublic,
   isRegistrationActive,
   nextChallengerCount,
   ownerUidFromRegistrationId,
   parseAdminRequest,
   parseParticipantRequest,
+  parseRecordFields,
   participantNameFromRegistration,
+  planUnlinkEntry,
   planRetireEntries,
   resolveCloseAt,
   retireEntriesForRegistration,
@@ -422,7 +425,7 @@ function world(activityOverrides = {}) {
   db.seed("users/leader1", { role: "unit_leader", stakeId: "s1" });
   db.seed("users/leader2", { role: "unit_leader", stakeId: "s2" });
   db.seed("users/acc1", { role: "participant", stakeId: "s1" });
-  db.seed(`${ACTIVITY}/registrations/user_acc1`, { firstName: "Elena", lastName: "Gialli", registrationStatus: "active", genderRoleCategory: "accompagnatore", unitName: "Unità B" });
+  db.seed(`${ACTIVITY}/registrations/user_acc1`, { firstName: "Elena", lastName: "Gialli", registrationStatus: "active", genderRoleCategory: "accompagnatore", birthDate: "1985-03-02", unitName: "Unità B" });
   const clockFn = () => new Date(clock.now);
   const participant = createRecordNightParticipantHandler({ db, clock: clockFn });
   const admin = createRecordNightAdminHandler({ db, clock: clockFn });
@@ -804,7 +807,7 @@ test("createRecord: validazione come approve, chiavi esatte", () => {
   const env = { stakeId: "s1", activityId: "a1", action: "createRecord" };
   const ok = parseAdminRequest({ ...env, title: "  Salti   in 60 secondi ", category: "resistenza", measure: "count_in_time", durationSeconds: 60 });
   assert.deepEqual(ok.fields, {
-    title: "Salti in 60 secondi", category: "resistenza", measure: "count_in_time", durationSeconds: 60, notes: "",
+    title: "Salti in 60 secondi", category: "resistenza", measure: "count_in_time", durationSeconds: 60, notes: "", featured: false,
   });
   assert.equal(
     parseAdminRequest({ ...env, title: "Equilibrio", category: "equilibrio", measure: "longest_time", notes: "Al chiuso" }).fields.notes,
@@ -838,7 +841,7 @@ test("createRecord: record aperto a zero iscritti, invisibile finché non entra 
   assert.equal(created.record.createdAt, NOW);
   assert.deepEqual(w.record(created.record.id), {
     title: "Palleggi senza farla cadere", category: "precisione", measure: "count_streak", durationSeconds: null,
-    notes: "Una palla", challengerCount: 0, status: "open", createdFromEntryId: null, createdAt: NOW, updatedAt: NOW, createdBy: "admin1",
+    notes: "Una palla", challengerCount: 0, featured: false, status: "open", createdFromEntryId: null, createdAt: NOW, updatedAt: NOW, createdBy: "admin1",
   });
   assert.equal(w.entriesOf().length, 0);
 
@@ -1206,7 +1209,7 @@ test("context: persone, isStaff, anche dopo la chiusura; richiede il modulo acce
 test("listParticipants: iscrizioni attive user_ e child_, solo quattro campi, solo staff", async () => {
   const w = world();
   w.db.seed(`${ACTIVITY}/registrations/guest_zz`, { firstName: "Ospite", lastName: "Zeta", registrationStatus: "active" });
-  w.db.seed(`${ACTIVITY}/registrations/user_dir9`, { firstName: "Dora", lastName: "Verdi", registrationStatus: "active", genderRoleCategory: "dirigente", unitNameSnapshot: "Unità C", email: "x@y.it", phone: "1" });
+  w.db.seed(`${ACTIVITY}/registrations/user_dir9`, { firstName: "Dora", lastName: "Verdi", registrationStatus: "active", genderRoleCategory: "dirigente", birthDate: "1985-01-01", unitNameSnapshot: "Unità C", email: "x@y.it", phone: "1" });
   const result = await w.a("leader1", { action: "listParticipants" });
   assert.equal(result.ok, true);
   assert.equal(result.action, "listParticipants");
@@ -1472,7 +1475,7 @@ test("setStaff: si abilita solo chi ha un'iscrizione user_ attiva a questa attiv
 test("listStaff: iscrizioni user_ attive, adulti prima, con chi è già in elenco; il resto non esce", async () => {
   const w = world();
   w.db.seed(`${ACTIVITY}/registrations/user_dir9`, {
-    firstName: "Dora", lastName: "Verdi", registrationStatus: "active", genderRoleCategory: "dirigente", unitNameSnapshot: "Unità C", email: "x@y.it", phone: "1",
+    firstName: "Dora", lastName: "Verdi", registrationStatus: "active", genderRoleCategory: "dirigente", birthDate: "1985-01-01", unitNameSnapshot: "Unità C", email: "x@y.it", phone: "1",
   });
   w.db.seed(`${ACTIVITY}/registrations/guest_zz`, { firstName: "Ospite", lastName: "Zeta", registrationStatus: "active" });
   await w.a("admin1", { action: "setStaff", uid: "u2", enabled: true });
@@ -1630,4 +1633,207 @@ test("manual_: nessun titolare, nessun utente agisce per loro, solo lo staff le 
   // Annullata: non è attiva.
   assert.equal(isRegistrationActive({ firstName: "Paolo", registrationStatus: "confirmed" }), true);
   assert.equal(isRegistrationActive({ firstName: "Paolo", registrationStatus: "cancelled" }), false);
+});
+
+// ---------------------------------------------------------------------------
+// «Idea dello staff» (`featured`): visibile anche a zero iscritti
+// ---------------------------------------------------------------------------
+
+test("featured: isRecordPublic, aperto/nascosto x zero/uno+ iscritti x featured vero/falso/assente", () => {
+  const rows = [
+    // [status, challengerCount, featured, atteso]
+    ["open", 0, true, true], // l'idea dello staff si vede a zero iscritti
+    ["open", 0, false, false],
+    ["open", 0, undefined, false], // record vecchio senza il campo
+    ["open", 1, true, true],
+    ["open", 1, false, true],
+    ["open", 1, undefined, true],
+    ["open", 5, undefined, true],
+    ["hidden", 0, true, false], // nascosto vince sempre, anche se featured
+    ["hidden", 0, false, false],
+    ["hidden", 0, undefined, false],
+    ["hidden", 3, true, false],
+    ["hidden", 3, false, false],
+  ];
+  for (const [status, challengerCount, featured, expected] of rows) {
+    const record = featured === undefined ? { status, challengerCount } : { status, challengerCount, featured };
+    assert.equal(isRecordPublic(record), expected, JSON.stringify(record));
+  }
+  // Solo `true` vero conta: niente stringhe o numeri truthy.
+  for (const featured of ["true", "yes", 1, {}, [], null]) {
+    assert.equal(isRecordPublic({ status: "open", challengerCount: 0, featured }), false, `featured=${JSON.stringify(featured)}`);
+  }
+  // Contatore assente o non numerico = zero.
+  assert.equal(isRecordPublic({ status: "open", featured: true }), true);
+  assert.equal(isRecordPublic({ status: "open" }), false);
+  // Record assente (documento che non esiste): non è pubblico e non lancia.
+  assert.equal(isRecordPublic(null), false);
+  assert.equal(isRecordPublic(undefined), false);
+  // Stato sconosciuto o assente: non è aperto.
+  assert.equal(isRecordPublic({ challengerCount: 2, featured: true }), false);
+  assert.equal(isRecordPublic({ status: "closed", challengerCount: 2, featured: true }), false);
+});
+
+test("featured: parseRecordFields, assente alla creazione = false, in modifica = undefined, true/false, non booleani rifiutati", () => {
+  const base = { title: "Torre di bicchieri", category: "precisione", measure: "other", notes: "Dieci bicchieri" };
+  // Creazione (keepNotesWhenMissing false): assente = false.
+  assert.equal(parseRecordFields(base, { keepNotesWhenMissing: false }).featured, false);
+  assert.equal(parseRecordFields({ ...base, featured: true }, { keepNotesWhenMissing: false }).featured, true);
+  assert.equal(parseRecordFields({ ...base, featured: false }, { keepNotesWhenMissing: false }).featured, false);
+  // Modifica (keepNotesWhenMissing true): assente = invariato, quindi undefined e non false.
+  const kept = parseRecordFields(base, { keepNotesWhenMissing: true });
+  assert.equal(kept.featured, undefined);
+  assert.equal("featured" in kept, true, "la chiave c'è, con valore undefined");
+  assert.equal(parseRecordFields({ ...base, featured: true }, { keepNotesWhenMissing: true }).featured, true);
+  assert.equal(parseRecordFields({ ...base, featured: false }, { keepNotesWhenMissing: true }).featured, false);
+  // Gli altri campi non cambiano.
+  assert.equal(parseRecordFields({ ...base, featured: true }, { keepNotesWhenMissing: false }).title, "Torre di bicchieri");
+  // Non booleani: rifiutati in entrambe le modalità. null e 0 compresi (non sono «assente»).
+  for (const keepNotesWhenMissing of [false, true]) {
+    for (const featured of ["true", "false", "", "si", 1, 0, null, {}, [], [true], NaN]) {
+      throwsHttps(
+        () => parseRecordFields({ ...base, featured }, { keepNotesWhenMissing }),
+        "invalid-argument",
+        /Idea dello staff/,
+      );
+    }
+  }
+});
+
+test("featured: la richiesta admin lo ammette solo su createRecord e updateRecord", () => {
+  const env = { stakeId: "s1", activityId: "a1" };
+  const record = { title: "Equilibrio", category: "equilibrio", measure: "longest_time" };
+  // createRecord: assente = false, true/false passano, il resto no.
+  assert.equal(parseAdminRequest({ ...env, action: "createRecord", ...record }).fields.featured, false);
+  assert.equal(parseAdminRequest({ ...env, action: "createRecord", ...record, featured: true }).fields.featured, true);
+  assert.equal(parseAdminRequest({ ...env, action: "createRecord", ...record, featured: false }).fields.featured, false);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "createRecord", ...record, featured: "true" }), "invalid-argument", /Idea dello staff/);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "createRecord", ...record, featured: null }), "invalid-argument", /Idea dello staff/);
+  // updateRecord: assente = invariato (un client vecchio non lo spegne).
+  const update = { ...env, action: "updateRecord", recordId: "r1", status: "open", ...record };
+  assert.equal(parseAdminRequest(update).fields.featured, undefined);
+  assert.equal(parseAdminRequest({ ...update, featured: true }).fields.featured, true);
+  assert.equal(parseAdminRequest({ ...update, featured: false }).fields.featured, false);
+  throwsHttps(() => parseAdminRequest({ ...update, featured: 1 }), "invalid-argument", /Idea dello staff/);
+  throwsHttps(() => parseAdminRequest({ ...update, featured: "false" }), "invalid-argument", /Idea dello staff/);
+  // Le altre azioni non lo accettano: nessun canale laterale per accenderlo.
+  const proposal = { entryId: "e1", title: "x", category: "mente", measure: "other" };
+  throwsHttps(() => parseAdminRequest({ ...env, action: "approve", ...proposal, featured: true }), "invalid-argument", /campi non ammessi/);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "merge", entryId: "e1", recordId: "r1", featured: true }), "invalid-argument", /campi non ammessi/);
+  throwsHttps(() => parseAdminRequest({ ...env, action: "addParticipant", recordId: "r1", registrationId: "user_u1", featured: true }), "invalid-argument", /campi non ammessi/);
+  // Il ragazzo non può mandarlo, né sfidando né proponendo.
+  throwsHttps(() => parseParticipantRequest({ ...env, action: "challenge", recordId: "r1", featured: true }), "invalid-argument", /campi non ammessi/);
+  throwsHttps(() => parseParticipantRequest({ ...env, action: "propose", text: "Salti", measure: "other", featured: true }), "invalid-argument", /campi non ammessi/);
+});
+
+test("featured: createRecord lo salva (default false), il ragazzo sfida l'idea a zero iscritti e ne fa un «Record da stabilire»", async () => {
+  const w = world();
+  const input = { action: "createRecord", title: "Torre di 10 bicchieri", category: "precisione", measure: "fastest_time" };
+  const plain = await w.a("admin1", input);
+  assert.equal(plain.record.featured, false);
+  assert.equal(w.record(plain.record.id).featured, false);
+  await rejectsHttps(w.p("u1", { action: "challenge", recordId: plain.record.id }), "failed-precondition", /non è più disponibile/);
+
+  const idea = await w.a("admin1", { ...input, title: "Equilibrio su un piede", featured: true });
+  assert.equal(idea.record.featured, true);
+  assert.equal(idea.record.status, "open");
+  assert.equal(idea.record.challengerCount, 0);
+  assert.equal(w.record(idea.record.id).featured, true);
+  assert.equal(w.entriesOf().length, 0);
+
+  // Sfida a zero iscritti: ammessa, contatore 0 -> 1.
+  const challenge = await w.p("u1", { action: "challenge", recordId: idea.record.id });
+  assert.equal(challenge.entry.status, "approved");
+  assert.equal(challenge.record.challengerCount, 1);
+  assert.equal(challenge.record.featured, true, "la risposta del server riporta il campo");
+  assert.equal(w.record(idea.record.id).challengerCount, 1);
+  // Un secondo ragazzo lo sfida come un record qualsiasi.
+  assert.equal((await w.p("u2", { action: "challenge", recordId: idea.record.id })).record.challengerCount, 2);
+
+  // Idea nascosta: non si sfida più, neanche se featured.
+  await w.a("admin1", { action: "updateRecord", recordId: idea.record.id, status: "hidden", title: "Equilibrio su un piede", category: "precisione", measure: "fastest_time" });
+  assert.equal(w.record(idea.record.id).featured, true, "nascondere non spegne featured");
+  await rejectsHttps(w.p("u3", { action: "challenge", recordId: idea.record.id }), "failed-precondition", /non è più disponibile/);
+});
+
+test("featured: updateRecord lo accende e lo spegne, e senza il campo lo lascia com'è", async () => {
+  const w = world();
+  const created = await w.a("admin1", { action: "createRecord", title: "Palleggi", category: "precisione", measure: "count_streak" });
+  const id = created.record.id;
+  const update = (extra) =>
+    w.a("admin1", { action: "updateRecord", recordId: id, title: "Palleggi", category: "precisione", measure: "count_streak", status: "open", ...extra });
+
+  assert.equal((await update({ featured: true })).record.featured, true);
+  assert.equal(w.record(id).featured, true);
+  // Senza il campo (client vecchio): resta acceso.
+  const kept = await update({ title: "Palleggi senza farla cadere" });
+  assert.equal(kept.record.featured, true);
+  assert.equal(w.record(id).featured, true);
+  assert.equal(w.record(id).title, "Palleggi senza farla cadere");
+  // Spento esplicitamente.
+  assert.equal((await update({ featured: false })).record.featured, false);
+  assert.equal(w.record(id).featured, false);
+  // Senza il campo resta spento.
+  assert.equal((await update({})).record.featured, false);
+  // Non booleano: rifiutato e niente cambia.
+  await rejectsHttps(update({ featured: "true" }), "invalid-argument", /Idea dello staff/);
+  assert.equal(w.record(id).featured, false);
+
+  // Record vecchio senza il campo: la modifica senza `featured` non lo crea.
+  w.db.seed(`${ACTIVITY}/records/legacy`, {
+    title: "Vecchio", category: "mente", measure: "other", durationSeconds: null, notes: "", challengerCount: 0,
+    status: "open", createdFromEntryId: null, createdAt: NOW, updatedAt: NOW, createdBy: "admin1",
+  });
+  await w.a("admin1", { action: "updateRecord", recordId: "legacy", title: "Vecchio 2", category: "mente", measure: "other", status: "open" });
+  assert.equal("featured" in w.record("legacy"), false);
+  await rejectsHttps(w.p("u1", { action: "challenge", recordId: "legacy" }), "failed-precondition", /non è più disponibile/);
+});
+
+test("featured: approve scrive featured false, anche con proposte già approvate prima", async () => {
+  const w = world();
+  const proposed = await w.p("u1", proposeSalti);
+  const approved = await w.a("admin1", approveSalti(proposed.entry.id));
+  assert.equal(approved.record.featured, false);
+  assert.equal(w.record(approved.record.id).featured, false);
+  assert.equal("featured" in w.record(approved.record.id), true, "scritto esplicito, non assente");
+});
+
+test("featured: «Riporta in attesa» svuota un record nato da una proposta, lo nasconde solo se non è featured", async () => {
+  // Senza featured: nascosto (comportamento già coperto, qui come controllo di riferimento).
+  const plain = world();
+  const p1 = await plain.p("u1", proposeSalti);
+  const a1 = await plain.a("admin1", approveSalti(p1.entry.id));
+  const r1 = await plain.a("admin1", { action: "reopen", entryId: p1.entry.id });
+  assert.equal(r1.record.challengerCount, 0);
+  assert.equal(r1.record.status, "hidden");
+  assert.equal(plain.record(a1.record.id).status, "hidden");
+
+  // Con featured: resta aperto, a zero iscritti e ancora sfidabile.
+  const w = world();
+  const p2 = await w.p("u1", proposeSalti);
+  const a2 = await w.a("admin1", approveSalti(p2.entry.id));
+  const recordId = a2.record.id;
+  await w.a("admin1", {
+    action: "updateRecord", recordId, title: a2.record.title, category: a2.record.category, measure: a2.record.measure,
+    durationSeconds: 60, status: "open", featured: true,
+  });
+  assert.equal(w.record(recordId).featured, true);
+  const r2 = await w.a("admin1", { action: "reopen", entryId: p2.entry.id });
+  assert.equal(r2.entry.status, "pending");
+  assert.equal(r2.record.challengerCount, 0);
+  assert.equal(r2.record.status, "open", "l'idea dello staff non sparisce");
+  assert.equal(w.record(recordId).status, "open");
+  assert.equal(w.record(recordId).featured, true);
+  assert.equal((await w.p("u2", { action: "challenge", recordId })).record.challengerCount, 1);
+});
+
+test("featured: Scollega (planUnlinkEntry) non nasconde il record featured rimasto a zero", () => {
+  const entry = { id: "e1", status: "pending" };
+  const record = { id: "r1", status: "open", challengerCount: 0, createdFromEntryId: "e1" };
+  assert.equal(planUnlinkEntry(entry, record, NOW).hideRecord, true, "senza featured si nasconde");
+  assert.equal(planUnlinkEntry(entry, { ...record, featured: false }, NOW).hideRecord, true);
+  assert.equal(planUnlinkEntry(entry, { ...record, featured: true }, NOW).hideRecord, false);
+  // Resta valido ciò che già c'era: record non nato da quel tentativo o già nascosto.
+  assert.equal(planUnlinkEntry(entry, { ...record, createdFromEntryId: "altro" }, NOW).hideRecord, false);
+  assert.equal(planUnlinkEntry(entry, { ...record, status: "hidden" }, NOW).hideRecord, false);
 });

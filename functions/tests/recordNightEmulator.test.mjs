@@ -17,7 +17,8 @@
 // Ogni scenario crea una propria attività: stato e limite di 2 non si
 // mescolano fra test. Scostamenti dalla spec già accettati dal backend:
 // withdrawEntry dell'admin salva statusBeforeWithdraw null; reopen solo per
-// proposte; challenge richiede challengerCount > 0; addParticipant/restore
+// proposte; challenge richiede un record che l'elenco mostra (challengerCount > 0
+// oppure featured, "idea dello staff"); addParticipant/restore
 // ammettono record a zero ma non hidden; proposta identica attiva = errore;
 // withdraw/restore/reopen ripetuti sono no-op.
 import { after, before, test } from "node:test";
@@ -2228,7 +2229,7 @@ test("contratto client: nomi delle callable e campi mandati da recordNightServic
   await call(boyB, "withdraw", { entryId: challenged.entry.id });
   const restored = await call(boyB, "restore", { entryId: challenged.entry.id });
   assert.equal(restored.record.challengerCount, 2);
-  await call(admin, "updateRecord", { recordId, title: "Salti con la corda", category: "resistenza", measure: "count_in_time", durationSeconds: 45, notes: "Corda fornita", status: "open" });
+  await call(admin, "updateRecord", { recordId, title: "Salti con la corda", category: "resistenza", measure: "count_in_time", durationSeconds: 45, notes: "Corda fornita", status: "open", featured: false });
   const p2 = await call(boyC, "propose", { text: "Torre di bicchieri", measure: "distance", durationSeconds: null, needs: "", registrationId: `user_${boyC.uid}` });
   await call(admin, "reject", { entryId: p2.entry.id, reason: "Troppo difficile." });
   await call(admin, "reopen", { entryId: p2.entry.id });
@@ -2238,8 +2239,9 @@ test("contratto client: nomi delle callable e campi mandati da recordNightServic
   assert.equal(added.record.challengerCount, 4);
   const removed = await call(admin, "withdrawEntry", { entryId: added.entry.id });
   assert.equal(removed.record.challengerCount, 3);
-  const created = await call(admin, "createRecord", { title: "Record creato dall'admin", category: "mente", measure: "other", durationSeconds: null, notes: "" });
+  const created = await call(admin, "createRecord", { title: "Record creato dall'admin", category: "mente", measure: "other", durationSeconds: null, notes: "", featured: true });
   assert.equal(created.entry, null);
+  assert.equal(created.record.featured, true, "il client manda featured e il server lo salva");
   assert.equal(created.record.challengerCount, 0);
   assert.equal(created.record.status, "open");
   // Azioni nuove: context, e un genitore che propone e sfida per il figlio.
@@ -2524,8 +2526,9 @@ test("createRecord: nasce a zero iscritti, il ragazzo non lo vede né lo sfida f
   const stored = await recordData(act, recordId);
   assert.deepEqual(
     Object.keys(stored).sort(),
-    ["category", "challengerCount", "createdAt", "createdBy", "createdFromEntryId", "durationSeconds", "measure", "notes", "status", "title", "updatedAt"],
+    ["category", "challengerCount", "createdAt", "createdBy", "createdFromEntryId", "durationSeconds", "featured", "measure", "notes", "status", "title", "updatedAt"],
   );
+  assert.equal(stored.featured, false, "senza featured nella richiesta nasce non featured");
   assert.equal(stored.createdFromEntryId, null, "«Nuovo record» non nasce da un'approvazione");
   assert.equal(stored.challengerCount, 0);
   assert.ok(!Number.isNaN(new Date(stored.createdAt).getTime()) && !Number.isNaN(new Date(stored.updatedAt).getTime()));
@@ -3439,5 +3442,239 @@ test("manual_: nascondere un record ritira anche chi non ha account e mostrarlo 
   assert.equal(shown.record.challengerCount, 2);
   assert.equal((await entryData(act, added.entry.id)).status, "approved");
   assert.equal((await entryData(act, added.entry.id)).ownerUid, null);
+  await assertConsistent(act);
+});
+
+// ---------------------------------------------------------------------------
+// «Idea dello staff» (`featured`): record aperto visibile anche a zero iscritti
+// ---------------------------------------------------------------------------
+
+// Elenco dei ragazzi: query esatta del client (where status == open) e filtro
+// lato client come isRecordVisibleToParticipants (open && (count > 0 || featured)).
+async function openRecordsFor(client, activityId) {
+  const recordsPath = `${activityPath(activityId)}/records`;
+  const snap = await getDocsFromServer(query(collection(client.firestore, recordsPath), where("status", "==", "open")));
+  return snap.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+async function visibleRecordsFor(client, activityId) {
+  return (await openRecordsFor(client, activityId)).filter((record) => record.challengerCount > 0 || record.featured === true);
+}
+const idsOf = (records) => records.map((record) => record.id).sort();
+
+test("featured: createRecord con featured true, il ragazzo lo legge a zero iscritti e lo sfida (0 -> 1 «Record da stabilire»)", async () => {
+  const { boyA, boyB, boyC, admin } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyC] });
+
+  const idea = await A(admin, act, "createRecord", recordInput("Torre di 10 bicchieri", { featured: true }));
+  assert.equal(idea.record.featured, true);
+  assert.equal(idea.record.status, "open");
+  assert.equal(idea.record.challengerCount, 0);
+  assert.equal(idea.entry, null);
+  const plain = await A(admin, act, "createRecord", recordInput("Record senza idea"));
+  assert.equal(plain.record.featured, false);
+  const explicitFalse = await A(admin, act, "createRecord", recordInput("Record con featured false", { featured: false }));
+  assert.equal(explicitFalse.record.featured, false);
+  assert.equal((await recordData(act, idea.record.id)).featured, true);
+  assert.equal((await recordData(act, plain.record.id)).featured, false);
+
+  // La query del client li legge tutti e tre (le rules guardano solo lo stato), il filtro tiene solo l'idea.
+  for (const client of [boyA, boyB, boyC]) {
+    assert.deepEqual(idsOf(await openRecordsFor(client, act)), idsOf([idea.record, plain.record, explicitFalse.record]));
+    assert.deepEqual(idsOf(await visibleRecordsFor(client, act)), [idea.record.id], `${client.name} vede solo l'idea dello staff`);
+  }
+
+  // Sfida a zero iscritti: ammessa; il contatore passa 0 -> 1 (= «Record da stabilire»).
+  const first = await P(boyA, act, "challenge", { recordId: idea.record.id });
+  assert.equal(first.ok, true);
+  assert.equal(first.entry.status, "approved");
+  assert.equal(first.entry.recordId, idea.record.id);
+  assert.equal(first.record.challengerCount, 1);
+  assert.equal(first.record.featured, true);
+  const seen = (await visibleRecordsFor(boyB, act)).find((record) => record.id === idea.record.id);
+  assert.equal(seen.challengerCount, 1);
+  assert.equal(seen.featured, true);
+  // Secondo sfidante: come un record qualsiasi (2 = «Sfida · 2 sfidanti»).
+  const second = await P(boyB, act, "challenge", { recordId: idea.record.id });
+  assert.equal(second.record.challengerCount, 2);
+  // Lo stesso ragazzo non può sfidarla due volte.
+  await expectFail(P(boyA, act, "challenge", { recordId: idea.record.id }), "failed-precondition", ALREADY_MSG);
+
+  // I due non featured a zero iscritti restano non sfidabili.
+  await expectFail(P(boyC, act, "challenge", { recordId: plain.record.id }), "failed-precondition", /non è più disponibile/);
+  await expectFail(P(boyC, act, "challenge", { recordId: explicitFalse.record.id }), "failed-precondition", /non è più disponibile/);
+  assert.equal((await entriesOfRegistration(act, `user_${boyC.uid}`)).length, 0);
+
+  // Tutti si ritirano: l'idea torna a zero ma resta aperta, visibile e sfidabile.
+  await P(boyA, act, "withdraw", { entryId: first.entry.id });
+  await P(boyB, act, "withdraw", { entryId: second.entry.id });
+  const empty = await recordData(act, idea.record.id);
+  assert.equal(empty.challengerCount, 0);
+  assert.equal(empty.status, "open");
+  assert.equal(empty.featured, true);
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyC, act)), [idea.record.id]);
+  assert.equal((await P(boyC, act, "challenge", { recordId: idea.record.id })).record.challengerCount, 1);
+  await assertConsistent(act);
+});
+
+test("featured: createRecord rifiuta un valore non booleano e non crea nulla", async () => {
+  const { admin } = pool;
+  const act = await newActivity({ members: [] });
+  for (const featured of ["true", "false", 1, 0, null, {}, []]) {
+    await expectFail(A(admin, act, "createRecord", recordInput("Idea", { featured })), "invalid-argument", /Idea dello staff/);
+  }
+  assert.equal((await recordsRef(act).get()).size, 0);
+});
+
+test("featured: updateRecord lo accende e lo spegne; senza il campo (client vecchio) lo lascia com'è", async () => {
+  const { boyA, boyB, admin } = pool;
+  const act = await newActivity({ members: [boyA, boyB] });
+  const created = await A(admin, act, "createRecord", recordInput("Equilibrio sulla sedia"));
+  const recordId = created.record.id;
+  const update = (extra = {}) => A(admin, act, "updateRecord", { recordId, ...recordInput("Equilibrio sulla sedia"), status: "open", ...extra });
+  assert.deepEqual(await visibleRecordsFor(boyA, act), [], "a zero iscritti e non featured è invisibile");
+
+  // Acceso: compare ai ragazzi e si sfida.
+  const on = await update({ featured: true });
+  assert.equal(on.record.featured, true);
+  assert.equal((await recordData(act, recordId)).featured, true);
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyA, act)), [recordId]);
+
+  // Modifica senza il campo: invariato, resta acceso e visibile.
+  const kept = await update({ title: "Equilibrio sulla sedia (nuovo titolo)", notes: "Sedia senza braccioli" });
+  assert.equal(kept.record.featured, true);
+  assert.equal(kept.record.title, "Equilibrio sulla sedia (nuovo titolo)");
+  assert.equal((await recordData(act, recordId)).featured, true);
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyB, act)), [recordId]);
+  const challenge = await P(boyA, act, "challenge", { recordId });
+  assert.equal(challenge.record.challengerCount, 1);
+
+  // Spento con un iscritto dentro: resta visibile perché ha un iscritto.
+  const off = await update({ featured: false });
+  assert.equal(off.record.featured, false);
+  assert.equal((await recordData(act, recordId)).featured, false);
+  assert.equal(off.record.challengerCount, 1, "spegnere featured non tocca gli iscritti");
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyB, act)), [recordId]);
+
+  // Ritirato l'ultimo iscritto, da spento torna invisibile e non si sfida; senza il campo resta spento.
+  await P(boyA, act, "withdraw", { entryId: challenge.entry.id });
+  assert.deepEqual(await visibleRecordsFor(boyB, act), []);
+  await expectFail(P(boyB, act, "challenge", { recordId }), "failed-precondition", /non è più disponibile/);
+  assert.equal((await update({ notes: "" })).record.featured, false);
+  assert.deepEqual(await visibleRecordsFor(boyB, act), []);
+
+  // Non booleano: rifiutato, il valore non cambia.
+  for (const featured of ["true", 1, null]) {
+    await expectFail(update({ featured }), "invalid-argument", /Idea dello staff/);
+  }
+  assert.equal((await recordData(act, recordId)).featured, false);
+  await assertConsistent(act);
+});
+
+test("featured: updateRecord con status hidden lo toglie ai membri, lo staff lo legge ancora; riaprire lo rimostra", async () => {
+  const { boyA, boyB, boyC, admin } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyC] });
+  const recordsPath = `${activityPath(act)}/records`;
+  const idea = await A(admin, act, "createRecord", recordInput("Idea da nascondere", { featured: true }));
+  const recordId = idea.record.id;
+  const challenge = await P(boyA, act, "challenge", { recordId });
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyB, act)), [recordId]);
+
+  const hidden = await A(admin, act, "updateRecord", { recordId, ...recordInput("Idea da nascondere"), status: "hidden" });
+  assert.equal(hidden.record.status, "hidden");
+  assert.equal(hidden.record.featured, true, "nascondere non spegne featured");
+  assert.equal(hidden.record.challengerCount, 0);
+  assert.equal(hidden.withdrawnCount, 1);
+  const stored = await recordData(act, recordId);
+  assert.equal(stored.status, "hidden");
+  assert.equal(stored.featured, true);
+
+  // I membri non lo leggono più: né nell'elenco, né con una lettura diretta.
+  for (const client of [boyA, boyB, boyC]) {
+    assert.deepEqual(await openRecordsFor(client, act), []);
+    assert.deepEqual(await visibleRecordsFor(client, act), []);
+    await assert.rejects(
+      getDocFromServer(doc(client.firestore, `${recordsPath}/${recordId}`)),
+      (error) => error?.code === "permission-denied",
+      `${client.name} non deve poter leggere il record nascosto`,
+    );
+  }
+  // La sfida fallisce, anche se featured; lo staff lo legge ancora, con il flag.
+  await expectFail(P(boyB, act, "challenge", { recordId }), "failed-precondition", /non è più disponibile/);
+  await expectFail(P(boyA, act, "restore", { entryId: challenge.entry.id }), "failed-precondition");
+  assert.equal((await getDocFromServer(doc(admin.firestore, `${recordsPath}/${recordId}`))).data().featured, true);
+  assert.equal((await entriesOfRegistration(act, `user_${boyB.uid}`)).length, 0);
+
+  // Riaperto: torna visibile e sfidabile, con chi era dentro rimesso.
+  const reopened = await A(admin, act, "updateRecord", { recordId, ...recordInput("Idea da nascondere"), status: "open" });
+  assert.equal(reopened.record.status, "open");
+  assert.equal(reopened.record.featured, true);
+  assert.equal(reopened.restoredCount, 1);
+  assert.equal(reopened.record.challengerCount, 1);
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyC, act)), [recordId]);
+  assert.equal((await P(boyB, act, "challenge", { recordId })).record.challengerCount, 2);
+  await assertConsistent(act);
+});
+
+test("featured: approve scrive featured false; «Riporta in attesa» nasconde il record vuoto solo se non è featured", async () => {
+  const { boyA, boyB, boyC, admin } = pool;
+  const act = await newActivity({ members: [boyA, boyB, boyC] });
+
+  // Senza featured: riferimento, resta il comportamento di sempre (nascosto).
+  const proposedPlain = await P(boyA, act, "propose", proposal("Idea semplice"));
+  const approvedPlain = await A(admin, act, "approve", { entryId: proposedPlain.entry.id, ...recordInput("Record semplice") });
+  assert.equal(approvedPlain.record.featured, false, "approve scrive featured false");
+  assert.equal((await recordData(act, approvedPlain.record.id)).featured, false);
+  assert.equal(approvedPlain.record.createdFromEntryId, proposedPlain.entry.id);
+  const reopenedPlain = await A(admin, act, "reopen", { entryId: proposedPlain.entry.id });
+  assert.equal(reopenedPlain.record.challengerCount, 0);
+  assert.equal(reopenedPlain.record.status, "hidden");
+  assert.deepEqual(await visibleRecordsFor(boyC, act), []);
+
+  // Con featured (messo dopo l'approvazione): resta aperto e visibile a zero iscritti.
+  const proposed = await P(boyB, act, "propose", proposal("Idea di Bruno"));
+  const approved = await A(admin, act, "approve", { entryId: proposed.entry.id, ...recordInput("Record di Bruno") });
+  const recordId = approved.record.id;
+  assert.equal(approved.record.createdFromEntryId, proposed.entry.id);
+  const marked = await A(admin, act, "updateRecord", { recordId, ...recordInput("Record di Bruno"), status: "open", featured: true });
+  assert.equal(marked.record.featured, true);
+  assert.equal(marked.record.challengerCount, 1, "l'autore della proposta è ancora dentro");
+  const reopened = await A(admin, act, "reopen", { entryId: proposed.entry.id });
+  assert.equal(reopened.entry.status, "pending");
+  assert.equal(reopened.record.id, recordId);
+  assert.equal(reopened.record.challengerCount, 0);
+  assert.equal(reopened.record.status, "open", "l'idea dello staff non sparisce");
+  assert.equal(reopened.record.featured, true);
+  const stored = await recordData(act, recordId);
+  assert.equal(stored.status, "open");
+  assert.equal(stored.featured, true);
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyC, act)), [recordId]);
+  assert.equal((await P(boyC, act, "challenge", { recordId })).record.challengerCount, 1);
+
+  // Spenta a zero iscritti, l'idea resta open ma torna invisibile.
+  const empty = await A(admin, act, "createRecord", recordInput("Altra idea", { featured: true }));
+  await A(admin, act, "updateRecord", { recordId: empty.record.id, ...recordInput("Altra idea"), status: "open", featured: false });
+  assert.equal((await recordData(act, empty.record.id)).status, "open");
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyA, act)), [recordId]);
+  await assertConsistent(act);
+});
+
+test("featured: withdrawEntry dell'admin non nasconde mai un record featured rimasto a zero", async () => {
+  const { boyA, boyB, admin } = pool;
+  const act = await newActivity({ members: [boyA, boyB] });
+  const idea = await A(admin, act, "createRecord", recordInput("Idea dello staff", { featured: true }));
+  const joined = await P(boyA, act, "challenge", { recordId: idea.record.id });
+  const removed = await A(admin, act, "withdrawEntry", { entryId: joined.entry.id });
+  assert.equal(removed.record.challengerCount, 0);
+  assert.equal(removed.record.status, "open");
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyB, act)), [idea.record.id]);
+
+  // Lo stesso vale per un record nato da una proposta e poi messo featured.
+  const proposed = await P(boyA, act, "propose", proposal("Idea di Anna"));
+  const approved = await A(admin, act, "approve", { entryId: proposed.entry.id, ...recordInput("Record di Anna") });
+  await A(admin, act, "updateRecord", { recordId: approved.record.id, ...recordInput("Record di Anna"), status: "open", featured: true });
+  const gone = await A(admin, act, "withdrawEntry", { entryId: proposed.entry.id });
+  assert.equal(gone.record.challengerCount, 0);
+  assert.equal(gone.record.status, "open");
+  assert.deepEqual(idsOf(await visibleRecordsFor(boyB, act)), idsOf([idea.record, approved.record]));
   await assertConsistent(act);
 });

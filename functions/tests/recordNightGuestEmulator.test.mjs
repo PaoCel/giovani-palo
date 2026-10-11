@@ -3674,3 +3674,171 @@ test("R7 mine mostra le richieste di entrambe le persone del telefono con stati 
   await assertMineMatchesData(phone1, act);
   await assertConsistent(act);
 });
+
+// ---- S: «idea dello staff» (featured) senza account ----
+// Un record open con featured true si mostra anche a zero iscritti: nell'elenco di
+// `context`, nei titoli di `mine` e come bersaglio di una richiesta `challenge`.
+// Sempre e solo con l'interruttore recordsGuestEnabled acceso.
+
+test("S1 context: l'idea dello staff a zero iscritti è in elenco con l'interruttore acceso, non spento, non se nascosta", async () => {
+  const { signedOut, admin } = pool;
+  const ideaInput = (title) => recordInput(title, { featured: true });
+
+  // Interruttore acceso: solo l'idea dello staff compare fra i record a zero.
+  const act = await newActivity();
+  const idea = (await A(admin, act, "createRecord", ideaInput("Idea dello staff a zero"))).record;
+  const plain = (await A(admin, act, "createRecord", recordInput("Record semplice a zero"))).record;
+  const off = (await A(admin, act, "createRecord", recordInput("Record con featured false", { featured: false }))).record;
+  await seedPublicRecord(act, "r-uno", { title: "Record con un iscritto", challengerCount: 1, notes: "NOTE-SEGRETE-UNO" });
+  await seedPublicRecord(act, "r-idea-uno", { title: "Idea con un iscritto", challengerCount: 1, featured: true });
+  await seedPublicRecord(act, "r-idea-nascosta", { title: "Idea nascosta dallo staff", challengerCount: 0, featured: true, status: "hidden" });
+  await seedPublicRecord(act, "r-nascosto", { title: "Record nascosto con iscritti", challengerCount: 2, status: "hidden" });
+  assert.equal(idea.featured, true);
+  const res = await G(signedOut, act, "context");
+  assert.deepEqual(
+    res.records.map((item) => item.id).sort(),
+    [idea.id, "r-idea-uno", "r-uno"].sort(),
+    "idea a zero, idea con iscritti e record con iscritti; non il record a zero senza featured né i nascosti",
+  );
+  const listedIdea = res.records.find((item) => item.id === idea.id);
+  assert.deepEqual(sortedKeys(publicRecord(listedIdea)), ["category", "durationSeconds", "id", "measure", "title"], "nessun campo in più nemmeno per l'idea");
+  assert.equal(listedIdea.title, "Idea dello staff a zero");
+  const text = JSON.stringify(res);
+  for (const hidden of ["Record semplice a zero", "Record con featured false", "Idea nascosta dallo staff", "Record nascosto con iscritti", "NOTE-SEGRETE-UNO", "featured", "challengerCount"]) {
+    assert.ok(!text.includes(hidden), `il context mostra «${hidden}»: ${text}`);
+  }
+  assert.ok(![plain.id, off.id].some((id) => res.records.some((item) => item.id === id)));
+
+  // Interruttore spento (o assente): elenco vuoto, anche per l'idea dello staff.
+  for (const guest of [false, "absent"]) {
+    const closedAct = await newActivity({ guest });
+    await A(admin, closedAct, "createRecord", ideaInput("Idea non ancora pubblica"));
+    const closed = await G(signedOut, closedAct, "context");
+    assert.deepEqual(closed.records, [], `interruttore ${guest}: nessun titolo pubblico`);
+    assert.ok(!JSON.stringify(closed).includes("Idea non ancora pubblica"));
+  }
+
+  // Acceso e spento sulla stessa attività: l'elenco segue l'interruttore.
+  await setActivity(act, { recordsGuestEnabled: false });
+  assert.deepEqual((await G(signedOut, act, "context")).records, []);
+  await setActivity(act, { recordsGuestEnabled: true });
+  assert.ok((await G(signedOut, act, "context")).records.some((item) => item.id === idea.id));
+
+  // Nascosta dallo staff: sparisce; riaperta torna. Spenta featured a zero: sparisce.
+  const update = (status, extra = {}) => A(admin, act, "updateRecord", { recordId: idea.id, ...ideaInput("Idea dello staff a zero"), status, ...extra });
+  await update("hidden");
+  assert.ok(!(await G(signedOut, act, "context")).records.some((item) => item.id === idea.id), "idea nascosta");
+  await update("open");
+  assert.ok((await G(signedOut, act, "context")).records.some((item) => item.id === idea.id), "idea riaperta");
+  await update("open", { featured: false });
+  assert.ok(!(await G(signedOut, act, "context")).records.some((item) => item.id === idea.id), "featured spento e zero iscritti");
+});
+
+test("S2 submit challenge: l'idea dello staff a zero iscritti è accettata (e si collega), un record a zero senza featured resta rifiutato", async () => {
+  const { boyA, admin } = pool;
+  const phone = await newPhone();
+  const act = await newActivity({ members: [boyA] });
+  const idea = (await A(admin, act, "createRecord", recordInput("Idea sfidabile", { featured: true }))).record;
+  const plain = (await A(admin, act, "createRecord", recordInput("Record non sfidabile"))).record;
+  const hiddenIdea = (await A(admin, act, "createRecord", recordInput("Idea nascosta", { featured: true }))).record;
+  await A(admin, act, "updateRecord", { recordId: hiddenIdea.id, ...recordInput("Idea nascosta"), status: "hidden", featured: true });
+
+  // Non featured a zero e idea nascosta: la richiesta non nasce.
+  await expectFail(submit(phone, act, challengeRequest(WHO.maria, plain.id)), "failed-precondition", /non è più disponibile/u);
+  await expectFail(submit(phone, act, challengeRequest(WHO.maria, hiddenIdea.id)), "failed-precondition", /non è più disponibile/u);
+  await expectFail(submit(phone, act, challengeRequest(WHO.maria, "record-che-non-esiste")), "failed-precondition", /non è più disponibile/u);
+  assert.equal((await requestsOfPhone(act, phone)).length, 0, "nessuna richiesta scritta dai rifiuti");
+
+  // Idea dello staff a zero: accettata.
+  const sent = await submit(phone, act, challengeRequest(WHO.maria, idea.id));
+  assert.equal(sent.ok, true);
+  const stored = await requestData(act, sent.requestId);
+  assert.equal(stored.kind, "challenge");
+  assert.equal(stored.recordId, idea.id);
+  assert.equal(stored.status, "open");
+  assert.equal((await recordData(act, idea.id)).challengerCount, 0, "la richiesta non tocca il contatore finché non è collegata");
+
+  // Collegata a un'iscrizione: nasce il tentativo approved e l'idea passa a un iscritto.
+  await link(admin, act, sent.requestId, `user_${boyA.uid}`);
+  const entry = await linkedEntryOf(act, sent.requestId);
+  assert.equal(entry.status, "approved");
+  assert.equal(entry.recordId, idea.id);
+  assert.equal((await recordData(act, idea.id)).challengerCount, 1);
+  assert.equal((await recordData(act, idea.id)).featured, true);
+  await assertConsistent(act);
+
+  // Con l'interruttore spento anche l'idea dello staff non riceve richieste.
+  await setActivity(act, { recordsGuestEnabled: false });
+  await expectFail(submit(phone, act, challengeRequest(WHO.luca, idea.id)), "any");
+  assert.equal((await requestsOfPhone(act, phone)).length, 1);
+  await setActivity(act, { recordsGuestEnabled: true });
+  assert.equal((await submit(phone, act, challengeRequest(WHO.luca, idea.id))).ok, true);
+
+  // Spenta featured a zero iscritti (record vuoto): torna non sfidabile.
+  const second = (await A(admin, act, "createRecord", recordInput("Idea poi spenta", { featured: true }))).record;
+  assert.equal((await submit(phone, act, challengeRequest(WHO.sara, second.id))).ok, true);
+  await A(admin, act, "updateRecord", { recordId: second.id, ...recordInput("Idea poi spenta"), status: "open", featured: false });
+  await expectFail(submit(phone, act, challengeRequest(WHO.paolo, second.id)), "failed-precondition", /non è più disponibile/u);
+});
+
+test("S3 mine.recordTitle: il titolo dell'idea dello staff a zero iscritti c'è solo con interruttore acceso e record aperto", async () => {
+  const { admin } = pool;
+  const phone = await newPhone();
+  const act = await newActivity();
+  const title = "Titolo dell'idea dello staff";
+  const idea = (await A(admin, act, "createRecord", recordInput(title, { featured: true }))).record;
+  const requestId = (await submit(phone, act, challengeRequest(WHO.maria, idea.id))).requestId;
+  const recordTitle = async () => (await mineById(phone, act)).get(requestId).recordTitle ?? null;
+
+  assert.equal((await recordData(act, idea.id)).challengerCount, 0);
+  assert.equal(await recordTitle(), title, "idea a zero iscritti, record open, interruttore acceso");
+
+  await setActivity(act, { recordsGuestEnabled: false });
+  assert.equal(await recordTitle(), null, "interruttore spento: il titolo non è pubblico");
+  assert.ok(!JSON.stringify(await G(phone, act, "mine")).includes(title));
+  assert.equal((await mineItems(phone, act)).length, 1, "la richiesta si vede lo stesso");
+  await setActivity(act, { recordsGuestEnabled: true });
+  assert.equal(await recordTitle(), title);
+
+  const input = recordInput(title);
+  await A(admin, act, "updateRecord", { recordId: idea.id, ...input, status: "hidden" });
+  assert.equal(await recordTitle(), null, "record nascosto");
+  await A(admin, act, "updateRecord", { recordId: idea.id, ...input, status: "open" });
+  assert.equal(await recordTitle(), title, "riaperto, featured è rimasto acceso");
+
+  await A(admin, act, "updateRecord", { recordId: idea.id, ...input, status: "open", featured: false });
+  assert.equal(await recordTitle(), null, "featured spento e zero iscritti");
+  assert.ok(!JSON.stringify(await G(phone, act, "mine")).includes(title));
+});
+
+test("S4 unlinkRequest su tentativo che ha creato il record rimasto a zero: se il record è featured non si nasconde e resta in elenco", async () => {
+  const { boyA, admin, phone1, signedOut } = pool;
+  const act = await newActivity({ members: [boyA] });
+  const registrationId = `user_${boyA.uid}`;
+  const title = "Idea nata da una proposta";
+  const requestId = await seedRequest(act, phone1, { who: WHO.maria, text: "Idea da una proposta" });
+  await link(admin, act, requestId, registrationId);
+  const entryId = (await requestData(act, requestId)).linkedEntryId;
+  const approved = await A(admin, act, "approve", { entryId, ...recordInput(title) });
+  const recordId = approved.record.id;
+  assert.equal((await recordData(act, recordId)).createdFromEntryId, entryId);
+  assert.equal((await recordData(act, recordId)).featured, false);
+  // Lo staff la trasforma in idea dello staff, poi il titolare ritira il suo tentativo.
+  await A(admin, act, "updateRecord", { recordId, ...recordInput(title), status: "open", featured: true });
+  await P(boyA, act, "withdraw", { entryId });
+  const before = await recordData(act, recordId);
+  assert.equal(before.challengerCount, 0);
+  assert.equal(before.status, "open");
+
+  assert.equal((await unlink(admin, act, requestId)).ok, true);
+  const after = await recordData(act, recordId);
+  assert.equal(after.status, "open", "featured: il record vuoto non si nasconde");
+  assert.equal(after.featured, true);
+  assert.equal(after.challengerCount, 0);
+  const entry = await entryData(act, entryId);
+  assert.equal(entry.status, "withdrawn");
+  assert.equal(entry.withdrawnBy, "staff");
+  assert.equal((await requestData(act, requestId)).status, "open");
+  assert.ok((await G(signedOut, act, "context")).records.some((record) => record.id === recordId), "il titolo resta pubblico");
+  await assertConsistent(act);
+});

@@ -95,8 +95,8 @@ const ADMIN_ACTION_KEYS = Object.freeze({
   merge: ["entryId", "recordId"],
   reject: ["entryId", "reason"],
   reopen: ["entryId"],
-  createRecord: ["title", "category", "measure", "durationSeconds", "notes"],
-  updateRecord: ["recordId", "title", "category", "measure", "durationSeconds", "notes", "status"],
+  createRecord: ["title", "category", "measure", "durationSeconds", "notes", "featured"],
+  updateRecord: ["recordId", "title", "category", "measure", "durationSeconds", "notes", "status", "featured"],
   addParticipant: ["recordId", "registrationId"],
   withdrawEntry: ["entryId"],
   listParticipants: [],
@@ -210,6 +210,16 @@ function parseProposalFields(data) {
   };
 }
 
+// `featured` ("idea dello staff"): assente = falso alla creazione, invariato in
+// modifica (`undefined`), così un client vecchio non lo spegne per sbaglio.
+function parseFeatured(value, { keepWhenMissing }) {
+  if (value === undefined) return keepWhenMissing ? undefined : false;
+  if (typeof value !== "boolean") {
+    throw new HttpsError("invalid-argument", "Campo «Idea dello staff» non valido.");
+  }
+  return value;
+}
+
 // `notes` assente: nuovo record = vuoto, modifica = invariato (`undefined`).
 function parseRecordFields(data, { keepNotesWhenMissing }) {
   const measure = parseMeasure(data.measure);
@@ -221,6 +231,7 @@ function parseRecordFields(data, { keepNotesWhenMissing }) {
   };
   if (data.notes === undefined && keepNotesWhenMissing) fields.notes = undefined;
   else fields.notes = cleanNotes(data.notes, "Regole e materiale", LIMITS.notes);
+  fields.featured = parseFeatured(data.featured, { keepWhenMissing: keepNotesWhenMissing });
   return fields;
 }
 
@@ -412,6 +423,12 @@ function counterDelta(from, to) {
 function nextChallengerCount(current, delta) {
   const base = Number.isInteger(current) && current > 0 ? current : 0;
   return Math.max(0, base + delta);
+}
+
+// Un record si mostra al palo se è aperto e ha almeno un iscritto, oppure è
+// un'"idea dello staff" (`featured`): quella si vede anche a zero iscritti.
+function isRecordPublic(record) {
+  return Boolean(record) && record.status === "open" && (record.challengerCount > 0 || record.featured === true);
 }
 
 function isActiveEntry(entry) {
@@ -927,7 +944,11 @@ function planUnlinkEntry(entry, record, nowIso) {
       updatedAt: nowIso,
     },
     delta,
-    hideRecord: createdTheRecord && record.status === "open" && nextChallengerCount(record.challengerCount, delta) === 0,
+    hideRecord:
+      createdTheRecord &&
+      record.status === "open" &&
+      record.featured !== true &&
+      nextChallengerCount(record.challengerCount, delta) === 0,
   };
 }
 
@@ -1048,8 +1069,9 @@ async function participantPropose(ctx) {
 async function participantChallenge(ctx) {
   const { tx, refs, fields, registration, registrationId, uid, nowIso } = ctx;
   const record = await readRecord(tx, refs, fields.recordId);
-  // Un record a zero iscritti non è visibile agli altri: non si sfida a mano.
-  if (!record || record.data.status !== "open" || !(record.data.challengerCount > 0)) {
+  // Un record che l'elenco non mostra (a zero iscritti e non "idea dello staff")
+  // non si sfida a mano.
+  if (!record || !isRecordPublic(record.data)) {
     throw new HttpsError("failed-precondition", "Questo record non è più disponibile.");
   }
   const entries = plainList(ctx.entries);
@@ -1183,6 +1205,7 @@ async function adminApprove(ctx) {
     durationSeconds: fields.durationSeconds,
     notes: fields.notes,
     challengerCount: nextChallengerCount(0, counterDelta("pending", "approved")),
+    featured: false,
     status: "open",
     // Serve a "Riporta in attesa": se il record nasce da questa approvazione e
     // resta a zero, torna nascosto invece di restare leggibile al palo.
@@ -1285,15 +1308,17 @@ async function adminReopen(ctx) {
     const hide =
       record.data.createdFromEntryId === entry.id &&
       record.data.status === "open" &&
+      record.data.featured !== true &&
       nextChallengerCount(record.data.challengerCount, delta) === 0;
     updatedRecord = writeCounter(tx, record, delta, nowIso, hide ? { status: "hidden" } : {});
   }
   return { entry: updatedEntry, record: updatedRecord };
 }
 
-// Record nuovo creato dall'admin (per chi non ha un account): nasce aperto ma
-// a zero iscritti, quindi invisibile agli altri finché qualcuno non ci entra
-// (addParticipant). Nessun tentativo coinvolto.
+// Record nuovo creato dall'admin: nasce aperto ma a zero iscritti, quindi
+// invisibile agli altri finché qualcuno non ci entra (addParticipant), salvo
+// che sia un'"idea dello staff" (`featured`), che si vede subito. Nessun
+// tentativo coinvolto.
 async function adminCreateRecord(ctx) {
   const { tx, refs, fields, uid, nowIso } = ctx;
   const recordRef = refs.records.doc();
@@ -1304,6 +1329,7 @@ async function adminCreateRecord(ctx) {
     durationSeconds: fields.durationSeconds,
     notes: fields.notes,
     challengerCount: 0,
+    featured: fields.featured === true,
     status: "open",
     createdFromEntryId: null,
     createdAt: nowIso,
@@ -1360,6 +1386,7 @@ async function adminUpdateRecord(ctx) {
     status: fields.status,
     updatedAt: nowIso,
   };
+  if (fields.featured !== undefined) patch.featured = fields.featured;
   if (becomesHidden) patch.challengerCount = 0;
   if (becomesOpen) patch.challengerCount = showPlan.approvedCount;
   tx.update(record.ref, patch);
@@ -2075,6 +2102,7 @@ module.exports = {
   parseAdminRequest,
   parseProposalFields,
   parseRecordFields,
+  isRecordPublic,
   // Richieste senza account: logica pura dello staff.
   REQUEST_STATUSES,
   REQUEST_KINDS,

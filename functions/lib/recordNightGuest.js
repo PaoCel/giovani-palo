@@ -42,6 +42,7 @@ const {
   REQUEST_KINDS,
   cleanLine,
   getParticipantWindow,
+  isRecordPublic,
   isRequestExpired,
   normalizeForCompare,
   parseProposalFields,
@@ -373,7 +374,7 @@ async function guestContext(ctx) {
     const recordsSnap = await tx.get(refs.records.where("status", "==", "open"));
     records = recordsSnap.docs
       .map(view)
-      .filter((record) => record.data.status === "open" && record.data.challengerCount > 0)
+      .filter((record) => isRecordPublic(record.data))
       .map((record) => ({
         id: record.id,
         title: String(record.data.title || ""),
@@ -425,7 +426,7 @@ async function guestSubmit(ctx) {
     const recordSnap = await tx.get(refs.records.doc(fields.recordId));
     const record = recordSnap.exists ? recordSnap.data() : null;
     // Come per il ragazzo con l'account: si sfida solo un record che l'elenco mostra.
-    if (!record || record.status !== "open" || !(record.challengerCount > 0)) {
+    if (!isRecordPublic(record)) {
       throw new HttpsError("failed-precondition", "Questo record non è più disponibile.");
     }
   }
@@ -494,7 +495,7 @@ async function guestMine(ctx) {
   const titlesPublic = activity.recordsGuestEnabled === true;
   const titles = new Map(
     recordSnaps
-      .filter((snap) => titlesPublic && snap.exists && (snap.data() || {}).status === "open" && (snap.data() || {}).challengerCount > 0)
+      .filter((snap) => titlesPublic && snap.exists && isRecordPublic(snap.data() || {}))
       .map((snap) => [snap.id, String((snap.data() || {}).title || "")]),
   );
 

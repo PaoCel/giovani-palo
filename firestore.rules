@@ -1366,8 +1366,9 @@ service cloud.firestore {
         // senza login. I membri del palo (anche chi non è iscritto all'attività)
         // leggono solo i record `open` e devono interrogare con
         // `where('status', '==', 'open')`; lo staff (admin, dirigenti di unità,
-        // uid in elenco) legge tutto. Il client mostra poi
-        // solo quelli con `challengerCount > 0`; i nomi non stanno qui.
+        // uid in elenco) legge tutto. Il client mostra poi solo quelli con
+        // `challengerCount > 0` o `featured` ("idea dello staff"); i nomi non
+        // stanno qui.
         match /records/{recordId} {
           allow get, list: if (
               isNonAnonymousSignedIn()
