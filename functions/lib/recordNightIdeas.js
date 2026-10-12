@@ -1,11 +1,7 @@
 "use strict";
 
-// Idee dello staff per la Notte dei Record: record `featured` che si vedono ai
-// ragazzi anche a zero iscritti ("Sii il primo"). Scelti da Paolo il 2026-10-11.
-// Gli id sono fissi: lo script che li scrive (scripts/seedRecordNightIdeas.js)
-// non sovrascrive mai un record già presente, così le modifiche dello staff
-// restano. Titolo, note e misure rispettano gli stessi limiti della callable.
-
+// Elenco dello staff scelto da Paolo il 2026-10-12. Gli id restano stabili
+// per le prove già presenti; seed e sostituzione usano la stessa sorgente.
 const IDEAS = Object.freeze([
   {
     id: "idea-plank",
@@ -13,28 +9,6 @@ const IDEAS = Object.freeze([
     category: "resistenza",
     measure: "longest_time",
     notes: "Sugli avambracci, corpo in linea dalla testa ai piedi. Il tempo si ferma quando i fianchi cedono o toccano terra.",
-  },
-  {
-    id: "idea-wall-sit",
-    title: "Wall sit (la sedia al muro) più a lungo",
-    category: "resistenza",
-    measure: "longest_time",
-    notes: "Schiena al muro, gambe piegate a 90 gradi, mani lontane dalle gambe. Serve un muro libero.",
-  },
-  {
-    id: "idea-salti-piedi-uniti",
-    title: "Salti a piedi uniti in 60 secondi",
-    category: "resistenza",
-    measure: "count_in_time",
-    durationSeconds: 60,
-    notes: "Vale il numero di salti in 60 secondi, sempre a piedi uniti.",
-  },
-  {
-    id: "idea-apnea",
-    title: "Apnea: quanto trattieni il fiato",
-    category: "resistenza",
-    measure: "longest_time",
-    notes: "Da fermi e seduti, senza respirare forte prima. Un adulto cronometra. Si smette quando si vuole.",
   },
   {
     id: "idea-piegamenti",
@@ -52,55 +26,50 @@ const IDEAS = Object.freeze([
     notes: "Si monta la piramide (3, 2, 1) e si smonta rimettendo i bicchieri in pila. Vale il tempo totale. Servono 6 bicchieri di plastica.",
   },
   {
-    id: "idea-salti-corda",
-    title: "Salti con la corda in 60 secondi",
+    id: "idea-scoppio-palloncini",
+    title: "Scoppio di 7 palloncini, il più veloce",
+    category: "velocita",
+    measure: "fastest_time",
+    notes: "Vale il tempo per scoppiare tutti e 7 i palloncini. Materiale e modalità uguali per tutti, stabiliti dallo staff prima della prova.",
+  },
+  {
+    id: "idea-bottle-flip",
+    title: "Bottle flip in 60 secondi",
+    category: "precisione",
+    measure: "count_in_time",
+    durationSeconds: 60,
+    notes: "Si contano i lanci in cui la bottiglietta resta in piedi. Stessa bottiglietta, quantità d'acqua e superficie per tutti.",
+  },
+  {
+    id: "idea-magliette",
+    title: "Magliette indossate in 60 secondi",
     category: "velocita",
     measure: "count_in_time",
     durationSeconds: 60,
-    notes: "Vale il numero di salti in 60 secondi. Servono una corda e lo spazio per girarla.",
+    notes: "Si contano solo le magliette completamente indossate allo scadere del minuto. Magliette della stessa misura per tutti.",
   },
   {
-    id: "idea-torre-alta",
-    title: "Torre di bicchieri più alta in 60 secondi",
-    category: "precisione",
-    measure: "distance",
-    notes: "Si misura l'altezza della torre allo scadere dei 60 secondi. Servono bicchieri di plastica.",
-  },
-  {
-    id: "idea-palleggi",
-    title: "Palleggi con un pallone senza farlo cadere",
-    category: "precisione",
-    measure: "count_streak",
-    notes: "Si contano i tocchi di fila prima che il pallone tocchi terra. Serve un pallone.",
-  },
-  {
-    id: "idea-palloncino",
-    title: "Palloncino tenuto in aria soffiando, senza toccarlo",
-    category: "equilibrio",
-    measure: "longest_time",
-    notes: "Si può solo soffiare: niente mani né corpo. Il tempo si ferma quando il palloncino tocca terra. Serve un palloncino.",
-  },
-  {
-    id: "idea-salti-un-piede",
-    title: "Salti su un piede solo in 60 secondi",
-    category: "equilibrio",
+    id: "idea-marshmallow",
+    title: "Marshmallow in bocca in 60 secondi",
+    category: "fantasia",
     measure: "count_in_time",
     durationSeconds: 60,
-    notes: "Un piede solo, l'altro non tocca terra. Vale il numero di salti in 60 secondi.",
+    notes: "",
   },
   {
-    id: "idea-hula-hop",
-    title: "Hula hop che gira più a lungo",
-    category: "equilibrio",
-    measure: "longest_time",
-    notes: "Il tempo si ferma quando l'hula hop tocca terra. Serve un hula hop.",
-  },
-  {
-    id: "idea-alfabeto-al-contrario",
-    title: "Alfabeto al contrario, il più veloce",
-    category: "mente",
+    id: "idea-bottiglietta-acqua",
+    title: "Bottiglietta d'acqua bevuta, il più veloce",
+    category: "velocita",
     measure: "fastest_time",
-    notes: "Dalla Z alla A con le 21 lettere dell'alfabeto italiano, senza saltarne nessuna.",
+    notes: "",
+  },
+  {
+    id: "idea-operazioni",
+    title: "Gara di operazioni in 60 secondi",
+    category: "mente",
+    measure: "count_in_time",
+    durationSeconds: 60,
+    notes: "Si contano le operazioni risolte correttamente in un minuto. Stesso foglio di esercizi per tutti, senza calcolatrice.",
   },
   {
     id: "idea-aereo-di-carta",

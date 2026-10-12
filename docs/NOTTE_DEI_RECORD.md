@@ -72,6 +72,54 @@ lo sfida la sera. Prima edizione: viaggio al tempio del 16 ottobre 2026
   cronometra; niente respiri forzati prima. Tutte le prove restano da 60 secondi
   al massimo, al chiuso, senza cibo o bevande a gara.
 
+## Elenco sostitutivo (richiesto il 2026-10-12)
+
+Paolo ha richiesto queste 10 prove al posto dell'elenco precedente: plank,
+piegamenti in un minuto, torre di bicchieri montata e smontata, scoppio di
+7 palloncini, bottle flip in un minuto, magliette indossate in un minuto,
+marshmallow in bocca in un minuto, bottiglietta d'acqua bevuta a tempo,
+operazioni, aeroplano costruito in un minuto con gara di distanza.
+Le modalità delle prove con marshmallow e acqua sono in attesa di conferma:
+proposte le varianti senza cibo o bevande in bocca.
+
+Sorgente unica: `functions/lib/recordNightIdeas.js`, usata sia dal seed sia
+da `functions/scripts/replaceRecordNightIdeas.js`. Il secondo script è
+**dry-run di default** e non cambia rules, indici, scadenza o interruttori.
+Scrittura sempre server-side: stesso schema, stessi permessi e stesse query
+dei record esistenti (`status == open`, visibili anche a zero iscritti grazie
+a `featured: true`). Non serve un deploy per sostituire l'elenco nei dati.
+
+La sostituzione conserva gli id di plank, piegamenti, torre e aeroplano.
+Nasconde tutti gli altri record e ritira i tentativi approvati collegati,
+usando la stessa logica di «Nascondi» dello staff. I vecchi record restano
+accessibili solo allo staff: si può tornare indietro con «Mostra» e il relativo
+ripristino delle iscrizioni. Le proposte non ancora approvate restano nella
+coda di moderazione. Eventuali richieste ospiti aperte o collegate ai record
+da togliere bloccano lo script e vanno gestite prima dalla coda staff.
+
+Prima di scrivere, lo script salva un backup JSON privato (permessi 600,
+percorso assoluto obbligatorio, file mai sovrascritto). Confronta attività e
+tutte le collezioni con il backup nella stessa transazione della sostituzione:
+se qualcuno interviene nel frattempo, interrompe senza scrivere. Il rilancio
+con elenco invariato non riscrive i record né ritira altri tentativi.
+
+```sh
+node functions/scripts/replaceRecordNightIdeas.js \
+  --project giovani-palo --stake roma-est --activity 55FjHkqgib55rNXfgVk9
+```
+
+Per applicare, **solo dopo conferma fresca di Paolo**, aggiungere
+`--production --apply --backup /percorso/privato/backup-univoco.json`.
+Verificare poi i 10 record aperti anche attraverso `recordNightGuest` azione
+`context` e la pagina pubblica `/record`. **Non applicato al momento della
+preparazione.**
+
+Preparazione verificata il 12 ottobre: dry-run sul viaggio in produzione
+(15 record aperti, 11 da nascondere, 4 invariati, 6 da creare, 1 tentativo
+da ritirare e 1 proposta ospite da conservare). Passati 82 test di logica e
+script, inclusi 19 test indipendenti della sostituzione. La transazione reale
+e la verifica pubblica finale restano da eseguire dopo la conferma.
+
 ## Fasi
 
 | Fase | Cosa | Entro |
