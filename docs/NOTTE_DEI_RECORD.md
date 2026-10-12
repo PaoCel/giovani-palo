@@ -79,8 +79,12 @@ piegamenti in un minuto, torre di bicchieri montata e smontata, scoppio di
 7 palloncini, bottle flip in un minuto, magliette indossate in un minuto,
 marshmallow in bocca in un minuto, bottiglietta d'acqua bevuta a tempo,
 operazioni, aeroplano costruito in un minuto con gara di distanza.
-Le modalità delle prove con marshmallow e acqua sono in attesa di conferma:
-proposte le varianti senza cibo o bevande in bocca.
+Paolo ha confermato le prove originali il 12 ottobre, comprese quelle con
+marshmallow in bocca e acqua bevuta a tempo. L'elenco comprende sfide anche
+quando non si tratta di record; il nome del modulo resta «Notte dei Record».
+Le operazioni non hanno una durata decisa: misura `other`, senza imporre un
+minuto. Per gli aeroplani vale un minuto di costruzione e la distanza del
+lancio, senza aggiungere un numero di tentativi.
 
 Sorgente unica: `functions/lib/recordNightIdeas.js`, usata sia dal seed sia
 da `functions/scripts/replaceRecordNightIdeas.js`. Il secondo script è
@@ -111,8 +115,7 @@ node functions/scripts/replaceRecordNightIdeas.js \
 Per applicare, **solo dopo conferma fresca di Paolo**, aggiungere
 `--production --apply --backup /percorso/privato/backup-univoco.json`.
 Verificare poi i 10 record aperti anche attraverso `recordNightGuest` azione
-`context` e la pagina pubblica `/record`. **Non applicato al momento della
-preparazione.**
+`context` e la pagina pubblica `/record`.
 
 Preparazione verificata il 12 ottobre: dry-run sul viaggio in produzione
 (15 record aperti, 11 da nascondere, 4 invariati, 6 da creare, 1 tentativo

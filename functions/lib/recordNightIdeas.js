@@ -5,14 +5,14 @@
 const IDEAS = Object.freeze([
   {
     id: "idea-plank",
-    title: "Plank più lungo",
+    title: "Plank",
     category: "resistenza",
     measure: "longest_time",
     notes: "Sugli avambracci, corpo in linea dalla testa ai piedi. Il tempo si ferma quando i fianchi cedono o toccano terra.",
   },
   {
     id: "idea-piegamenti",
-    title: "Piegamenti sulle braccia in 60 secondi",
+    title: "Piegamenti in 1 minuto",
     category: "resistenza",
     measure: "count_in_time",
     durationSeconds: 60,
@@ -20,21 +20,21 @@ const IDEAS = Object.freeze([
   },
   {
     id: "idea-torre-montata-smontata",
-    title: "Torre di 6 bicchieri montata e smontata, il più veloce",
+    title: "Torre di bicchieri montata e smontata",
     category: "velocita",
     measure: "fastest_time",
-    notes: "Si monta la piramide (3, 2, 1) e si smonta rimettendo i bicchieri in pila. Vale il tempo totale. Servono 6 bicchieri di plastica.",
+    notes: "Si monta e si smonta la torre. Vale il tempo totale.",
   },
   {
     id: "idea-scoppio-palloncini",
-    title: "Scoppio di 7 palloncini, il più veloce",
+    title: "Scoppio di 7 palloncini",
     category: "velocita",
     measure: "fastest_time",
     notes: "Vale il tempo per scoppiare tutti e 7 i palloncini. Materiale e modalità uguali per tutti, stabiliti dallo staff prima della prova.",
   },
   {
     id: "idea-bottle-flip",
-    title: "Bottle flip in 60 secondi",
+    title: "Bottle flip in 1 minuto",
     category: "precisione",
     measure: "count_in_time",
     durationSeconds: 60,
@@ -42,7 +42,7 @@ const IDEAS = Object.freeze([
   },
   {
     id: "idea-magliette",
-    title: "Magliette indossate in 60 secondi",
+    title: "Magliette indossate in 1 minuto",
     category: "velocita",
     measure: "count_in_time",
     durationSeconds: 60,
@@ -50,7 +50,7 @@ const IDEAS = Object.freeze([
   },
   {
     id: "idea-marshmallow",
-    title: "Marshmallow in bocca in 60 secondi",
+    title: "Marshmallow in bocca in 1 minuto",
     category: "fantasia",
     measure: "count_in_time",
     durationSeconds: 60,
@@ -58,25 +58,24 @@ const IDEAS = Object.freeze([
   },
   {
     id: "idea-bottiglietta-acqua",
-    title: "Bottiglietta d'acqua bevuta, il più veloce",
+    title: "Bottiglietta d'acqua bevuta nel minor tempo",
     category: "velocita",
     measure: "fastest_time",
     notes: "",
   },
   {
     id: "idea-operazioni",
-    title: "Gara di operazioni in 60 secondi",
+    title: "Gara di operazioni",
     category: "mente",
-    measure: "count_in_time",
-    durationSeconds: 60,
-    notes: "Si contano le operazioni risolte correttamente in un minuto. Stesso foglio di esercizi per tutti, senza calcolatrice.",
+    measure: "other",
+    notes: "",
   },
   {
     id: "idea-aereo-di-carta",
-    title: "Aereo di carta costruito in 60 secondi, vince il lancio più lontano",
+    title: "Gara di aeroplani",
     category: "fantasia",
     measure: "distance",
-    notes: "Si costruisce in meno di 60 secondi, poi due lanci: conta il più lontano. Serve un foglio.",
+    notes: "Si costruisce un aeroplano in 1 minuto. Vince chi lo lancia più lontano.",
   },
 ]);
 
