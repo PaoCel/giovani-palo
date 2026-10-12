@@ -120,8 +120,18 @@ Verificare poi i 10 record aperti anche attraverso `recordNightGuest` azione
 Preparazione verificata il 12 ottobre: dry-run sul viaggio in produzione
 (15 record aperti, 11 da nascondere, 4 invariati, 6 da creare, 1 tentativo
 da ritirare e 1 proposta ospite da conservare). Passati 82 test di logica e
-script, inclusi 19 test indipendenti della sostituzione. La transazione reale
-e la verifica pubblica finale restano da eseguire dopo la conferma.
+script, inclusi 19 test indipendenti della sostituzione. La transazione reale è stata
+applicata in produzione dopo la conferma di Paolo: 11 record nascosti,
+1 tentativo ritirato, 4 record aggiornati e 6 nuovi. Verifica finale: 10
+record pubblici nella callable `context`, iscrizioni aperte, tutti i titoli
+presenti nella pagina `/record`; secondo dry-run con zero scritture. Backup
+privato fuori dal repository. Rimossa dal sorgente anche la vecchia frase
+«Niente cibo o bevande a gara» sia dalle regole sia dai motivi pronti di
+rifiuto staff: questa correzione richiede un deploy hosting, ancora da
+confermare (SW v16). Build produzione e anteprima nel browser verificate:
+10 sfide, frase precedente assente. Il primo tentativo di build con heap
+limitato a 384 MB è fallito (`JavaScript heap out of memory`); rilancio con
+768 MB riuscito.
 
 ## Fasi
 
@@ -408,7 +418,7 @@ restano nel modulo.
 - **Pagina record** `/activities/:eventId/record`, link da condividere su
   WhatsApp. Senza login: invito ad accedere con ritorno alla pagina. Con login:
   - regole in breve ("prima edizione: qualsiasi risultato è un record", 60
-    secondi, al chiuso, niente cibo o bevande a gara, massimo 2 a testa);
+    secondi, al chiuso, massimo 2 a testa);
   - scadenza ("Iscrizioni ai record aperte fino a giovedì 15 ottobre, 21:00");
   - i tuoi record (0-2) con stato e azioni;
   - elenco dei record aperti per categoria, con "Sfida" o "Ci sei";

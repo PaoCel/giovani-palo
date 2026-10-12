@@ -136,7 +136,6 @@ const RULES = [
   "Prima edizione: qualsiasi risultato è un record.",
   "Prove da 60 secondi al massimo.",
   "Al chiuso, con quello che c'è.",
-  "Niente cibo o bevande a gara.",
   "Massimo 2 record a testa.",
 ];
 

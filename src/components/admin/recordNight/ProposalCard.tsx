@@ -29,7 +29,6 @@ import type { RnaContext } from "./types";
 
 // Motivi pronti: un clic riempie il campo, poi l'admin può ritoccarlo.
 const QUICK_REJECTION_REASONS = [
-  "Niente cibo o bevande a gara.",
   "È troppo rischioso: proponi un'altra prova.",
   "Esiste già: sfida quel record dall'elenco.",
 ] as const;
