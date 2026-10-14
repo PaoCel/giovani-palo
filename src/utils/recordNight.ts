@@ -109,10 +109,11 @@ export function isRecordVisibleToParticipants(record: RecordNightRecord) {
 }
 
 // 0 iscritti (idea dello staff) = "Idea dello staff · sii il primo",
-// 1 iscritto = "Record da stabilire", 2 o più = "Sfida · N sfidanti".
+// 1 iscritto = "Record da stabilire · 1 sfidante", 2 o più = "Sfida · N sfidanti".
+// Il numero si vede sempre, mai i nomi.
 export function getRecordChallengerLabel(count: number) {
   if (count >= 2) return `Sfida · ${count} sfidanti`;
-  if (count === 1) return "Record da stabilire";
+  if (count === 1) return "Record da stabilire · 1 sfidante";
   return "Idea dello staff · sii il primo";
 }
 

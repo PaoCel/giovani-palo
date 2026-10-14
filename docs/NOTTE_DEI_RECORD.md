@@ -60,7 +60,7 @@ lo sfida la sera. Prima edizione: viaggio al tempio del 16 ottobre 2026
 - **Idee dello staff**: lo staff prepara dei record in anticipo, così chi si
   iscrive trova già un elenco. Un record con `featured: true` si vede a tutti
   anche a zero iscritti, con "Idea dello staff · sii il primo"; appena qualcuno ci
-  entra funziona come gli altri (1 iscritto = "Record da stabilire"). Scelta
+  entra funziona come gli altri (1 iscritto = "Record da stabilire · 1 sfidante"). Scelta
   fra tre strade (flag, adulti come primi sfidanti, solo suggerimenti nel
   modulo): flag, perché non finge partecipazione.
 - Copy della pagina: "Iscriviti a uno o due di questi record, oppure proponine uno
@@ -175,7 +175,8 @@ Documento canonico, scritto **solo dal server** (callable).
 
 Agli altri si mostra un record solo se `status == open` e (`challengerCount > 0`
 o `featured`). Testo: 0 (idea dello staff) = "Idea dello staff · sii il primo",
-1 iscritto = "Record da stabilire", 2+ = "Sfida · N sfidanti". Un record
+1 iscritto = "Record da stabilire · 1 sfidante", 2+ = "Sfida · N sfidanti": il
+numero degli sfidanti si vede sempre (2026-10-14, Paolo), mai i nomi. Un record
 `featured` non si nasconde da solo quando "Riporta in attesa" lo svuota.
 
 `measure` (etichetta nel modulo "Come si misura?"; direzione per la fase 2):

@@ -45,9 +45,10 @@ export function MiniScore({ value, of }: { value: number; of?: number }) {
   );
 }
 
-// Blocco del punteggio: "Record da stabilire" con un solo iscritto (palette
-// vuote), altrimenti la cifra degli sfidanti. Il testo per gli screen reader
-// è la stessa etichetta dell'elenco.
+// Blocco del punteggio: il numero degli sfidanti si vede sempre (mai i nomi).
+// Con un solo iscritto l'etichetta resta "Da stabilire" (nessun record ancora);
+// a zero (idea dello staff) c'è l'invito a essere il primo. Il testo per gli
+// screen reader è la stessa etichetta dell'elenco.
 export function ChallengerScore({
   count,
   variant,
@@ -56,29 +57,30 @@ export function ChallengerScore({
   variant: "mine" | "list";
 }) {
   // Dentro "I tuoi record" ci sei tu, quindi almeno 1; nell'elenco 0 = idea dello staff.
-  const label = getRecordChallengerLabel(variant === "mine" ? Math.max(count, 1) : count);
-  const open = count < 2;
-  const idea = variant === "list" && count === 0;
+  const shown = variant === "mine" ? Math.max(count, 1) : count;
+  const label = getRecordChallengerLabel(shown);
+  const solo = shown === 1;
+  const noun = solo ? "sfidante" : "sfidanti";
 
   if (variant === "list") {
+    if (shown === 0) {
+      return (
+        <div className="rn-rec__score rn-rec__score--open">
+          <span className="sr-only">{label}</span>
+          <span aria-hidden="true" className="rn-open-dash">
+            <i />
+            <i />
+          </span>
+          <span aria-hidden="true">Sii il primo</span>
+        </div>
+      );
+    }
     return (
-      <div className={open ? "rn-rec__score rn-rec__score--open" : "rn-rec__score"}>
+      <div className={solo ? "rn-rec__score rn-rec__score--solo" : "rn-rec__score"}>
         <span className="sr-only">{label}</span>
-        {open ? (
-          <>
-            <span aria-hidden="true" className="rn-open-dash">
-              <i />
-              <i />
-            </span>
-            <span aria-hidden="true">{idea ? "Sii il primo" : "Record da stabilire"}</span>
-          </>
-        ) : (
-          <>
-            <small aria-hidden="true">Sfida</small>
-            <b aria-hidden="true">{count}</b>
-            <span aria-hidden="true">sfidanti</span>
-          </>
-        )}
+        <small aria-hidden="true">{solo ? "Da stabilire" : "Sfida"}</small>
+        <b aria-hidden="true">{shown}</b>
+        <span aria-hidden="true">{noun}</span>
       </div>
     );
   }
@@ -86,19 +88,12 @@ export function ChallengerScore({
   return (
     <div className="rn-score">
       <span className="sr-only">{label}</span>
-      {open ? (
-        <span aria-hidden="true" className="rn-open-dash rn-open-dash--mine">
-          <i />
-          <i />
-        </span>
-      ) : (
-        <span aria-hidden="true" className="rn-flap rn-flap--score">
-          <span>{count}</span>
-        </span>
-      )}
+      <span aria-hidden="true" className="rn-flap rn-flap--score">
+        <span>{shown}</span>
+      </span>
       <span aria-hidden="true" className="rn-score__lbl">
-        <small>{open ? "Record" : "Sfida"}</small>
-        <span>{open ? "da stabilire" : "sfidanti"}</span>
+        <small>{solo ? "Da stabilire" : "Sfida"}</small>
+        <span>{noun}</span>
       </span>
     </div>
   );

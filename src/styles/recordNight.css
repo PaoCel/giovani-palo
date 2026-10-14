@@ -1290,6 +1290,17 @@ html.rn-skin .install-hint__icon {
   letter-spacing: 0.04em;
 }
 
+.rn-rec__score--solo {
+  background:
+    repeating-linear-gradient(-60deg, rgba(11, 13, 18, 0.12) 0 7px, transparent 7px 14px),
+    var(--cat);
+}
+
+.rn-rec__score--solo small {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
 .rn-open-dash {
   display: flex;
   gap: 4px;
