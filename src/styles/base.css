@@ -9819,8 +9819,10 @@ button {
 
 .media-lightbox__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   width: min(100%, 30rem);
   color: #fff;
   padding: 0 0.25rem;
@@ -9838,6 +9840,7 @@ button {
 }
 
 .media-lightbox__counter {
+  white-space: nowrap;
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.75);
 }
@@ -11053,245 +11056,6 @@ button {
   margin-top: 0.2rem;
 }
 
-/* --- Toolbar galleria: filtri scorrevoli + upload ----------------------- */
-.camp-gallery__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.camp-filter-scroll {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.camp-filter-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.camp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  white-space: nowrap;
-  padding: 0.42rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid rgba(16, 28, 48, 0.12);
-  background: #fff;
-  color: var(--heading, #14203a);
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
-}
-
-.camp-chip--active {
-  background: var(--primary, #235d90);
-  border-color: transparent;
-  color: #fff;
-}
-
-.camp-chip__count {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 0.05rem 0.42rem;
-  border-radius: 999px;
-  background: rgba(16, 28, 48, 0.08);
-  color: inherit;
-}
-
-.camp-chip--active .camp-chip__count {
-  background: rgba(255, 255, 255, 0.26);
-}
-
-.camp-gallery__upload {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.camp-upload-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  border: 0;
-  background: linear-gradient(135deg, var(--primary, #235d90), var(--primary-strong, #123b5f));
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  box-shadow: 0 8px 18px rgba(35, 93, 144, 0.22);
-}
-
-.camp-upload-btn--ghost {
-  background: #fff;
-  color: var(--primary, #235d90);
-  border: 1px solid rgba(35, 93, 144, 0.28);
-  box-shadow: none;
-}
-
-.camp-upload-btn span {
-  font-size: 1.05em;
-  line-height: 1;
-}
-
-/* --- Masonry: nessun crop (aspect ratio preservato) --------------------- */
-.camp-masonry {
-  column-count: 2;
-  column-gap: 0.6rem;
-}
-
-@media (min-width: 560px) {
-  .camp-masonry {
-    column-count: 3;
-  }
-}
-
-@media (min-width: 900px) {
-  .camp-masonry {
-    column-count: 4;
-    column-gap: 0.75rem;
-  }
-}
-
-.camp-masonry__item {
-  position: relative;
-  display: block;
-  width: 100%;
-  margin: 0 0 0.6rem;
-  padding: 0;
-  border: 0;
-  border-radius: 1rem;
-  overflow: hidden;
-  break-inside: avoid;
-  background: rgba(16, 28, 48, 0.06);
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(16, 28, 48, 0.08);
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-
-.camp-masonry__item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(16, 28, 48, 0.16);
-}
-
-.camp-masonry__item img {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.camp-masonry__ph {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1 / 1;
-  font-size: 1.6rem;
-  color: rgba(16, 28, 48, 0.4);
-}
-
-.camp-masonry__play {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 2.6rem;
-  height: 2.6rem;
-  display: grid;
-  place-items: center;
-  padding-left: 0.15rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  font-size: 1rem;
-  backdrop-filter: blur(2px);
-}
-
-.camp-masonry__likes {
-  position: absolute;
-  left: 0.5rem;
-  bottom: 0.5rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.42);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 800;
-  backdrop-filter: blur(2px);
-}
-
-.camp-masonry__item--upload {
-  cursor: default;
-}
-
-.camp-masonry__item--upload img {
-  opacity: 0.55;
-}
-
-.camp-upload-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(9, 20, 34, 0.28);
-}
-
-.camp-upload-overlay__ring {
-  min-width: 3rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-weight: 800;
-  font-size: 0.8rem;
-  text-align: center;
-}
-
-.camp-upload-overlay__cancel {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 999px;
-  border: 0;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  cursor: pointer;
-}
-
-.camp-upload-overlay__error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.camp-upload-overlay__actions {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.camp-upload-overlay__actions button {
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 999px;
-  border: 0;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  cursor: pointer;
-}
-
-/* --- Stati vuoti + skeleton di caricamento ------------------------------ */
 .camp-empty {
   display: flex;
   flex-direction: column;
@@ -11305,42 +11069,15 @@ button {
   color: var(--muted, #55617a);
 }
 
-.camp-empty__emoji {
-  font-size: 2.4rem;
-}
-
 .camp-empty p {
   margin: 0;
   max-width: 28rem;
 }
 
-.camp-skeleton {
-  break-inside: avoid;
-  margin: 0 0 0.6rem;
-  border-radius: 1rem;
-  background: linear-gradient(
-    100deg,
-    rgba(16, 28, 48, 0.06) 30%,
-    rgba(16, 28, 48, 0.12) 50%,
-    rgba(16, 28, 48, 0.06) 70%
-  );
-  background-size: 200% 100%;
-  animation: camp-shimmer 1.3s ease-in-out infinite;
-}
-
-@keyframes camp-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .camp-skeleton {
-    animation: none;
-  }
+.camp-empty svg,
+.camp-highlight-card__poster--fallback svg {
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 /* Pulsante elimina nel lightbox (visibile solo per autore/admin) */
@@ -11361,6 +11098,10 @@ button {
 }
 
 .media-lightbox__download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
   border: 0;
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
@@ -11437,185 +11178,6 @@ button {
   .camp-highlight-card__body {
     padding: 0 1rem 1rem;
   }
-}
-
-/* --- Dock upload globale: sopravvive ai cambi schermata --------------------- */
-.upload-dock {
-  position: fixed;
-  left: 0.75rem;
-  right: 0.75rem;
-  bottom: calc(5.6rem + env(safe-area-inset-bottom));
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  pointer-events: none;
-}
-
-@media (min-width: 720px) {
-  .upload-dock {
-    left: auto;
-    right: 1rem;
-    width: 22rem;
-    bottom: 1rem;
-  }
-}
-
-.upload-dock__toast,
-.upload-dock__panel {
-  pointer-events: auto;
-}
-
-.upload-dock__toast {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  padding: 0.6rem 0.8rem;
-  border-radius: 0.9rem;
-  background: #b14e44;
-  color: #fff;
-  font-size: 0.85rem;
-  box-shadow: 0 10px 26px rgba(16, 28, 48, 0.22);
-}
-
-.upload-dock__toast button {
-  border: 0;
-  background: transparent;
-  color: #fff;
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-
-.upload-dock__panel {
-  padding: 0.7rem 0.8rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(16, 28, 48, 0.08);
-  box-shadow: 0 16px 40px rgba(16, 28, 48, 0.18);
-  backdrop-filter: blur(12px);
-}
-
-.upload-dock__head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.55rem;
-  font-size: 0.9rem;
-  color: var(--heading, #14203a);
-}
-
-.upload-dock__spinner {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 999px;
-  border: 2px solid rgba(35, 93, 144, 0.25);
-  border-top-color: var(--primary, #235d90);
-  animation: camp-spin 0.8s linear infinite;
-}
-
-@keyframes camp-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .upload-dock__spinner {
-    animation: none;
-  }
-}
-
-.upload-dock__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.upload-dock__item {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.upload-dock__thumb {
-  flex: 0 0 auto;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  background: rgba(16, 28, 48, 0.08);
-  display: grid;
-  place-items: center;
-  color: rgba(16, 28, 48, 0.5);
-}
-
-.upload-dock__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.upload-dock__info {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.upload-dock__name {
-  font-size: 0.78rem;
-  color: var(--heading, #14203a);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.upload-dock__err {
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #b14e44;
-}
-
-.upload-dock__bar {
-  height: 0.4rem;
-  border-radius: 999px;
-  background: rgba(16, 28, 48, 0.1);
-  overflow: hidden;
-}
-
-.upload-dock__bar-fill {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary, #235d90), var(--primary-strong, #123b5f));
-  transition: width 200ms ease;
-}
-
-.upload-dock__cancel,
-.upload-dock__actions button {
-  flex: 0 0 auto;
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 999px;
-  border: 0;
-  background: rgba(16, 28, 48, 0.08);
-  color: var(--heading, #14203a);
-  cursor: pointer;
-}
-
-.upload-dock__actions {
-  display: flex;
-  gap: 0.3rem;
-}
-
-.upload-dock__more {
-  margin: 0.4rem 0 0;
-  font-size: 0.75rem;
-  color: var(--muted, #55617a);
 }
 
 /* ==========================================================================

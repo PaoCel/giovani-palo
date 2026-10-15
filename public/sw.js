@@ -1,4 +1,4 @@
-const CACHE_NAME = "gugd-shell-v16";
+const CACHE_NAME = "gugd-shell-v17";
 const CORE_ASSETS = [
   "/",
   "/manifest.webmanifest",
@@ -83,7 +83,7 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: payload.body || "E arrivata una nuova iscrizione.",
+      body: payload.body || "È arrivata una nuova iscrizione.",
       tag: payload.tag || "admin-registration",
       icon: "/app-icon-192.png",
       badge: "/app-icon-192.png",

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MEDIA_LIMITS,
   uploadMediaResumable,
-  deleteMediaPath,
+  deleteMediaFolder,
   type UploadHandle,
 } from "@/services/firebase/galleryUploadService";
 import { galleriesService } from "@/services/firestore/galleriesService";
@@ -427,9 +427,7 @@ export function useGalleryUploader({
       if (item.handle) item.handle.cancel();
       updateItem(id, { status: "cancelled", handle: null });
       // Best-effort cleanup of any partial upload at known path prefix.
-      await deleteMediaPath(
-        `protected/stakes/${gallery.stakeId}/galleries/${gallery.id}/media/${item.mediaId}/`,
-      );
+      await deleteMediaFolder(gallery.stakeId, gallery.id, item.mediaId);
     },
     [gallery, updateItem],
   );

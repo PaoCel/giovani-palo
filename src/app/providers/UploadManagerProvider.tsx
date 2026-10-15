@@ -11,8 +11,8 @@ import {
 
 import {
   MEDIA_LIMITS,
+  deleteMediaFolder,
   uploadMediaResumable,
-  deleteMediaPath,
   type UploadHandle,
 } from "@/services/firebase/galleryUploadService";
 import { galleriesService } from "@/services/firestore/galleriesService";
@@ -45,14 +45,18 @@ export interface ManagedUploadItem {
   progress: number;
   status: UploadItemStatus;
   error: string | null;
+  /** false per i file scartati prima di partire (peso, tipo): "Riprova" non serve. */
+  retryable: boolean;
+  /** Errore di rete: si riprova da solo quando la connessione torna. */
+  networkError: boolean;
   handle: UploadHandle | null;
   insertOrder: number;
   previewUrl: string | null;
 }
 
 interface UploadApi {
-  pickPhotos: (files: File[], gallery: Gallery, startOrder: number) => void;
-  pickVideo: (files: File[], gallery: Gallery, startOrder: number) => void;
+  /** Foto e video insieme, dal bottone unico: ogni file va nella sua coda. */
+  pickMedia: (files: File[], gallery: Gallery, startOrder: number) => void;
   cancel: (id: string) => void;
   retry: (id: string) => void;
   remove: (id: string) => void;
@@ -65,16 +69,16 @@ interface UploadState {
 }
 
 // Due context separati: l'API è stabile (non provoca re-render dei consumatori
-// come CampGallery ad ogni tick di progresso); lo stato cambia spesso ma lo
+// come la galleria ad ogni tick di progresso); lo stato cambia spesso ma lo
 // legge solo la dock di avanzamento.
 const UploadApiContext = createContext<UploadApi | null>(null);
 const UploadStateContext = createContext<UploadState | null>(null);
 
-const ACCEPTED_VIDEO_TYPES = new Set([
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-]);
+// Due caricamenti alla volta: su una rete debole trenta upload in parallelo
+// vanno tutti in timeout insieme, uno o due arrivano in fondo.
+const MAX_ACTIVE_UPLOADS = 2;
+const MAX_FILES_PER_PICK = 30;
+const ACTIVE_STATUSES: UploadItemStatus[] = ["preparing", "uploading", "saving"];
 
 let itemCounter = 0;
 function newItemId() {
@@ -82,16 +86,61 @@ function newItemId() {
   return `up-${Date.now()}-${itemCounter}`;
 }
 
-function describeError(error: unknown) {
-  if (!error) return "Errore sconosciuto.";
-  if (typeof error === "object" && error !== null && "code" in error) {
-    const code = (error as { code?: string }).code ?? "";
-    if (code === "storage/canceled") return "Upload annullato.";
-    if (code === "storage/unauthorized") return "Permesso negato.";
-    if (code === "storage/quota-exceeded") return "Spazio finito.";
-    if (code === "storage/retry-limit-exceeded") return "Rete instabile.";
+function formatMegabytes(bytes: number) {
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+const CLOSED_MESSAGE = "Caricamenti chiusi per questa attività.";
+const NETWORK_MESSAGE = "Connessione persa. Riprovo appena torna la rete.";
+
+function describeError(error: unknown): { message: string; network: boolean } {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: string }).code ?? "")
+      : "";
+  if (code === "storage/canceled") return { message: "Caricamento annullato.", network: false };
+  if (code === "storage/unauthorized" || code === "permission-denied") {
+    return { message: CLOSED_MESSAGE, network: false };
   }
-  return error instanceof Error ? error.message : "Errore upload.";
+  if (code === "storage/quota-exceeded") return { message: "Spazio finito.", network: false };
+  if (
+    code === "storage/retry-limit-exceeded" ||
+    code === "storage/unknown" ||
+    code === "unavailable" ||
+    code === "deadline-exceeded" ||
+    (typeof navigator !== "undefined" && navigator.onLine === false)
+  ) {
+    return { message: NETWORK_MESSAGE, network: true };
+  }
+  return {
+    message: error instanceof Error && error.message ? error.message : "Caricamento non riuscito.",
+    network: false,
+  };
+}
+
+class CancelledUpload extends Error {
+  constructor() {
+    super("cancelled");
+  }
+}
+
+function fileKey(file: File, galleryId: string) {
+  return `${galleryId}:${file.name}:${file.size}:${file.lastModified}`;
+}
+
+/** Perché un file non può partire, prima ancora di caricarlo. */
+function rejectReason(file: File): string | null {
+  if (file.type.startsWith("image/")) {
+    return file.size > MEDIA_LIMITS.imageMaxBytes
+      ? `Foto troppo pesante: massimo ${formatMegabytes(MEDIA_LIMITS.imageMaxBytes)}.`
+      : null;
+  }
+  if (file.type.startsWith("video/")) {
+    return file.size > MEDIA_LIMITS.videoMaxBytes
+      ? `Troppo pesante: massimo ${formatMegabytes(MEDIA_LIMITS.videoMaxBytes)}, circa 3 minuti.`
+      : null;
+  }
+  return "Si possono caricare solo foto e video.";
 }
 
 function buildPreviewUrl(file: File): string | null {
@@ -108,22 +157,44 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
   const uidRef = useRef<string>("");
   uidRef.current = session?.firebaseUser.uid ?? "";
 
+  // queueRef è la fonte di verità, aggiornata in modo sincrono: la coda
+  // decide cosa far partire leggendola subito dopo una modifica, senza
+  // aspettare il render. Lo state serve solo a ridisegnare la dock.
   const [queue, setQueue] = useState<ManagedUploadItem[]>([]);
   const queueRef = useRef<ManagedUploadItem[]>([]);
-  queueRef.current = queue;
+  const commitQueue = useCallback((next: ManagedUploadItem[]) => {
+    queueRef.current = next;
+    setQueue(next);
+  }, []);
   const [pickerError, setPickerError] = useState<string | null>(null);
+  // Id già avviati: la coda è asincrona, senza questo set due "pump" ravvicinati
+  // farebbero partire lo stesso file due volte.
+  const startedRef = useRef<Set<string>>(new Set());
+  // Id annullati: runUpload lo controlla dopo ogni attesa, così un "Annulla"
+  // toccato durante la preparazione non viene scavalcato dal passo successivo.
+  const cancelledRef = useRef<Set<string>>(new Set());
 
-  const updateItem = useCallback((id: string, patch: Partial<ManagedUploadItem>) => {
-    setQueue((prev) => prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
-  }, []);
+  const updateItem = useCallback(
+    (id: string, patch: Partial<ManagedUploadItem>) => {
+      if (cancelledRef.current.has(id) && patch.status !== "cancelled" && patch.status !== "queued") {
+        return;
+      }
+      commitQueue(
+        queueRef.current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+      );
+    },
+    [commitQueue],
+  );
 
-  const removeItem = useCallback((id: string) => {
-    setQueue((prev) => {
-      const target = prev.find((entry) => entry.id === id);
+  const removeItem = useCallback(
+    (id: string) => {
+      startedRef.current.delete(id);
+      const target = queueRef.current.find((entry) => entry.id === id);
       if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((entry) => entry.id !== id);
-    });
-  }, []);
+      commitQueue(queueRef.current.filter((entry) => entry.id !== id));
+    },
+    [commitQueue],
+  );
 
   const uploading = queue.some((item) =>
     ["preparing", "uploading", "saving", "queued"].includes(item.status),
@@ -150,14 +221,19 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const startUpload = useCallback(
+  const runUpload = useCallback(
     async (item: ManagedUploadItem) => {
       const { file, mediaId, mode, gallery } = item;
+      const uploaded: boolean[] = [];
+      const stopIfCancelled = () => {
+        if (cancelledRef.current.has(item.id)) throw new CancelledUpload();
+      };
       try {
         updateItem(item.id, { status: "preparing", progress: 5 });
 
         if (mode === "image") {
           const { optimized, thumbnail } = await buildImageDerivatives(file);
+          stopIfCancelled();
           updateItem(item.id, { status: "uploading", progress: 15 });
 
           const optimizedHandle = uploadMediaResumable(
@@ -180,6 +256,8 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
           );
           updateItem(item.id, { handle: optimizedHandle });
           const optimizedResult = await optimizedHandle.promise;
+          uploaded.push(true);
+          stopIfCancelled();
 
           const thumbHandle = uploadMediaResumable(
             thumbnail.blob,
@@ -201,6 +279,7 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
           );
           updateItem(item.id, { handle: thumbHandle });
           const thumbResult = await thumbHandle.promise;
+          stopIfCancelled();
 
           updateItem(item.id, { status: "saving", progress: 97 });
 
@@ -266,12 +345,14 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
             );
             updateItem(item.id, { handle: posterHandle });
             posterUpload = await posterHandle.promise;
+            uploaded.push(true);
             posterMeta = { width: poster.width, height: poster.height };
           }
         } catch {
           // poster opzionale
         }
 
+        stopIfCancelled();
         updateItem(item.id, { status: "uploading", progress: 15 });
 
         const videoHandle = uploadMediaResumable(
@@ -294,6 +375,8 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
         );
         updateItem(item.id, { handle: videoHandle });
         const videoResult = await videoHandle.promise;
+        uploaded.push(true);
+        stopIfCancelled();
 
         updateItem(item.id, { status: "saving", progress: 97 });
 
@@ -326,10 +409,22 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
         window.setTimeout(() => removeItem(item.id), 1400);
       } catch (caughtError) {
         const stillExists = queueRef.current.find((entry) => entry.id === item.id);
-        if (!stillExists || stillExists.status === "cancelled") return;
+        if (!stillExists || cancelledRef.current.has(item.id)) {
+          if (uploaded.length > 0) void deleteMediaFolder(gallery.stakeId, gallery.id, mediaId);
+          return;
+        }
+        // File caricati senza il doc (galleria chiusa nel frattempo, rete
+        // caduta al salvataggio): invisibili nell'app, quindi si tolgono.
+        if (uploaded.length > 0) {
+          void deleteMediaFolder(gallery.stakeId, gallery.id, mediaId);
+        }
+        const described = describeError(caughtError);
         updateItem(item.id, {
           status: "error",
-          error: describeError(caughtError),
+          error: described.message,
+          networkError: described.network,
+          // Galleria chiusa: riprovare non serve, resta solo "Rimuovi".
+          retryable: described.message !== CLOSED_MESSAGE,
           handle: null,
         });
       }
@@ -337,93 +432,106 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
     [removeItem, updateItem],
   );
 
-  const pickPhotos = useCallback(
+  // Fa partire i file in coda finché ci sono posti liberi.
+  const pump = useCallback(() => {
+    const current = queueRef.current;
+    let active = current.filter(
+      (entry) =>
+        ACTIVE_STATUSES.includes(entry.status) ||
+        (entry.status === "queued" && startedRef.current.has(entry.id)),
+    ).length;
+    for (const entry of current) {
+      if (active >= MAX_ACTIVE_UPLOADS) break;
+      if (entry.status !== "queued" || startedRef.current.has(entry.id)) continue;
+      startedRef.current.add(entry.id);
+      active += 1;
+      void runUpload(entry).finally(() => {
+        startedRef.current.delete(entry.id);
+        window.setTimeout(() => pumpRef.current(), 0);
+      });
+    }
+  }, [runUpload]);
+  const pumpRef = useRef(pump);
+  pumpRef.current = pump;
+
+  // Quando la rete torna, i file fermati da un errore di rete ripartono da soli.
+  useEffect(() => {
+    const onOnline = () => {
+      const stalled = queueRef.current.filter(
+        (entry) => entry.status === "error" && entry.networkError,
+      );
+      if (stalled.length === 0) return;
+      for (const entry of stalled) {
+        updateItem(entry.id, {
+          status: "queued",
+          error: null,
+          networkError: false,
+          progress: 0,
+          handle: null,
+          mediaId: galleriesService.reserveMediaId(entry.gallery.stakeId, entry.gallery.id),
+        });
+      }
+      window.setTimeout(() => pumpRef.current(), 0);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [updateItem]);
+
+  const pickMedia = useCallback(
     (files: File[], gallery: Gallery, startOrder: number) => {
       setPickerError(null);
       if (!gallery || files.length === 0) return;
-      if (files.length > MEDIA_LIMITS.imagePerBatch) {
-        setPickerError(`Massimo ${MEDIA_LIMITS.imagePerBatch} foto alla volta.`);
+      if (files.length > MAX_FILES_PER_PICK) {
+        setPickerError(`Massimo ${MAX_FILES_PER_PICK} file alla volta.`);
         return;
       }
-      const newItems: ManagedUploadItem[] = [];
+      const known = new Set(
+        queueRef.current
+          .filter((entry) => entry.status !== "cancelled")
+          .map((entry) => fileKey(entry.file, entry.gallery.id)),
+      );
       const base = startOrder + queueRef.current.length;
+      const newItems: ManagedUploadItem[] = [];
       for (const [offset, file] of files.entries()) {
-        if (!file.type.startsWith("image/")) {
-          setPickerError(`Tipo non supportato: ${file.name}.`);
-          return;
-        }
-        if (file.size > MEDIA_LIMITS.imageMaxBytes) {
-          setPickerError(`${file.name} troppo pesante.`);
-          return;
-        }
+        const key = fileKey(file, gallery.id);
+        // Lo stesso file scelto due volte (doppio tocco, rullino riaperto).
+        if (known.has(key)) continue;
+        known.add(key);
+        const reason = rejectReason(file);
         newItems.push({
           id: newItemId(),
           gallery,
           uploadedByUid: uidRef.current,
           file,
-          mode: "image",
+          mode: file.type.startsWith("video/") ? "video" : "image",
           mediaId: galleriesService.reserveMediaId(gallery.stakeId, gallery.id),
           progress: 0,
-          status: "queued",
-          error: null,
+          status: reason ? "error" : "queued",
+          error: reason,
+          retryable: !reason,
+          networkError: false,
           handle: null,
           insertOrder: base + offset,
           previewUrl: buildPreviewUrl(file),
         });
       }
-      setQueue((prev) => [...prev, ...newItems]);
-      for (const item of newItems) void startUpload(item);
+      if (newItems.length === 0) return;
+      commitQueue([...queueRef.current, ...newItems]);
+      pumpRef.current();
     },
-    [startUpload],
-  );
-
-  const pickVideo = useCallback(
-    (files: File[], gallery: Gallery, startOrder: number) => {
-      setPickerError(null);
-      if (!gallery || files.length === 0) return;
-      if (files.length > MEDIA_LIMITS.videoPerBatch) {
-        setPickerError(`Massimo ${MEDIA_LIMITS.videoPerBatch} video alla volta.`);
-        return;
-      }
-      const valid: File[] = [];
-      for (const file of files) {
-        if (!ACCEPTED_VIDEO_TYPES.has(file.type) && !file.type.startsWith("video/")) {
-          setPickerError(`Formato video non supportato per "${file.name}".`);
-          continue;
-        }
-        valid.push(file);
-      }
-      if (valid.length === 0) return;
-      const base = startOrder + queueRef.current.length;
-      const items: ManagedUploadItem[] = valid.map((file, index) => ({
-        id: newItemId(),
-        gallery,
-        uploadedByUid: uidRef.current,
-        file,
-        mode: "video",
-        mediaId: galleriesService.reserveMediaId(gallery.stakeId, gallery.id),
-        progress: 0,
-        status: "queued",
-        error: null,
-        handle: null,
-        insertOrder: base + index,
-        previewUrl: buildPreviewUrl(file),
-      }));
-      setQueue((prev) => [...prev, ...items]);
-      for (const item of items) void startUpload(item);
-    },
-    [startUpload],
+    [commitQueue],
   );
 
   const cancel = useCallback(
     async (id: string) => {
       const item = queueRef.current.find((entry) => entry.id === id);
-      if (!item) return;
+      // Durante il salvataggio il doc sta per essere scritto: lì non si annulla
+      // (la dock non mostra il bottone), si toglie poi dalla galleria.
+      if (!item || item.status === "saving") return;
+      cancelledRef.current.add(id);
       if (item.handle) item.handle.cancel();
       updateItem(id, { status: "cancelled", handle: null });
-      await deleteMediaPath(
-        `protected/stakes/${item.gallery.stakeId}/galleries/${item.gallery.id}/media/${item.mediaId}/`,
-      ).catch(() => undefined);
+      await deleteMediaFolder(item.gallery.stakeId, item.gallery.id, item.mediaId);
     },
     [updateItem],
   );
@@ -431,23 +539,27 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
   const retry = useCallback(
     (id: string) => {
       const item = queueRef.current.find((entry) => entry.id === id);
-      if (!item || (item.status !== "error" && item.status !== "cancelled")) return;
-      const next: ManagedUploadItem = {
-        ...item,
+      if (!item || !item.retryable) return;
+      if (item.status !== "error" && item.status !== "cancelled") return;
+      cancelledRef.current.delete(id);
+      updateItem(id, {
         status: "queued",
         error: null,
+        networkError: false,
         progress: 0,
         handle: null,
-      };
-      updateItem(id, next);
-      void startUpload(next);
+        // Id nuovo: la cartella del tentativo fallito può essere già stata pulita.
+        mediaId: galleriesService.reserveMediaId(item.gallery.stakeId, item.gallery.id),
+      });
+      window.setTimeout(() => pumpRef.current(), 0);
     },
-    [startUpload, updateItem],
+    [updateItem],
   );
 
   const remove = useCallback(
     (id: string) => {
       const item = queueRef.current.find((entry) => entry.id === id);
+      if (item && ACTIVE_STATUSES.includes(item.status)) cancelledRef.current.add(id);
       if (item?.handle) item.handle.cancel();
       removeItem(id);
     },
@@ -455,8 +567,8 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
   );
 
   const api = useMemo<UploadApi>(
-    () => ({ pickPhotos, pickVideo, cancel, retry, remove }),
-    [pickPhotos, pickVideo, cancel, retry, remove],
+    () => ({ pickMedia, cancel, retry, remove }),
+    [pickMedia, cancel, retry, remove],
   );
 
   const clearPickerError = useCallback(() => setPickerError(null), []);

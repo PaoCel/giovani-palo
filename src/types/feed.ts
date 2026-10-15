@@ -98,6 +98,22 @@ export interface Gallery {
   commentsEnabled: false;
   postsCreated: boolean;
   codeStatus: GalleryCodeStatus;
+  /** Caricamenti dei membri chiusi a mano da un admin. */
+  uploadsClosed: boolean;
+  /** Finestra di caricamento (ms epoch) scritta dalla callable activityGallery o da un admin. */
+  uploadsOpenFrom: number | null;
+  uploadsOpenUntil: number | null;
+  /** "manual" se un admin ha riaperto a mano: la finestra non segue più le date. */
+  uploadsWindowSource: "activity" | "manual" | null;
+}
+
+export type GalleryReportReason = "mine" | "inappropriate" | "off_topic";
+
+/** Contenuto nascosto da una segnalazione: lo vedono lo staff e chi l'ha caricato. */
+export interface HiddenGalleryMedia extends GalleryMedia {
+  hiddenAt: string;
+  hiddenBy: string;
+  hiddenReason: GalleryReportReason;
 }
 
 export interface GalleryMember {

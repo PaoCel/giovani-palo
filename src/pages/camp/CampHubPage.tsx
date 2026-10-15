@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
-import { CampGallery } from "@/components/camp/CampGallery";
+import { ActivityGallery } from "@/components/gallery/ActivityGallery";
 import { SurveyAnswerView } from "@/components/survey/SurveyAnswerView";
 import { useAuth } from "@/hooks/useAuth";
 import { eventsService } from "@/services/firestore/eventsService";
@@ -132,13 +132,16 @@ export function CampHubPage() {
 
       {tab === "gallery" ? (
         <section className="camp-hub__panel">
-          <CampGallery stakeId={stakeId} eventId={eventId} />
+          <ActivityGallery
+            stakeId={stakeId}
+            event={event ?? { id: eventId, startDate: "", endDate: "" }}
+          />
         </section>
       ) : (
         <section className="camp-hub__panel">
           {surveyChecked && !hasSurvey ? (
             <div className="camp-empty">
-              <span className="camp-empty__emoji" aria-hidden="true">📝</span>
+              <AppIcon name="list" />
               <p>Il sondaggio del campeggio non è ancora disponibile. Torna più tardi.</p>
             </div>
           ) : (

@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "@/components/EmptyState";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { AppIcon } from "@/components/AppIcon";
+import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -458,6 +459,10 @@ export function MyActivityDetailPage() {
         </section>
       )}
 
+      {data ? (
+        <ActivityMediaCard className="ag-card--inset" stakeId={stakeId} event={data.event} />
+      ) : null}
+
       {data?.event.recordsEnabled ? (
         <Suspense fallback={null}>
           <RecordNightEntryCard
@@ -856,9 +861,9 @@ export function MyActivityDetailPage() {
                 </div>
                 <Link
                   className="camp-youth-primary-action camp-youth-primary-action--full"
-                  to={`/campeggio/${data.event.id}`}
+                  to={`/activities/${data.event.id}/foto`}
                 >
-                  Apri galleria del campeggio
+                  Apri foto e video
                 </Link>
               </div>
             ) : null}

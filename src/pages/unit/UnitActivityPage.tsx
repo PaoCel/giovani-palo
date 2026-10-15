@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { AppModal } from "@/components/AppModal";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -610,6 +611,8 @@ export function UnitActivityPage() {
       ) : loading ? (
         <p className="subtle-text">Caricamento...</p>
       ) : null}
+
+      {data.event ? <ActivityMediaCard stakeId={stakeId} event={data.event} /> : null}
 
       {error ? (
         <div className="notice notice--warning">

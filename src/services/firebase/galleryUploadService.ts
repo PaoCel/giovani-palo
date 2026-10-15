@@ -1,6 +1,7 @@
 import {
   deleteObject,
   getDownloadURL,
+  listAll,
   ref as storageRef,
   uploadBytesResumable,
   type UploadTask,
@@ -33,6 +34,9 @@ export const MEDIA_LIMITS = {
   // quanti gliene servono. Lo Storage tiene la coda con resumable upload.
   videoPerBatch: 100,
   imageMaxBytes: 25 * 1024 * 1024,
+  // Uguale al tetto di storage.rules per chi non è admin: niente transcodifica,
+  // quindi il limite è sul peso (circa 3 minuti di video 1080p da telefono).
+  videoMaxBytes: 300 * 1024 * 1024,
 };
 
 function getExtension(filename: string, contentType: string) {
@@ -119,5 +123,27 @@ export async function deleteMediaPath(path: string): Promise<void> {
     await deleteObject(storageRef(storage, path));
   } catch {
     // ignore — already deleted
+  }
+}
+
+/** Cartella Storage di un media: tutte le sue varianti (originale, ottimizzata, miniatura, poster). */
+export function mediaFolderPath(stakeId: string, galleryId: string, mediaId: string) {
+  return `protected/stakes/${stakeId}/galleries/${galleryId}/media/${mediaId}`;
+}
+
+/**
+ * Cancella tutti i file di un media. `deleteObject` lavora su un file solo:
+ * passargli la cartella falliva in silenzio e lasciava i file nel bucket.
+ */
+export async function deleteMediaFolder(
+  stakeId: string,
+  galleryId: string,
+  mediaId: string,
+): Promise<void> {
+  try {
+    const listing = await listAll(storageRef(storage, mediaFolderPath(stakeId, galleryId, mediaId)));
+    await Promise.all(listing.items.map((item) => deleteObject(item).catch(() => undefined)));
+  } catch {
+    // ignore — cartella già vuota o non leggibile
   }
 }

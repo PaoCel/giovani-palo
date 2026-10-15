@@ -4,8 +4,10 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 
+import { AppIcon } from "@/components/AppIcon";
 import { LikeButton } from "@/components/feed/LikeButton";
 import { useAuth } from "@/hooks/useAuth";
 import { galleryCommentsService } from "@/services/firestore/galleryCommentsService";
@@ -21,6 +23,10 @@ interface MediaLightboxProps {
   canDeleteMedia?: (media: GalleryMedia) => boolean;
   /** Elimina il media corrente. Il chiamante aggiorna la lista e chiude. */
   onDeleteMedia?: (media: GalleryMedia) => Promise<void>;
+  /** Azioni in più nella barra per il media corrente (es. Segnala). */
+  renderExtraActions?: (media: GalleryMedia) => ReactNode;
+  /** Like e commenti spenti (contenuti nascosti visti dallo staff). */
+  readOnly?: boolean;
 }
 
 const SWIPE_THRESHOLD = 50;
@@ -62,6 +68,8 @@ export function MediaLightbox({
   onToggleMediaLike,
   canDeleteMedia,
   onDeleteMedia,
+  renderExtraActions,
+  readOnly = false,
 }: MediaLightboxProps) {
   const { session } = useAuth();
   const [index, setIndex] = useState(initialIndex);
@@ -108,7 +116,7 @@ export function MediaLightbox({
   }, [goNext, goPrev, onClose]);
 
   useEffect(() => {
-    if (!current) return;
+    if (!current || readOnly) return;
     if (comments[current.id]) return;
     let active = true;
     setLoadingComments(true);
@@ -128,7 +136,7 @@ export function MediaLightbox({
     return () => {
       active = false;
     };
-  }, [current, comments]);
+  }, [current, comments, readOnly]);
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -226,7 +234,7 @@ export function MediaLightbox({
         : current.storageUrl ?? current.originalUrl ?? current.optimizedUrl;
     if (!url) return;
     const ext = current.type === "image" ? "jpg" : "mp4";
-    const name = current.filename || `campeggio-${current.id}.${ext}`;
+    const name = current.filename || `galleria-${current.id}.${ext}`;
     try {
       // Fetch → blob → download: forza il salvataggio anche su URL cross-origin
       // (l'attributo download da solo verrebbe ignorato). Firebase Storage
@@ -307,12 +315,14 @@ export function MediaLightbox({
         </article>
 
         <div className="media-lightbox__bar">
-          <LikeButton
-            liked={isMediaLiked(current.id)}
-            count={current.likeCount}
-            onToggle={() => onToggleMediaLike(current)}
-            ariaLabel="Like alla foto/video"
-          />
+          {readOnly ? null : (
+            <LikeButton
+              liked={isMediaLiked(current.id)}
+              count={current.likeCount}
+              onToggle={() => onToggleMediaLike(current)}
+              ariaLabel="Like alla foto/video"
+            />
+          )}
           <span className="media-lightbox__counter">
             {index + 1} / {media.length}
           </span>
@@ -322,7 +332,7 @@ export function MediaLightbox({
             onClick={handleDownload}
             aria-label="Scarica"
           >
-            ⬇ Scarica
+            <AppIcon name="download" /> Scarica
           </button>
           {showDelete ? (
             <button
@@ -335,8 +345,10 @@ export function MediaLightbox({
               {deleting ? "Elimino…" : "Elimina"}
             </button>
           ) : null}
+          {renderExtraActions ? renderExtraActions(current) : null}
         </div>
 
+        {readOnly ? null : (
         <section className="media-comments">
           <header className="media-comments__head">
             <h4>Commenti</h4>
@@ -404,6 +416,7 @@ export function MediaLightbox({
 
           {commentError ? <p className="form-error">{commentError}</p> : null}
         </section>
+        )}
       </div>
 
       <button

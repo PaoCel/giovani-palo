@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { SectionCard } from "@/components/SectionCard";
@@ -308,6 +309,8 @@ export function ActivityDetailPage() {
         </div>
       </section>
 
+      {event ? <ActivityMediaCard stakeId={data.stakeId} event={event} /> : null}
+
       {event?.recordsEnabled ? (
         <Suspense fallback={null}>
           <RecordNightEntryCard
@@ -386,17 +389,6 @@ export function ActivityDetailPage() {
         >
           <Link className="button button--ghost" to={`/me/sondaggi/${event.id}`}>
             Apri il sondaggio
-          </Link>
-        </SectionCard>
-      ) : null}
-
-      {event ? (
-        <SectionCard
-          title="Galleria foto e video"
-          description="Inserisci il codice ricevuto per accedere ai contenuti."
-        >
-          <Link className="button button--ghost" to={`/me/galleria/per-attivita/${event.id}`}>
-            Apri galleria attività
           </Link>
         </SectionCard>
       ) : null}

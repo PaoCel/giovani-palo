@@ -3,25 +3,30 @@ import {
   deleteDoc,
   doc,
   increment,
+  limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
-import { db } from "@/services/firebase/app";
+import { db, functions } from "@/services/firebase/app";
 import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   Gallery,
   GalleryMedia,
   GalleryMediaType,
   GalleryMember,
+  GalleryReportReason,
   GalleryWriteInput,
+  HiddenGalleryMedia,
 } from "@/types";
 
 const GALLERY_BATCH_SIZE = 30;
@@ -59,6 +64,27 @@ function memberDoc(stakeId: string, galleryId: string, uid: string) {
   return doc(membersCollection(stakeId, galleryId), uid);
 }
 
+// La finestra di caricamento è un Timestamp Firestore (la confrontano le rules).
+function timestampMs(value: unknown): number | null {
+  if (value && typeof (value as { toMillis?: unknown }).toMillis === "function") {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+  return null;
+}
+
+/** Id della galleria creata dalla callable per un'attività. */
+export function activityGalleryId(activityId: string) {
+  return `act_${activityId}`;
+}
+
+// Prima la galleria con l'id dell'attività (la stessa che sceglie la callable),
+// poi la più recente fra quelle create a mano dal pannello admin.
+function pickActivityGallery(galleries: Gallery[], activityId: string): Gallery | null {
+  const fixed = galleries.find((gallery) => gallery.id === activityGalleryId(activityId));
+  if (fixed) return fixed;
+  return [...galleries].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+}
+
 function mapGallery(stakeId: string, id: string, data: Record<string, unknown>): Gallery {
   return {
     id,
@@ -80,8 +106,49 @@ function mapGallery(stakeId: string, id: string, data: Record<string, unknown>):
     commentsEnabled: false,
     postsCreated: data.postsCreated === true,
     codeStatus: data.codeStatus === "set" ? "set" : "missing",
+    uploadsClosed: data.uploadsClosed === true,
+    uploadsOpenFrom: timestampMs(data.uploadsOpenFrom),
+    uploadsOpenUntil: timestampMs(data.uploadsOpenUntil),
+    uploadsWindowSource:
+      data.uploadsWindowSource === "manual" || data.uploadsWindowSource === "activity"
+        ? data.uploadsWindowSource
+        : null,
   };
 }
+
+function mapHiddenMedia(
+  stakeId: string,
+  galleryId: string,
+  id: string,
+  data: Record<string, unknown>,
+): HiddenGalleryMedia {
+  const reason = data.hiddenReason;
+  return {
+    ...mapMedia(stakeId, galleryId, id, data),
+    hiddenAt: typeof data.hiddenAt === "string" ? data.hiddenAt : "",
+    hiddenBy: typeof data.hiddenBy === "string" ? data.hiddenBy : "",
+    hiddenReason:
+      reason === "mine" || reason === "inappropriate" || reason === "off_topic"
+        ? reason
+        : "inappropriate",
+  };
+}
+
+type ActivityGalleryAction =
+  | { action: "ensure"; stakeId: string; activityId: string }
+  | {
+      action: "report";
+      stakeId: string;
+      galleryId: string;
+      mediaId: string;
+      reason: GalleryReportReason;
+    }
+  | { action: "restore" | "delete"; stakeId: string; galleryId: string; mediaId: string };
+
+const activityGalleryCallable = httpsCallable<
+  ActivityGalleryAction,
+  { galleryId?: string | null; created?: boolean; status?: string }
+>(functions, "activityGallery");
 
 function mapMedia(
   stakeId: string,
@@ -219,6 +286,28 @@ export const galleriesService = {
     await updateDoc(galleryDoc(stakeId, galleryId), allowed);
   },
 
+  /** Solo admin: chiude i caricamenti dei membri o li riapre per qualche giorno. */
+  async setUploadsOpen(
+    stakeId: string,
+    galleryId: string,
+    open: { days: number } | false,
+  ): Promise<void> {
+    const ts = nowIso();
+    if (!open) {
+      await updateDoc(galleryDoc(stakeId, galleryId), { uploadsClosed: true, updatedAt: ts });
+      return;
+    }
+    const now = Date.now();
+    await updateDoc(galleryDoc(stakeId, galleryId), {
+      uploadsClosed: false,
+      uploadsOpenFrom: Timestamp.fromMillis(now),
+      uploadsOpenUntil: Timestamp.fromMillis(now + open.days * 24 * 60 * 60 * 1000),
+      // La callable non riallinea più la finestra alle date dell'attività.
+      uploadsWindowSource: "manual",
+      updatedAt: ts,
+    });
+  },
+
   async getGalleryByActivity(
     stakeId: string,
     activityId: string,
@@ -228,10 +317,10 @@ export const galleriesService = {
       query(galleriesCollection(stakeId), where("activityId", "==", activityId)),
     );
     if (snapshot.empty) return null;
-    const sorted = snapshot.docs
-      .map((d) => mapGallery(stakeId, d.id, d.data()))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return sorted[0] ?? null;
+    return pickActivityGallery(
+      snapshot.docs.map((d) => mapGallery(stakeId, d.id, d.data())),
+      activityId,
+    );
   },
 
   async markCodeStatus(
@@ -319,10 +408,12 @@ export const galleriesService = {
           onData(null);
           return;
         }
-        const sorted = snapshot.docs
-          .map((d) => mapGallery(stakeId, d.id, d.data()))
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        onData(sorted[0] ?? null);
+        onData(
+          pickActivityGallery(
+            snapshot.docs.map((d) => mapGallery(stakeId, d.id, d.data())),
+            activityId,
+          ),
+        );
       },
       (error) => onError?.(error),
     );
@@ -341,6 +432,77 @@ export const galleriesService = {
           snapshot.docs
             .map((d) => mapMedia(stakeId, galleryId, d.id, d.data()))
             .sort(sortMedia),
+        );
+      },
+      (error) => onError?.(error),
+    );
+  },
+
+  /** Ultimi contenuti caricati, per le anteprime delle card. */
+  subscribeLatestMedia(
+    stakeId: string,
+    galleryId: string,
+    count: number,
+    onData: (media: GalleryMedia[]) => void,
+    onError?: (error: Error) => void,
+  ): Unsubscribe {
+    return onSnapshot(
+      query(mediaCollection(stakeId, galleryId), orderBy("createdAt", "desc"), limit(count)),
+      (snapshot) => {
+        onData(snapshot.docs.map((d) => mapMedia(stakeId, galleryId, d.id, d.data())));
+      },
+      (error) => onError?.(error),
+    );
+  },
+
+  /**
+   * Apre (se serve) la galleria dell'attività e ne allinea la finestra di
+   * caricamento alle date. Crea solo se la finestra è aperta, salvo staff.
+   */
+  async ensureActivityGallery(stakeId: string, activityId: string): Promise<string | null> {
+    const result = await activityGalleryCallable({ action: "ensure", stakeId, activityId });
+    return result.data.galleryId ?? null;
+  },
+
+  /** Segnala un contenuto: la callable lo nasconde subito a tutti tranne allo staff. */
+  async reportMedia(
+    stakeId: string,
+    galleryId: string,
+    mediaId: string,
+    reason: GalleryReportReason,
+  ): Promise<void> {
+    await activityGalleryCallable({ action: "report", stakeId, galleryId, mediaId, reason });
+  },
+
+  async restoreHiddenMedia(stakeId: string, galleryId: string, mediaId: string): Promise<void> {
+    await activityGalleryCallable({ action: "restore", stakeId, galleryId, mediaId });
+  },
+
+  async deleteHiddenMedia(stakeId: string, galleryId: string, mediaId: string): Promise<void> {
+    await activityGalleryCallable({ action: "delete", stakeId, galleryId, mediaId });
+  },
+
+  /**
+   * Contenuti nascosti: tutti per lo staff, solo i propri per gli altri
+   * (la rule accetta la lista dei membri solo filtrata per uploadedBy).
+   */
+  subscribeHiddenMedia(
+    stakeId: string,
+    galleryId: string,
+    scope: { staff: true } | { uploadedBy: string },
+    onData: (media: HiddenGalleryMedia[]) => void,
+    onError?: (error: Error) => void,
+  ): Unsubscribe {
+    const hidden = collection(galleryDoc(stakeId, galleryId), "hiddenMedia");
+    const source =
+      "staff" in scope ? hidden : query(hidden, where("uploadedBy", "==", scope.uploadedBy));
+    return onSnapshot(
+      source,
+      (snapshot) => {
+        onData(
+          snapshot.docs
+            .map((d) => mapHiddenMedia(stakeId, galleryId, d.id, d.data()))
+            .sort((a, b) => b.hiddenAt.localeCompare(a.hiddenAt)),
         );
       },
       (error) => onError?.(error),

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
-import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
+import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -240,7 +240,7 @@ export function FamilyDashboardPage() {
 
   return (
     <div className="page page--user-dashboard">
-      <CampHighlightCard />
+      <ActivityMediaHighlight />
 
       <section className="user-dashboard-section">
         <div className="user-section-heading">

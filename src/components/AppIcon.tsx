@@ -7,6 +7,7 @@ export type AppIconName =
   | "bell"
   | "building"
   | "calendar"
+  | "camera"
   | "chart"
   | "check"
   | "clock"
@@ -14,7 +15,9 @@ export type AppIconName =
   | "ellipsis"
   | "eye"
   | "filter"
+  | "flag"
   | "globe"
+  | "heart"
   | "home"
   | "key"
   | "list"
@@ -24,6 +27,7 @@ export type AppIconName =
   | "mail"
   | "menu"
   | "pencil"
+  | "play"
   | "plus"
   | "refresh"
   | "share"
@@ -268,6 +272,24 @@ function getIconPaths(name: AppIconName) {
           <path d="m17.25 6.75-10.5 10.5" />
         </>
       );
+    case "camera":
+      return (
+        <>
+          <path d="M4.5 8.25h2.69l1.56-2.25h6.5l1.56 2.25h2.69v10.5h-15V8.25Z" />
+          <circle cx="12" cy="13.25" r="3.25" />
+        </>
+      );
+    case "heart":
+      return (
+        <path
+          d="M12 20.25s-7.5-4.6-7.5-10.4A4.15 4.15 0 0 1 12 7.4a4.15 4.15 0 0 1 7.5 2.45c0 5.8-7.5 10.4-7.5 10.4Z"
+          fill="currentColor"
+        />
+      );
+    case "flag":
+      return <path d="M5.25 20.25V4.5m0 0h11.25l-2.25 4.13 2.25 4.12H5.25" />;
+    case "play":
+      return <path d="M8.25 5.25v13.5L18.75 12 8.25 5.25Z" fill="currentColor" />;
     default:
       return <path d="M12 4.5v15M4.5 12h15" />;
   }

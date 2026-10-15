@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ComponentType, type ReactNode } from "react";
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
 
 import { AppLoader } from "@/components/AppLoader";
 import { RouteErrorPanel } from "@/components/RouteErrorPanel";
@@ -32,6 +32,11 @@ function lazyPage(
       <Component />
     </Suspense>
   );
+}
+
+function LegacyActivityGalleryRedirect() {
+  const { eventId = "" } = useParams();
+  return <Navigate replace to={`/activities/${eventId}/foto`} />;
 }
 
 export const router = createBrowserRouter([
@@ -132,13 +137,9 @@ export const router = createBrowserRouter([
               "MyActivityEditPage",
             ),
           },
-          {
-            path: "galleria/per-attivita/:eventId",
-            element: lazyPage(
-              () => import("@/pages/me/MyActivityGalleryPage"),
-              "MyActivityGalleryPage",
-            ),
-          },
+          // Vecchio indirizzo della galleria in sola lettura: ora è la galleria
+          // condivisa dell'attività, uguale per tutti i ruoli.
+          { path: "galleria/per-attivita/:eventId", element: <LegacyActivityGalleryRedirect /> },
           {
             path: "sondaggi",
             element: lazyPage(() => import("@/pages/me/SurveyHubPage"), "SurveyHubPage"),
@@ -167,6 +168,15 @@ export const router = createBrowserRouter([
       {
         path: "/campeggio/:eventId",
         element: lazyPage(() => import("@/pages/camp/CampHubPage"), "CampHubPage"),
+      },
+      // Foto e video dell'attività: per tutti i ruoli con un account (le rules
+      // limitano ai membri del palo). docs/GALLERIA_ATTIVITA.md
+      {
+        path: "/activities/:eventId/foto",
+        element: lazyPage(
+          () => import("@/pages/activity/ActivityMediaPage"),
+          "ActivityMediaPage",
+        ),
       },
     ],
   },

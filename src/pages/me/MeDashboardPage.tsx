@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { ShareButton } from "@/components/ShareButton";
-import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
+import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -207,7 +207,7 @@ export function MeDashboardPage() {
       </section>
 
       {/* Campeggio (foto/video) — card calma, gestisce da sé la visibilità. */}
-      <CampHighlightCard />
+      <ActivityMediaHighlight />
 
       {surveyCandidates.length > 0 ? (
         <section className="dash-section">

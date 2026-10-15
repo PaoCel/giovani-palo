@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { AppIcon } from "@/components/AppIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { resolveLatestCampWithGallery, type CampHighlight } from "@/utils/campHighlight";
@@ -51,7 +52,7 @@ export function CampHighlightCard() {
             />
           ) : (
             <div className="camp-highlight-card__poster camp-highlight-card__poster--fallback">
-              📸
+              <AppIcon name="camera" />
             </div>
           )}
         </Link>

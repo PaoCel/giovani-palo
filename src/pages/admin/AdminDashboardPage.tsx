@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { AdminActivityCard } from "@/components/AdminActivityCard";
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
-import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
+import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -160,7 +160,7 @@ export function AdminDashboardPage() {
         )}
       </section>
 
-      <CampHighlightCard />
+      <ActivityMediaHighlight />
 
       <section className="user-dashboard-section">
         <div className="user-section-heading">
