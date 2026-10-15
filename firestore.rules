@@ -68,6 +68,101 @@ service cloud.firestore {
     // Confine per unità: il dirigente vede solo documenti della propria unità.
     // Le query client devono filtrare con where('unitId', '==', <propria unità>)
     // perché la rule sia dimostrabile anche in list.
+    // Galleria foto/video dell'attività (docs/GALLERIA_ATTIVITA.md): la vede e
+    // la riempie solo chi ha un account nel palo, mai una sessione anonima né
+    // un utente di un altro palo. Staff = admin e dirigenti di unità del palo,
+    // ruoli assegnati da un admin.
+    function isStakeMember(stakeId) {
+      return isNonAnonymousSignedIn()
+        && currentUserExists()
+        && (currentUser().stakeId == stakeId || currentUser().role == 'super_admin');
+    }
+
+    function isGalleryStaff(stakeId) {
+      return isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
+    }
+
+    function galleryDocPath(stakeId, galleryId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId);
+    }
+
+    function galleryMediaDocPath(stakeId, galleryId, mediaId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/media/$(mediaId);
+    }
+
+    function galleryMediaLikePath(stakeId, galleryId, mediaId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/media/$(mediaId)/likes/$(request.auth.uid);
+    }
+
+    // Finestra scritta dalla callable activityGallery (inizio attività - 2 ore,
+    // fine + 7 giorni) o da un admin. Senza finestra la galleria è chiusa.
+    function galleryAcceptsUploads(gallery) {
+      return gallery.get('uploadsClosed', false) != true
+        && gallery.get('uploadsOpenFrom', null) is timestamp
+        && gallery.get('uploadsOpenUntil', null) is timestamp
+        && request.time >= gallery.uploadsOpenFrom
+        && request.time < gallery.uploadsOpenUntil;
+    }
+
+    // Percorso e URL di un file devono stare nella cartella Storage del media,
+    // nel bucket del progetto (prod, staging, emulatore demo-*): niente file
+    // esterni o di un bucket altrui spacciati per foto della galleria.
+    function isOwnMediaPath(value, stakeId, galleryId, mediaId) {
+      return value == null
+        || (value is string
+          && value.matches('^protected/stakes/' + stakeId + '/galleries/' + galleryId + '/media/' + mediaId + '/[^/]+$'));
+    }
+
+    function isOwnMediaUrl(value, stakeId, galleryId, mediaId) {
+      return value == null
+        || (value is string
+          && value.matches('^(https://firebasestorage[.]googleapis[.]com/v0/b/giovani-palo(-staging)?[.]firebasestorage[.]app|http://(127[.]0[.]0[.]1|localhost):[0-9]+/v0/b/(demo-[a-z0-9-]+|giovani-palo(-staging)?)[.](firebasestorage[.]app|appspot[.]com))/o/protected%2Fstakes%2F' + stakeId + '%2Fgalleries%2F' + galleryId + '%2Fmedia%2F' + mediaId + '%2F[^/?]+[?].*$'));
+    }
+
+    function validMemberMediaCreate(stakeId, galleryId, mediaId) {
+      let data = request.resource.data;
+      let gallery = get(galleryDocPath(stakeId, galleryId)).data;
+      return data.keys().hasOnly([
+          'activityId', 'caption', 'contentType', 'createdAt', 'duration',
+          'filename', 'height', 'likeCount', 'optimizedPath', 'optimizedUrl',
+          'order', 'originalPath', 'originalUrl', 'posterPath', 'posterUrl',
+          'sizeBytes', 'status', 'storagePath', 'storageUrl', 'thumbnailPath',
+          'thumbnailUrl', 'type', 'updatedAt', 'uploadedBy', 'width'
+        ])
+        && data.uploadedBy == request.auth.uid
+        && (data.type == 'image' || data.type == 'video')
+        && data.likeCount == 0
+        && data.get('caption', '') is string
+        && data.get('caption', '').size() <= 500
+        && data.createdAt is string
+        && data.createdAt.matches('^20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-9:.]{12}Z$')
+        && data.get('order', 0) is int
+        && data.get('activityId', null) == gallery.get('activityId', null)
+        && galleryAcceptsUploads(gallery)
+        && isOwnMediaPath(data.get('storagePath', null), stakeId, galleryId, mediaId)
+        && isOwnMediaPath(data.get('optimizedPath', null), stakeId, galleryId, mediaId)
+        && isOwnMediaPath(data.get('originalPath', null), stakeId, galleryId, mediaId)
+        && isOwnMediaPath(data.get('thumbnailPath', null), stakeId, galleryId, mediaId)
+        && isOwnMediaPath(data.get('posterPath', null), stakeId, galleryId, mediaId)
+        && isOwnMediaUrl(data.get('storageUrl', null), stakeId, galleryId, mediaId)
+        && isOwnMediaUrl(data.get('optimizedUrl', null), stakeId, galleryId, mediaId)
+        && isOwnMediaUrl(data.get('originalUrl', null), stakeId, galleryId, mediaId)
+        && isOwnMediaUrl(data.get('thumbnailUrl', null), stakeId, galleryId, mediaId)
+        && isOwnMediaUrl(data.get('posterUrl', null), stakeId, galleryId, mediaId);
+    }
+
+    // Like: il contatore si muove di uno solo insieme al proprio doc like.
+    function validLikeCountUpdate(stakeId, galleryId, mediaId) {
+      let likePath = galleryMediaLikePath(stakeId, galleryId, mediaId);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
+        && (
+          (request.resource.data.likeCount == resource.data.likeCount + 1
+            && !exists(likePath) && existsAfter(likePath))
+          || (request.resource.data.likeCount == resource.data.likeCount - 1
+            && exists(likePath) && !existsAfter(likePath))
+        );
+    }
+
     function isUnitLeaderOfUnit(stakeId, unitId) {
       return isUnitLeaderOfStake(stakeId)
         && unitId != ''
@@ -1072,65 +1167,81 @@ service cloud.firestore {
         }
       }
 
-      // Galleria foto/video: accesso aperto a chiunque sia loggato (anche
-      // ospite anon). Il flusso a codice via Cloud Function rimane disponibile
-      // per gallerie storiche ma non è più richiesto per leggere i media.
-      // Upload aperto a tutti i loggati (galleria collaborativa del campeggio):
-      // ogni utente può aggiungere media e cancellare SOLO i propri; gli admin
-      // gestiscono tutto. La creazione/pubblicazione della galleria resta admin.
+      // Galleria foto/video dell'attività (docs/GALLERIA_ATTIVITA.md). La
+      // vedono e la riempiono solo i membri del palo con un account; la crea un
+      // admin o la callable activityGallery (id act_<activityId>), che scrive
+      // anche la finestra di caricamento. Le segnalazioni e i contenuti nascosti
+      // li scrive solo la callable. Lo staff (admin, dirigenti di unità) toglie
+      // qualunque contenuto; ogni membro toglie i propri.
       match /galleries/{galleryId} {
-        allow get, list: if true;
+        allow get, list: if isStakeMember(stakeId);
         allow create, delete: if isStakeAdmin(stakeId);
-        // Update: admin liberi; i loggati possono solo aggiornare il contatore
-        // media (increment su upload/delete del proprio media).
+        // Update: admin liberi; gli altri membri solo il contatore, di uno alla
+        // volta, nello stesso batch che crea o cancella un proprio media.
         allow update: if isStakeAdmin(stakeId)
           || (
-            isSignedIn()
+            isStakeMember(stakeId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mediaCount', 'updatedAt'])
+            && (
+              request.resource.data.mediaCount == resource.data.mediaCount + 1
+              || request.resource.data.mediaCount == resource.data.mediaCount - 1
+            )
           );
 
         match /media/{mediaId} {
-          allow get, list: if isSignedIn();
+          allow get, list: if isStakeMember(stakeId);
           allow update: if isStakeAdmin(stakeId)
-            || (
-              isSignedIn()
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
-            );
-          // Create: qualsiasi loggato, ma deve marcarsi come autore e caricare
-          // solo foto/video, senza gonfiare i like all'origine.
+            || (isStakeMember(stakeId) && validLikeCountUpdate(stakeId, galleryId, mediaId));
+          // Invariante: uploadedBy è sempre l'uid di chi carica, mai
+          // gallery.createdBy (un client che lo copiava ha rotto gli upload).
           allow create: if isStakeAdmin(stakeId)
-            || (
-              isSignedIn()
-              && request.resource.data.uploadedBy == request.auth.uid
-              && (request.resource.data.type == 'image' || request.resource.data.type == 'video')
-              && request.resource.data.likeCount == 0
-            );
-          // Delete: admin qualsiasi media, l'autore solo il proprio.
-          allow delete: if isStakeAdmin(stakeId)
-            || (isSignedIn() && resource.data.uploadedBy == request.auth.uid);
+            || (isStakeMember(stakeId) && validMemberMediaCreate(stakeId, galleryId, mediaId));
+          allow delete: if isGalleryStaff(stakeId)
+            || (isStakeMember(stakeId) && resource.data.uploadedBy == request.auth.uid);
 
+          // Il doc like nasce e muore solo insieme al +1/-1 del contatore, nello
+          // stesso batch: altrimenti "cancella il like, rifai like" gonfia il
+          // contatore all'infinito.
           match /likes/{uid} {
             allow get: if isStakeAdmin(stakeId)
-              || (isSignedIn() && request.auth.uid == uid);
+              || (isStakeMember(stakeId) && request.auth.uid == uid);
             allow list: if isStakeAdmin(stakeId);
-            allow create, delete: if isSignedIn() && request.auth.uid == uid;
+            allow create: if isStakeMember(stakeId) && request.auth.uid == uid
+              && getAfter(galleryMediaDocPath(stakeId, galleryId, mediaId)).data.likeCount
+                == get(galleryMediaDocPath(stakeId, galleryId, mediaId)).data.likeCount + 1;
+            allow delete: if isStakeMember(stakeId) && request.auth.uid == uid
+              && getAfter(galleryMediaDocPath(stakeId, galleryId, mediaId)).data.likeCount
+                == get(galleryMediaDocPath(stakeId, galleryId, mediaId)).data.likeCount - 1;
             allow update: if false;
           }
 
           match /comments/{commentId} {
-            allow get, list: if isSignedIn();
-            allow create: if isSignedIn()
+            allow get, list: if isStakeMember(stakeId);
+            allow create: if isStakeMember(stakeId)
               && request.resource.data.uid == request.auth.uid
               && request.resource.data.body is string
               && request.resource.data.body.size() > 0
               && request.resource.data.body.size() <= 2000;
-            allow update: if isSignedIn()
+            allow update: if isStakeMember(stakeId)
               && resource.data.uid == request.auth.uid
               && request.resource.data.uid == resource.data.uid
               && request.resource.data.createdAt == resource.data.createdAt;
-            allow delete: if isStakeAdmin(stakeId)
-              || (isSignedIn() && resource.data.uid == request.auth.uid);
+            allow delete: if isGalleryStaff(stakeId)
+              || (isStakeMember(stakeId) && resource.data.uid == request.auth.uid);
           }
+        }
+
+        // Contenuti nascosti da una segnalazione: li vede lo staff, e chi li ha
+        // caricati (query filtrata per uploadedBy). Scrive solo la callable.
+        match /hiddenMedia/{mediaId} {
+          allow get, list: if isGalleryStaff(stakeId)
+            || (isStakeMember(stakeId) && resource.data.uploadedBy == request.auth.uid);
+          allow write: if false;
+        }
+
+        match /reports/{reportId} {
+          allow get, list: if isGalleryStaff(stakeId);
+          allow write: if false;
         }
 
         match /members/{uid} {

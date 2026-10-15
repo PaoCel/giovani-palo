@@ -91,22 +91,57 @@ service firebase.storage {
       allow write: if false;
     }
 
-    // Galleria foto/video: lettura aperta a chiunque sia loggato. Upload
-    // (create/update) aperto a tutti i loggati per la galleria collaborativa
-    // del campeggio, con tetti anti-abuso su dimensione e tipo. La cancellazione
-    // dei binari resta agli admin (i doc Firestore del proprio media sono invece
-    // cancellabili dall'autore; eventuali binari orfani li ripulisce l'admin).
-    match /protected/stakes/{stakeId}/galleries/{galleryId}/media/{mediaId}/{fileName=**} {
-      allow read: if isSignedIn();
-      allow write: if isStakeAdmin(stakeId)
-        || (
-          isSignedIn()
-          && request.resource != null
-          && (
-            (request.resource.contentType.matches('image/.*') && request.resource.size < 30 * 1024 * 1024)
-            || (request.resource.contentType.matches('video/.*') && request.resource.size < 600 * 1024 * 1024)
-          )
+    // Galleria foto/video dell'attività (docs/GALLERIA_ATTIVITA.md): la vede
+    // e la riempie solo chi ha un account nel palo, mai una sessione anonima.
+    // Ognuno crea solo file nuovi marcati col proprio uid (niente sovrascritture
+    // di file altrui) e cancella solo i propri; lo staff (admin, dirigenti di
+    // unità) cancella tutto. Tetti: foto 30 MB, video 300 MB, come nel client.
+    function isNonAnonymousSignedIn() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isStakeMember(stakeId) {
+      return isNonAnonymousSignedIn()
+        && currentUserExists()
+        && (currentUser().stakeId == stakeId || currentUser().role == 'super_admin');
+    }
+
+    function isGalleryStaff(stakeId) {
+      return isStakeAdmin(stakeId)
+        || (currentUserExists() && currentUser().role == 'unit_leader' && currentUser().stakeId == stakeId);
+    }
+
+    function validGalleryUpload() {
+      return request.resource.metadata != null
+        && request.resource.metadata.uploadedBy == request.auth.uid
+        && (
+          (request.resource.contentType.matches('image/.*') && request.resource.size < 30 * 1024 * 1024)
+          || (request.resource.contentType.matches('video/.*') && request.resource.size < 300 * 1024 * 1024)
         );
+    }
+
+    // Un contenuto nascosto da una segnalazione non ha più il doc in `media`:
+    // i suoi file li legge solo lo staff (la callable ne rigenera anche i token
+    // degli URL, così i link già visti smettono di funzionare).
+    match /protected/stakes/{stakeId}/galleries/{galleryId}/media/{mediaId}/{fileName=**} {
+      // get: anche l'autore dei propri file, che chiede l'URL prima che il doc
+      // media esista. list: i nomi dei file senza token, serve per ripulire la
+      // cartella di un caricamento annullato.
+      allow get: if isGalleryStaff(stakeId)
+        || (isStakeMember(stakeId)
+          && (
+            (resource.metadata != null && resource.metadata.uploadedBy == request.auth.uid)
+            || firestore.exists(/databases/(default)/documents/stakes/$(stakeId)/galleries/$(galleryId)/media/$(mediaId))
+          ));
+      allow list: if isStakeMember(stakeId);
+      // resource == null: solo file nuovi. Un upload su un path esistente può
+      // arrivare come create (l'emulatore lo fa): senza, si sovrascrive il
+      // file di un altro.
+      allow create: if isStakeAdmin(stakeId)
+        || (isStakeMember(stakeId) && resource == null && validGalleryUpload());
+      allow update: if isStakeAdmin(stakeId);
+      allow delete: if isGalleryStaff(stakeId)
+        || (isStakeMember(stakeId) && resource.metadata != null && resource.metadata.uploadedBy == request.auth.uid);
     }
 
     match /{allPaths=**} {
