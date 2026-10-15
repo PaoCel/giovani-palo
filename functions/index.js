@@ -17,6 +17,7 @@ const roomMates = require("./lib/roomMates");
 const roomManagement = require("./lib/roomManagement");
 const recordNight = require("./lib/recordNight");
 const recordNightGuest = require("./lib/recordNightGuest");
+const activityGallery = require("./lib/activityGallery");
 
 exports.onRegistrationPendingParentAuth = parentAuthorization.onRegistrationPendingParentAuth;
 exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationGetContext;
@@ -42,6 +43,7 @@ exports.recordNightAdmin = recordNight.recordNightAdmin;
 exports.recordNightGuest = recordNightGuest.recordNightGuest;
 exports.onRecordNightRegistrationChanged = recordNight.onRecordNightRegistrationChanged;
 exports.onRecordNightActivityDeleted = recordNight.onRecordNightActivityDeleted;
+exports.activityGallery = activityGallery.activityGallery;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const PRODUCTION_WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const PRODUCTION_WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
@@ -181,7 +183,7 @@ function createPushPayload({
 }) {
   return JSON.stringify({
     title: "Nuovo iscritto",
-    body: `${fullName} si e iscritto a ${eventTitle}.`,
+    body: `${fullName} si è iscritto a ${eventTitle}.`,
     tag: alertId,
     url: `/admin/events/${activityId}`,
     eventId: activityId,
@@ -288,6 +290,117 @@ exports.propagateUnitNameChange = onDocumentUpdated(
   },
 );
 
+async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logContext }) {
+  if (devicesSnapshot.empty) {
+    logger.info("No admin push devices registered for stake.", {
+      stakeId,
+      ...logContext,
+    });
+    return;
+  }
+
+  let webPushIdentity;
+  try {
+    webPushIdentity = getWebPushIdentity();
+  } catch (error) {
+    if (!(error instanceof EnvironmentConfigError)) throw error;
+    logger.warn("Push admin disattivato: configurazione dell'ambiente incompleta.", {
+      stakeId,
+      ...logContext,
+      detail: error.message,
+    });
+    return;
+  }
+
+  webpush.setVapidDetails(
+    webPushIdentity.subject,
+    webPushIdentity.publicKey,
+    WEB_PUSH_PRIVATE_KEY.value(),
+  );
+
+  const deliveryTimestamp = nowIso();
+  const staleDeviceIds = [];
+
+  await Promise.allSettled(
+    devicesSnapshot.docs.map(async (deviceDocument) => {
+      const data = deviceDocument.data();
+      const subscription = getSubscriptionFromDevice(data);
+
+      if (!subscription) {
+        staleDeviceIds.push(deviceDocument.id);
+        return;
+      }
+
+      try {
+        const endpointHost = getEndpointHost(subscription.endpoint);
+
+        await webpush.sendNotification(subscription, payload, {
+          TTL: 60 * 60,
+          urgency: "high",
+        });
+
+        await deviceDocument.ref.set(
+          {
+            updatedAt: deliveryTimestamp,
+            lastDeliveredAt: deliveryTimestamp,
+            lastError: null,
+            lastEndpointHost: endpointHost,
+          },
+          { merge: true },
+        );
+      } catch (error) {
+        const endpointHost = getEndpointHost(subscription.endpoint);
+        const { statusCode, headers, body, message } = getPushErrorSummary(error);
+
+        logger.write({
+          severity: "ERROR",
+          message: "Unable to send admin push notification.",
+          stakeId,
+          ...logContext,
+          deviceId: deviceDocument.id,
+          endpointHost,
+          statusCode,
+          responseBody: body,
+          responseHeaders: headers,
+          errorMessage: message,
+        });
+
+        if (statusCode === 404 || statusCode === 410) {
+          staleDeviceIds.push(deviceDocument.id);
+          return;
+        }
+
+        await deviceDocument.ref.set(
+          {
+            updatedAt: deliveryTimestamp,
+            lastEndpointHost: endpointHost,
+            lastError:
+              [
+                statusCode,
+                typeof body === "string" ? body : body ? JSON.stringify(body) : null,
+                message,
+              ]
+                .filter((value) => Boolean(value))
+                .join(" | ") ||
+              "Push notification delivery failed.",
+          },
+          { merge: true },
+        );
+      }
+    }),
+  );
+
+  if (staleDeviceIds.length > 0) {
+    const batch = db.batch();
+
+    for (const deviceId of staleDeviceIds) {
+      batch.delete(db.doc(`stakes/${stakeId}/adminPushDevices/${deviceId}`));
+    }
+
+    await batch.commit();
+  }
+}
+
 exports.sendAdminPushForNewRegistration = onDocumentCreated(
   {
     document: "stakes/{stakeId}/activities/{activityId}/registrations/{registrationId}",
@@ -330,35 +443,6 @@ exports.sendAdminPushForNewRegistration = onDocumentCreated(
       eventTitle,
     });
 
-    if (devicesSnapshot.empty) {
-      logger.info("No admin push devices registered for stake.", {
-        stakeId,
-        activityId,
-        registrationId,
-      });
-      return;
-    }
-
-    let webPushIdentity;
-    try {
-      webPushIdentity = getWebPushIdentity();
-    } catch (error) {
-      if (!(error instanceof EnvironmentConfigError)) throw error;
-      logger.warn("Push admin disattivato: configurazione dell'ambiente incompleta.", {
-        stakeId,
-        activityId,
-        registrationId,
-        detail: error.message,
-      });
-      return;
-    }
-
-    webpush.setVapidDetails(
-      webPushIdentity.subject,
-      webPushIdentity.publicKey,
-      WEB_PUSH_PRIVATE_KEY.value(),
-    );
-
     const payload = createPushPayload({
       activityId,
       registrationId,
@@ -366,87 +450,44 @@ exports.sendAdminPushForNewRegistration = onDocumentCreated(
       eventTitle,
       alertId,
     });
-    const deliveryTimestamp = nowIso();
-    const staleDeviceIds = [];
+    await sendPushToAdminDevices({
+      stakeId,
+      devicesSnapshot,
+      payload,
+      logContext: { activityId, registrationId },
+    });
+  },
+);
 
-    await Promise.allSettled(
-      devicesSnapshot.docs.map(async (deviceDocument) => {
-        const data = deviceDocument.data();
-        const subscription = getSubscriptionFromDevice(data);
-
-        if (!subscription) {
-          staleDeviceIds.push(deviceDocument.id);
-          return;
-        }
-
-        try {
-          const endpointHost = getEndpointHost(subscription.endpoint);
-
-          await webpush.sendNotification(subscription, payload, {
-            TTL: 60 * 60,
-            urgency: "high",
-          });
-
-          await deviceDocument.ref.set(
-            {
-              updatedAt: deliveryTimestamp,
-              lastDeliveredAt: deliveryTimestamp,
-              lastError: null,
-              lastEndpointHost: endpointHost,
-            },
-            { merge: true },
-          );
-        } catch (error) {
-          const endpointHost = getEndpointHost(subscription.endpoint);
-          const { statusCode, headers, body, message } = getPushErrorSummary(error);
-
-          logger.write({
-            severity: "ERROR",
-            message: "Unable to send admin push notification.",
-            stakeId,
-            activityId,
-            registrationId,
-            deviceId: deviceDocument.id,
-            endpointHost,
-            statusCode,
-            responseBody: body,
-            responseHeaders: headers,
-            errorMessage: message,
-          });
-
-          if (statusCode === 404 || statusCode === 410) {
-            staleDeviceIds.push(deviceDocument.id);
-            return;
-          }
-
-          await deviceDocument.ref.set(
-            {
-              updatedAt: deliveryTimestamp,
-              lastEndpointHost: endpointHost,
-              lastError:
-                [
-                  statusCode,
-                  typeof body === "string" ? body : body ? JSON.stringify(body) : null,
-                  message,
-                ]
-                  .filter((value) => Boolean(value))
-                  .join(" | ") ||
-                "Push notification delivery failed.",
-            },
-            { merge: true },
-          );
-        }
-      }),
-    );
-
-    if (staleDeviceIds.length > 0) {
-      const batch = db.batch();
-
-      for (const deviceId of staleDeviceIds) {
-        batch.delete(db.doc(`stakes/${stakeId}/adminPushDevices/${deviceId}`));
-      }
-
-      await batch.commit();
-    }
+// Segnalazione di una foto o di un video della galleria: il contenuto è già
+// nascosto dalla callable, qui si avvisano gli admin del palo.
+exports.sendAdminPushForGalleryReport = onDocumentCreated(
+  {
+    document: "stakes/{stakeId}/galleries/{galleryId}/reports/{reportId}",
+    region: "europe-west1",
+    secrets: [WEB_PUSH_PRIVATE_KEY],
+  },
+  async (event) => {
+    const { stakeId, galleryId, reportId } = event.params;
+    const [gallerySnap, devicesSnapshot] = await Promise.all([
+      db.doc(`stakes/${stakeId}/galleries/${galleryId}`).get(),
+      db.collection(`stakes/${stakeId}/adminPushDevices`).get(),
+    ]);
+    const gallery = gallerySnap.exists ? gallerySnap.data() || {} : {};
+    const activityId = typeof gallery.activityId === "string" ? gallery.activityId : "";
+    const title = typeof gallery.title === "string" && gallery.title ? gallery.title : "Galleria";
+    const payload = JSON.stringify({
+      title: "Contenuto segnalato",
+      body: `${title}: un contenuto è stato nascosto. Controllalo e decidi se toglierlo.`,
+      tag: `gallery-report-${galleryId}`,
+      url: activityId ? `/activities/${activityId}/foto?vista=nascosti` : "/admin",
+      eventId: activityId || null,
+    });
+    await sendPushToAdminDevices({
+      stakeId,
+      devicesSnapshot,
+      payload,
+      logContext: { galleryId, reportId },
+    });
   },
 );
