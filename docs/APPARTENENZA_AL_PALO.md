@@ -96,6 +96,53 @@ Per il viaggio di domani nessuna di queste è pronta: se vuoi, ti preparo in
 privato (fuori dal repo) l'elenco dei 14 ragazzi con la foto senza risposta,
 da dare a chi scatta per l'album dello staff.
 
+### Stato di S1 (2026-10-16): costruito in locale, NON in produzione
+
+Decisioni C1-a e C2-a approvate. Codice su `main`, nessun deploy (viaggio del
+16-18/10, galleria in uso). Dati prod riletti il 2026-10-16 in sola lettura:
+
+| Attività | Firmate (non annullate) | Foto senza risposta | Social senza risposta | Con almeno una scelta mancante |
+| --- | --- | --- | --- | --- |
+| Viaggio al tempio | 60 | 14 | 10 | 17 |
+| Attività precedente | 52 | 7 | 2 | 7 |
+
+Totale destinatari della mail di completamento oggi: **24** (la stima di 22
+era del 15/10), più 4 firme annullate che non la ricevono. Firme con social sì
+e foto non sì: 11 (incoerenti, la pill e l'export le trattano come social "da
+chiedere").
+
+| Pezzo | Dove |
+| --- | --- |
+| Logica dei consensi, link di gestione | `functions/lib/consentCore.js` |
+| `parentAuthorizationConfirm` con scelte obbligatorie, `consentTextVersion`, link nella copia firmata | `functions/lib/parentAuthorization.js` |
+| `parentConsentGetContext`, `parentConsentUpdate` (cambio, ricevuta, compito admin), `parentConsentRequestCompletion` (simulazione di default) | `functions/lib/parentConsent.js` |
+| Mail (copia firmata con link, ricevuta, completamento) | `functions/lib/brevo.js` |
+| Rules `consentTasks` | `firestore.rules` |
+| Modulo, pagina `/parent-consent/:token`, riga in `/family` | `src/components/ConsentChoices.tsx`, `src/pages/public/`, `src/pages/family/` |
+| Pill staff, compiti, export, pannello di completamento | `src/components/PhotoConsentPills.tsx`, `AdminEventDetailPage`, `UnitActivityPage`, `registrationExcel.ts` |
+
+Dati: `parentAuthorization.consentTextVersion`, `consentUpdatedAt`,
+`consentCompletionRequestedAt` (dentro la mappa già ammessa dalle rules, nessuna
+allowlist da toccare); collection server-only `parentConsentLinks/{hash}` (link
+di un anno, valido solo se la mail del genitore non è cambiata);
+`activities/{a}/consentTasks/{id}` (compiti, solo admin).
+
+Procedura di rilascio (dopo il 18/10, con conferma esplicita): rules, poi
+functions (`parentAuthorizationConfirm`, `parentConsentGetContext`,
+`parentConsentUpdate`, `parentConsentRequestCompletion`), poi hosting con
+service worker aumentato. Subito dopo l'hosting: Matteo Conti di prova non c'è
+in prod, quindi provare con un account QA. La mail ai 24 genitori si manda
+dal pannello "Scelte su foto e social da completare" nella tab Consensi
+dell'attività: prima "Controlla chi riceverebbe la mail", poi l'invio, che
+richiede il numero di destinatari visto e una conferma.
+
+Aperto (non fatto in S1): link di gestione per le firme già raccolte con
+entrambe le scelte (le loro copie firmate non lo contengono: chi non ha
+l'account chiede al dirigente); cancellazione di `parentConsentLinks` e
+`consentTasks` nella pulizia account (nel repo non c'è un flusso di
+cancellazione account); notifica push agli admin per i nuovi compiti; l'admin
+può ancora riscrivere `parentAuthorization` dalle rules (preesistente).
+
 ---
 
 ## Parte B. Appartenenza verificata (sessione S2)
