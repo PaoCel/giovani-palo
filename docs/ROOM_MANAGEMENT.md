@@ -32,6 +32,14 @@ il server incrementa `revision`. Un salvataggio basato su una versione superata
 fallisce con `aborted`. La cancellazione di un'iscrizione rimuove i suoi
 riferimenti da assegnazioni, blocchi, sesso staff e coppie; se occupava una
 matrimoniale, libera anche il coniuge per una nuova sistemazione. La revisione aumenta.
+Lo stesso succede quando un'iscrizione esce dagli stati ammessi senza essere
+cancellata (annullata, rifiutata, in lista d'attesa): il trigger
+`onRoomRegistrationUpdated` scatta solo nel passaggio da idonea a non idonea,
+rilegge l'iscrizione nella transazione (se è tornata idonea non tocca nulla) e
+azzera `assignedRoomId`/`assignedRoomName` dell'iscrizione e del coniuge
+liberato. La logica di pulizia è `removeRegistrationReferences` del core, la
+stessa usata dal client. Un admin con la bozza aperta riceve `aborted` al
+salvataggio e ricarica.
 La cancellazione dell'attività elimina il documento del piano.
 
 ## Regole di assegnazione
@@ -115,6 +123,10 @@ manuale, blocchi, annullamento dell'ultima modifica, esportazione CSV e
 compilazione del modulo della Foresteria.
 Le modifiche restano locali fino a Salva bozza; l'uscita richiede di salvare
 oppure scartare esplicitamente. Il CSV contiene la bozza, inclusi i non assegnati.
+Se la bozza cita iscrizioni non più idonee (caricata prima dell'annullamento o
+salvata prima del trigger), la scheda stanza le segna come "Iscrizione
+annullata" e il riquadro dei problemi offre "Rimuovi iscrizioni non più
+disponibili", che usa la stessa pulizia del server, coniuge compreso.
 
 Il modulo Foresteria mantiene le colonne assolute C/G anche se il foglio inizia
 da C3. Ogni riga letto conta la quantità indicata: una matrimoniale con valore
