@@ -22,6 +22,8 @@ import {
 } from "@/services/firestore/parentAuthorizationService";
 import type { ParentAuthorizationConsents } from "@/types";
 
+import { getCallableErrorReason } from "@/utils/callableError";
+
 import { formatDateRange, StatusPanel, useNoIndex } from "./parentPageShared";
 
 type ViewState =
@@ -181,7 +183,7 @@ export function ParentConfirmPage() {
         error instanceof Error
           ? error.message
           : "Si è verificato un errore durante la conferma.";
-      const reason = getErrorReason(error);
+      const reason = getCallableErrorReason(error);
 
       if (reason === "social_needs_photo") {
         // Dati e consensi restano nello stato: si torna al passo foto con il
@@ -692,17 +694,6 @@ function RejectModal({
 // =============================================================================
 // Helpers
 // =============================================================================
-
-// Le callable di consenso rispondono con `details.reason` ("consent_required",
-// "social_needs_photo"): il codice, non il testo, decide cosa fare.
-function getErrorReason(error: unknown): string | undefined {
-  const details = (error as { details?: unknown } | null)?.details;
-  if (details && typeof details === "object" && "reason" in details) {
-    const reason = (details as { reason?: unknown }).reason;
-    return typeof reason === "string" ? reason : undefined;
-  }
-  return undefined;
-}
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

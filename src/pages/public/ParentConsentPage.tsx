@@ -17,6 +17,7 @@ import {
   type UpdateConsentResult,
 } from "@/services/firestore/parentAuthorizationService";
 import type { PhotoConsentDecision } from "@/types";
+import { isConsentStaleError } from "@/utils/callableError";
 
 import { formatDateRange, StatusPanel, useNoIndex } from "./parentPageShared";
 
@@ -64,6 +65,10 @@ export function ParentConsentPage() {
   const [choices, setChoices] = useState<ConsentChoicesValue>({ photo: null, social: null });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Le scelte sono cambiate altrove: serve rileggerle prima di salvare.
+  const [stale, setStale] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -98,6 +103,32 @@ export function ParentConsentPage() {
     };
   }, [token]);
 
+  // Rilegge dal server le scelte e la loro data (`expectedUpdatedAt`) e riapre
+  // il modulo con i valori attuali.
+  async function reloadContext() {
+    if (!token) return;
+    setReloading(true);
+    setReloadError(null);
+    try {
+      const context = await parentAuthorizationService.getConsentContext(token);
+      setChoices({
+        photo: toChoice(context.photoConsent),
+        social: toChoice(context.socialPublicationConsent),
+      });
+      setSaveError(null);
+      setStale(false);
+      setView({ stage: "ready", context });
+    } catch (error) {
+      setReloadError(
+        error instanceof Error
+          ? error.message
+          : "Non siamo riusciti a rileggere le scelte. Riprova tra poco.",
+      );
+    } finally {
+      setReloading(false);
+    }
+  }
+
   async function handleSave() {
     if (!token || view.stage !== "ready") return;
     const { photo, social } = choices;
@@ -110,9 +141,12 @@ export function ParentConsentPage() {
         token,
         photoConsent: photo,
         socialPublicationConsent: social,
+        expectedUpdatedAt: view.context.consentUpdatedAt ?? null,
       });
+      setReloadError(null);
       setView({ stage: "saved", context: view.context, result });
     } catch (error) {
+      setStale(isConsentStaleError(error));
       setSaveError(
         error instanceof Error
           ? error.message
@@ -154,11 +188,15 @@ export function ParentConsentPage() {
             choices={choices}
             saving={saving}
             saveError={saveError}
+            stale={stale}
+            reloading={reloading}
+            reloadError={reloadError}
             onChange={(next) => {
               setSaveError(null);
               setChoices(next);
             }}
             onSave={() => void handleSave()}
+            onReload={() => void reloadContext()}
           />
         ) : null}
 
@@ -183,6 +221,21 @@ export function ParentConsentPage() {
               Puoi cambiare di nuovo le scelte quando vuoi da questo link. Puoi chiudere questa
               pagina.
             </p>
+            {reloadError ? (
+              <p className="consent-choices__error" role="alert">
+                <AppIcon name="bell" />
+                <span>{reloadError}</span>
+              </p>
+            ) : null}
+            <button
+              className="button button--soft"
+              disabled={reloading}
+              onClick={() => void reloadContext()}
+              type="button"
+            >
+              <AppIcon name="pencil" />
+              <span>{reloading ? "Un attimo..." : "Modifica ancora"}</span>
+            </button>
             {isParentSession ? (
               <Link className="button button--primary" to="/family">
                 <AppIcon name="home" />
@@ -211,15 +264,23 @@ function ConsentForm({
   choices,
   saving,
   saveError,
+  stale,
+  reloading,
+  reloadError,
   onChange,
   onSave,
+  onReload,
 }: {
   context: ParentConsentContext;
   choices: ConsentChoicesValue;
   saving: boolean;
   saveError: string | null;
+  stale: boolean;
+  reloading: boolean;
+  reloadError: string | null;
   onChange: (value: ConsentChoicesValue) => void;
   onSave: () => void;
+  onReload: () => void;
 }) {
   const problem = getConsentChoicesProblem(choices.photo, choices.social);
   const initialPhoto = toChoice(context.photoConsent);
@@ -231,7 +292,7 @@ function ConsentForm({
   const withdrawsConsent =
     (initialPhoto === "accepted" && choices.photo === "refused") ||
     (initialSocial === "accepted" && choices.social === "refused");
-  const canSave = problem === null && (changed || wasIncomplete) && !saving;
+  const canSave = problem === null && (changed || wasIncomplete) && !saving && !stale;
 
   return (
     <>
@@ -270,6 +331,12 @@ function ConsentForm({
             <span>{saveError}</span>
           </p>
         ) : null}
+        {reloadError ? (
+          <p className="consent-choices__error" role="alert">
+            <AppIcon name="bell" />
+            <span>{reloadError}</span>
+          </p>
+        ) : null}
       </div>
 
       <footer className="pc-dialog__foot">
@@ -283,6 +350,17 @@ function ConsentForm({
             <AppIcon name="check" />
             <span>{saving ? "Salvataggio..." : "Salva le scelte"}</span>
           </button>
+          {stale ? (
+            <button
+              className="button button--soft"
+              disabled={reloading}
+              onClick={onReload}
+              type="button"
+            >
+              <AppIcon name="refresh" />
+              <span>{reloading ? "Un attimo..." : "Ricarica le scelte"}</span>
+            </button>
+          ) : null}
         </div>
         {problem ? <p className="pc-dialog__foot-hint">{problem}</p> : null}
         {!problem && !changed && !wasIncomplete ? (

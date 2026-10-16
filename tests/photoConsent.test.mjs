@@ -109,6 +109,7 @@ test("minore non firmato: foto e social da chiedere", () => {
     { status: "email_sent" },
     { status: "expired" },
     { status: "email_error" },
+    { status: "rejected_by_parent", photoConsent: "accepted", socialPublicationConsent: "accepted" },
   ]) {
     const badges = getPhotoConsentBadges(registration({ authorization }));
     assert.deepEqual(
@@ -119,13 +120,49 @@ test("minore non firmato: foto e social da chiedere", () => {
   }
 });
 
-test("minore con autorizzazione rifiutata dal genitore: nessuna pill", () => {
-  assert.equal(
-    getPhotoConsentBadges(
-      registration({ authorization: { status: "rejected_by_parent", photoConsent: "accepted" } }),
-    ),
-    null,
+test("minore con autorizzazione rifiutata dal genitore: sempre le due pill, da chiedere", () => {
+  const badges = getPhotoConsentBadges(
+    registration({ authorization: { status: "rejected_by_parent", photoConsent: "accepted" } }),
   );
+  assert.deepEqual(badges, { photo: PHOTO.not_answered, social: SOCIAL.not_answered });
+  assert.equal(badges.photo.tone, "warning");
+  assert.equal(badges.social.tone, "warning");
+});
+
+test("social sì con foto diversa da sì (firma incoerente): social da chiedere, foto invariata", () => {
+  for (const photo of ["not_answered", "refused", "revoked"]) {
+    const badges = getPhotoConsentBadges(
+      registration({ authorization: signed(photo, "accepted") }),
+    );
+    assert.deepEqual(badges.photo, PHOTO[photo], `foto ${photo}`);
+    assert.deepEqual(badges.social, SOCIAL.not_answered, `social con foto ${photo}`);
+    assert.equal(badges.social.tone, "warning");
+  }
+  // Vale anche con firma revocata, e foto assente.
+  assert.deepEqual(
+    getPhotoConsentBadges(registration({ authorization: signed("revoked", "accepted", "revoked") })).social,
+    SOCIAL.not_answered,
+  );
+  assert.deepEqual(
+    getPhotoConsentBadges(
+      registration({ authorization: { status: "authorized", socialPublicationConsent: "accepted" } }),
+    ).social,
+    SOCIAL.not_answered,
+  );
+});
+
+test("social sì con foto sì: invariato, sì", () => {
+  const badges = getPhotoConsentBadges(registration({ authorization: signed("accepted", "accepted") }));
+  assert.deepEqual(badges, { photo: PHOTO.accepted, social: SOCIAL.accepted });
+});
+
+test("l'incoerenza vale solo per il social sì: gli altri valori social non cambiano", () => {
+  for (const social of ["refused", "revoked", "not_answered"]) {
+    for (const photo of ["accepted", "refused", "revoked", "not_answered"]) {
+      const badges = getPhotoConsentBadges(registration({ authorization: signed(photo, social) }));
+      assert.deepEqual(badges.social, SOCIAL[social], `social ${social} con foto ${photo}`);
+    }
+  }
 });
 
 test("adulto senza parentAuthorization: nessuna pill", () => {
@@ -201,8 +238,16 @@ test("needsPhotoConsentQuestion", () => {
   assert.equal(needsPhotoConsentQuestion(registration({ birthDate: ADULT })), false);
   assert.equal(
     needsPhotoConsentQuestion(registration({ authorization: { status: "rejected_by_parent" } })),
-    false,
+    true,
+    "rifiutata dal genitore: da chiedere",
   );
+  for (const photo of ["not_answered", "refused", "revoked"]) {
+    assert.equal(
+      needsPhotoConsentQuestion(registration({ authorization: signed(photo, "accepted") })),
+      true,
+      `social sì con foto ${photo}`,
+    );
+  }
 });
 
 // --- Excel ----------------------------------------------------------------
@@ -231,7 +276,7 @@ test("le due colonne nuove sono nella lista dei campi esportabili, nel gruppo co
   assert.equal(byKey.photoPublicConsent.label, "Foto uso pubblico");
 });
 
-test("Excel: celle Sì / No / Revocato / Da chiedere, vuote per gli adulti", async () => {
+test("Excel: celle Sì / No / Revocato / Da chiedere, vuote solo per gli adulti", async () => {
   const rows = await exportSheet(
     [
       registration({ name: "A", authorization: signed("accepted", "accepted") }),
@@ -241,6 +286,10 @@ test("Excel: celle Sì / No / Revocato / Da chiedere, vuote per gli adulti", asy
       registration({ name: "E", authorization: null }),
       registration({ name: "F", authorization: { status: "rejected_by_parent" } }),
       registration({ name: "G", birthDate: ADULT }),
+      registration({ name: "H", authorization: signed("refused", "accepted") }),
+      registration({ name: "I", authorization: signed("not_answered", "accepted") }),
+      registration({ name: "J", authorization: signed("revoked", "accepted", "revoked") }),
+      registration({ name: "K", authorization: signed("accepted", "accepted") }),
     ],
     ["fullName", "parentPhotoConsent", "parentSocialConsent"],
   );
@@ -254,8 +303,13 @@ test("Excel: celle Sì / No / Revocato / Da chiedere, vuote per gli adulti", asy
   assert.deepEqual(get("C "), ["Revocato", "Revocato"]);
   assert.deepEqual(get("D "), ["Da chiedere", "Da chiedere"]);
   assert.deepEqual(get("E "), ["Da chiedere", "Da chiedere"]);
-  assert.deepEqual(get("F "), ["", ""]);
+  assert.deepEqual(get("F "), ["Da chiedere", "Da chiedere"]);
   assert.deepEqual(get("G "), ["", ""]);
+  // Social sì con foto diversa da sì: social "Da chiedere", foto invariata.
+  assert.deepEqual(get("H "), ["No", "Da chiedere"]);
+  assert.deepEqual(get("I "), ["Da chiedere", "Da chiedere"]);
+  assert.deepEqual(get("J "), ["Revocato", "Da chiedere"]);
+  assert.deepEqual(get("K "), ["Sì", "Sì"]);
 });
 
 test("Excel: foto e social possono avere esiti diversi", async () => {

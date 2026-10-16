@@ -2963,7 +2963,8 @@ export function AdminEventDetailPage() {
               <div>
                 <h3>Scelte su foto e social da completare</h3>
                 <p>
-                  Chi ha firmato prima che esistessero le due scelte riceve una
+                  Chi ha firmato quando le scelte su foto e social erano
+                  facoltative e non ha risposto a una o a entrambe riceve una
                   email con un link per completarle. Prima si controlla
                   l'elenco, poi si decide se inviare.
                 </p>

@@ -54,6 +54,12 @@ export type UpdateConsentInput = (
 ) & {
   photoConsent: "accepted" | "refused";
   socialPublicationConsent: "accepted" | "refused";
+  /**
+   * `consentUpdatedAt` che la pagina ha visto (null se la firma non lo aveva):
+   * se nel frattempo le scelte sono cambiate altrove la callable risponde
+   * `consent_stale` e la pagina deve ricaricare.
+   */
+  expectedUpdatedAt?: string | null;
 };
 
 export interface UpdateConsentResult {

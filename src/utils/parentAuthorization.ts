@@ -86,9 +86,14 @@ function getConsentDecisionBadge(
 
 /**
  * Scelte del genitore su foto e social (non la spunta dei maggiorenni nel
- * modulo, `answers.photoInternalConsent`). Ritorna `null` quando non si
- * applicano: iscritti maggiorenni senza firma del genitore e iscrizioni
- * rifiutate dal genitore. Un minore non ancora firmato è "da chiedere".
+ * modulo, `answers.photoInternalConsent`, che vale solo per gli adulti).
+ * Ritorna `null` solo per gli adulti senza firma del genitore. Per un minore
+ * torna sempre una coppia di pill: "da chiedere" se non c'è un consenso
+ * valido (non firmato, rifiutato dal genitore, scaduto, errore email).
+ *
+ * Il social implica la foto: un "social sì" con foto diversa da "sì" (firme
+ * vecchie incoerenti) non è un consenso utilizzabile e si legge "da chiedere".
+ * I dati originali e gli audit non vengono toccati.
  */
 export function getPhotoConsentBadges(
   registration: Registration,
@@ -98,20 +103,19 @@ export function getPhotoConsentBadges(
   const hasSignature = status === "authorized" || status === "revoked";
 
   if (hasSignature && authorization) {
+    const social =
+      authorization.socialPublicationConsent === "accepted" &&
+      authorization.photoConsent !== "accepted"
+        ? undefined
+        : authorization.socialPublicationConsent;
+
     return {
       photo: getConsentDecisionBadge("Foto", authorization.photoConsent),
-      social: getConsentDecisionBadge(
-        "Social",
-        authorization.socialPublicationConsent,
-      ),
+      social: getConsentDecisionBadge("Social", social),
     };
   }
 
   if (!isMinorBirthDate(registration.birthDate)) {
-    return null;
-  }
-
-  if (status === "rejected_by_parent") {
     return null;
   }
 

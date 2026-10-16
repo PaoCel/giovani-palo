@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -21,6 +21,7 @@ import { registrationsService } from "@/services/firestore/registrationsService"
 import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
 import type { ChildProfile, Event, PhotoConsentDecision, Registration, Unit } from "@/types";
+import { isConsentStaleError } from "@/utils/callableError";
 import { getActivitiesPath, getActivityRegistrationPath } from "@/utils/activityLinks";
 import { formatDateOnly, formatEventWindow } from "@/utils/formatters";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
@@ -102,9 +103,12 @@ export function FamilyDashboardPage() {
   });
   const [consentSaving, setConsentSaving] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
-  // Dopo il salvataggio la callable ha scritto sul server: la lista va riletta
-  // da lì, non dalla cache locale che ha ancora i valori di prima.
-  const readFreshNextRef = useRef(false);
+  // Le scelte sono cambiate altrove: prima di salvare vanno rilette.
+  const [consentStale, setConsentStale] = useState(false);
+  const [consentReloading, setConsentReloading] = useState(false);
+  // Dopo il salvataggio la lettura dal server può fallire: lo stato locale
+  // resta quello della callable e lo diciamo, senza ripiegare sulla cache.
+  const [staleDataWarning, setStaleDataWarning] = useState(false);
 
   // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
@@ -139,12 +143,9 @@ export function FamilyDashboardPage() {
       const stakeId =
         session?.profile.stakeId || (await stakesService.getDefaultStakeId()) || "";
 
-      const readFresh = readFreshNextRef.current;
-      readFreshNextRef.current = false;
-
       const [children, registrations, events, units] = await Promise.all([
         childrenService.listChildren(parentUid),
-        registrationsService.listFamilyRegistrations(parentUid, { fresh: readFresh }),
+        registrationsService.listFamilyRegistrations(parentUid),
         stakeId ? eventsService.listPublicEvents(stakeId) : Promise.resolve([]),
         stakeId ? unitsService.listActiveUnits(stakeId) : Promise.resolve([]),
       ]);
@@ -167,7 +168,45 @@ export function FamilyDashboardPage() {
       social: consentChoiceFromDecision(state?.socialPublicationConsent),
     });
     setConsentError(null);
+    setConsentStale(false);
     setConsentTarget(target);
+  }
+
+  // Dopo una scrittura della callable la cache locale ha i valori di prima: la
+  // lista si rilegge dal server. Se non risponde, nessun ripiego sulla cache.
+  async function readRegistrationsFresh(): Promise<Registration[] | null> {
+    try {
+      return await registrationsService.listFamilyRegistrations(parentUid, { fresh: true });
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleConsentReload() {
+    if (!consentTarget) return;
+    const { registration } = consentTarget;
+    setConsentReloading(true);
+    setConsentError(null);
+
+    const registrations = await readRegistrationsFresh();
+    setConsentReloading(false);
+
+    const updated = registrations?.find(
+      (item) => item.id === registration.id && item.eventId === registration.eventId,
+    );
+    if (!registrations || !updated) {
+      setConsentError("Non riesco a leggere le scelte più recenti. Riprova tra poco.");
+      return;
+    }
+
+    setData((current) => ({ ...current, registrations }));
+    setStaleDataWarning(false);
+    setConsentStale(false);
+    setConsentTarget({ ...consentTarget, registration: updated });
+    setConsentChoices({
+      photo: consentChoiceFromDecision(updated.parentAuthorization?.photoConsent),
+      social: consentChoiceFromDecision(updated.parentAuthorization?.socialPublicationConsent),
+    });
   }
 
   function closeConsentModal() {
@@ -191,6 +230,7 @@ export function FamilyDashboardPage() {
         registrationId: registration.id,
         photoConsent: photo,
         socialPublicationConsent: social,
+        expectedUpdatedAt: registration.parentAuthorization?.consentUpdatedAt ?? null,
       });
 
       // Subito il valore nuovo a schermo, poi rilettura dal server.
@@ -212,9 +252,16 @@ export function FamilyDashboardPage() {
         ),
       }));
       setConsentTarget(null);
-      readFreshNextRef.current = true;
-      reload();
+
+      const registrations = await readRegistrationsFresh();
+      if (registrations) {
+        setData((current) => ({ ...current, registrations }));
+        setStaleDataWarning(false);
+      } else {
+        setStaleDataWarning(true);
+      }
     } catch (caughtError) {
+      setConsentStale(isConsentStaleError(caughtError));
       setConsentError(
         caughtError instanceof Error
           ? caughtError.message
@@ -223,6 +270,43 @@ export function FamilyDashboardPage() {
     } finally {
       setConsentSaving(false);
     }
+  }
+
+  // Riga "Foto e social" di un'iscrizione firmata. Resta anche per le iscrizioni
+  // annullate: le foto già fatte esistono ancora, la scelta si può cambiare.
+  function renderConsentRow(registration: Registration, child: ChildProfile, showEvent: boolean) {
+    const authorization = registration.parentAuthorization;
+    if (authorization?.status !== "authorized") return null;
+    const eventTitle = eventById.get(registration.eventId)?.title ?? "Attività";
+
+    return (
+      <div className="family-consent-row" key={`consent:${registration.eventId}:${registration.id}`}>
+        <span aria-hidden="true" className="family-consent-row__icon">
+          <AppIcon name="camera" />
+        </span>
+        <div className="family-consent-row__info">
+          <strong>{showEvent ? `Foto e social · ${eventTitle}` : "Foto e social"}</strong>
+          <span>
+            Foto: {describeConsent(authorization.photoConsent)} · Social:{" "}
+            {describeConsent(authorization.socialPublicationConsent)}
+          </span>
+        </div>
+        <button
+          className="button button--soft button--small"
+          disabled={busy}
+          onClick={() =>
+            openConsentModal({
+              registration,
+              childName: child.fullName || child.firstName,
+              eventTitle,
+            })
+          }
+          type="button"
+        >
+          Cambia le scelte
+        </button>
+      </div>
+    );
   }
 
   function openCreateChild() {
@@ -364,6 +448,17 @@ export function FamilyDashboardPage() {
           </div>
         ) : null}
 
+        {staleDataWarning ? (
+          <div className="notice notice--info">
+            <div>
+              <p>
+                Le scelte sono salvate, ma non ho potuto verificare i dati più recenti.
+                Ricarica la pagina tra poco per esserne certo.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         {loading ? (
           <p className="subtle-text">Sto caricando i profili della famiglia...</p>
         ) : data.children.length === 0 ? (
@@ -382,6 +477,12 @@ export function FamilyDashboardPage() {
             {data.children.map((child) => {
               const childRegistrations = activeRegistrations.filter(
                 (registration) => registration.childId === child.id,
+              );
+              const cancelledConsentRegistrations = data.registrations.filter(
+                (registration) =>
+                  registration.childId === child.id &&
+                  registration.registrationStatus === "cancelled" &&
+                  registration.parentAuthorization?.status === "authorized",
               );
 
               return (
@@ -422,7 +523,6 @@ export function FamilyDashboardPage() {
                     <div className="family-child-card__registrations">
                       {childRegistrations.map((registration) => {
                         const event = eventById.get(registration.eventId);
-                        const authorization = registration.parentAuthorization;
                         return (
                           <div
                             key={`${registration.eventId}:${registration.id}`}
@@ -454,39 +554,20 @@ export function FamilyDashboardPage() {
                                 Gestisci
                               </Link>
                             </div>
-                            {authorization?.status === "authorized" ? (
-                              <div className="family-consent-row">
-                                <span aria-hidden="true" className="family-consent-row__icon">
-                                  <AppIcon name="camera" />
-                                </span>
-                                <div className="family-consent-row__info">
-                                  <strong>Foto e social</strong>
-                                  <span>
-                                    Foto: {describeConsent(authorization.photoConsent)} · Social:{" "}
-                                    {describeConsent(authorization.socialPublicationConsent)}
-                                  </span>
-                                </div>
-                                <button
-                                  className="button button--soft button--small"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    openConsentModal({
-                                      registration,
-                                      childName: child.fullName || child.firstName,
-                                      eventTitle: event?.title ?? "Attività",
-                                    })
-                                  }
-                                  type="button"
-                                >
-                                  Cambia le scelte
-                                </button>
-                              </div>
-                            ) : null}
+                            {renderConsentRow(registration, child, false)}
                           </div>
                         );
                       })}
                     </div>
                   )}
+
+                  {cancelledConsentRegistrations.length > 0 ? (
+                    <div className="family-child-card__registrations">
+                      {cancelledConsentRegistrations.map((registration) =>
+                        renderConsentRow(registration, child, true),
+                      )}
+                    </div>
+                  ) : null}
 
                   <div className="inline-actions">
                     <Link
@@ -533,6 +614,9 @@ export function FamilyDashboardPage() {
           choices={consentChoices}
           saving={consentSaving}
           error={consentError}
+          stale={consentStale}
+          reloading={consentReloading}
+          onReload={() => void handleConsentReload()}
           onChange={(next) => {
             setConsentError(null);
             setConsentChoices(next);
@@ -641,6 +725,9 @@ function ConsentModal({
   choices,
   saving,
   error,
+  stale,
+  reloading,
+  onReload,
   onChange,
   onClose,
   onSave,
@@ -649,6 +736,9 @@ function ConsentModal({
   choices: ConsentChoicesValue;
   saving: boolean;
   error: string | null;
+  stale: boolean;
+  reloading: boolean;
+  onReload: () => void;
   onChange: (value: ConsentChoicesValue) => void;
   onClose: () => void;
   onSave: () => void;
@@ -664,7 +754,7 @@ function ConsentModal({
   const withdrawsConsent =
     (initialPhoto === "accepted" && choices.photo === "refused") ||
     (initialSocial === "accepted" && choices.social === "refused");
-  const canSave = problem === null && (changed || incomplete) && !saving;
+  const canSave = problem === null && (changed || incomplete) && !saving && !stale;
 
   return (
     <AppModal
@@ -681,6 +771,16 @@ function ConsentModal({
           >
             {saving ? "Salvataggio..." : "Salva"}
           </button>
+          {stale ? (
+            <button
+              className="button button--soft"
+              disabled={reloading}
+              onClick={onReload}
+              type="button"
+            >
+              {reloading ? "Un attimo..." : "Ricarica le scelte"}
+            </button>
+          ) : null}
           <button className="button button--ghost" disabled={saving} onClick={onClose} type="button">
             Annulla
           </button>

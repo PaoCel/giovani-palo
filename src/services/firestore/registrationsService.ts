@@ -475,8 +475,10 @@ export const registrationsService = {
       collectionGroup(db, "registrations"),
       where("parentUid", "==", parentUid),
     );
+    // `fresh` non ripiega sulla cache: se il server non risponde, l'errore
+    // arriva al chiamante, che sa quale stato locale tenere.
     const snapshot = options.fresh
-      ? await getDocsFromServer(familyQuery).catch(() => getDocsCacheFirst(familyQuery))
+      ? await getDocsFromServer(familyQuery)
       : await getDocsCacheFirst(familyQuery);
 
     return snapshot.docs
@@ -729,13 +731,12 @@ export const registrationsService = {
       updatedAt: timestamp,
     };
 
+    // Percorsi annidati, non l'intera mappa riscritta da una lettura vecchia:
+    // il genitore può aver cambiato le scelte su foto e social nel frattempo.
     if (existingRegistration.parentAuthorization) {
-      payload.parentAuthorization = {
-        ...existingRegistration.parentAuthorization,
-        parentEmail: normalizedEmail,
-        emailLastError: null,
-        updatedAt: timestamp,
-      };
+      payload["parentAuthorization.parentEmail"] = normalizedEmail;
+      payload["parentAuthorization.emailLastError"] = null;
+      payload["parentAuthorization.updatedAt"] = timestamp;
     }
 
     await updateDoc(getRegistrationReference(stakeId, eventId, registrationId), payload);
