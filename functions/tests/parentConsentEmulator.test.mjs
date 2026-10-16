@@ -15,6 +15,10 @@
 // porte diverse in un file temporaneo (il test legge gli host dalle variabili
 // d'ambiente che imposta emulators:exec) e rimuovilo a fine prova.
 //
+// Copre anche expectedUpdatedAt (scheda vecchia respinta con consent_stale), il
+// consentUpdatedAt grezzo del contesto pubblico e le corse durante l'invio dei
+// completamenti (iscrizione annullata, email cambiata, prenotazione altrui).
+//
 // Le email sono simulate: fuori produzione partono solo verso EMAIL_ALLOWLIST e
 // negli emulatori non è impostata, quindi nessuna mail esce (getEmailPolicy in
 // functions/lib/config.js). Dati sintetici con ids unici per run.
@@ -57,8 +61,9 @@ const runId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6
 const STAKE = `consent-${runId}`; // conferma, cambio scelte, link
 const STAKE_COMPLETION = `consent-comp-${runId}`; // richiesta di completamento
 const STAKE_BATCH = `consent-batch-${runId}`; // tetto dei 100 destinatari
+const STAKE_RACE = `consent-race-${runId}`; // corse durante l'invio dei completamenti
 const OTHER_STAKE = `consent-other-${runId}`;
-const MY_STAKES = [STAKE, STAKE_COMPLETION, STAKE_BATCH];
+const MY_STAKES = [STAKE, STAKE_COMPLETION, STAKE_BATCH, STAKE_RACE];
 const ACTIVITY = "gita";
 const ACTIVITY_2 = "gita2";
 const PASSWORD = `Pw-${runId}-consent!`; // credenziale di test, vale solo nell'emulatore
@@ -233,8 +238,8 @@ before(async () => {
     adminDb.doc(`users/${superAdmin.uid}`).set({ role: "super_admin", stakeId: OTHER_STAKE }),
     adminDb.doc(`users/${otherAdmin.uid}`).set({ role: "admin", stakeId: OTHER_STAKE }),
     adminDb.doc(`users/${participant.uid}`).set({ role: "participant", stakeId: STAKE_COMPLETION }),
-    ...[STAKE, STAKE_COMPLETION, STAKE_BATCH].map((stake) => adminDb.doc(`stakes/${stake}`).set({ name: `Palo ${stake}` })),
-    ...[STAKE, STAKE_COMPLETION, STAKE_BATCH].map((stake) =>
+    ...MY_STAKES.map((stake) => adminDb.doc(`stakes/${stake}`).set({ name: `Palo ${stake}` })),
+    ...MY_STAKES.map((stake) =>
       adminDb.doc(`stakes/${stake}/activities/${ACTIVITY}`).set({
         title: "Gita di test",
         startDate: "2026-10-16T14:00:00.000Z",
@@ -252,7 +257,7 @@ before(async () => {
 
 after(async () => {
   try {
-    for (const stake of [STAKE, STAKE_COMPLETION, STAKE_BATCH]) {
+    for (const stake of MY_STAKES) {
       await adminDb.recursiveDelete(adminDb.doc(`stakes/${stake}`));
       for (const collectionName of ["parentConsentLinks", "parentAuthorizationTokens"]) {
         const leftovers = await adminDb.collection(collectionName).where("stakeId", "==", stake).get();
@@ -641,8 +646,17 @@ describe("link di gestione delle scelte", () => {
     assert.equal(context.participantName, `Figlio ${id}`);
     assert.equal(context.photoConsent, "accepted");
     assert.equal(context.socialPublicationConsent, "not_answered", "campo assente = nessuna risposta");
-    assert.equal(context.consentUpdatedAt, SEEDED_AT, "senza cambi usa la data della firma");
+    assert.equal(context.consentUpdatedAt, null, "valore grezzo: la firma senza consentUpdatedAt dà null, non authorizedAt");
     assert.equal(context.activityStartDate, "2026-10-16T14:00:00.000Z");
+    // Con il campo presente (firma nuova o cambio successivo) ritorna esattamente quello.
+    const stampedId = "link-ctx-stamped";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, stampedId)).set(
+      signedRegistration(stampedId, { photo: "accepted", social: "refused", state: { consentUpdatedAt: "2026-10-05T09:00:00.000Z" } }),
+    );
+    const stamped = await newLink(STAKE, stampedId);
+    const stampedContext = await who.anonimo.call("parentConsentGetContext", { token: stamped.rawToken });
+    assert.equal(stampedContext.consentUpdatedAt, "2026-10-05T09:00:00.000Z");
+    assert.equal(stampedContext.socialPublicationConsent, "refused");
     // Il contesto pubblico non deve esporre dati del genitore o altri identificativi.
     for (const key of ["parentEmail", "parentName", "stakeId", "registrationId", "tokenHash"]) {
       assert.equal(key in context, false, `${key} non deve uscire`);
@@ -793,8 +807,12 @@ describe("link di gestione delle scelte", () => {
     );
 
     for (const id of [expiredId, mismatchId]) {
-      assert.equal((await getReg(STAKE, ACTIVITY, id)).parentAuthorization.photoConsent, "accepted", id);
+      const state = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization;
+      assert.equal(state.photoConsent, "accepted", id);
+      assert.equal(state.socialPublicationConsent, "accepted", id);
+      assert.equal(state.consentUpdatedAt, undefined, `${id}: nessuna scrittura`);
       assert.deepEqual(await tasksOf(STAKE, ACTIVITY, id), [], id);
+      assert.deepEqual(await auditRows(STAKE, ACTIVITY, id, "consent_updated"), [], id);
     }
   });
 
@@ -869,6 +887,181 @@ describe("link di gestione delle scelte", () => {
     assert.equal("rawToken" in stored, false, "in archivio resta solo l'hash");
     assert.equal(JSON.stringify(stored).includes(link.rawToken), false);
     assert.equal(deriveConsentLinkStatus(stored, await getReg(STAKE, ACTIVITY, id)), "valid");
+  });
+});
+
+// ===========================================================================
+// expectedUpdatedAt: una scheda vecchia non annulla un cambio fatto altrove
+// ===========================================================================
+
+describe("parentConsentUpdate: expectedUpdatedAt (consent_stale)", () => {
+  const T0 = "2026-10-05T09:00:00.000Z";
+  const family = (id, photoConsent, socialPublicationConsent, extra = {}) => ({
+    stakeId: STAKE,
+    activityId: ACTIVITY,
+    registrationId: id,
+    photoConsent,
+    socialPublicationConsent,
+    ...extra,
+  });
+  const staleOptions = { reason: "consent_stale" };
+
+  async function expectNoWrite(id, { photo, social, updatedAt, audits = 0, tasks = 0 }) {
+    const state = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization;
+    assert.equal(state.photoConsent, photo, `${id}: foto`);
+    assert.equal(state.socialPublicationConsent, social, `${id}: social`);
+    assert.equal(state.consentUpdatedAt, updatedAt, `${id}: consentUpdatedAt`);
+    assert.equal((await auditRows(STAKE, ACTIVITY, id, "consent_updated")).length, audits, `${id}: audit`);
+    assert.equal((await tasksOf(STAKE, ACTIVITY, id)).length, tasks, `${id}: compiti`);
+  }
+
+  test("scheda vecchia: A cambia sì/sì in no/no, B con la versione vecchia manda sì/no ed è respinto", async () => {
+    const id = "stale-family";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, id)).set(
+      signedRegistration(id, { photo: "accepted", social: "accepted", parentUid: who.genitore.uid, state: { consentUpdatedAt: T0 } }),
+    );
+
+    // A e B hanno aperto la pagina quando la versione era T0.
+    const a = await who.genitore.call("parentConsentUpdate", family(id, "refused", "refused", { expectedUpdatedAt: T0 }));
+    assert.equal(a.changed, true);
+    assert.equal(a.photoConsent, "revoked");
+    const afterA = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization;
+    assert.notEqual(afterA.consentUpdatedAt, T0);
+
+    await expectCallError(
+      who.genitore.call("parentConsentUpdate", family(id, "accepted", "refused", { expectedUpdatedAt: T0 })),
+      "failed-precondition",
+      staleOptions,
+    );
+    await expectNoWrite(id, { photo: "revoked", social: "revoked", updatedAt: afterA.consentUpdatedAt, audits: 1, tasks: 1 });
+
+    // Dopo aver riletto (versione di A) B può cambiare.
+    const b = await who.genitore.call(
+      "parentConsentUpdate",
+      family(id, "accepted", "refused", { expectedUpdatedAt: afterA.consentUpdatedAt }),
+    );
+    assert.equal(b.changed, true);
+    assert.equal(b.photoConsent, "accepted");
+    assert.equal(b.socialPublicationConsent, "revoked");
+    assert.equal((await auditRows(STAKE, ACTIVITY, id, "consent_updated")).length, 2);
+  });
+
+  test("stessa versione passa; assente passa come prima (client vecchi)", async () => {
+    const id = "stale-same";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, id)).set(
+      signedRegistration(id, { photo: "accepted", social: "accepted", parentUid: who.genitore.uid, state: { consentUpdatedAt: T0 } }),
+    );
+    const same = await who.genitore.call("parentConsentUpdate", family(id, "accepted", "refused", { expectedUpdatedAt: T0 }));
+    assert.equal(same.changed, true);
+    const afterSame = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization.consentUpdatedAt;
+
+    // Senza il campo non c'è controllo, anche se la versione è cambiata.
+    const absent = await who.genitore.call("parentConsentUpdate", family(id, "refused", "refused"));
+    assert.equal(absent.changed, true);
+    assert.notEqual((await getReg(STAKE, ACTIVITY, id)).parentAuthorization.consentUpdatedAt, afterSame);
+  });
+
+  test("anche un invio che non cambierebbe nulla ma con versione vecchia è respinto", async () => {
+    const id = "stale-noop";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, id)).set(
+      signedRegistration(id, { photo: "accepted", social: "accepted", parentUid: who.genitore.uid, state: { consentUpdatedAt: T0 } }),
+    );
+    await expectCallError(
+      who.genitore.call("parentConsentUpdate", family(id, "accepted", "accepted", { expectedUpdatedAt: "2026-01-01T00:00:00.000Z" })),
+      "failed-precondition",
+      staleOptions,
+    );
+    await expectNoWrite(id, { photo: "accepted", social: "accepted", updatedAt: T0 });
+  });
+
+  test("firma senza consentUpdatedAt: null e stringa vuota combaciano, una data no", async () => {
+    const id = "stale-null";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, id)).set(
+      signedRegistration(id, { photo: "accepted", social: "accepted", parentUid: who.genitore.uid }),
+    );
+    // La pagina ha visto "nessuna data" ma qualcuno l'ha già valorizzata? Qui il dato non c'è: una data attesa è vecchia.
+    await expectCallError(
+      who.genitore.call("parentConsentUpdate", family(id, "refused", "refused", { expectedUpdatedAt: T0 })),
+      "failed-precondition",
+      staleOptions,
+    );
+    await expectNoWrite(id, { photo: "accepted", social: "accepted", updatedAt: undefined });
+
+    const withNull = await who.genitore.call("parentConsentUpdate", family(id, "accepted", "refused", { expectedUpdatedAt: null }));
+    assert.equal(withNull.changed, true, "null combacia con il campo assente");
+    const stamped = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization.consentUpdatedAt;
+    assert.equal(typeof stamped, "string");
+
+    // Ora la data c'è: aspettarsi ancora null è una scheda vecchia.
+    await expectCallError(
+      who.genitore.call("parentConsentUpdate", family(id, "refused", "refused", { expectedUpdatedAt: null })),
+      "failed-precondition",
+      staleOptions,
+    );
+    await expectNoWrite(id, { photo: "accepted", social: "revoked", updatedAt: stamped, audits: 1, tasks: 1 });
+
+    const id2 = "stale-empty-string";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, id2)).set(
+      signedRegistration(id2, { photo: "accepted", social: "accepted", parentUid: who.genitore.uid }),
+    );
+    const withEmpty = await who.genitore.call("parentConsentUpdate", family(id2, "accepted", "refused", { expectedUpdatedAt: "" }));
+    assert.equal(withEmpty.changed, true, "stringa vuota vale null");
+  });
+
+  test("via link: il flusso getContext -> update rimanda il consentUpdatedAt grezzo", async () => {
+    const id = "stale-link";
+    await adminDb.doc(regPath(STAKE, ACTIVITY, id)).set(signedRegistration(id, { photo: "accepted", social: "accepted" }));
+    const linkA = await newLink(STAKE, id);
+    const linkB = await newLink(STAKE, id);
+
+    const contextA = await who.anonimo.call("parentConsentGetContext", { token: linkA.rawToken });
+    const contextB = await who.anonimo.call("parentConsentGetContext", { token: linkB.rawToken });
+    assert.equal(contextA.consentUpdatedAt, null);
+    assert.equal(contextB.consentUpdatedAt, null);
+
+    const a = await who.anonimo.call("parentConsentUpdate", {
+      token: linkA.rawToken, photoConsent: "refused", socialPublicationConsent: "refused", expectedUpdatedAt: contextA.consentUpdatedAt,
+    });
+    assert.equal(a.changed, true);
+    const afterA = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization;
+
+    await expectCallError(
+      who.anonimo.call("parentConsentUpdate", {
+        token: linkB.rawToken, photoConsent: "accepted", socialPublicationConsent: "refused", expectedUpdatedAt: contextB.consentUpdatedAt,
+      }),
+      "failed-precondition",
+      staleOptions,
+    );
+    await expectNoWrite(id, { photo: "revoked", social: "revoked", updatedAt: afterA.consentUpdatedAt, audits: 1, tasks: 1 });
+
+    const fresh = await who.anonimo.call("parentConsentGetContext", { token: linkB.rawToken });
+    assert.equal(fresh.consentUpdatedAt, afterA.consentUpdatedAt);
+    assert.equal(fresh.photoConsent, "revoked");
+    const b = await who.anonimo.call("parentConsentUpdate", {
+      token: linkB.rawToken, photoConsent: "accepted", socialPublicationConsent: "refused", expectedUpdatedAt: fresh.consentUpdatedAt,
+    });
+    assert.equal(b.changed, true);
+  });
+
+  test("dopo la firma dall'app il contesto ritorna consentUpdatedAt = data della firma", async () => {
+    const id = "stale-signed";
+    const { rawToken } = await seedPendingSignature(id);
+    await who.anonimo.call("parentAuthorizationConfirm", {
+      token: rawToken,
+      consents: allConsents(),
+      signatureDataUrl: signatureDataUrl(),
+      photoConsent: "accepted",
+      socialPublicationConsent: "accepted",
+    });
+    const state = (await getReg(STAKE, ACTIVITY, id)).parentAuthorization;
+    const link = await newLink(STAKE, id);
+    const context = await who.anonimo.call("parentConsentGetContext", { token: link.rawToken });
+    assert.equal(context.consentUpdatedAt, state.consentUpdatedAt);
+    // E con quella versione il primo cambio passa.
+    const result = await who.anonimo.call("parentConsentUpdate", {
+      token: link.rawToken, photoConsent: "accepted", socialPublicationConsent: "refused", expectedUpdatedAt: context.consentUpdatedAt,
+    });
+    assert.equal(result.changed, true);
   });
 });
 
@@ -1131,5 +1324,108 @@ describe("parentConsentRequestCompletion", () => {
       0,
       "nessun invio parziale",
     );
+  });
+});
+
+// ===========================================================================
+// (e) Corse durante l'invio dei completamenti
+// ===========================================================================
+// Il batch rilegge ogni iscrizione dentro la transazione di prenotazione. Per
+// provarlo da fuori si cambia lo stato di iscrizioni lontane in coda MENTRE il
+// batch gira (si aspetta che la prima sia stata prenotata, poi si modificano le
+// ultime): con 40 destinatari il ciclo dura abbastanza da rendere la corsa certa.
+
+describe("parentConsentRequestCompletion: stato cambiato durante l'invio", () => {
+  const S = STAKE_RACE;
+  const COUNT = 40;
+  const idOf = (index) => `r-${String(index).padStart(3, "0")}`;
+  const REQUEST = { stakeId: S, activityId: ACTIVITY };
+  const marker = async (id) => (await getReg(S, ACTIVITY, id)).parentAuthorization.consentCompletionRequestedAt;
+
+  async function waitFor(condition, label) {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      if (await condition()) return;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error(`timeout: ${label}`);
+  }
+
+  before(async () => {
+    for (let from = 0; from < COUNT; from += 20) {
+      const batch = adminDb.batch();
+      for (let index = from; index < from + 20; index += 1) {
+        const id = idOf(index);
+        batch.set(adminDb.doc(regPath(S, ACTIVITY, id)), signedRegistration(id, { parentEmail: `${id}@example.invalid` }));
+      }
+      await batch.commit();
+    }
+  });
+
+  test("annullata, email cambiata o già risposta dopo la lista: quel destinatario non riceve nulla", async () => {
+    const dry = await who.superAdmin.call("parentConsentRequestCompletion", REQUEST);
+    assert.equal(dry.total, COUNT);
+
+    const running = who.superAdmin.call("parentConsentRequestCompletion", { ...REQUEST, dryRun: false, expectedCount: COUNT });
+    await waitFor(async () => (await marker(idOf(0))) !== undefined, "prima prenotazione");
+    // Il batch ha già la lista: da qui in poi cambiano le ultime tre.
+    await Promise.all([
+      adminDb.doc(regPath(S, ACTIVITY, idOf(COUNT - 1))).update({ registrationStatus: "cancelled" }),
+      adminDb.doc(regPath(S, ACTIVITY, idOf(COUNT - 2))).update({ "parentAuthorization.parentEmail": "nuovo@example.invalid" }),
+      adminDb.doc(regPath(S, ACTIVITY, idOf(COUNT - 3))).update({
+        "parentAuthorization.photoConsent": "accepted",
+        "parentAuthorization.socialPublicationConsent": "refused",
+      }),
+    ]);
+    const result = await running;
+
+    assert.equal(result.ok, true);
+    assert.equal(result.total, COUNT);
+    assert.equal(result.sent, COUNT - 3, "gli altri 37 ricevono la mail");
+    assert.equal(result.simulated, COUNT - 3);
+    assert.deepEqual(result.errors, [], "saltare una prenotazione non è un errore");
+
+    for (let index = 0; index < COUNT - 3; index += 1) {
+      assert.equal(typeof (await marker(idOf(index))), "string", `${idOf(index)} prenotata`);
+    }
+    for (const index of [COUNT - 1, COUNT - 2, COUNT - 3]) {
+      const id = idOf(index);
+      assert.equal(await marker(id), undefined, `${id}: nessun marker`);
+      assert.deepEqual(await linksOf(id, "completion"), [], `${id}: nessun link`);
+      assert.deepEqual(await auditRows(S, ACTIVITY, id, "consent_completion_requested"), [], `${id}: nessun audit`);
+    }
+    // Chi è stato saltato verso la vecchia email non ha mai ricevuto un link per quell'indirizzo.
+    const changed = await getReg(S, ACTIVITY, idOf(COUNT - 2));
+    assert.equal(changed.parentAuthorization.parentEmail, "nuovo@example.invalid");
+  });
+
+  test("resend:true non rispedisce se un altro invio ha prenotato dopo l'inizio del batch", async () => {
+    // Dopo il primo giro: 37 con marker, r-038 (email nuova, nessun marker, ancora senza risposta).
+    const dry = await who.superAdmin.call("parentConsentRequestCompletion", { ...REQUEST, resend: true });
+    assert.equal(dry.total, COUNT - 3 + 1, "i 37 già contattati + r-038 con la nuova email");
+
+    const lastId = idOf(COUNT - 2);
+    const firstId = idOf(0);
+    // Un marker fresco di un altro invio: nel futuro rispetto all'inizio del batch.
+    const otherSender = new Date(Date.now() + 120_000).toISOString();
+    // r-037 (risposta) e r-039 (annullata) sono fuori lista: r-038 è l'ultimo candidato.
+    await adminDb.doc(regPath(S, ACTIVITY, lastId)).update({ "parentAuthorization.consentCompletionRequestedAt": "2026-10-01T00:00:00.000Z" });
+    const dryAgain = await who.superAdmin.call("parentConsentRequestCompletion", { ...REQUEST, resend: true });
+    assert.equal(dryAgain.total, COUNT - 3 + 1);
+
+    const oldFirst = await marker(firstId);
+    const running = who.superAdmin.call("parentConsentRequestCompletion", {
+      ...REQUEST, resend: true, dryRun: false, expectedCount: dryAgain.total,
+    });
+    await waitFor(async () => (await marker(firstId)) !== oldFirst, "primo marker rinnovato");
+    await adminDb.doc(regPath(S, ACTIVITY, lastId)).update({ "parentAuthorization.consentCompletionRequestedAt": otherSender });
+    const result = await running;
+
+    assert.equal(result.total, COUNT - 3 + 1);
+    assert.equal(result.sent, COUNT - 3, "l'ultimo, prenotato da un altro invio, non viene rispedito");
+    assert.deepEqual(result.errors, []);
+    assert.equal(await marker(lastId), otherSender, "il marker dell'altro invio non è sovrascritto");
+    assert.deepEqual(await linksOf(lastId, "completion"), [], "nessun link per chi è stato saltato");
+    assert.notEqual(await marker(firstId), oldFirst, "gli altri sono stati rinnovati");
   });
 });

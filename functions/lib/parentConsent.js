@@ -53,6 +53,10 @@ const LINK_ERROR_MESSAGES = {
     "Questo link non è più valido perché l'indirizzo email del genitore è cambiato. Controlla l'email più recente.",
 };
 
+function LINK_ERROR_MESSAGE_FOR(status) {
+  return LINK_ERROR_MESSAGES[status] || LINK_ERROR_MESSAGES.not_found;
+}
+
 function asString(value) {
   return typeof value === "string" ? value : "";
 }
@@ -117,7 +121,8 @@ const parentConsentGetContext = onCall({ region: REGION, cors: true }, async (re
     participantName: registration.fullName || "",
     photoConsent: effectiveValue(state.photoConsent),
     socialPublicationConsent: effectiveValue(state.socialPublicationConsent),
-    consentUpdatedAt: state.consentUpdatedAt || state.authorizedAt || null,
+    // Valore grezzo: la pagina lo rimanda come `expectedUpdatedAt`.
+    consentUpdatedAt: state.consentUpdatedAt || null,
   };
 });
 
@@ -136,16 +141,18 @@ const parentConsentUpdate = onCall(
     let registrationId;
     let via;
     let tokenHash = null;
+    let usedLink = null;
 
     if (rawToken) {
       const { link, status } = await resolveLink(db, rawToken);
       if (status !== "valid") {
-        throw new HttpsError("failed-precondition", LINK_ERROR_MESSAGES[status], {
+        throw new HttpsError("failed-precondition", LINK_ERROR_MESSAGE_FOR(status), {
           reason: `link_${status}`,
         });
       }
       ({ stakeId, activityId, registrationId } = link);
       tokenHash = link.tokenHash;
+      usedLink = link;
       via = "link";
     } else {
       if (!request.auth) {
@@ -179,6 +186,17 @@ const parentConsentUpdate = onCall(
         );
       }
 
+      // Il link si ricontrolla dentro la transazione: se nel frattempo l'admin
+      // ha corretto l'email del genitore, la vecchia casella non scrive più.
+      if (usedLink) {
+        const linkStatus = deriveConsentLinkStatus(usedLink, registration);
+        if (linkStatus !== "valid") {
+          throw new HttpsError("failed-precondition", LINK_ERROR_MESSAGE_FOR(linkStatus), {
+            reason: `link_${linkStatus}`,
+          });
+        }
+      }
+
       const state =
         registration.parentAuthorization && typeof registration.parentAuthorization === "object"
           ? registration.parentAuthorization
@@ -188,6 +206,20 @@ const parentConsentUpdate = onCall(
           "failed-precondition",
           "Il modulo di autorizzazione non è ancora firmato: le scelte si danno al momento della firma.",
         );
+      }
+
+      // Una scheda rimasta aperta non deve annullare un cambio fatto altrove:
+      // se il client dice quale versione ha visto e nel frattempo è cambiata,
+      // deve rileggere (compatibile con i client che non mandano il campo).
+      if (request.data?.expectedUpdatedAt !== undefined) {
+        const expected = request.data.expectedUpdatedAt || null;
+        if (expected !== (state.consentUpdatedAt || null)) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Le scelte sono state cambiate da un'altra parte nel frattempo. Ricarica la pagina e riprova.",
+            { reason: "consent_stale" },
+          );
+        }
       }
 
       const update = resolveConsentUpdate(state, request.data);
@@ -394,6 +426,7 @@ const parentConsentRequestCompletion = onCall(
             participantName: previewActivity.participantName,
             activityTitle: previewActivity.activityTitle,
             consentUrl: null,
+            missing: previewActivity.missing,
           }).paragraphs,
         }
       : null;
@@ -429,6 +462,7 @@ const parentConsentRequestCompletion = onCall(
 
     const sent = [];
     const errors = [];
+    const batchStartedAt = new Date().toISOString();
     for (const candidate of candidates) {
       const ref = db.doc(
         registrationPath(stakeId, candidate.activityId, candidate.registrationId),
@@ -438,10 +472,18 @@ const parentConsentRequestCompletion = onCall(
       // Prenota il turno: due invii in parallelo non mandano due mail.
       const claimed = await db.runTransaction(async (tx) => {
         const snapshot = await tx.get(ref);
-        const state = snapshot.data()?.parentAuthorization || {};
+        const current = snapshot.data() || {};
+        const state = current.parentAuthorization || {};
         if (
+          !snapshot.exists ||
+          isCancelled(current) ||
           state.status !== "authorized" ||
-          (state.consentCompletionRequestedAt && !resend) ||
+          // La mail parte solo verso l'indirizzo che l'admin ha visto in elenco.
+          normalizeEmail(state.parentEmail) !== candidate.parentEmail ||
+          // Già prenotato: da prima (senza resend) oppure da un altro invio
+          // partito mentre questo girava (anche con resend).
+          (state.consentCompletionRequestedAt &&
+            (!resend || state.consentCompletionRequestedAt >= batchStartedAt)) ||
           (!isUnanswered(state.photoConsent) && !isUnanswered(state.socialPublicationConsent))
         ) {
           return false;
@@ -466,15 +508,27 @@ const parentConsentRequestCompletion = onCall(
           participantName: candidate.participantName,
           activityTitle: candidate.activityTitle,
           consentUrl: buildConsentUrl(link.rawToken),
+          missing: candidate.missing,
         });
-        await writeAuditLog(db, stakeId, candidate.activityId, candidate.registrationId, {
-          event: "consent_completion_requested",
-          parentEmail: candidate.parentEmail,
-          parentName: candidate.parentName || null,
-          actorUserId: request.auth.uid,
-          emailProvider: result.provider === "brevo" ? "brevo" : "simulated",
-          brevoMessageId: result.messageId || null,
-        });
+        // La mail è partita: un errore dell'audit non libera la prenotazione
+        // (altrimenti un secondo invio manderebbe una seconda mail).
+        try {
+          await writeAuditLog(db, stakeId, candidate.activityId, candidate.registrationId, {
+            event: "consent_completion_requested",
+            parentEmail: candidate.parentEmail,
+            parentName: candidate.parentName || null,
+            actorUserId: request.auth.uid,
+            emailProvider: result.provider === "brevo" ? "brevo" : "simulated",
+            brevoMessageId: result.messageId || null,
+          });
+        } catch (auditError) {
+          logger.error("Consent completion audit failed after delivery.", {
+            stakeId,
+            activityId: candidate.activityId,
+            registrationId: candidate.registrationId,
+            error: auditError.message,
+          });
+        }
         sent.push({
           registrationId: candidate.registrationId,
           activityId: candidate.activityId,

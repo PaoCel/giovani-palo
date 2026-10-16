@@ -519,39 +519,33 @@ async function sendSignedAuthorizationCopyEmail({
   }
 
   const subject = `Modulo firmato - ${activityTitle}`;
-  const htmlContent = buildSignedAuthorizationCopyHtml({
-    recipientName: parentName || parentEmail,
-    participantName,
-    activityTitle,
-    photoConsent,
-    socialPublicationConsent,
-    consentUrl,
-  });
-  const textContent = buildSignedAuthorizationCopyText({
-    recipientName: parentName || parentEmail,
-    participantName,
-    activityTitle,
-    photoConsent,
-    socialPublicationConsent,
-    consentUrl,
-  });
-
-  // Copia in BCC al supporto. Fuori da produzione passa dall'allowlist come
-  // ogni altro destinatario (deliver), quindi di norma non parte.
-  const bcc =
-    policy.replyToEmail && policy.replyToEmail !== parentEmail
-      ? [{ email: policy.replyToEmail, name: policy.replyToName }]
-      : [];
-
-  const payload = {
+  const buildPayload = ({ consentUrl: linkForMessage, to, bcc }) => ({
     sender: {
       email: policy.senderEmail,
       name: buildRegistrationSenderName(participantName),
     },
-    to: [{ email: parentEmail, name: parentName || parentEmail }],
-    bcc,
+    to,
+    ...(bcc.length ? { bcc } : {}),
     replyTo: { email: policy.replyToEmail, name: policy.replyToName },
-    ...decorateMessage(policy, { subject, htmlContent, textContent }),
+    ...decorateMessage(policy, {
+      subject,
+      htmlContent: buildSignedAuthorizationCopyHtml({
+        recipientName: parentName || parentEmail,
+        participantName,
+        activityTitle,
+        photoConsent,
+        socialPublicationConsent,
+        consentUrl: linkForMessage,
+      }),
+      textContent: buildSignedAuthorizationCopyText({
+        recipientName: parentName || parentEmail,
+        participantName,
+        activityTitle,
+        photoConsent,
+        socialPublicationConsent,
+        consentUrl: linkForMessage,
+      }),
+    }),
     attachment: [
       {
         name: pdfFilename || "modulo-consenso-firmato.pdf",
@@ -573,9 +567,42 @@ async function sendSignedAuthorizationCopyEmail({
       "X-Track-Opens": "0",
       "X-Track-Clicks": "0",
     },
-  };
+  });
 
-  return deliver({ apiKey, policy, payload, tag: "parent-authorization-copy" });
+  const parentRecipient = [{ email: parentEmail, name: parentName || parentEmail }];
+  const supportRecipient =
+    policy.replyToEmail && policy.replyToEmail !== parentEmail
+      ? [{ email: policy.replyToEmail, name: policy.replyToName }]
+      : [];
+
+  // Il link per cambiare le scelte vale come una chiave: va solo al genitore.
+  // Il supporto riceve una copia a parte senza link (prima era in BCC).
+  // Fuori da produzione entrambe passano dall'allowlist (deliver).
+  const result = await deliver({
+    apiKey,
+    policy,
+    payload: buildPayload({
+      consentUrl,
+      to: parentRecipient,
+      bcc: consentUrl ? [] : supportRecipient,
+    }),
+    tag: "parent-authorization-copy",
+  });
+  if (consentUrl && supportRecipient.length) {
+    try {
+      await deliver({
+        apiKey,
+        policy,
+        payload: buildPayload({ consentUrl: null, to: supportRecipient, bcc: [] }),
+        tag: "parent-authorization-copy-support",
+      });
+    } catch (error) {
+      logger.error("Copia al supporto del modulo firmato non inviata.", {
+        error: error.message,
+      });
+    }
+  }
+  return result;
 }
 
 // -----------------------------------------------------------------------------
@@ -665,15 +692,35 @@ function consentMailPayload(policy, { parentEmail, parentName, participantName, 
 }
 
 /** Testo della richiesta di completamento. Esportato per l'anteprima del dry-run. */
-function buildConsentCompletionContent({ parentName, participantName, activityTitle, consentUrl }) {
+function buildConsentCompletionContent({
+  parentName,
+  participantName,
+  activityTitle,
+  consentUrl,
+  missing = ["photo", "social"],
+}) {
+  const missingPhoto = missing.includes("photo");
+  const missingSocial = missing.includes("social");
+  const what =
+    missingPhoto && missingSocial
+      ? "le scelte su foto e social"
+      : missingPhoto
+        ? "la scelta sulle foto"
+        : "la scelta sui social";
+  const consequence =
+    missingPhoto && missingSocial
+      ? "non useremo foto di tuo figlio o tua figlia né per l'album dell'attività né per i social"
+      : missingPhoto
+        ? "non useremo foto di tuo figlio o tua figlia per l'album dell'attività"
+        : "non pubblicheremo foto di tuo figlio o tua figlia sui social";
   return {
-    preheader: `Servono due risposte su foto e social per ${participantName}.`,
+    preheader: `Manca una risposta su foto o social per ${participantName}.`,
     title: "Completa le scelte su foto e social",
     greeting: `Gentile ${parentName || "genitore o tutore"},`,
     paragraphs: [
-      `quando hai firmato l'autorizzazione per ${participantName} (${activityTitle}) le scelte su foto e social non erano obbligatorie e non hai indicato una risposta.`,
-      "Finché non rispondi, il silenzio vale come nessun consenso: non useremo foto di tuo figlio o tua figlia per l'album dell'attività né per i social.",
-      "Bastano due domande, non devi firmare di nuovo. Puoi cambiare idea in qualunque momento dallo stesso link.",
+      `quando hai firmato l'autorizzazione per ${participantName} (${activityTitle}) ${what} non era obbligatoria e non hai indicato una risposta.`,
+      `Finché non rispondi, il silenzio vale come nessun consenso: ${consequence}.`,
+      "Bastano pochi tocchi, non devi firmare di nuovo. Puoi cambiare idea in qualunque momento dallo stesso link.",
     ],
     choices: null,
     ctaLabel: "Completa le scelte su foto e social",
@@ -692,6 +739,7 @@ async function sendConsentCompletionEmail({
   participantName,
   activityTitle,
   consentUrl,
+  missing,
 }) {
   const policy = getEmailPolicy();
   const payload = consentMailPayload(policy, {
@@ -699,7 +747,13 @@ async function sendConsentCompletionEmail({
     parentName,
     participantName,
     subject: consentCompletionSubject(activityTitle),
-    content: buildConsentCompletionContent({ parentName, participantName, activityTitle, consentUrl }),
+    content: buildConsentCompletionContent({
+      parentName,
+      participantName,
+      activityTitle,
+      consentUrl,
+      missing,
+    }),
     tag: "parent-consent-completion",
   });
   return deliver({ apiKey, policy, payload, tag: "parent-consent-completion" });
