@@ -107,6 +107,10 @@ service cloud.firestore {
     // Percorso e URL di un file devono stare nella cartella Storage del media,
     // nel bucket del progetto (prod, staging, emulatore demo-*): niente file
     // esterni o di un bucket altrui spacciati per foto della galleria.
+    // Produzione: bucket UE `giovani-palo-eu`. Il vecchio `giovani-palo.firebasestorage.app`
+    // (us-central1) resta ammesso per le PWA non ancora aggiornate, che caricano
+    // ancora lì: toglierlo quando il bucket vecchio non riceve scritture da 7
+    // giorni (metrica WriteObject di Cloud Monitoring a zero), poi chiuderlo.
     function isOwnMediaPath(value, stakeId, galleryId, mediaId) {
       return value == null
         || (value is string
@@ -116,7 +120,7 @@ service cloud.firestore {
     function isOwnMediaUrl(value, stakeId, galleryId, mediaId) {
       return value == null
         || (value is string
-          && value.matches('^(https://firebasestorage[.]googleapis[.]com/v0/b/giovani-palo(-staging)?[.]firebasestorage[.]app|http://(127[.]0[.]0[.]1|localhost):[0-9]+/v0/b/(demo-[a-z0-9-]+|giovani-palo(-staging)?)[.](firebasestorage[.]app|appspot[.]com))/o/protected%2Fstakes%2F' + stakeId + '%2Fgalleries%2F' + galleryId + '%2Fmedia%2F' + mediaId + '%2F[^/?]+[?].*$'));
+          && value.matches('^(https://firebasestorage[.]googleapis[.]com/v0/b/(giovani-palo-eu|giovani-palo(-staging)?[.]firebasestorage[.]app)|http://(127[.]0[.]0[.]1|localhost):[0-9]+/v0/b/(giovani-palo-eu|(demo-[a-z0-9-]+|giovani-palo(-staging)?)[.](firebasestorage[.]app|appspot[.]com)))/o/protected%2Fstakes%2F' + stakeId + '%2Fgalleries%2F' + galleryId + '%2Fmedia%2F' + mediaId + '%2F[^/?]+[?].*$'));
     }
 
     function validMemberMediaCreate(stakeId, galleryId, mediaId) {
