@@ -166,7 +166,7 @@ la stampa PDF di Chrome: una pagina, colore e scala di grigi.
 | Campo | Tipo | Note |
 | --- | --- | --- |
 | `recordsEnabled` | bool | default false; scritto dall'admin nell'editor attività |
-| `recordsCloseAt` | string ISO \| null | null = chiude a `startDate` |
+| `recordsCloseAt` | string ISO \| null | null = chiude a `startDate`; l'editor accetta fino a `endDate` (la serata può cadere a metà viaggio) |
 
 ### Record `stakes/{s}/activities/{a}/records/{recordId}`
 

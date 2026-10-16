@@ -177,6 +177,18 @@ export function getRecordNightCloseAt(
     : parseDate(event.startDate);
 }
 
+// La chiusura delle iscrizioni ai record può cadere durante l'attività (la
+// serata può essere a metà viaggio), mai dopo la sua fine.
+export function isRecordsCloseAfterEnd(recordsCloseAt: string, endDate: string) {
+  if (!recordsCloseAt || !endDate) {
+    return false;
+  }
+
+  const closes = new Date(recordsCloseAt).getTime();
+  const ends = new Date(endDate).getTime();
+  return !Number.isNaN(closes) && !Number.isNaN(ends) && closes > ends;
+}
+
 export function getRecordNightWindow(
   event: Pick<Event, "recordsEnabled" | "recordsCloseAt" | "startDate">,
   now: Date = new Date(),

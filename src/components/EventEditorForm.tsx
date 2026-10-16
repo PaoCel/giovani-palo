@@ -17,6 +17,7 @@ import {
   eventSpansMultipleCalendarDays,
   getEventAudienceLabel,
 } from "@/utils/events";
+import { isRecordsCloseAfterEnd } from "@/utils/recordNight";
 import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 
 const ACTIVITY_TYPE_OPTIONS: {
@@ -156,22 +157,10 @@ function toDatetimeLocalValueSafe(isoDate?: string | null) {
 }
 
 const RECORDS_CLOSE_TOO_LATE_MESSAGE =
-  "La chiusura delle iscrizioni ai record non può essere dopo l'inizio dell'attività.";
+  "La chiusura delle iscrizioni ai record non può essere dopo la fine dell'attività.";
 
 const GUEST_REVIEW_MISSING_MESSAGE =
   "Per accendere i record senza account controlla i titoli dell'anteprima e spunta «Ho controllato i titoli».";
-
-// La chiusura delle iscrizioni ai record non può cadere dopo l'inizio
-// dell'attività: la serata sarebbe già cominciata.
-function isRecordsCloseAfterStart(recordsCloseAt: string, startDate: string) {
-  if (!recordsCloseAt || !startDate) {
-    return false;
-  }
-
-  const closes = new Date(recordsCloseAt).getTime();
-  const starts = new Date(startDate).getTime();
-  return !Number.isNaN(closes) && !Number.isNaN(starts) && closes > starts;
-}
 
 function getInitialValues(event?: Event | null): EventEditorValues {
   const initialActivityType: ActivityType =
@@ -255,7 +244,7 @@ export function EventEditorForm({
   const isSimplifiedStatusMode = statusMode === "simplified";
   const recordsCloseAtTooLate =
     values.recordsEnabled &&
-    isRecordsCloseAfterStart(values.recordsCloseAt, values.startDate);
+    isRecordsCloseAfterEnd(values.recordsCloseAt, values.endDate);
   // Già acceso sull'attività salvata: l'anteprima l'ha vista chi l'ha acceso.
   const guestAlreadyEnabled = initialEvent?.recordsGuestEnabled === true;
   const guestReviewMissing =
