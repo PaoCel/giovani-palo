@@ -111,6 +111,27 @@ function isProduction(env = process.env) {
   return requireProjectId(env) === PRODUCTION_PROJECT_ID && !isEmulatorRuntime(env);
 }
 
+// Il bucket di default di produzione sta in us-central1 e la regione di un
+// bucket non si cambia: i file di produzione vivono in un bucket UE aggiunto a
+// Firebase (europe-west1). Staging ed emulatori usano il loro bucket di default.
+const PRODUCTION_STORAGE_BUCKET = "giovani-palo-eu";
+
+/**
+ * Opzioni per initializeApp(): quelle della piattaforma (FIREBASE_CONFIG) con il
+ * bucket UE in produzione, così ogni getStorage().bucket() scrive e legge lì.
+ * Fuori da produzione (o con il progetto non determinabile) undefined: default.
+ */
+function adminAppOptions(env = process.env) {
+  if (resolveProjectId(env) !== PRODUCTION_PROJECT_ID || isEmulatorRuntime(env)) return undefined;
+  let platform = {};
+  try {
+    platform = JSON.parse(env.FIREBASE_CONFIG || "{}");
+  } catch {
+    platform = {};
+  }
+  return { ...platform, storageBucket: PRODUCTION_STORAGE_BUCKET };
+}
+
 function isEmulatorDemoProject(projectId) {
   return projectId.startsWith("demo-");
 }
@@ -215,6 +236,8 @@ function getEmailPolicy(env = process.env) {
 }
 
 module.exports = {
+  PRODUCTION_STORAGE_BUCKET,
+  adminAppOptions,
   REGION,
   PRODUCTION_PROJECT_ID,
   PRODUCTION_HOSTS,

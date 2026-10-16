@@ -4,13 +4,13 @@ const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const webpush = require("web-push");
+const { EnvironmentConfigError, adminAppOptions, getAppPublicUrl, isProduction } = require("./lib/config");
 
-initializeApp();
+initializeApp(adminAppOptions());
 
 const db = getFirestore();
 
 // Cloud Functions per autorizzazione genitoriale (Brevo magic link).
-const { EnvironmentConfigError, getAppPublicUrl, isProduction } = require("./lib/config");
 const parentAuthorization = require("./lib/parentAuthorization");
 const parentConsent = require("./lib/parentConsent");
 const campManagement = require("./lib/campManagement");
