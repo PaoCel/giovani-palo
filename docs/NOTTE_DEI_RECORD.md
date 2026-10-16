@@ -146,6 +146,17 @@ Il modello dati separa fin da subito il **record** (canonico, dell'attività) da
 risultato). L'albo della prossima edizione si costruisce dai record con
 risultato, senza migrazioni.
 
+### Certificato da stampare (16/10, anticipo della fase 3)
+
+`gugditalia.it/modulo-record` (link anche da "Gestisci la Notte dei Record").
+Si sceglie il record dall'elenco (chi ha fatto login nel palo; senza login si
+scrive a mano), si scrive risultato e nome (lo staff tocca il nome fra gli
+sfidanti approvati di quel record), facoltativi unità e record precedente, poi
+Stampa. **Non salva nulla**: niente rules né dati nuovi, il foglio vive nel
+browser. A4 orizzontale, sfondo bianco, colori solo su testo e tratti sottili
+(navy e oro dell'app) perché esca bene anche in bianco e nero. Verificato con
+la stampa PDF di Chrome: una pagina, colore e scala di grigi.
+
 ## Dati
 
 ### Attività `stakes/{s}/activities/{a}`

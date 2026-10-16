@@ -160,6 +160,13 @@ export function RecordNightManagePage() {
         </Link>
         <p className="rna-manage__eyebrow">{event.title}</p>
         <h1>Gestisci la Notte dei Record</h1>
+        <Link
+          className="button button--ghost rna-manage__cert"
+          to={`/modulo-record?activity=${encodeURIComponent(event.id)}&stake=${encodeURIComponent(stakeId)}`}
+        >
+          <AppIcon name="badge" />
+          <span>Stampa un certificato</span>
+        </Link>
       </header>
 
       <RecordNightAdminTab

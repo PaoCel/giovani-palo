@@ -1171,6 +1171,10 @@
   line-height: 1.1;
 }
 
+.rna-manage__cert {
+  margin-top: 0.5rem;
+}
+
 .rna-manage__eyebrow {
   margin: 0;
   color: var(--muted);

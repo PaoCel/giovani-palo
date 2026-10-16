@@ -40,6 +40,16 @@ function LegacyActivityGalleryRedirect() {
 }
 
 export const router = createBrowserRouter([
+  // Certificato della Notte dei Record da stampare: senza shell, così in
+  // stampa esce solo il foglio.
+  {
+    path: "/modulo-record",
+    element: lazyPage(
+      () => import("@/pages/public/RecordCertificatePage"),
+      "RecordCertificatePage",
+    ),
+    errorElement: <RouteErrorPanel />,
+  },
   // Pagina genitore standalone, senza shell pubblico (no nav, no header app).
   // Aperta da magic link Brevo: il genitore non deve essere distratto dal sito.
   {
