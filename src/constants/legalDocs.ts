@@ -143,24 +143,28 @@ export const PARENT_CONSENT_CHECKBOXES: ConsentCheckboxLabel[] = [
 
 export interface PhotoConsentLabel {
   key: "photoConsent" | "socialPublicationConsent";
+  /** Titolo breve della domanda. */
+  title: string;
+  /** Frase che spiega cosa si autorizza. */
   label: string;
+  /** Nota sotto la frase. */
   helpText: string;
 }
 
 export const PHOTO_CONSENT_OPTIONS: PhotoConsentLabel[] = [
   {
     key: "photoConsent",
+    title: "Foto per l'album dell'attività",
     label:
-      "Acconsento alla realizzazione di foto e video del minore durante l'attività per uso interno e documentazione.",
-    helpText:
-      "FACOLTATIVO. Il rifiuto non impedisce la partecipazione all'attività.",
+      "Le foto e i video dell'attività finiscono in un album che vedono solo gli iscritti al palo, con un account.",
+    helpText: "Vale solo per questa attività.",
   },
   {
     key: "socialPublicationConsent",
+    title: "Pubblicazione sui social",
     label:
-      "Acconsento alla pubblicazione delle immagini sui canali pubblici dell'Organizzazione (sito, social, materiale promozionale).",
-    helpText:
-      "FACOLTATIVO e separato dal precedente. Il rifiuto non impedisce la partecipazione.",
+      "Possiamo pubblicare foto e video sui canali pubblici del palo (sito, social, materiale promozionale).",
+    helpText: "Serve anche il consenso alle foto.",
   },
 ];
 

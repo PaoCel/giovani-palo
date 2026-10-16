@@ -761,6 +761,12 @@ export interface ParentAuthorizationState {
   consents: ParentAuthorizationConsents | null;
   photoConsent: PhotoConsentDecision;
   socialPublicationConsent: PhotoConsentDecision;
+  /** Versione del testo mostrato accanto alle due domande (assente nelle firme vecchie). */
+  consentTextVersion?: string;
+  /** Ultima volta che le due scelte sono state date o cambiate. */
+  consentUpdatedAt?: string;
+  /** Quando è partita la mail "Completa le scelte su foto e social". */
+  consentCompletionRequestedAt?: string | null;
   signatureUrl: string | null;
   signaturePath: string | null;
   signatureSource?: "new" | "reused" | "legacy_typed";
@@ -808,7 +814,31 @@ export type ConsentAuditEvent =
   | "parent_authorized"
   | "parent_rejected"
   | "token_expired"
-  | "consent_revoked";
+  | "consent_revoked"
+  | "consent_updated"
+  | "consent_completion_requested";
+
+/**
+ * Compito per gli admin dopo la revoca di un consenso:
+ * `stakes/{stakeId}/activities/{activityId}/consentTasks/{id}`. Lo crea la
+ * callable `parentConsentUpdate`; l'admin cambia solo `status`, `doneAt`,
+ * `doneByUid` (rules).
+ */
+export type ConsentTaskKind = "photo_consent_revoked" | "social_consent_revoked";
+
+export interface ConsentTask {
+  id: string;
+  stakeId: string;
+  activityId: string;
+  registrationId: string;
+  participantName: string;
+  kind: ConsentTaskKind;
+  title: string;
+  status: "todo" | "done";
+  createdAt: string;
+  doneAt: string | null;
+  doneByUid: string | null;
+}
 
 export interface ConsentAuditLog {
   id: string;
@@ -824,6 +854,10 @@ export interface ConsentAuditLog {
   consents: ParentAuthorizationConsents | null;
   photoConsent: PhotoConsentDecision | null;
   socialPublicationConsent: PhotoConsentDecision | null;
+  previousPhotoConsent?: PhotoConsentDecision | null;
+  previousSocialPublicationConsent?: PhotoConsentDecision | null;
+  consentTextVersion?: string | null;
+  consentVia?: "signature" | "family" | "link" | null;
   signaturePath: string | null;
   pdfPath: string | null;
   auditPdfPath?: string | null;

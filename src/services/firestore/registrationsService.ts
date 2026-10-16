@@ -459,14 +459,25 @@ export const registrationsService = {
   // Tutte le iscrizioni gestite da un genitore, su qualunque attività.
   // Query collection-group autorizzata dalle rules solo con il filtro
   // parentUid == uid corrente (indice in firestore.indexes.json).
-  async listFamilyRegistrations(parentUid: string): Promise<Registration[]> {
+  //
+  // `fresh: true` legge dal server invece che dalla cache: serve dopo una
+  // scrittura fatta da una callable (es. cambio dei consensi), che la cache
+  // locale non conosce.
+  async listFamilyRegistrations(
+    parentUid: string,
+    options: { fresh?: boolean } = {},
+  ): Promise<Registration[]> {
     if (!parentUid) {
       return [];
     }
 
-    const snapshot = await getDocsCacheFirst(
-      query(collectionGroup(db, "registrations"), where("parentUid", "==", parentUid)),
+    const familyQuery = query(
+      collectionGroup(db, "registrations"),
+      where("parentUid", "==", parentUid),
     );
+    const snapshot = options.fresh
+      ? await getDocsFromServer(familyQuery).catch(() => getDocsCacheFirst(familyQuery))
+      : await getDocsCacheFirst(familyQuery);
 
     return snapshot.docs
       .map((document) => {

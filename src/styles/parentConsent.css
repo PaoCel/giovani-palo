@@ -1,0 +1,303 @@
+/* Scelte su foto e social (docs/APPARTENENZA_AL_PALO.md, Parte A).
+   Usato dal modulo di firma, dalla pagina del link nella mail e dalla pagina
+   famiglia. Token presi da base.css. */
+
+.consent-choices {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.consent-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem 1rem 1.05rem;
+  border-radius: 1.1rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--surface-border);
+}
+
+.consent-card--invalid {
+  border-color: rgba(177, 78, 68, 0.35);
+}
+
+.consent-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.consent-card__head h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: var(--heading);
+}
+
+.consent-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex-shrink: 0;
+  border-radius: 0.7rem;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.consent-card__icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.consent-card__text {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.consent-card__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.consent-card__options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.consent-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.9rem;
+  border: 1.5px solid rgba(20, 39, 70, 0.12);
+  background: #ffffff;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.consent-option:hover {
+  border-color: rgba(35, 93, 144, 0.45);
+}
+
+/* Radio nativo tenuto per tastiera e screen reader, nascosto solo alla vista. */
+.consent-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.consent-option:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.consent-option:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.consent-option__dot {
+  display: inline-block;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid rgba(20, 39, 70, 0.3);
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.consent-option.is-selected {
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.consent-option.is-selected .consent-option__dot {
+  border-width: 5px;
+}
+
+.consent-option--accepted.is-selected {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.consent-option--accepted.is-selected .consent-option__dot {
+  border-color: var(--success);
+}
+
+.consent-option--refused.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.consent-option--refused.is-selected .consent-option__dot {
+  border-color: var(--primary);
+}
+
+.consent-choices__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.9rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.consent-choices__error svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* Riepilogo delle scelte salvate e avvisi sotto le domande. */
+.consent-summary {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 27rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.consent-summary li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.9rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--surface-border);
+  color: var(--heading);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.consent-summary__value {
+  font-weight: 800;
+}
+
+.consent-summary__value--accepted {
+  color: var(--success);
+}
+
+.consent-summary__value--refused {
+  color: var(--primary);
+}
+
+.consent-summary__value--pending {
+  color: var(--warning);
+}
+
+.consent-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.9rem;
+  background: var(--accent-soft);
+  color: var(--heading);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.consent-note svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--warning);
+}
+
+/* Riga "Foto e social" nella scheda del figlio (pagina famiglia). */
+.family-consent-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.9rem;
+  background: var(--bg-soft);
+  border: 1px dashed var(--surface-border-strong);
+}
+
+.family-consent-row__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.65rem;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.family-consent-row__icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.family-consent-row__info {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.family-consent-row__info strong {
+  color: var(--heading);
+  font-size: 0.88rem;
+}
+
+.family-consent-row__info span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 540px) {
+  .family-consent-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .family-consent-row .button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 380px) {
+  .consent-card__options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.family-reg-group {
+  display: grid;
+  gap: 0.35rem;
+}

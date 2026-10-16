@@ -57,6 +57,12 @@ export const router = createBrowserRouter([
     element: lazyPage(() => import("@/pages/public/ParentConfirmPage"), "ParentConfirmPage"),
     errorElement: <RouteErrorPanel />,
   },
+  // Scelte su foto e social dal link della mail con la copia firmata (nessuna firma).
+  {
+    path: "/parent-consent/:token",
+    element: lazyPage(() => import("@/pages/public/ParentConsentPage"), "ParentConsentPage"),
+    errorElement: <RouteErrorPanel />,
+  },
   {
     element: <PublicLayout />,
     errorElement: <RouteErrorPanel />,

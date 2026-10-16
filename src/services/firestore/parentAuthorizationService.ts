@@ -35,6 +35,66 @@ interface ConfirmInput {
   useStoredSignature?: boolean;
 }
 
+/** Stato delle scelte che la pagina del link mostra e permette di cambiare. */
+export interface ParentConsentContext {
+  status: "valid" | "not_signed" | "expired" | "not_found" | "mismatch";
+  activityTitle?: string;
+  activityStartDate?: string;
+  activityEndDate?: string;
+  participantName?: string;
+  photoConsent?: PhotoConsentDecision;
+  socialPublicationConsent?: PhotoConsentDecision;
+  consentUpdatedAt?: string | null;
+}
+
+/** Con `token` (link della mail) oppure con gli id dell'iscrizione (genitore con account). */
+export type UpdateConsentInput = (
+  | { token: string }
+  | { stakeId: string; activityId: string; registrationId: string }
+) & {
+  photoConsent: "accepted" | "refused";
+  socialPublicationConsent: "accepted" | "refused";
+};
+
+export interface UpdateConsentResult {
+  ok: true;
+  changed: boolean;
+  photoConsent: PhotoConsentDecision;
+  socialPublicationConsent: PhotoConsentDecision;
+  receiptSent: boolean;
+}
+
+export interface ConsentCompletionCandidate {
+  activityId: string;
+  activityTitle: string;
+  activityStartDate: string;
+  registrationId: string;
+  participantName: string;
+  parentName: string;
+  parentEmail: string;
+  missing: Array<"photo" | "social">;
+  alreadyRequestedAt: string | null;
+}
+
+export type ConsentCompletionResult =
+  | {
+      ok: true;
+      dryRun: true;
+      total: number;
+      skippedAlreadyRequested: number;
+      skippedNoEmail: number;
+      candidates: ConsentCompletionCandidate[];
+      preview: { subject: string; paragraphs: string[] } | null;
+    }
+  | {
+      ok: true;
+      dryRun: false;
+      total: number;
+      sent: number;
+      simulated: number;
+      errors: Array<{ registrationId: string; activityId: string; message: string }>;
+    };
+
 interface RejectInput {
   token: string;
   reason?: string;
@@ -104,6 +164,27 @@ const rejectCallable = httpsCallable<RejectInput, { ok: true }>(
   "parentAuthorizationReject",
 );
 
+const getConsentContextCallable = httpsCallable<{ token: string }, ParentConsentContext>(
+  functions,
+  "parentConsentGetContext",
+);
+
+const updateConsentCallable = httpsCallable<UpdateConsentInput, UpdateConsentResult>(
+  functions,
+  "parentConsentUpdate",
+);
+
+const requestConsentCompletionCallable = httpsCallable<
+  {
+    stakeId: string;
+    activityId?: string;
+    dryRun?: boolean;
+    expectedCount?: number;
+    resend?: boolean;
+  },
+  ConsentCompletionResult
+>(functions, "parentConsentRequestCompletion");
+
 const resendCallable = httpsCallable<
   ResendInput,
   { ok: boolean; sent: boolean; tokenId: string | null }
@@ -148,6 +229,28 @@ export const parentAuthorizationService = {
 
   async confirm(input: ConfirmInput): Promise<void> {
     await confirmCallable(input);
+  },
+
+  async getConsentContext(token: string): Promise<ParentConsentContext> {
+    const result = await getConsentContextCallable({ token });
+    return result.data;
+  },
+
+  async updateConsent(input: UpdateConsentInput): Promise<UpdateConsentResult> {
+    const result = await updateConsentCallable(input);
+    return result.data;
+  },
+
+  /** Simulazione di default; si invia solo con `dryRun: false` e `expectedCount`. */
+  async requestConsentCompletion(input: {
+    stakeId: string;
+    activityId?: string;
+    dryRun?: boolean;
+    expectedCount?: number;
+    resend?: boolean;
+  }): Promise<ConsentCompletionResult> {
+    const result = await requestConsentCompletionCallable(input);
+    return result.data;
   },
 
   async reject(input: RejectInput): Promise<void> {

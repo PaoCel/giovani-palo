@@ -1,8 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
+import {
+  ConsentChoices,
+  consentChoiceFromDecision,
+  getConsentChoicesProblem,
+  type ConsentChoicesValue,
+} from "@/components/ConsentChoices";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -14,7 +20,7 @@ import { parentAuthorizationService } from "@/services/firestore/parentAuthoriza
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
-import type { ChildProfile, Event, Registration, Unit } from "@/types";
+import type { ChildProfile, Event, PhotoConsentDecision, Registration, Unit } from "@/types";
 import { getActivitiesPath, getActivityRegistrationPath } from "@/utils/activityLinks";
 import { formatDateOnly, formatEventWindow } from "@/utils/formatters";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
@@ -68,6 +74,18 @@ const emptyChildForm: ChildFormState = {
   unitId: "",
 };
 
+function describeConsent(value: PhotoConsentDecision | undefined) {
+  if (value === "accepted") return "Acconsento";
+  if (value === "refused" || value === "revoked") return "Non acconsento";
+  return "Da completare";
+}
+
+interface ConsentTarget {
+  registration: Registration;
+  childName: string;
+  eventTitle: string;
+}
+
 export function FamilyDashboardPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -77,6 +95,16 @@ export function FamilyDashboardPage() {
   const [childForm, setChildForm] = useState<ChildFormState>(emptyChildForm);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [consentTarget, setConsentTarget] = useState<ConsentTarget | null>(null);
+  const [consentChoices, setConsentChoices] = useState<ConsentChoicesValue>({
+    photo: null,
+    social: null,
+  });
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  // Dopo il salvataggio la callable ha scritto sul server: la lista va riletta
+  // da lì, non dalla cache locale che ha ancora i valori di prima.
+  const readFreshNextRef = useRef(false);
 
   // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
@@ -111,9 +139,12 @@ export function FamilyDashboardPage() {
       const stakeId =
         session?.profile.stakeId || (await stakesService.getDefaultStakeId()) || "";
 
+      const readFresh = readFreshNextRef.current;
+      readFreshNextRef.current = false;
+
       const [children, registrations, events, units] = await Promise.all([
         childrenService.listChildren(parentUid),
-        registrationsService.listFamilyRegistrations(parentUid),
+        registrationsService.listFamilyRegistrations(parentUid, { fresh: readFresh }),
         stakeId ? eventsService.listPublicEvents(stakeId) : Promise.resolve([]),
         stakeId ? unitsService.listActiveUnits(stakeId) : Promise.resolve([]),
       ]);
@@ -128,6 +159,71 @@ export function FamilyDashboardPage() {
   const activeRegistrations = data.registrations.filter(
     (registration) => registration.registrationStatus !== "cancelled",
   );
+
+  function openConsentModal(target: ConsentTarget) {
+    const state = target.registration.parentAuthorization;
+    setConsentChoices({
+      photo: consentChoiceFromDecision(state?.photoConsent),
+      social: consentChoiceFromDecision(state?.socialPublicationConsent),
+    });
+    setConsentError(null);
+    setConsentTarget(target);
+  }
+
+  function closeConsentModal() {
+    if (consentSaving) return;
+    setConsentTarget(null);
+  }
+
+  async function handleConsentSave() {
+    if (!consentTarget) return;
+    const { photo, social } = consentChoices;
+    if (photo === null || social === null) return;
+    const { registration } = consentTarget;
+
+    setConsentSaving(true);
+    setConsentError(null);
+
+    try {
+      const result = await parentAuthorizationService.updateConsent({
+        stakeId: registration.stakeId,
+        activityId: registration.eventId,
+        registrationId: registration.id,
+        photoConsent: photo,
+        socialPublicationConsent: social,
+      });
+
+      // Subito il valore nuovo a schermo, poi rilettura dal server.
+      setData((current) => ({
+        ...current,
+        registrations: current.registrations.map((item) =>
+          item.id === registration.id &&
+          item.eventId === registration.eventId &&
+          item.parentAuthorization
+            ? {
+                ...item,
+                parentAuthorization: {
+                  ...item.parentAuthorization,
+                  photoConsent: result.photoConsent,
+                  socialPublicationConsent: result.socialPublicationConsent,
+                },
+              }
+            : item,
+        ),
+      }));
+      setConsentTarget(null);
+      readFreshNextRef.current = true;
+      reload();
+    } catch (caughtError) {
+      setConsentError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Non siamo riusciti a salvare le scelte. Riprova tra poco.",
+      );
+    } finally {
+      setConsentSaving(false);
+    }
+  }
 
   function openCreateChild() {
     setEditingChild(null);
@@ -326,32 +422,66 @@ export function FamilyDashboardPage() {
                     <div className="family-child-card__registrations">
                       {childRegistrations.map((registration) => {
                         const event = eventById.get(registration.eventId);
+                        const authorization = registration.parentAuthorization;
                         return (
-                          <div key={`${registration.eventId}:${registration.id}`} className="family-reg-row">
-                            <StatusBadge
-                              label={getRegistrationStatusLabel(registration.registrationStatus)}
-                              tone={getRegistrationStatusTone(registration.registrationStatus)}
-                            />
-                            <div className="family-reg-row__info">
-                              <strong>{event?.title ?? "Attività"}</strong>
-                              {event ? <span>{formatEventWindow(event)}</span> : null}
-                            </div>
-                            {registration.registrationStatus === "pending_parent_authorization" ? (
-                              <button
-                                className="button button--primary button--small"
-                                disabled={busy}
-                                onClick={() => void handleAuthorizeNow(registration)}
-                                type="button"
+                          <div
+                            key={`${registration.eventId}:${registration.id}`}
+                            className="family-reg-group"
+                          >
+                            <div className="family-reg-row">
+                              <StatusBadge
+                                label={getRegistrationStatusLabel(registration.registrationStatus)}
+                                tone={getRegistrationStatusTone(registration.registrationStatus)}
+                              />
+                              <div className="family-reg-row__info">
+                                <strong>{event?.title ?? "Attività"}</strong>
+                                {event ? <span>{formatEventWindow(event)}</span> : null}
+                              </div>
+                              {registration.registrationStatus === "pending_parent_authorization" ? (
+                                <button
+                                  className="button button--primary button--small"
+                                  disabled={busy}
+                                  onClick={() => void handleAuthorizeNow(registration)}
+                                  type="button"
+                                >
+                                  {busy ? "Apertura..." : "Autorizza ora"}
+                                </button>
+                              ) : null}
+                              <Link
+                                className="button button--ghost button--small"
+                                to={`${getActivityRegistrationPath(registration.eventId, registration.stakeId)}${getActivityRegistrationPath(registration.eventId, registration.stakeId).includes("?") ? "&" : "?"}child=${child.id}`}
                               >
-                                {busy ? "Apertura..." : "Autorizza ora"}
-                              </button>
+                                Gestisci
+                              </Link>
+                            </div>
+                            {authorization?.status === "authorized" ? (
+                              <div className="family-consent-row">
+                                <span aria-hidden="true" className="family-consent-row__icon">
+                                  <AppIcon name="camera" />
+                                </span>
+                                <div className="family-consent-row__info">
+                                  <strong>Foto e social</strong>
+                                  <span>
+                                    Foto: {describeConsent(authorization.photoConsent)} · Social:{" "}
+                                    {describeConsent(authorization.socialPublicationConsent)}
+                                  </span>
+                                </div>
+                                <button
+                                  className="button button--soft button--small"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    openConsentModal({
+                                      registration,
+                                      childName: child.fullName || child.firstName,
+                                      eventTitle: event?.title ?? "Attività",
+                                    })
+                                  }
+                                  type="button"
+                                >
+                                  Cambia le scelte
+                                </button>
+                              </div>
                             ) : null}
-                            <Link
-                              className="button button--ghost button--small"
-                              to={`${getActivityRegistrationPath(registration.eventId, registration.stakeId)}${getActivityRegistrationPath(registration.eventId, registration.stakeId).includes("?") ? "&" : "?"}child=${child.id}`}
-                            >
-                              Gestisci
-                            </Link>
                           </div>
                         );
                       })}
@@ -396,6 +526,21 @@ export function FamilyDashboardPage() {
           </div>
         )}
       </section>
+
+      {consentTarget ? (
+        <ConsentModal
+          target={consentTarget}
+          choices={consentChoices}
+          saving={consentSaving}
+          error={consentError}
+          onChange={(next) => {
+            setConsentError(null);
+            setConsentChoices(next);
+          }}
+          onClose={closeConsentModal}
+          onSave={() => void handleConsentSave()}
+        />
+      ) : null}
 
       {childModalOpen ? (
         <AppModal
@@ -488,5 +633,82 @@ export function FamilyDashboardPage() {
         </AppModal>
       ) : null}
     </div>
+  );
+}
+
+function ConsentModal({
+  target,
+  choices,
+  saving,
+  error,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  target: ConsentTarget;
+  choices: ConsentChoicesValue;
+  saving: boolean;
+  error: string | null;
+  onChange: (value: ConsentChoicesValue) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const state = target.registration.parentAuthorization;
+  const initialPhoto = consentChoiceFromDecision(state?.photoConsent);
+  const initialSocial = consentChoiceFromDecision(state?.socialPublicationConsent);
+  const problem = getConsentChoicesProblem(choices.photo, choices.social);
+  // Una scelta mancante (firma vecchia) si salva anche senza modifiche: va
+  // data una risposta, anche il no.
+  const incomplete = initialPhoto === null || initialSocial === null;
+  const changed = choices.photo !== initialPhoto || choices.social !== initialSocial;
+  const withdrawsConsent =
+    (initialPhoto === "accepted" && choices.photo === "refused") ||
+    (initialSocial === "accepted" && choices.social === "refused");
+  const canSave = problem === null && (changed || incomplete) && !saving;
+
+  return (
+    <AppModal
+      title="Foto e social"
+      subtitle={`Per ${target.childName} · ${target.eventTitle}`}
+      onClose={onClose}
+      footer={
+        <div className="inline-actions">
+          <button
+            className="button button--primary"
+            disabled={!canSave}
+            onClick={onSave}
+            type="button"
+          >
+            {saving ? "Salvataggio..." : "Salva"}
+          </button>
+          <button className="button button--ghost" disabled={saving} onClick={onClose} type="button">
+            Annulla
+          </button>
+        </div>
+      }
+    >
+      <div className="stack">
+        <p className="subtle-text">
+          Il rifiuto non impedisce la partecipazione all'attività. Non serve rifare la firma.
+        </p>
+        <ConsentChoices value={choices} onChange={onChange} disabled={saving} />
+        {withdrawsConsent ? (
+          <p className="consent-note">
+            <AppIcon name="bell" />
+            <span>
+              Le foto già fatte non vengono cancellate in automatico: gli organizzatori le
+              rivedono e tolgono quelle che non puoi più autorizzare.
+            </span>
+          </p>
+        ) : null}
+        {error ? (
+          <p className="consent-choices__error" role="alert">
+            <AppIcon name="bell" />
+            <span>{error}</span>
+          </p>
+        ) : null}
+        {problem ? <p className="subtle-text">{problem}</p> : null}
+      </div>
+    </AppModal>
   );
 }

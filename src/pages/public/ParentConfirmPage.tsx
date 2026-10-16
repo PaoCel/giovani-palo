@@ -2,12 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import {
+  ConsentChoices,
+  getConsentChoicesProblem,
+  type ConsentChoicesValue,
+} from "@/components/ConsentChoices";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import { useAuth } from "@/hooks/useAuth";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import {
   PARENT_CONSENT_CHECKBOXES,
-  PHOTO_CONSENT_OPTIONS,
   SUPPORT_CONTACT_TEXT,
   LEGAL_DOCS,
 } from "@/constants/legalDocs";
@@ -16,10 +20,9 @@ import {
   type ParentAuthorizationContext,
   type ParentTokenStatus,
 } from "@/services/firestore/parentAuthorizationService";
-import type {
-  ParentAuthorizationConsents,
-  PhotoConsentDecision,
-} from "@/types";
+import type { ParentAuthorizationConsents } from "@/types";
+
+import { formatDateRange, StatusPanel, useNoIndex } from "./parentPageShared";
 
 type ViewState =
   | { stage: "loading" }
@@ -32,7 +35,7 @@ type ViewState =
   | { stage: "submitting" }
   | { stage: "confirmed" }
   | { stage: "rejected" }
-  | { stage: "submit_error"; message: string };
+  | { stage: "submit_error"; message: string; reason?: string };
 
 const INITIAL_CONSENTS: ParentAuthorizationConsents = {
   isParentOrGuardian: false,
@@ -48,30 +51,6 @@ const WIZARD_STEPS = [
   { id: "signature", label: "Firma" },
 ] as const;
 
-function formatDateRange(startIso?: string, endIso?: string) {
-  if (!startIso) return "Data da definire";
-  const start = new Date(startIso);
-  if (Number.isNaN(start.getTime())) return "Data da definire";
-
-  const formatter = new Intl.DateTimeFormat("it-IT", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-
-  if (endIso) {
-    const end = new Date(endIso);
-    if (
-      !Number.isNaN(end.getTime()) &&
-      formatter.format(start) !== formatter.format(end)
-    ) {
-      return `${formatter.format(start)} → ${formatter.format(end)}`;
-    }
-  }
-
-  return formatter.format(start);
-}
-
 function formatExpiry(iso?: string | null) {
   if (!iso) return "";
   const date = new Date(iso);
@@ -85,23 +64,8 @@ function formatExpiry(iso?: string | null) {
   }).format(date);
 }
 
-function useNoIndex() {
-  useEffect(() => {
-    const meta = document.createElement("meta");
-    meta.name = "robots";
-    meta.content = "noindex, nofollow, noarchive";
-    document.head.appendChild(meta);
-    const previousTitle = document.title;
-    document.title = "Autorizzazione genitore";
-    return () => {
-      document.head.removeChild(meta);
-      document.title = previousTitle;
-    };
-  }, []);
-}
-
 export function ParentConfirmPage() {
-  useNoIndex();
+  useNoIndex("Autorizzazione genitore");
 
   const { token } = useParams();
   // Chi arriva dal magic-link non è loggato; chi firma dall'app sì, e merita
@@ -111,9 +75,10 @@ export function ParentConfirmPage() {
   const [view, setView] = useState<ViewState>({ stage: "loading" });
   const [stepIndex, setStepIndex] = useState(0);
   const [consents, setConsents] = useState<ParentAuthorizationConsents>(INITIAL_CONSENTS);
-  const [photoConsent, setPhotoConsent] = useState<PhotoConsentDecision>("not_answered");
-  const [socialPublicationConsent, setSocialPublicationConsent] =
-    useState<PhotoConsentDecision>("not_answered");
+  // Nessuna risposta preselezionata: vanno date entrambe, anche il no.
+  const [choices, setChoices] = useState<ConsentChoicesValue>({ photo: null, social: null });
+  // Messaggio della callable da mostrare nel passo foto quando si torna indietro.
+  const [photoStepNotice, setPhotoStepNotice] = useState<string | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -158,14 +123,26 @@ export function ParentConfirmPage() {
     view.stage === "ready" &&
     view.status === "valid" &&
     Boolean(view.context.hasReusableSignature);
-  const canSubmit = allRequiredConsentsChecked && (hasSignature || hasReusableSignature);
+  const choicesProblem = getConsentChoicesProblem(choices.photo, choices.social);
+  const canSubmit =
+    allRequiredConsentsChecked &&
+    choicesProblem === null &&
+    (hasSignature || hasReusableSignature);
+
+  function changeChoices(next: ConsentChoicesValue) {
+    setPhotoStepNotice(null);
+    setChoices(next);
+  }
 
   function toggleConsent(key: keyof ParentAuthorizationConsents) {
     setConsents((current) => ({ ...current, [key]: !current[key] }));
   }
 
   async function handleConfirm() {
-    if (!token || !canSubmit) return;
+    if (!token || !canSubmit || view.stage !== "ready") return;
+    const { photo, social } = choices;
+    if (photo === null || social === null) return;
+    const readyView = view;
 
     // Esporta la firma PRIMA di cambiare stage: se l'export fallisce (es.
     // race del resize che svuota il canvas) restiamo sul modulo senza
@@ -192,8 +169,8 @@ export function ParentConfirmPage() {
       await parentAuthorizationService.confirm({
         token,
         consents,
-        photoConsent,
-        socialPublicationConsent,
+        photoConsent: photo,
+        socialPublicationConsent: social,
         signatureDataUrl,
         useStoredSignature: shouldUseStoredSignature,
       });
@@ -204,7 +181,19 @@ export function ParentConfirmPage() {
         error instanceof Error
           ? error.message
           : "Si è verificato un errore durante la conferma.";
-      setView({ stage: "submit_error", message });
+      const reason = getErrorReason(error);
+
+      if (reason === "social_needs_photo") {
+        // Dati e consensi restano nello stato: si torna al passo foto con il
+        // messaggio. La firma disegnata va rifatta (il riquadro si rimonta).
+        setHasSignature(false);
+        setPhotoStepNotice(message);
+        setStepIndex(1);
+        setView(readyView);
+        return;
+      }
+
+      setView({ stage: "submit_error", message, reason });
     }
   }
 
@@ -258,8 +247,9 @@ export function ParentConfirmPage() {
             context={view.context}
             stepIndex={stepIndex}
             consents={consents}
-            photoConsent={photoConsent}
-            socialPublicationConsent={socialPublicationConsent}
+            choices={choices}
+            choicesProblem={choicesProblem}
+            photoStepNotice={photoStepNotice}
             allRequiredConsentsChecked={allRequiredConsentsChecked}
             hasReusableSignature={hasReusableSignature}
             hasSignature={hasSignature}
@@ -267,8 +257,7 @@ export function ParentConfirmPage() {
             signatureRef={signatureRef}
             onStepChange={setStepIndex}
             onToggleConsent={toggleConsent}
-            onPhotoConsentChange={setPhotoConsent}
-            onSocialConsentChange={setSocialPublicationConsent}
+            onChoicesChange={changeChoices}
             onSignatureChange={setHasSignature}
             onConfirm={handleConfirm}
             onOpenReject={() => setShowRejectModal(true)}
@@ -285,6 +274,11 @@ export function ParentConfirmPage() {
             <p className="parent-confirm-fineprint">
               Una copia PDF dell'autorizzazione viene conservata in modo sicuro dagli admin.
               Se vuoi una copia per i tuoi archivi, contatta il dirigente della tua unità.
+            </p>
+            <p className="parent-confirm-fineprint">
+              Le scelte su foto e social si cambiano quando vuoi dal link nella mail con la
+              copia firmata
+              {isParentSession ? " o dalla pagina famiglia" : ""}.
             </p>
             {isParentSession ? (
               <Link className="button button--primary" to="/family">
@@ -317,7 +311,7 @@ export function ParentConfirmPage() {
               onClick={() => window.location.reload()}
               type="button"
             >
-              Riprova
+              {view.reason === "consent_required" ? "Ricarica la pagina" : "Riprova"}
             </button>
           </StatusPanel>
         ) : null}
@@ -348,8 +342,9 @@ interface ConfirmationWizardProps {
   context: ParentAuthorizationContext;
   stepIndex: number;
   consents: ParentAuthorizationConsents;
-  photoConsent: PhotoConsentDecision;
-  socialPublicationConsent: PhotoConsentDecision;
+  choices: ConsentChoicesValue;
+  choicesProblem: string | null;
+  photoStepNotice: string | null;
   allRequiredConsentsChecked: boolean;
   hasReusableSignature: boolean;
   hasSignature: boolean;
@@ -357,8 +352,7 @@ interface ConfirmationWizardProps {
   signatureRef: React.RefObject<SignaturePadHandle | null>;
   onStepChange: (index: number) => void;
   onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
-  onPhotoConsentChange: (value: PhotoConsentDecision) => void;
-  onSocialConsentChange: (value: PhotoConsentDecision) => void;
+  onChoicesChange: (value: ConsentChoicesValue) => void;
   onSignatureChange: (hasSignature: boolean) => void;
   onConfirm: () => void;
   onOpenReject: () => void;
@@ -368,8 +362,9 @@ function ConfirmationWizard({
   context,
   stepIndex,
   consents,
-  photoConsent,
-  socialPublicationConsent,
+  choices,
+  choicesProblem,
+  photoStepNotice,
   allRequiredConsentsChecked,
   hasReusableSignature,
   hasSignature,
@@ -377,8 +372,7 @@ function ConfirmationWizard({
   signatureRef,
   onStepChange,
   onToggleConsent,
-  onPhotoConsentChange,
-  onSocialConsentChange,
+  onChoicesChange,
   onSignatureChange,
   onConfirm,
   onOpenReject,
@@ -387,7 +381,9 @@ function ConfirmationWizard({
   const isParentSession = Boolean(session?.isParent);
   const step = WIZARD_STEPS[stepIndex];
   const isLastStep = stepIndex === WIZARD_STEPS.length - 1;
-  const nextDisabled = step.id === "conditions" && !allRequiredConsentsChecked;
+  const nextDisabled =
+    (step.id === "conditions" && !allRequiredConsentsChecked) ||
+    (step.id === "photos" && choicesProblem !== null);
 
   function goNext() {
     onStepChange(Math.min(stepIndex + 1, WIZARD_STEPS.length - 1));
@@ -479,23 +475,22 @@ function ConfirmationWizard({
         {step.id === "photos" ? (
           <>
             <p className="pc-step-intro">
-              Dai il consenso per foto e video? Questi consensi sono{" "}
-              <strong>facoltativi e separati</strong>: il rifiuto non impedisce la
-              partecipazione del minore all'attività.
+              Servono due risposte, una per le foto e una per i social. Sono obbligatorie,
+              anche il no. Il rifiuto non impedisce la partecipazione
+              {context.participantName ? ` di ${context.participantName}` : " del minore"}{" "}
+              all'attività.
             </p>
-            <div className="parent-confirm-photo-block">
-              <h3>{PHOTO_CONSENT_OPTIONS[0].label}</h3>
-              <p className="parent-confirm-fineprint">{PHOTO_CONSENT_OPTIONS[0].helpText}</p>
-              <PhotoChoice value={photoConsent} onChange={onPhotoConsentChange} />
-            </div>
-            <div className="parent-confirm-photo-block">
-              <h3>{PHOTO_CONSENT_OPTIONS[1].label}</h3>
-              <p className="parent-confirm-fineprint">{PHOTO_CONSENT_OPTIONS[1].helpText}</p>
-              <PhotoChoice
-                value={socialPublicationConsent}
-                onChange={onSocialConsentChange}
-              />
-            </div>
+            <ConsentChoices value={choices} onChange={onChoicesChange} />
+            {photoStepNotice ? (
+              <p className="consent-choices__error" role="alert">
+                <AppIcon name="bell" />
+                <span>{photoStepNotice}</span>
+              </p>
+            ) : null}
+            <p className="parent-confirm-fineprint">
+              Potrai cambiare idea quando vuoi dal link nella mail con la copia firmata
+              {isParentSession ? " o dalla pagina famiglia" : ""}.
+            </p>
           </>
         ) : null}
 
@@ -574,6 +569,9 @@ function ConfirmationWizard({
             Spunta tutte le caselle per continuare.
           </p>
         ) : null}
+        {step.id === "photos" && choicesProblem ? (
+          <p className="pc-dialog__foot-hint">{choicesProblem}</p>
+        ) : null}
         {step.id === "signature" && !canSubmit ? (
           <p className="pc-dialog__foot-hint">
             Per confermare serve la firma{hasReusableSignature ? " (o quella salvata)" : ""}.
@@ -595,34 +593,6 @@ function ConfirmationWizard({
 // =============================================================================
 // Status panels
 // =============================================================================
-
-function StatusPanel({
-  tone,
-  title,
-  icon,
-  spinner = false,
-  children,
-}: {
-  tone: "neutral" | "info" | "success" | "error";
-  title: string;
-  icon?: "check" | "bell";
-  spinner?: boolean;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className={`pc-status pc-status--${tone}`}>
-      {spinner ? (
-        <div className="spinner" aria-hidden="true" />
-      ) : icon ? (
-        <div className="pc-status__icon" aria-hidden="true">
-          <AppIcon name={icon} />
-        </div>
-      ) : null}
-      <h1>{title}</h1>
-      {children}
-    </div>
-  );
-}
 
 function TokenInvalidPanel({
   status,
@@ -667,43 +637,6 @@ function TokenInvalidPanel({
         </p>
       ) : null}
     </StatusPanel>
-  );
-}
-
-function PhotoChoice({
-  value,
-  onChange,
-}: {
-  value: PhotoConsentDecision;
-  onChange: (value: PhotoConsentDecision) => void;
-}) {
-  return (
-    <div className="parent-confirm-photo-choice">
-      <label className={value === "accepted" ? "is-active is-accept" : ""}>
-        <input
-          type="radio"
-          checked={value === "accepted"}
-          onChange={() => onChange("accepted")}
-        />
-        <span>Acconsento</span>
-      </label>
-      <label className={value === "refused" ? "is-active is-refuse" : ""}>
-        <input
-          type="radio"
-          checked={value === "refused"}
-          onChange={() => onChange("refused")}
-        />
-        <span>Non acconsento</span>
-      </label>
-      <label className={value === "not_answered" ? "is-active" : ""}>
-        <input
-          type="radio"
-          checked={value === "not_answered"}
-          onChange={() => onChange("not_answered")}
-        />
-        <span>Decido dopo</span>
-      </label>
-    </div>
   );
 }
 
@@ -759,6 +692,17 @@ function RejectModal({
 // =============================================================================
 // Helpers
 // =============================================================================
+
+// Le callable di consenso rispondono con `details.reason` ("consent_required",
+// "social_needs_photo"): il codice, non il testo, decide cosa fare.
+function getErrorReason(error: unknown): string | undefined {
+  const details = (error as { details?: unknown } | null)?.details;
+  if (details && typeof details === "object" && "reason" in details) {
+    const reason = (details as { reason?: unknown }).reason;
+    return typeof reason === "string" ? reason : undefined;
+  }
+  return undefined;
+}
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
