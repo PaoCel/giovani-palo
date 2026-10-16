@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -69,6 +69,9 @@ export function ParentConsentPage() {
   const [stale, setStale] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
+  // Cambia quando la pagina si smonta o il link cambia: le risposte asincrone
+  // partite prima non devono più aggiornare lo stato.
+  const epochRef = useRef(0);
 
   useEffect(() => {
     if (!token) {
@@ -100,6 +103,7 @@ export function ParentConsentPage() {
 
     return () => {
       cancelled = true;
+      epochRef.current += 1;
     };
   }, [token]);
 
@@ -107,10 +111,12 @@ export function ParentConsentPage() {
   // il modulo con i valori attuali.
   async function reloadContext() {
     if (!token) return;
+    const epoch = epochRef.current;
     setReloading(true);
     setReloadError(null);
     try {
       const context = await parentAuthorizationService.getConsentContext(token);
+      if (epoch !== epochRef.current) return;
       setChoices({
         photo: toChoice(context.photoConsent),
         social: toChoice(context.socialPublicationConsent),
@@ -119,13 +125,14 @@ export function ParentConsentPage() {
       setStale(false);
       setView({ stage: "ready", context });
     } catch (error) {
+      if (epoch !== epochRef.current) return;
       setReloadError(
         error instanceof Error
           ? error.message
           : "Non siamo riusciti a rileggere le scelte. Riprova tra poco.",
       );
     } finally {
-      setReloading(false);
+      if (epoch === epochRef.current) setReloading(false);
     }
   }
 
@@ -133,6 +140,7 @@ export function ParentConsentPage() {
     if (!token || view.stage !== "ready") return;
     const { photo, social } = choices;
     if (photo === null || social === null) return;
+    const epoch = epochRef.current;
 
     setSaving(true);
     setSaveError(null);
@@ -143,9 +151,11 @@ export function ParentConsentPage() {
         socialPublicationConsent: social,
         expectedUpdatedAt: view.context.consentUpdatedAt ?? null,
       });
+      if (epoch !== epochRef.current) return;
       setReloadError(null);
       setView({ stage: "saved", context: view.context, result });
     } catch (error) {
+      if (epoch !== epochRef.current) return;
       setStale(isConsentStaleError(error));
       setSaveError(
         error instanceof Error
@@ -153,7 +163,7 @@ export function ParentConsentPage() {
           : "Non siamo riusciti a salvare le scelte. Riprova tra poco.",
       );
     } finally {
-      setSaving(false);
+      if (epoch === epochRef.current) setSaving(false);
     }
   }
 

@@ -320,29 +320,71 @@ test("Excel: foto e social possono avere esiti diversi", async () => {
   assert.deepEqual(rows, [{ "Foto (genitore)": "Sì", "Social (genitore)": "No" }]);
 });
 
-test("Excel: le colonne Foto uso interno/pubblico restano quelle del modulo", async () => {
-  const rows = await exportSheet(
-    [
-      registration({
-        name: "A",
-        answers: { photoInternalConsent: true, photoPublicConsent: false },
-        authorization: signed("not_answered", "revoked", "revoked"),
-      }),
-      registration({ name: "B", birthDate: ADULT, answers: { photoInternalConsent: false, photoPublicConsent: true } }),
-      registration({ name: "C", birthDate: ADULT }),
-    ],
-    ["photoInternalConsent", "photoPublicConsent", "parentPhotoConsent", "parentSocialConsent"],
+const LEGACY_AND_PARENT = [
+  "fullName",
+  "photoInternalConsent",
+  "photoPublicConsent",
+  "parentPhotoConsent",
+  "parentSocialConsent",
+];
+
+async function exportByName(registrations) {
+  const rows = await exportSheet(registrations, LEGACY_AND_PARENT);
+  return Object.fromEntries(
+    rows.map((row) => [
+      String(Object.values(row)[0]).split(" ")[0],
+      [row["Foto uso interno"], row["Foto uso pubblico"], row["Foto (genitore)"], row["Social (genitore)"]],
+    ]),
   );
-  assert.deepEqual(rows, [
-    {
-      "Foto uso interno": "Sì",
-      "Foto uso pubblico": "No",
-      "Foto (genitore)": "Da chiedere",
-      "Social (genitore)": "Revocato",
-    },
-    { "Foto uso interno": "No", "Foto uso pubblico": "Sì", "Foto (genitore)": "", "Social (genitore)": "" },
-    { "Foto uso interno": "", "Foto uso pubblico": "", "Foto (genitore)": "", "Social (genitore)": "" },
+}
+
+const TICKED = { photoInternalConsent: true, photoPublicConsent: true };
+const UNTICKED = { photoInternalConsent: false, photoPublicConsent: false };
+
+test("Excel: le colonne Foto uso interno/pubblico (spunte del modulo) sono vuote quando c'è la pill", async () => {
+  const cells = await exportByName([
+    registration({ name: "A", answers: TICKED, authorization: signed("revoked", "revoked", "revoked") }),
+    registration({ name: "B", answers: TICKED, authorization: signed("accepted", "accepted") }),
+    registration({ name: "C", answers: TICKED }),
+    registration({ name: "D", answers: TICKED, authorization: { status: "rejected_by_parent" } }),
+    registration({ name: "E", answers: UNTICKED, authorization: signed("accepted", "accepted") }),
+    registration({ name: "F", birthDate: ADULT, answers: TICKED, authorization: signed("accepted", "refused") }),
   ]);
+  // Minore con spunta true e consenso revocato.
+  assert.deepEqual(cells.A, ["", "", "Revocato", "Revocato"]);
+  // Minore firmato: conta solo la scelta del genitore.
+  assert.deepEqual(cells.B, ["", "", "Sì", "Sì"]);
+  // Minore non firmato e minore rifiutato dal genitore: spunta ignorata.
+  assert.deepEqual(cells.C, ["", "", "Da chiedere", "Da chiedere"]);
+  assert.deepEqual(cells.D, ["", "", "Da chiedere", "Da chiedere"]);
+  // Spunta false e consenso sì: legacy vuote comunque.
+  assert.deepEqual(cells.E, ["", "", "Sì", "Sì"]);
+  // Chiunque abbia le pill, anche un adulto con firma del genitore.
+  assert.deepEqual(cells.F, ["", "", "Sì", "No"]);
+});
+
+test("Excel: adulto senza firma, spunte del modulo invariate (Sì/No) e colonne genitore vuote", async () => {
+  const cells = await exportByName([
+    registration({ name: "A", birthDate: ADULT, answers: TICKED }),
+    registration({ name: "B", birthDate: ADULT, answers: UNTICKED }),
+    registration({
+      name: "C",
+      birthDate: ADULT,
+      answers: { photoInternalConsent: true, photoPublicConsent: false },
+    }),
+    registration({
+      name: "D",
+      birthDate: ADULT,
+      answers: { photoInternalConsent: false, photoPublicConsent: true },
+      authorization: { status: "pending_parent_authorization" },
+    }),
+    registration({ name: "E", birthDate: ADULT }),
+  ]);
+  assert.deepEqual(cells.A, ["Sì", "Sì", "", ""]);
+  assert.deepEqual(cells.B, ["No", "No", "", ""]);
+  assert.deepEqual(cells.C, ["Sì", "No", "", ""]);
+  assert.deepEqual(cells.D, ["No", "Sì", "", ""]);
+  assert.deepEqual(cells.E, ["", "", "", ""]);
 });
 
 // --- ConsentChoices -------------------------------------------------------

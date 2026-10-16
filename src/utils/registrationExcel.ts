@@ -210,9 +210,14 @@ function getFieldValue(registration: Registration, field: ExportFieldKey): strin
     case "roomNotes":
       return getRegistrationTextAnswer(registration, "roomNotes");
     case "parentConfirmed":
+      return formatBoolean(registration.answers[field]);
     case "photoInternalConsent":
     case "photoPublicConsent":
-      return formatBoolean(registration.answers[field]);
+      // La spunta del modulo vale solo per i maggiorenni: per un minore la
+      // fonte è la scelta del genitore ("Foto (genitore)" / "Social (genitore)").
+      return getPhotoConsentBadges(registration)
+        ? ""
+        : formatBoolean(registration.answers[field]);
     case "parentPhotoConsent":
       return formatParentConsent(registration, "photo");
     case "parentSocialConsent":

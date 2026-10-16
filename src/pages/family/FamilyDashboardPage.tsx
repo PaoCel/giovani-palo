@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -109,6 +109,10 @@ export function FamilyDashboardPage() {
   // Dopo il salvataggio la lettura dal server può fallire: lo stato locale
   // resta quello della callable e lo diciamo, senza ripiegare sulla cache.
   const [staleDataWarning, setStaleDataWarning] = useState(false);
+  // Numero del dialogo corrente: cambia a ogni apertura e chiusura. Le risposte
+  // asincrone di un dialogo chiuso o sostituito (Annulla durante la rilettura,
+  // un altro figlio aperto nel frattempo) non devono toccarne lo stato.
+  const consentDialogRef = useRef(0);
 
   // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
@@ -169,6 +173,8 @@ export function FamilyDashboardPage() {
     });
     setConsentError(null);
     setConsentStale(false);
+    setConsentReloading(false);
+    consentDialogRef.current += 1;
     setConsentTarget(target);
   }
 
@@ -185,10 +191,13 @@ export function FamilyDashboardPage() {
   async function handleConsentReload() {
     if (!consentTarget) return;
     const { registration } = consentTarget;
+    const dialog = consentDialogRef.current;
     setConsentReloading(true);
     setConsentError(null);
 
     const registrations = await readRegistrationsFresh();
+    // Dialogo chiuso o sostituito mentre si rileggeva: la risposta non lo riguarda.
+    if (dialog !== consentDialogRef.current) return;
     setConsentReloading(false);
 
     const updated = registrations?.find(
@@ -211,6 +220,8 @@ export function FamilyDashboardPage() {
 
   function closeConsentModal() {
     if (consentSaving) return;
+    consentDialogRef.current += 1;
+    setConsentReloading(false);
     setConsentTarget(null);
   }
 
@@ -219,6 +230,7 @@ export function FamilyDashboardPage() {
     const { photo, social } = consentChoices;
     if (photo === null || social === null) return;
     const { registration } = consentTarget;
+    const dialog = consentDialogRef.current;
 
     setConsentSaving(true);
     setConsentError(null);
@@ -251,7 +263,12 @@ export function FamilyDashboardPage() {
             : item,
         ),
       }));
-      setConsentTarget(null);
+      // Il salvataggio è andato a buon fine comunque; si chiude solo il dialogo
+      // che l'ha avviato, non uno aperto nel frattempo.
+      if (dialog === consentDialogRef.current) {
+        consentDialogRef.current += 1;
+        setConsentTarget(null);
+      }
 
       const registrations = await readRegistrationsFresh();
       if (registrations) {
@@ -261,6 +278,7 @@ export function FamilyDashboardPage() {
         setStaleDataWarning(true);
       }
     } catch (caughtError) {
+      if (dialog !== consentDialogRef.current) return;
       setConsentStale(isConsentStaleError(caughtError));
       setConsentError(
         caughtError instanceof Error

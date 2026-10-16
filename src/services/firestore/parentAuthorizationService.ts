@@ -87,6 +87,8 @@ export type ConsentCompletionResult =
       ok: true;
       dryRun: true;
       total: number;
+      /** Impronta dell'elenco: da rimandare come `expectedDigest` per inviare. */
+      digest: string;
       skippedAlreadyRequested: number;
       skippedNoEmail: number;
       candidates: ConsentCompletionCandidate[];
@@ -186,6 +188,7 @@ const requestConsentCompletionCallable = httpsCallable<
     activityId?: string;
     dryRun?: boolean;
     expectedCount?: number;
+    expectedDigest?: string;
     resend?: boolean;
   },
   ConsentCompletionResult
@@ -247,12 +250,13 @@ export const parentAuthorizationService = {
     return result.data;
   },
 
-  /** Simulazione di default; si invia solo con `dryRun: false` e `expectedCount`. */
+  /** Simulazione di default; si invia solo con `dryRun: false`, `expectedCount` e `expectedDigest` della simulazione. */
   async requestConsentCompletion(input: {
     stakeId: string;
     activityId?: string;
     dryRun?: boolean;
     expectedCount?: number;
+    expectedDigest?: string;
     resend?: boolean;
   }): Promise<ConsentCompletionResult> {
     const result = await requestConsentCompletionCallable(input);

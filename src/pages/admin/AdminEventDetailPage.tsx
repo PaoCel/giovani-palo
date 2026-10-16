@@ -58,7 +58,10 @@ import {
   getEventStatusTone,
   isCampEvent,
 } from "@/utils/events";
-import { needsPhotoConsentQuestion } from "@/utils/parentAuthorization";
+import {
+  getPhotoConsentBadges,
+  needsPhotoConsentQuestion,
+} from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
   getRegistrationAnswerEntries,
@@ -990,12 +993,22 @@ export function AdminEventDetailPage() {
   const registrationModalRoomEntries = registrationModal
     ? getRoomPreferenceEntries(registrationModal)
     : [];
+  const parentPhotoBadgesApply = registrationModal
+    ? getPhotoConsentBadges(registrationModal) !== null
+    : false;
   const registrationModalAnswerEntries =
     formConfig && registrationModal
       ? getRegistrationAnswerEntries(formConfig, registrationModal).filter(
           (entry) =>
             !sharedRegistrationEntryKeys.has(entry.key) &&
-            !roomRegistrationEntryKeys.has(entry.key),
+            !roomRegistrationEntryKeys.has(entry.key) &&
+            // Per i minori la spunta foto del modulo non è un consenso: ci sono
+            // le pill del genitore.
+            !(
+              parentPhotoBadgesApply &&
+              (entry.key === "photoInternalConsent" ||
+                entry.key === "photoPublicConsent")
+            ),
         )
       : [];
   const modalSubtitle =
@@ -1742,6 +1755,7 @@ export function AdminEventDetailPage() {
         activityId: resolvedEventId,
         dryRun: false,
         expectedCount: total,
+        expectedDigest: consentCompletion.digest,
       });
 
       if (!result.dryRun) {
@@ -1756,10 +1770,23 @@ export function AdminEventDetailPage() {
         setRefreshKey((current) => current + 1);
       }
     } catch (caughtError) {
+      // Se l'elenco è cambiato dopo la simulazione la callable risponde
+      // failed-precondition: nessuna email è partita, si rifà la simulazione.
+      const isStaleList =
+        typeof caughtError === "object" &&
+        caughtError !== null &&
+        "code" in caughtError &&
+        (caughtError as { code?: unknown }).code ===
+          "functions/failed-precondition";
+      if (isStaleList) {
+        setConsentCompletion(null);
+      }
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile inviare le email ai genitori.",
+        isStaleList
+          ? "L'elenco dei destinatari è cambiato dopo il controllo. Nessuna email è stata inviata: rifai il controllo e verifica l'elenco."
+          : caughtError instanceof Error
+            ? caughtError.message
+            : "Impossibile inviare le email ai genitori.",
       );
     } finally {
       setBusy(null);
@@ -3216,7 +3243,8 @@ export function AdminEventDetailPage() {
                             tone={parentalAccepted ? "success" : "warning"}
                           />
                         ) : null}
-                        {resolvedEvent.requiresPhotoRelease ? (
+                        {resolvedEvent.requiresPhotoRelease &&
+                        getPhotoConsentBadges(registration) === null ? (
                           <StatusBadge
                             label={photoAccepted ? "Foto OK" : "Foto NO"}
                             tone={photoAccepted ? "success" : "warning"}
