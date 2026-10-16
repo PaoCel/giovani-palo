@@ -1,6 +1,6 @@
 # Autonomia multi-palo
 
-Stato: **proposta del 2026-10-15, da approvare**, già corretta dopo la review
+Stato: **approvata da Paolo il 2026-10-16**, già corretta dopo la review
 di Codex. Roadmap:
 [ROADMAP_PALI.md](ROADMAP_PALI.md) (sessione S4). Base tecnica già fatta:
 [MULTI_PALO_DEMO.md](MULTI_PALO_DEMO.md) (ambienti, `create-stake.mjs`, rules

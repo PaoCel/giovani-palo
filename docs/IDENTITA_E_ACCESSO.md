@@ -1,6 +1,6 @@
 # Identità e accesso
 
-Stato: **proposta del 2026-10-15, da approvare**, già corretta dopo la review
+Stato: **approvata da Paolo il 2026-10-16**, già corretta dopo la review
 di Codex (vedi [ROADMAP_PALI.md](ROADMAP_PALI.md)). Sessione S3. Dipende
 dall'appartenenza verificata ([APPARTENENZA_AL_PALO.md](APPARTENENZA_AL_PALO.md)).
 

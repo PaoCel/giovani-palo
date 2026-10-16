@@ -1,6 +1,6 @@
 # Registrazione e appartenenza al palo
 
-Stato: **proposta del 2026-10-15, da approvare**. Roadmap:
+Stato: **approvata da Paolo il 2026-10-16**. Roadmap:
 [ROADMAP_PALI.md](ROADMAP_PALI.md) (sessioni S1 e S2; il primo passo di accesso
 esce con S3).
 

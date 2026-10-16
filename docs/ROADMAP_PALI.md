@@ -1,6 +1,6 @@
 # Roadmap: un'app che un palo usa da solo
 
-Stato: **proposta del 2026-10-15, da approvare**. Nessun codice scritto.
+Stato: **approvata da Paolo il 2026-10-16** (tutte le raccomandazioni, A3 come proposta da Claude e non come Codex). Resta aperta M7: serve la data della prossima attività con serate. Nessun codice scritto.
 Spec già corrette dopo la review di Codex (sezione in fondo).
 Le scelte di prodotto aperte sono in fondo a ogni spec (sezione "Scelte per
 Paolo") e riassunte qui sotto.
