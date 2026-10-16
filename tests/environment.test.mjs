@@ -529,3 +529,72 @@ test("staging: nomi derivati da un progetto di staging non sono collisioni", () 
   assert.equal(settings.firebaseConfig.authDomain, "giovani-palo-staging.firebaseapp.com");
   assert.equal(settings.firebaseConfig.storageBucket, "giovani-palo-staging.appspot.com");
 });
+
+// ---------------------------------------------------------------------------
+// Bucket UE di produzione (giovani-palo-eu)
+// ---------------------------------------------------------------------------
+// Il bucket UE non inizia con `giovani-palo.`: il controllo sui nomi derivati
+// non lo vede, e a fermare uno staging che lo copia c'è solo il confronto
+// esatto con PRODUCTION_SETTINGS (a build time, in vite.config.ts). I valori
+// sono scritti in chiaro di proposito: se PRODUCTION_SETTINGS cambia di nuovo
+// bucket, questi test devono fallire e farlo notare.
+
+test("produzione: il bucket Storage è quello UE (giovani-palo-eu), non il vecchio di us-central1", () => {
+  assert.equal(PRODUCTION_SETTINGS.firebaseConfig.storageBucket, "giovani-palo-eu");
+  assert.notEqual(PRODUCTION_SETTINGS.firebaseConfig.storageBucket, "giovani-palo.firebasestorage.app");
+  assert.notEqual(PRODUCTION_SETTINGS.firebaseConfig.storageBucket, "giovani-palo.appspot.com");
+});
+
+test("produzione: la build di default risolve il bucket UE", () => {
+  for (const env of [{}, { MODE: "production" }, { MODE: "production", VITE_APP_ENV: "production" }]) {
+    const settings = resolveFirebaseSettings(env, PRODUCTION_SETTINGS);
+    assert.equal(settings.firebaseConfig.storageBucket, "giovani-palo-eu", JSON.stringify(env));
+  }
+});
+
+test("staging con VITE_FIREBASE_STORAGE_BUCKET=giovani-palo-eu: bloccata come collisione con la produzione", () => {
+  assert.throws(
+    () => resolveFirebaseSettings(staging({ VITE_FIREBASE_STORAGE_BUCKET: "giovani-palo-eu" }), PRODUCTION_SETTINGS),
+    /valori di PRODUZIONE \(storageBucket\): build bloccata/u,
+  );
+});
+
+test("staging con il bucket UE di produzione: bloccata anche con spazi attorno al valore", () => {
+  assert.throws(
+    () => resolveFirebaseSettings(staging({ VITE_FIREBASE_STORAGE_BUCKET: "  giovani-palo-eu " }), PRODUCTION_SETTINGS),
+    /storageBucket/u,
+  );
+});
+
+test("staging con il bucket UE di produzione e il resto di staging: l'unica collisione è storageBucket", () => {
+  let message = "";
+  try {
+    resolveFirebaseSettings(staging({ VITE_FIREBASE_STORAGE_BUCKET: "giovani-palo-eu" }), PRODUCTION_SETTINGS);
+  } catch (error) {
+    message = error.message;
+  }
+  assert.match(message, /\(storageBucket\)/u);
+  assert.doesNotMatch(message, /projectId|authDomain|apiKey|appId|messagingSenderId|measurementId|webPushPublicKey/u);
+});
+
+test("staging: il vecchio bucket di produzione (giovani-palo.firebasestorage.app) resta bloccato", () => {
+  assert.throws(
+    () => resolveFirebaseSettings(staging({ VITE_FIREBASE_STORAGE_BUCKET: "giovani-palo.firebasestorage.app" }), PRODUCTION_SETTINGS),
+    /storageBucket/u,
+  );
+});
+
+test("staging: bucket di staging che somigliano al bucket UE di produzione non sono collisioni", () => {
+  for (const bucket of ["giovani-palo-staging-eu", "giovani-palo-eu-staging", "giovani-palo-staging.firebasestorage.app", "giovani-palo-eu2"]) {
+    const settings = resolveFirebaseSettings(staging({ VITE_FIREBASE_STORAGE_BUCKET: bucket }), PRODUCTION_SETTINGS);
+    assert.equal(settings.firebaseConfig.storageBucket, bucket);
+    assert.equal(settings.appEnvironment, "staging");
+  }
+});
+
+test("MODE production: VITE_FIREBASE_STORAGE_BUCKET=giovani-palo-eu è comunque una variabile di troppo", () => {
+  assert.throws(
+    () => resolveFirebaseSettings({ MODE: "production", VITE_FIREBASE_STORAGE_BUCKET: "giovani-palo-eu" }, PRODUCTION_SETTINGS),
+    /VITE_FIREBASE_STORAGE_BUCKET/u,
+  );
+});
