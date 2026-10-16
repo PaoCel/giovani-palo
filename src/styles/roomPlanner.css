@@ -73,6 +73,7 @@
 .rp-occupant > button:first-child { flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; padding: 0; color: var(--text); }
 .rp-occupant strong { font-size: .72rem; overflow-wrap: anywhere; }
 .rp-occupant small { display: flex; align-items: center; gap: .25rem; color: var(--success); font-size: .6rem; margin-top: .25rem; }
+.rp-occupant small.rp-occupant__stale { color: var(--warning); }
 .rp-occupant small svg { width: .7rem; height: .7rem; }
 .rp-lock { flex-shrink: 0; width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a8b0ba; }
 .rp-lock svg { width: .85rem; height: .85rem; }

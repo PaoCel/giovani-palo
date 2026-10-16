@@ -8,7 +8,8 @@ import { readRoomFile, type RoomImport } from "@/utils/roomImport";
 import { pickLayout, readRoomLayoutFile, roomsWithLayoutFloors, type RoomLayout } from "@/utils/roomLayout";
 import {
   ageAt, assignmentProblem, buildPreferenceLinks, categoryLabels, eligibleRegistrations,
-  proposeRoomPlan, roomSummary, validateRoomPlan, type Room, type RoomPlan,
+  proposeRoomPlan, removeRegistrationReferences, roomSummary, staleRegistrationIds, validateRoomPlan,
+  type Room, type RoomPlan,
 } from "../../../functions/lib/roomPlannerCore.mjs";
 import "@/styles/roomPlanner.css";
 
@@ -80,10 +81,14 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   const moduleInput = useRef<HTMLInputElement>(null);
   const layoutInput = useRef<HTMLInputElement>(null);
   const people = useMemo(() => eligibleRegistrations(registrations) as Registration[], [registrations]);
+  const eligibleIds = useMemo(() => new Set(people.map((person) => person.id)), [people]);
   const peopleById = useMemo(() => new Map(registrations.map((person) => [person.id, person])), [registrations]);
   const links = useMemo(() => buildPreferenceLinks(people), [people]);
   const summary = roomSummary(plan, people);
   const problems = validateRoomPlan(plan, registrations, referenceDate);
+  // Annullate o rifiutate dopo l'assegnazione: il trigger le toglie dal piano
+  // salvato, ma una bozza caricata prima o un trigger mancato le conserva.
+  const staleIds = staleRegistrationIds(plan, registrations);
   const dirty = JSON.stringify(plan) !== JSON.stringify(savedPlan);
   const selectedPerson = selectedPersonId ? peopleById.get(selectedPersonId) : undefined;
   const pickerRoom = plan.rooms.find((room) => room.id === pickerRoomId);
@@ -137,11 +142,14 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     if (room) {
       next.assignments[person.id] = room.id;
       next.lockedIds = [...new Set([...next.lockedIds, person.id])];
+    } else if (!eligibleIds.has(person.id)) {
+      Object.assign(next, removeRegistrationReferences(plan, [person.id]));
     } else {
       delete next.assignments[person.id];
       next.lockedIds = next.lockedIds.filter((id) => id !== person.id);
     }
-    change(next, room ? `${nameOf(person)} assegnato alla stanza ${room.name}.` : `${nameOf(person)} torna tra i partecipanti da assegnare.`);
+    change(next, room ? `${nameOf(person)} assegnato alla stanza ${room.name}.`
+      : eligibleIds.has(person.id) ? `${nameOf(person)} torna tra i partecipanti da assegnare.` : "Rimosse dalla bozza le iscrizioni non più disponibili.");
     setSelectedPersonId(null);
   }
 
@@ -310,13 +318,8 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     {message ? <p className="rp-notice" role="status">{message}</p> : null}
     {warning ? <p className="rp-notice rp-notice--warning" role="status">{warning}</p> : null}
     {problems.length ? <div className="rp-notice rp-notice--warning"><strong>Da sistemare prima del salvataggio</strong><ul>{problems.slice(0, 8).map((problem, index) => <li key={index}>{problem}</li>)}</ul>
-      {Object.keys(plan.assignments).some((id) => !people.some((person) => person.id === id)) ? <button className="button button--ghost button--small" onClick={() => {
-        const next = copy(plan); const activeIds = new Set(people.map((person) => person.id));
-        for (const id of Object.keys(next.assignments)) if (!activeIds.has(id)) delete next.assignments[id];
-        next.lockedIds = next.lockedIds.filter((id) => activeIds.has(id));
-        next.adultGenders = Object.fromEntries(Object.entries(next.adultGenders).filter(([id]) => activeIds.has(id)));
-        next.couples = next.couples.filter((pair) => activeIds.has(pair.firstId) && activeIds.has(pair.secondId));
-        change(next, "Rimosse dalla bozza le iscrizioni non più disponibili.");
+      {staleIds.length ? <button className="button button--ghost button--small" onClick={() => {
+        change({ ...copy(plan), ...removeRegistrationReferences(plan, staleIds) }, "Rimosse dalla bozza le iscrizioni non più disponibili.");
       }}>Rimuovi iscrizioni non più disponibili</button> : null}
     </div> : null}
     <fieldset className="rp-workspace" disabled={busy}>
@@ -370,7 +373,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
               <div className="rp-occupants">{ids.map((id) => {
                 const person = peopleById.get(id);
                 const met = links.some((link) => link.fromId === id && link.toId && plan.assignments[link.toId] === room.id);
-                return <div className="rp-occupant" key={id}><button onClick={() => setSelectedPersonId(id)}><strong>{person ? nameOf(person) : "Iscrizione non più disponibile"}</strong>{met ? <small><AppIcon name="check" />Preferenza soddisfatta</small> : null}</button><button className={`rp-lock ${plan.lockedIds.includes(id) ? "is-locked" : ""}`} aria-label={`${plan.lockedIds.includes(id) ? "Sblocca" : "Blocca"} ${person ? nameOf(person) : id}`} onClick={() => { const next = copy(plan); next.lockedIds = next.lockedIds.includes(id) ? next.lockedIds.filter((item) => item !== id) : [...next.lockedIds, id]; change(next); }}><AppIcon name="lock" /></button></div>;
+                return <div className="rp-occupant" key={id}><button onClick={() => setSelectedPersonId(id)}><strong>{person ? nameOf(person) : "Iscrizione non più disponibile"}</strong>{person && !eligibleIds.has(id) ? <small className="rp-occupant__stale">{person.registrationStatus === "cancelled" ? "Iscrizione annullata" : "Iscrizione non più disponibile"}</small> : met ? <small><AppIcon name="check" />Preferenza soddisfatta</small> : null}</button><button className={`rp-lock ${plan.lockedIds.includes(id) ? "is-locked" : ""}`} aria-label={`${plan.lockedIds.includes(id) ? "Sblocca" : "Blocca"} ${person ? nameOf(person) : id}`} onClick={() => { const next = copy(plan); next.lockedIds = next.lockedIds.includes(id) ? next.lockedIds.filter((item) => item !== id) : [...next.lockedIds, id]; change(next); }}><AppIcon name="lock" /></button></div>;
               })}</div>
               {ids.length < room.capacity ? <button className="rp-add-person" onClick={() => { if (room.category === "unassigned") setRoomEditor({ ...room }); else setPickerRoomId(room.id); }}><AppIcon name="plus" />{room.capacity - ids.length} {room.capacity - ids.length === 1 ? "posto libero" : "posti liberi"}</button> : <div className="rp-full"><AppIcon name="check" />Stanza completa</div>}
             </article>;
