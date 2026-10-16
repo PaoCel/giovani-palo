@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "giovani-palo"
+  },
+  "targets": {
+    "giovani-palo": {
+      "storage": {
+        "main": [
+          "giovani-palo-eu",
+          "giovani-palo.firebasestorage.app"
+        ]
+      }
+    }
   }
 }

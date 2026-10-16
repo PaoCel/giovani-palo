@@ -8,7 +8,8 @@ export const PRODUCTION_SETTINGS: FirebaseSettings = {
     apiKey: "AIzaSyA_EzJVDlEAwlBWE98nWTfRFjZGe7MCkak",
     authDomain: "giovani-palo.firebaseapp.com",
     projectId: "giovani-palo",
-    storageBucket: "giovani-palo.firebasestorage.app",
+    // Bucket UE (europe-west1): quello di default del progetto sta in us-central1.
+    storageBucket: "giovani-palo-eu",
     messagingSenderId: "877273843364",
     appId: "1:877273843364:web:4720460301bcd8d6fe8831",
     measurementId: "G-YP2VXKTS13",
