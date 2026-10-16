@@ -82,33 +82,114 @@ function PrintIcon() {
   );
 }
 
-// Sigillo a soli tratti: in bianco e nero resta leggibile come a colori.
+// Timbro a corona d'alloro (scelto da Paolo fra tre proposte, 16/10): soli
+// tratti e fondi chiarissimi, in bianco e nero resta leggibile come a colori.
+// La geometria si calcola una volta: due rami dal fiocco in basso fino alla
+// cima, foglie a coppie lungo l'arco.
+const SEAL_CENTER_X = 60;
+const SEAL_CENTER_Y = 58;
+const SEAL_RADIUS = 44;
+const SEAL_LEAVES_PER_BRANCH = 11;
+const SEAL_LEAF_STEP = 13.2;
+const SEAL_FIRST_LEAF = 30;
+
+function round2(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function sealPoint(degrees: number, radius = SEAL_RADIUS) {
+  const angle = (degrees * Math.PI) / 180;
+  return [
+    round2(SEAL_CENTER_X + radius * Math.cos(angle)),
+    round2(SEAL_CENTER_Y + radius * Math.sin(angle)),
+  ] as const;
+}
+
+function starPath(cx: number, cy: number, outer: number, inner: number) {
+  const points = Array.from({ length: 10 }, (_, index) => {
+    const radius = index % 2 === 0 ? outer : inner;
+    const angle = ((-90 + index * 36) * Math.PI) / 180;
+    return `${round2(cx + radius * Math.cos(angle))} ${round2(cy + radius * Math.sin(angle))}`;
+  });
+  return `M${points.join("L")}Z`;
+}
+
+interface SealLeaf {
+  x: number;
+  y: number;
+  angle: number;
+  path: string;
+}
+
+function leafPath(length: number, width: number) {
+  return `M0 0Q${round2(length * 0.45)} ${round2(-width)} ${round2(length)} 0Q${round2(length * 0.55)} ${round2(width)} 0 0Z`;
+}
+
+const SEAL_LEAVES: SealLeaf[] = [1, -1].flatMap((side) => {
+  const leaves: SealLeaf[] = [];
+  for (let index = 0; index < SEAL_LEAVES_PER_BRANCH; index += 1) {
+    const degrees = 90 + side * (SEAL_FIRST_LEAF + index * SEAL_LEAF_STEP);
+    const [x, y] = sealPoint(degrees);
+    // Tangente all'arco, verso la cima della corona.
+    const up = degrees + side * 90;
+    const length = 12.5 - index * 0.45;
+    const width = 3.9 - index * 0.14;
+    leaves.push({ x, y, angle: up - side * 34, path: leafPath(length, width) });
+    leaves.push({ x, y, angle: up + side * 30, path: leafPath(length * 0.88, width * 0.9) });
+  }
+  const tipDegrees = 90 + side * (SEAL_FIRST_LEAF + SEAL_LEAVES_PER_BRANCH * SEAL_LEAF_STEP);
+  const [x, y] = sealPoint(tipDegrees);
+  leaves.push({ x, y, angle: tipDegrees + side * 90, path: leafPath(11, 3.2) });
+  return leaves;
+});
+
+const SEAL_STEMS = (() => {
+  const end = 90 + SEAL_FIRST_LEAF + SEAL_LEAVES_PER_BRANCH * SEAL_LEAF_STEP;
+  const [leftStartX, leftStartY] = sealPoint(112);
+  const [leftEndX, leftEndY] = sealPoint(end);
+  const [rightStartX, rightStartY] = sealPoint(68);
+  const [rightEndX, rightEndY] = sealPoint(180 - end);
+  const r = SEAL_RADIUS;
+  return [
+    `M${leftStartX} ${leftStartY}A${r} ${r} 0 0 1 ${leftEndX} ${leftEndY}`,
+    `M${rightStartX} ${rightStartY}A${r} ${r} 0 0 0 ${rightEndX} ${rightEndY}`,
+    // Gambi che si incrociano sotto il fiocco.
+    `M${leftStartX} ${leftStartY}L67 109M${rightStartX} ${rightStartY}L53 109`,
+  ].join("");
+})();
+
+const SEAL_BOW_LOOPS =
+  "M60 103C52 96 47 102 52 106C55 108 58 105 60 103ZM60 103C68 96 73 102 68 106C65 108 62 105 60 103Z";
+const SEAL_BOW_TAILS =
+  "M58.5 104L53 118L56 116L57.5 119.5L60.5 105ZM61.5 104L67 118L64 116L62.5 119.5L59.5 105Z";
+const SEAL_STAR = starPath(60, 23, 5.4, 2.3);
+
 function CertificateSeal({ year }: { year: string }) {
   return (
-    <svg aria-hidden="true" className="rc-seal" viewBox="0 0 120 120">
-      <defs>
-        {/* Arco alto da sinistra a destra, arco basso percorso in senso
-            antiorario: entrambe le scritte si leggono dritte. */}
-        <path d="M18 60 A42 42 0 0 1 102 60" id="rc-seal-top" />
-        <path d="M11 60 A49 49 0 0 0 109 60" id="rc-seal-bottom" />
-      </defs>
-      <circle className="rc-seal__outer" cx="60" cy="60" r="56" />
-      <circle className="rc-seal__dash" cx="60" cy="60" r="51.5" />
-      <circle className="rc-seal__inner" cx="60" cy="60" r="33" />
-      <text className="rc-seal__text" textAnchor="middle">
-        <textPath href="#rc-seal-top" startOffset="50%">
-          NOTTE DEI RECORD
-        </textPath>
+    <svg aria-hidden="true" className="rc-seal" viewBox="0 0 120 124">
+      <path className="rc-seal__stem" d={SEAL_STEMS} />
+      {SEAL_LEAVES.map((leaf, index) => (
+        <path
+          className="rc-seal__leaf"
+          d={leaf.path}
+          key={index}
+          transform={`translate(${leaf.x} ${leaf.y}) rotate(${round2(leaf.angle)})`}
+        />
+      ))}
+      <path className="rc-seal__bow" d={SEAL_BOW_LOOPS} />
+      <path className="rc-seal__bow" d={SEAL_BOW_TAILS} />
+      <circle className="rc-seal__knot" cx="60" cy="103.5" r="2" />
+      <path className="rc-seal__star" d={SEAL_STAR} />
+      <text className="rc-seal__eyebrow" textAnchor="middle" x="60" y="51">
+        NOTTE DEI
       </text>
-      <text className="rc-seal__text" textAnchor="middle">
-        <textPath href="#rc-seal-bottom" startOffset="50%">
-          {`· ${year} ·`}
-        </textPath>
+      <text className="rc-seal__word" textAnchor="middle" x="60" y="70">
+        RECORD
       </text>
-      <path
-        className="rc-seal__star"
-        d="M60 39.5l5.6 12.2 13.3 1.5-9.9 9 2.8 13.1L60 68.6l-11.8 6.7 2.8-13.1-9.9-9 13.3-1.5z"
-      />
+      <line className="rc-seal__rule" x1="46" x2="74" y1="76" y2="76" />
+      <text className="rc-seal__year" textAnchor="middle" x="60" y="86.5">
+        {year}
+      </text>
     </svg>
   );
 }

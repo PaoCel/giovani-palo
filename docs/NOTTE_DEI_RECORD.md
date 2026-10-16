@@ -154,7 +154,9 @@ scrive a mano), si scrive risultato e nome (lo staff tocca il nome fra gli
 sfidanti approvati di quel record), facoltativi unità e record precedente, poi
 Stampa. **Non salva nulla**: niente rules né dati nuovi, il foglio vive nel
 browser. A4 orizzontale, sfondo bianco, colori solo su testo e tratti sottili
-(navy e oro dell'app) perché esca bene anche in bianco e nero. Verificato con
+(navy e oro dell'app) perché esca bene anche in bianco e nero. Timbro in basso
+a corona d'alloro, scelto da Paolo fra tre proposte (rosetta, alloro, sigillo
+dentellato). Verificato con
 la stampa PDF di Chrome: una pagina, colore e scala di grigi.
 
 ## Dati

@@ -502,7 +502,7 @@
 
 .rc-sheet__foot {
   display: grid;
-  grid-template-columns: 1fr 30mm 1fr;
+  grid-template-columns: 1fr 36mm 1fr;
   align-items: end;
   gap: 12mm;
   width: 100%;
@@ -547,44 +547,70 @@
 }
 
 .rc-seal {
-  width: 30mm;
-  height: 30mm;
+  width: 36mm;
+  height: 37.2mm;
 }
 
-.rc-seal circle,
-.rc-seal path {
+.rc-seal__stem {
   fill: none;
+  stroke: var(--rc-gold);
+  stroke-width: 1.2;
+  stroke-linecap: round;
 }
 
-.rc-seal__outer {
+.rc-seal__leaf,
+.rc-seal__bow {
+  fill: rgba(181, 138, 80, 0.16);
   stroke: var(--rc-navy);
-  stroke-width: 1.4;
+  stroke-linejoin: round;
 }
 
-.rc-seal__dash {
+.rc-seal__leaf {
+  stroke-width: 0.95;
+}
+
+.rc-seal__bow {
+  stroke-width: 1;
+}
+
+.rc-seal__knot {
+  fill: var(--rc-navy);
+}
+
+.rc-seal__star {
+  fill: var(--rc-gold);
+}
+
+.rc-seal__eyebrow,
+.rc-seal__word,
+.rc-seal__year {
+  font-family: var(--rc-display);
+}
+
+.rc-seal__eyebrow {
+  fill: var(--rc-gold-ink);
+  font-size: 8.6px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+}
+
+.rc-seal__word {
+  fill: var(--rc-navy);
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+}
+
+.rc-seal__rule {
   stroke: var(--rc-gold);
   stroke-width: 0.8;
-  stroke-dasharray: 1.5 2.2;
 }
 
-.rc-seal__inner {
-  stroke: var(--rc-gold);
-  stroke-width: 0.9;
-}
-
-.rc-seal__text {
+.rc-seal__year {
   fill: var(--rc-navy);
-  font-family: var(--rc-display);
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.14em;
-}
-
-.rc-seal path.rc-seal__star {
-  fill: rgba(181, 138, 80, 0.18);
-  stroke: var(--rc-navy);
-  stroke-width: 1.6;
-  stroke-linejoin: round;
+  letter-spacing: 2px;
 }
 
 /* Testo d'esempio dell'anteprima, prima di compilare. */
