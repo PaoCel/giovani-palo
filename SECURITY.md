@@ -10,10 +10,12 @@ Please email **privacy@gugditalia.it**. Disclosure is welcomed and will be credi
 
 | Item | Status |
 |---|---|
-| Storage region | EU multi-region (`eur3`: Belgium + Netherlands), Cloud Firestore + Cloud Storage |
-| Authentication | Firebase Authentication; admin Google account uses MFA |
+| Database region | Cloud Firestore, EU multi-region `eur3` (Belgium + Netherlands) |
+| File storage region | Cloud Storage bucket `giovani-palo-eu`, `europe-west1` (Belgium): signed PDFs, signatures, parent documents, gallery media |
+| Server region | Cloud Functions, `europe-west1` (Belgium) |
+| Authentication | Firebase Authentication, run by Google only from US data centers (no EU option); admin Google account uses MFA |
 | Authorization | Firestore Security Rules + Storage Security Rules — default deny, RBAC, key-allow-listed write payloads |
-| Sub-processors | Google (Firebase) only; SCCs in place via Google Cloud DPA |
+| Sub-processors | Google LLC (Firebase, Google Cloud; Hosting served through a global CDN); Brevo / Sendinblue SAS (transactional email incl. the signed consent PDF, data hosted in the EU); browser push services (end-to-end encrypted payloads). Transfers outside the EU under SCCs, plus the EU-US Data Privacy Framework for Google |
 | Cookies / trackers | Technical session only; no analytics, no advertising, no profiling |
 | Privacy notice | Live at https://gugditalia.it/privacy |
 
@@ -31,4 +33,4 @@ The Web Push **private** key is held as a Firebase secret (`WEB_PUSH_PRIVATE_KEY
 
 ## Last reviewed
 
-2026-04-27.
+2026-10-16. Regions read from the platform APIs (bucket and database metadata), not from documentation.

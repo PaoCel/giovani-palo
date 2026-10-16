@@ -29,7 +29,7 @@ import { organizationService } from "@/services/firestore/organizationService";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
 
 const PRIVACY_EMAIL = "privacy@gugditalia.it";
-const LAST_REVIEWED = "10 ottobre 2026";
+const LAST_REVIEWED = "16 ottobre 2026";
 
 export function PrivacyPage() {
   const { data: organization } = useAsyncData(
@@ -94,7 +94,7 @@ export function PrivacyPage() {
               <li>Nome e cognome.</li>
               <li>Email e telefono per conferme e comunicazioni operative.</li>
               <li>Data di nascita per gestire la fascia d&apos;età e i consensi richiesti per i minori.</li>
-              <li>Unità / rione di appartenenza, per la visibilita del responsabile locale.</li>
+              <li>Unità / rione di appartenenza, per la visibilità del responsabile locale.</li>
               <li>Eventuali risposte a campi del modulo specifici dell&apos;attività
                 (es. allergie, preferenze di stanza, note logistiche) — opzionali e configurabili per attività.</li>
             </ul>
@@ -199,24 +199,44 @@ export function PrivacyPage() {
 
       <SectionCard
         title="Sub-fornitori"
-        description="Servizi terzi che ricevono dati per nostro conto, sotto Standard Contractual Clauses (SCC)."
+        description="Servizi terzi che trattano dati per nostro conto, con un accordo sul trattamento dei dati."
       >
         <div className="surface-panel surface-panel--subtle">
           <p>
             La piattaforma usa i seguenti sub-fornitori:
           </p>
           <ul>
-            <li><strong>Google Firebase</strong> (Google LLC):
-              Firebase Authentication (credenziali di accesso),
-              Cloud Firestore (archiviazione dati, regione UE <code>eur3</code> Belgio + Paesi Bassi),
-              Firebase Storage (immagini consenso e materiali, regione UE),
-              Firebase Hosting (assets statici, edge globale - no PII),
-              Cloud Functions (logica server-side, regione <code>europe-west1</code>),
-              Firebase Cloud Messaging (notifiche push agli admin, no PII nel payload).</li>
-            <li><strong>Brevo (Sendinblue SAS, Francia)</strong>:
-              servizio email transazionale per l'invio del link di autorizzazione al genitore.
-              Riceve solo email genitore, nome attività, nome partecipante e link unico.</li>
+            <li><strong>Google (Google LLC), servizi Firebase e Google Cloud</strong>:
+              <ul>
+                <li>Cloud Firestore: profili, iscrizioni e autorizzazioni, nella regione UE
+                  {" "}<code>eur3</code> (Belgio e Paesi Bassi).</li>
+                <li>Cloud Storage: autorizzazioni firmate in PDF, firme, documenti caricati dai
+                  genitori, foto e video della galleria, nella regione UE <code>europe-west1</code> (Belgio).</li>
+                <li>Cloud Functions: logica lato server, nella regione UE <code>europe-west1</code> (Belgio).</li>
+                <li>Firebase Authentication: email, nome, password cifrata e, per l&apos;accesso
+                  con Google, i dati base del profilo Google. Google gestisce questo servizio solo
+                  da data center negli Stati Uniti.</li>
+                <li>Firebase Hosting: pubblica le pagine dell&apos;app attraverso una rete di
+                  distribuzione globale, che vede l&apos;indirizzo IP e le pagine richieste come
+                  per qualunque sito.</li>
+              </ul>
+            </li>
+            <li><strong>Brevo (Sendinblue SAS, Francia)</strong>: invio delle email legate a
+              iscrizioni e autorizzazioni. Riceve email e nome del genitore, nome del partecipante,
+              nome dell&apos;attività, il link personale e, per la copia firmata, il modulo in PDF
+              allegato. Brevo conserva i dati nell&apos;UE (Francia, Germania, Belgio).</li>
+            <li><strong>Servizi push dei browser</strong> (Google per Chrome e Android, Apple per
+              Safari, Mozilla per Firefox): consegnano le notifiche agli admin che le hanno
+              attivate. Il messaggio contiene il nome dell&apos;iscritto ed è cifrato: il servizio
+              lo inoltra senza poterlo leggere.</li>
           </ul>
+          <p>
+            Alcuni di questi fornitori possono trattare dati fuori dall&apos;UE (Google negli
+            Stati Uniti per l&apos;accesso; società del gruppo e sub-fornitori di Brevo per il
+            supporto tecnico). Questi trasferimenti avvengono con le clausole contrattuali
+            standard della Commissione europea e, per Google, anche con l&apos;adesione al
+            Data Privacy Framework UE-USA.
+          </p>
           <p>
             Nessun servizio di analytics, advertising, tracciamento o profilazione è integrato.
             Eventuali nuovi sub-fornitori verranno aggiunti qui prima dell&apos;attivazione.
@@ -240,7 +260,7 @@ export function PrivacyPage() {
           </div>
 
           <div className="surface-panel surface-panel--subtle">
-            <h3>Quando servira un banner</h3>
+            <h3>Quando servirà un banner</h3>
             <p>
               Se in futuro verranno aggiunti analytics non anonimizzati, pixel pubblicitari,
               remarketing o altri strumenti di tracciamento non tecnici, sarà mostrato un banner
@@ -256,11 +276,14 @@ export function PrivacyPage() {
       >
         <div className="surface-panel surface-panel--subtle">
           <p>
-            Tutti i dati personali sono trattati e conservati nell&apos;Unione Europea
-            (regione Firestore <code>eur3</code>: Belgio + Paesi Bassi).
-            L&apos;accesso e regolato da regole di sicurezza per ruolo (admin di palo,
+            Il database e i file sono conservati nell&apos;Unione Europea: il database nella
+            regione <code>eur3</code> (Belgio e Paesi Bassi), i file e le funzioni lato server
+            nella regione <code>europe-west1</code> (Belgio). Fanno eccezione i dati di accesso
+            (Firebase Authentication), che Google gestisce dagli Stati Uniti, e i servizi di
+            consegna descritti fra i sub-fornitori.
+            L&apos;accesso è regolato da regole di sicurezza per ruolo (admin di palo,
             responsabile di unità, partecipante), validate lato server da Firebase Security Rules.
-            La connessione e cifrata in HTTPS. I documenti sensibili (es. autorizzazioni dei minori)
+            La connessione è cifrata in HTTPS. I documenti sensibili (es. autorizzazioni dei minori)
             sono in area di storage protetta, accessibile solo all&apos;admin di palo e al
             titolare dell&apos;iscrizione quando previsto.
           </p>
