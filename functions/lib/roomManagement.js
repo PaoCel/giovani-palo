@@ -1,7 +1,7 @@
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentDeleted } = require("firebase-functions/v2/firestore");
+const { onDocumentDeleted, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 
 const { REGION } = require("./config");
 
@@ -301,48 +301,51 @@ function createRoomManagementSaveHandler({ db, clock = () => new Date() } = {}) 
   };
 }
 
-function cleanupRegistrationReferences(plan, registrationId, updatedAt) {
-  if (!ownObject(plan)) return null;
-  const assignments = { ...(ownObject(plan.assignments) ? plan.assignments : {}) };
-  const adultGenders = { ...(ownObject(plan.adultGenders) ? plan.adultGenders : {}) };
-  const hadAssignment = Object.hasOwn(assignments, registrationId);
-  const hadGender = Object.hasOwn(adultGenders, registrationId);
-  let lockedIds = (Array.isArray(plan.lockedIds) ? plan.lockedIds : []).filter((id) => id !== registrationId);
-  for (const pair of Array.isArray(plan.couples) ? plan.couples : []) {
-    if (pair?.firstId !== registrationId && pair?.secondId !== registrationId) continue;
-    const partnerId = pair.firstId === registrationId ? pair.secondId : pair.firstId;
-    if (plan.rooms?.some((room) => room.id === assignments[partnerId] && room.category === "couple")) {
-      delete assignments[partnerId];
-      lockedIds = lockedIds.filter((id) => id !== partnerId);
-    }
-  }
-  const couples = (Array.isArray(plan.couples) ? plan.couples : []).filter(
-    (couple) => couple?.firstId !== registrationId && couple?.secondId !== registrationId,
-  );
-  delete assignments[registrationId];
-  delete adultGenders[registrationId];
-  const changed = hadAssignment || hadGender || lockedIds.length !== (plan.lockedIds || []).length || couples.length !== (plan.couples || []).length;
-  if (!changed) return null;
+// Patch del piano senza l'iscrizione indicata, con revisione incrementata, o
+// null se il piano non la citava. La logica sta nel core, condivisa con la
+// bozza del client.
+async function cleanupRegistrationReferences(plan, registrationId, updatedAt) {
+  const core = await getCore();
+  const patch = core.removeRegistrationReferences(plan, [registrationId]);
+  if (!patch) return null;
   return {
-    assignments,
-    adultGenders,
-    lockedIds,
-    couples,
+    ...patch,
     revision: (Number.isInteger(plan.revision) ? plan.revision : 0) + 1,
     updatedAt,
   };
 }
 
-async function cleanupDeletedRegistration(db, { stakeId, activityId, registrationId }, clock = () => new Date()) {
-  const planRef = db.doc(`stakes/${stakeId}/activities/${activityId}/management/rooms`);
+// Toglie dal piano un'iscrizione cancellata o non più idonea (annullata,
+// rifiutata). L'iscrizione si rilegge nella transazione: se nel frattempo è
+// tornata idonea (modulo risalvato) il piano resta com'è. Chi perde la stanza,
+// lei e l'eventuale coniuge liberato dalla matrimoniale, perde anche
+// assignedRoomId/assignedRoomName come farebbe un salvataggio della callable.
+async function cleanupRegistrationFromPlan(db, { stakeId, activityId, registrationId }, clock = () => new Date()) {
+  const core = await getCore();
+  const activityRef = db.doc(`stakes/${stakeId}/activities/${activityId}`);
+  const planRef = activityRef.collection("management").doc("rooms");
+  const registrationRef = activityRef.collection("registrations").doc(registrationId);
   return db.runTransaction(async (transaction) => {
-    const registrationRef = db.doc(`stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`);
-    if ((await transaction.get(registrationRef)).exists) return false;
-    const snapshot = await transaction.get(planRef);
-    if (!snapshot.exists) return false;
-    const patch = cleanupRegistrationReferences(snapshot.data(), registrationId, clock().toISOString());
+    const registrationSnapshot = await transaction.get(registrationRef);
+    if (registrationSnapshot.exists && core.isRoomEligibleStatus(registrationSnapshot.data())) return false;
+    const planSnapshot = await transaction.get(planRef);
+    if (!planSnapshot.exists) return false;
+    const plan = planSnapshot.data() || {};
+    const patch = await cleanupRegistrationReferences(plan, registrationId, clock().toISOString());
     if (!patch) return false;
+    const releasedIds = Object.keys(ownObject(plan.assignments) ? plan.assignments : {})
+      .filter((id) => !Object.hasOwn(patch.assignments, id));
+    const partnerRefs = releasedIds
+      .filter((id) => id !== registrationId)
+      .map((id) => activityRef.collection("registrations").doc(id));
+    const partnerSnapshots = partnerRefs.length ? await transaction.getAll(...partnerRefs) : [];
+    const next = { ...plan, ...patch, published: plan.published === true };
     transaction.update(planRef, { ...patch, savedAt: FieldValue.serverTimestamp() });
+    for (const snapshot of [registrationSnapshot, ...partnerSnapshots]) {
+      if (!snapshot.exists || !releasedIds.includes(snapshot.id)) continue;
+      const roomPatch = registrationRoomPatch({ ...snapshot.data(), id: snapshot.id }, next);
+      if (roomPatch) transaction.update(snapshot.ref, roomPatch);
+    }
     return true;
   });
 }
@@ -358,8 +361,27 @@ const onRoomRegistrationDeleted = onDocumentDeleted(
     region: REGION,
   },
   async (event) => {
-    const changed = await cleanupDeletedRegistration(getFirestore(), event.params);
+    const changed = await cleanupRegistrationFromPlan(getFirestore(), event.params);
     if (changed) logger.info("Deleted registration removed from room plan.", event.params);
+  },
+);
+
+const onRoomRegistrationUpdated = onDocumentUpdated(
+  {
+    document: "stakes/{stakeId}/activities/{activityId}/registrations/{registrationId}",
+    region: REGION,
+  },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    const core = await getCore();
+    // Solo il passaggio da idonea a non idonea. Le scritture di questa
+    // funzione sull'iscrizione (stanza azzerata) e ogni altra modifica di
+    // un'iscrizione già annullata si fermano qui, senza letture.
+    if (!core.isRoomEligibleStatus(before) || core.isRoomEligibleStatus(after)) return;
+    const changed = await cleanupRegistrationFromPlan(getFirestore(), event.params);
+    if (changed) logger.info("Ineligible registration removed from room plan.", event.params);
   },
 );
 
@@ -380,10 +402,11 @@ const onRoomActivityDeleted = onDocumentDeleted(
 module.exports = {
   roomManagementSave,
   onRoomRegistrationDeleted,
+  onRoomRegistrationUpdated,
   onRoomActivityDeleted,
   createRoomManagementSaveHandler,
   cleanupRegistrationReferences,
-  cleanupDeletedRegistration,
+  cleanupRegistrationFromPlan,
   parsePlan,
   registrationRoomPatch,
 };
