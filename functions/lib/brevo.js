@@ -368,11 +368,25 @@ async function sendParentAuthorizationEmail({
   return deliver({ apiKey, policy, payload, tag: "parent-authorization" });
 }
 
+function consentLabelIt(value) {
+  return value === "accepted" ? "Acconsento" : "Non acconsento";
+}
+
 function buildSignedAuthorizationCopyHtml({
   recipientName,
   participantName,
   activityTitle,
+  photoConsent,
+  socialPublicationConsent,
+  consentUrl,
 }) {
+  const hasChoices = Boolean(photoConsent && socialPublicationConsent);
+  const choicesNote = hasChoices
+    ? `Le tue scelte su foto e social: <strong>foto ${escapeHtml(consentLabelIt(photoConsent).toLowerCase())}</strong>, <strong>social ${escapeHtml(consentLabelIt(socialPublicationConsent).toLowerCase())}</strong>. Sono registrate nella piattaforma separatamente dal PDF.`
+    : "Gli eventuali consensi foto/video sono registrati separatamente nella piattaforma.";
+  const changeLink = consentUrl
+    ? ` Puoi cambiarle quando vuoi da <a href="${escapeHtml(consentUrl)}" style="color:#235d90;">Cambia le scelte su foto e social</a>.`
+    : "";
   return `<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -432,9 +446,7 @@ function buildSignedAuthorizationCopyHtml({
           <tr>
             <td style="padding:14px 34px 28px 34px;">
               <p style="margin:0;font-size:13px;line-height:1.55;color:#53677d;">
-                Nota: gli eventuali consensi foto/video selezionati nella pagina sono registrati
-                separatamente nella piattaforma. Quando sarà disponibile un modulo ufficiale
-                dedicato, potremo allegare anche quello.
+                ${choicesNote}${changeLink}
               </p>
             </td>
           </tr>
@@ -459,13 +471,26 @@ function buildSignedAuthorizationCopyText({
   recipientName,
   participantName,
   activityTitle,
+  photoConsent,
+  socialPublicationConsent,
+  consentUrl,
 }) {
+  const choiceLines =
+    photoConsent && socialPublicationConsent
+      ? [
+          `Le tue scelte: foto ${consentLabelIt(photoConsent).toLowerCase()}, social ${consentLabelIt(socialPublicationConsent).toLowerCase()}.`,
+        ]
+      : [];
+  const linkLines = consentUrl
+    ? ["Cambia le scelte su foto e social quando vuoi da questo link:", consentUrl]
+    : [];
   return [
     `Gentile ${recipientName || "genitore o tutore"},`,
     "",
     `in allegato trovi il modulo "Consenso e informazioni mediche" firmato per ${participantName} e per l'attività ${activityTitle}.`,
     "Trovi anche il documento separato \"Condotta durante le attività della Chiesa\".",
     "Gli organizzatori ricevono una copia degli stessi documenti.",
+    ...(choiceLines.length || linkLines.length ? ["", ...choiceLines, ...linkLines] : []),
     "",
     "---",
     "Piattaforma sviluppata e gestita a titolo personale dal titolare individuale.",
@@ -483,6 +508,9 @@ async function sendSignedAuthorizationCopyEmail({
   pdfFilename,
   conductPdfBuffer,
   conductPdfFilename,
+  photoConsent,
+  socialPublicationConsent,
+  consentUrl,
 }) {
   const policy = getEmailPolicy();
 
@@ -495,11 +523,17 @@ async function sendSignedAuthorizationCopyEmail({
     recipientName: parentName || parentEmail,
     participantName,
     activityTitle,
+    photoConsent,
+    socialPublicationConsent,
+    consentUrl,
   });
   const textContent = buildSignedAuthorizationCopyText({
     recipientName: parentName || parentEmail,
     participantName,
     activityTitle,
+    photoConsent,
+    socialPublicationConsent,
+    consentUrl,
   });
 
   // Copia in BCC al supporto. Fuori da produzione passa dall'allowlist come
@@ -544,7 +578,174 @@ async function sendSignedAuthorizationCopyEmail({
   return deliver({ apiKey, policy, payload, tag: "parent-authorization-copy" });
 }
 
+// -----------------------------------------------------------------------------
+// Mail sulle scelte foto e social: ricevuta dopo un cambio e richiesta di
+// completamento per le firme raccolte quando la risposta era facoltativa.
+// -----------------------------------------------------------------------------
+
+function buildConsentMailHtml({ preheader, title, greeting, paragraphs, choices, ctaLabel, ctaUrl }) {
+  const paragraphsHtml = paragraphs
+    .map(
+      (text) =>
+        `<p style="margin:0 0 12px 0;font-size:16px;line-height:1.6;color:#53677d;">${escapeHtml(text)}</p>`,
+    )
+    .join("");
+  const choicesHtml = choices
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;border-radius:14px;border:1px solid #dbe5ee;margin:6px 0 16px 0;"><tr><td style="padding:16px 20px;font-size:16px;line-height:1.7;color:#18324f;">${choices
+        .map((row) => `${escapeHtml(row.label)}: <strong>${escapeHtml(row.value)}</strong>`)
+        .join("<br />")}</td></tr></table>`
+    : "";
+  const cta = ctaUrl
+    ? `<p style="margin:8px 0 18px 0;"><a href="${escapeHtml(ctaUrl)}" style="display:inline-block;background-color:#235d90;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:13px 24px;border-radius:14px;">${escapeHtml(ctaLabel)}</a></p>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="UTF-8" /><title>${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background-color:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#18324f;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef3f8;padding:28px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:94%;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #dbe5ee;">
+        <tr><td style="background-color:#18324f;padding:22px 30px;color:#ffffff;">
+          <p style="margin:0 0 4px 0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#b9d5f1;">Piattaforma attività per Giovani Uomini e Giovani Donne in Italia</p>
+          <p style="margin:0;font-size:21px;line-height:1.25;font-weight:700;color:#ffffff;">${escapeHtml(title)}</p>
+        </td></tr>
+        <tr><td style="padding:28px 34px 12px 34px;">
+          <p style="margin:0 0 12px 0;font-size:15px;line-height:1.55;color:#53677d;">${escapeHtml(greeting)}</p>
+          ${paragraphsHtml}${choicesHtml}${cta}
+        </td></tr>
+        <tr><td style="padding:20px 34px 26px 34px;background-color:#f7fafc;border-top:1px solid #dbe5ee;">
+          <p style="margin:0;font-size:11px;line-height:1.45;color:#7c8da0;">
+            Piattaforma sviluppata e gestita a titolo personale dal titolare individuale.
+            Non è una piattaforma ufficiale della Chiesa di Gesù Cristo dei Santi degli
+            Ultimi Giorni né di altra organizzazione religiosa.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildConsentMailText({ greeting, paragraphs, choices, ctaLabel, ctaUrl }) {
+  return [
+    greeting,
+    "",
+    ...paragraphs.flatMap((text) => [text, ""]),
+    ...(choices ? [...choices.map((row) => `${row.label}: ${row.value}`), ""] : []),
+    ...(ctaUrl ? [`${ctaLabel}:`, ctaUrl, ""] : []),
+    "---",
+    "Piattaforma sviluppata e gestita a titolo personale dal titolare individuale.",
+    "Non è una piattaforma ufficiale della Chiesa di Gesù Cristo dei Santi degli Ultimi Giorni né di altra organizzazione religiosa.",
+  ].join("\n");
+}
+
+function consentMailPayload(policy, { parentEmail, parentName, participantName, subject, content, tag }) {
+  return {
+    sender: {
+      email: policy.senderEmail,
+      name: buildRegistrationSenderName(participantName),
+    },
+    to: [{ email: parentEmail, name: parentName || parentEmail }],
+    replyTo: { email: policy.replyToEmail, name: policy.replyToName },
+    ...decorateMessage(policy, {
+      subject,
+      htmlContent: buildConsentMailHtml(content),
+      textContent: buildConsentMailText(content),
+    }),
+    tags: [tag],
+    headers: {
+      "X-Mailin-Track-Opens": "0",
+      "X-Mailin-Track-Clicks": "0",
+      "X-Track-Opens": "0",
+      "X-Track-Clicks": "0",
+    },
+  };
+}
+
+/** Testo della richiesta di completamento. Esportato per l'anteprima del dry-run. */
+function buildConsentCompletionContent({ parentName, participantName, activityTitle, consentUrl }) {
+  return {
+    preheader: `Servono due risposte su foto e social per ${participantName}.`,
+    title: "Completa le scelte su foto e social",
+    greeting: `Gentile ${parentName || "genitore o tutore"},`,
+    paragraphs: [
+      `quando hai firmato l'autorizzazione per ${participantName} (${activityTitle}) le scelte su foto e social non erano obbligatorie e non hai indicato una risposta.`,
+      "Finché non rispondi, il silenzio vale come nessun consenso: non useremo foto di tuo figlio o tua figlia per l'album dell'attività né per i social.",
+      "Bastano due domande, non devi firmare di nuovo. Puoi cambiare idea in qualunque momento dallo stesso link.",
+    ],
+    choices: null,
+    ctaLabel: "Completa le scelte su foto e social",
+    ctaUrl: consentUrl,
+  };
+}
+
+function consentCompletionSubject(activityTitle) {
+  return `Completa le scelte su foto e social - ${activityTitle}`;
+}
+
+async function sendConsentCompletionEmail({
+  apiKey,
+  parentEmail,
+  parentName,
+  participantName,
+  activityTitle,
+  consentUrl,
+}) {
+  const policy = getEmailPolicy();
+  const payload = consentMailPayload(policy, {
+    parentEmail,
+    parentName,
+    participantName,
+    subject: consentCompletionSubject(activityTitle),
+    content: buildConsentCompletionContent({ parentName, participantName, activityTitle, consentUrl }),
+    tag: "parent-consent-completion",
+  });
+  return deliver({ apiKey, policy, payload, tag: "parent-consent-completion" });
+}
+
+async function sendConsentReceiptEmail({
+  apiKey,
+  parentEmail,
+  parentName,
+  participantName,
+  activityTitle,
+  photoConsent,
+  socialPublicationConsent,
+  consentUrl,
+}) {
+  const policy = getEmailPolicy();
+  const payload = consentMailPayload(policy, {
+    parentEmail,
+    parentName,
+    participantName,
+    subject: `Scelte su foto e social aggiornate - ${activityTitle}`,
+    content: {
+      preheader: `Le scelte su foto e social per ${participantName} sono state aggiornate.`,
+      title: "Scelte aggiornate",
+      greeting: `Gentile ${parentName || "genitore o tutore"},`,
+      paragraphs: [
+        `abbiamo registrato le tue scelte su foto e social per ${participantName} (${activityTitle}). Il modulo firmato non cambia: fa fede questa ricevuta.`,
+        "Se non sei stato tu, rispondi a questa email.",
+      ],
+      choices: [
+        { label: "Foto", value: consentLabelIt(photoConsent) },
+        { label: "Social", value: consentLabelIt(socialPublicationConsent) },
+      ],
+      ctaLabel: "Cambia le scelte su foto e social",
+      ctaUrl: consentUrl,
+    },
+    tag: "parent-consent-receipt",
+  });
+  return deliver({ apiKey, policy, payload, tag: "parent-consent-receipt" });
+}
+
 module.exports = {
+  sendConsentCompletionEmail,
+  sendConsentReceiptEmail,
+  buildConsentCompletionContent,
+  consentCompletionSubject,
   sendParentAuthorizationEmail,
   sendSignedAuthorizationCopyEmail,
   BrevoError,

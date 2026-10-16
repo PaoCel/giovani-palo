@@ -12,6 +12,7 @@ const db = getFirestore();
 // Cloud Functions per autorizzazione genitoriale (Brevo magic link).
 const { EnvironmentConfigError, getAppPublicUrl, isProduction } = require("./lib/config");
 const parentAuthorization = require("./lib/parentAuthorization");
+const parentConsent = require("./lib/parentConsent");
 const campManagement = require("./lib/campManagement");
 const roomMates = require("./lib/roomMates");
 const roomManagement = require("./lib/roomManagement");
@@ -32,6 +33,9 @@ exports.parentAuthorizationGetSignedConsentUrl =
   parentAuthorization.parentAuthorizationGetSignedConsentUrl;
 exports.parentAuthorizationDownloadSignedConsentsZip =
   parentAuthorization.parentAuthorizationDownloadSignedConsentsZip;
+exports.parentConsentGetContext = parentConsent.parentConsentGetContext;
+exports.parentConsentUpdate = parentConsent.parentConsentUpdate;
+exports.parentConsentRequestCompletion = parentConsent.parentConsentRequestCompletion;
 exports.campManagementSave = campManagement.campManagementSave;
 exports.campManagementStaff = campManagement.campManagementStaff;
 exports.roomMateSuggestions = roomMates.roomMateSuggestions;

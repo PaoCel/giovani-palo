@@ -46,6 +46,11 @@ const {
   BrevoError,
 } = require("./brevo");
 const { sanitizeSignaturePng } = require("./signatureImage");
+const {
+  CONSENT_TEXT_VERSION,
+  validateConsentChoices,
+  issueConsentLink,
+} = require("./consentCore");
 // NB: pdfGenerator caricato lazy dentro parentAuthorizationConfirm. pdfkit
 // inizializza font al require, supera il timeout di analisi statica del
 // deploy delle Cloud Functions (10s). Lazy-load -> il bootstrap resta veloce.
@@ -74,6 +79,10 @@ function hashToken(rawToken) {
 
 function buildAuthorizationUrl(rawToken) {
   return `${getAppPublicUrl().replace(/\/$/, "")}/parent-confirm/${rawToken}`;
+}
+
+function buildConsentUrl(rawToken) {
+  return `${getAppPublicUrl().replace(/\/$/, "")}/parent-consent/${rawToken}`;
 }
 
 function computeExpiry() {
@@ -390,7 +399,7 @@ function emptyParentAuthorizationState({ parentEmail, parentName, parentPhone, e
   };
 }
 
-async function writeAuditLog(db, stakeId, activityId, registrationId, payload) {
+async function writeAuditLog(db, stakeId, activityId, registrationId, payload, tx = null) {
   const ref = db
     .collection(`stakes/${stakeId}/activities/${activityId}/consentAuditLogs`)
     .doc();
@@ -409,6 +418,10 @@ async function writeAuditLog(db, stakeId, activityId, registrationId, payload) {
     consents: payload.consents ?? null,
     photoConsent: payload.photoConsent ?? null,
     socialPublicationConsent: payload.socialPublicationConsent ?? null,
+    previousPhotoConsent: payload.previousPhotoConsent ?? null,
+    previousSocialPublicationConsent: payload.previousSocialPublicationConsent ?? null,
+    consentTextVersion: payload.consentTextVersion ?? null,
+    consentVia: payload.consentVia ?? null,
     signaturePath: payload.signaturePath ?? null,
     pdfPath: payload.pdfPath ?? null,
     auditPdfPath: payload.auditPdfPath ?? null,
@@ -422,7 +435,11 @@ async function writeAuditLog(db, stakeId, activityId, registrationId, payload) {
     createdAt: nowIso(),
   };
 
-  await ref.set(document);
+  if (tx) {
+    tx.set(ref, document);
+  } else {
+    await ref.set(document);
+  }
   return ref.id;
 }
 
@@ -1283,10 +1300,6 @@ const parentAuthorizationConfirm = onCall(
   async (request) => {
     const rawToken = request.data?.token;
     const consents = request.data?.consents;
-    const photoConsent = sanitizePhotoConsent(request.data?.photoConsent);
-    const socialPublicationConsent = sanitizePhotoConsent(
-      request.data?.socialPublicationConsent,
-    );
     const signatureDataUrl = request.data?.signatureDataUrl;
     const useStoredSignature = request.data?.useStoredSignature === true;
 
@@ -1300,6 +1313,15 @@ const parentAuthorizationConfirm = onCall(
         "Devi accettare tutti i consensi obbligatori per confermare l'autorizzazione.",
       );
     }
+
+    // Le due scelte su foto e social sono obbligatorie e si possono solo
+    // acconsentire o rifiutare: "senza risposta" non è un consenso. Una scheda
+    // aperta prima del rilascio manda ancora `not_answered`: riceve questo
+    // errore e il client le chiede di ricaricare la pagina.
+    const { photoConsent, socialPublicationConsent } = validateConsentChoices(
+      request.data?.photoConsent,
+      request.data?.socialPublicationConsent,
+    );
 
     const db = getFirestore();
     const storage = getStorage();
@@ -1612,6 +1634,29 @@ const parentAuthorizationConfirm = onCall(
       // Non blocchiamo la conferma se PDF fallisce: l'audit log resta.
     }
 
+    // Link per cambiare le scelte su foto e social senza account: sta nella
+    // copia firmata. Se non si riesce a crearlo la firma resta valida.
+    let consentUrl = null;
+    if (parentEmail) {
+      try {
+        const link = await issueConsentLink(db, {
+          stakeId,
+          activityId,
+          registrationId,
+          parentEmail,
+          kind: "signed_copy",
+        });
+        consentUrl = buildConsentUrl(link.rawToken);
+      } catch (error) {
+        logger.error("Consent link creation failed.", {
+          stakeId,
+          activityId,
+          registrationId,
+          error: error.message,
+        });
+      }
+    }
+
     let copyEmailSentAt = null;
     let copyEmailMessageId = null;
     let copyEmailError = null;
@@ -1627,6 +1672,9 @@ const parentAuthorizationConfirm = onCall(
           pdfFilename: `modulo-consenso-${registrationId}.pdf`,
           conductPdfBuffer,
           conductPdfFilename: `condotta-attivita-chiesa-${registrationId}.pdf`,
+          photoConsent,
+          socialPublicationConsent,
+          consentUrl,
         });
         copyEmailSentAt = nowIso();
         copyEmailMessageId = result.messageId || null;
@@ -1656,6 +1704,8 @@ const parentAuthorizationConfirm = onCall(
       consents,
       photoConsent,
       socialPublicationConsent,
+      consentTextVersion: CONSENT_TEXT_VERSION,
+      consentUpdatedAt: confirmedAt,
       signaturePath,
       signatureUrl,
       pdfPath,
@@ -1706,6 +1756,8 @@ const parentAuthorizationConfirm = onCall(
       consents,
       photoConsent,
       socialPublicationConsent,
+      consentTextVersion: CONSENT_TEXT_VERSION,
+      consentVia: "signature",
       signaturePath,
       pdfPath,
       auditPdfPath,
@@ -2415,6 +2467,16 @@ const parentAuthorizationDownloadSignedConsentsZip = onCall(
 );
 
 module.exports = {
+  // Usati da parentConsent.js (cambio scelte e richiesta di completamento).
+  consentHelpers: {
+    BREVO_API_KEY,
+    assertAdminForStake,
+    buildConsentUrl,
+    loadActivity,
+    loadRegistration,
+    normalizeEmail,
+    writeAuditLog,
+  },
   // Esportata per il test: decide se la richiesta va spostata su un'altra
   // casella (functions/tests/parentAuthorizationReissue.test.mjs).
   shouldReissueParentAuthorization,
