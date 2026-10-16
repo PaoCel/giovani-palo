@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { AppModal } from "@/components/AppModal";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
+import { PhotoConsentPills } from "@/components/PhotoConsentPills";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,7 +15,10 @@ import { unitTransportNotesService } from "@/services/firestore/unitTransportNot
 import type { CampPatrolRole, CampPublicMember, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { isCampEvent } from "@/utils/events";
-import { getParentAuthorizationBadge } from "@/utils/parentAuthorization";
+import {
+  getParentAuthorizationBadge,
+  getPhotoConsentBadges,
+} from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
   getRegistrationStatusLabel,
@@ -109,6 +113,8 @@ function ConsentCell({
   onResend: () => void;
 }) {
   const hasPhoto = registration.answers.photoInternalConsent === true;
+  // Per i minori vale la scelta del genitore, non la spunta nel modulo.
+  const hasParentPhotoChoice = getPhotoConsentBadges(registration) !== null;
   const isMinor = isMinorBirthDate(registration.birthDate);
   const parentBadge = getParentAuthorizationBadge(registration, requiresParentAuthorization);
   const hasParent = parentBadge.tone === "success";
@@ -130,13 +136,17 @@ function ConsentCell({
 
   return (
     <div className="unit-consent-cell">
-      <span
-        className={hasPhoto ? "unit-consent-ok" : "unit-consent-missing"}
-        title={hasPhoto ? "Consenso foto OK" : "Consenso foto mancante"}
-      >
-        <AppIcon name={hasPhoto ? "check" : "x"} />
-        Foto
-      </span>
+      {hasParentPhotoChoice ? (
+        <PhotoConsentPills registration={registration} />
+      ) : (
+        <span
+          className={hasPhoto ? "unit-consent-ok" : "unit-consent-missing"}
+          title={hasPhoto ? "Consenso foto OK" : "Consenso foto mancante"}
+        >
+          <AppIcon name={hasPhoto ? "check" : "x"} />
+          Foto
+        </span>
+      )}
       {isMinor && requiresParentAuthorization ? (
         <>
           <span

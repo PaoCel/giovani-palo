@@ -5,7 +5,10 @@ import { usersService } from "@/services/firestore/usersService";
 import type { CampManagementPlan, Event, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { isCampEvent } from "@/utils/events";
-import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
+import {
+  getPhotoConsentBadges,
+  isParentAuthorizationAuthorized,
+} from "@/utils/parentAuthorization";
 
 export interface UnitActivityStats {
   total: number;
@@ -34,7 +37,15 @@ function computeStats(registrations: Registration[], event?: Event | null): Unit
     if (!transport || transport === "Da definire" || transport === "Passaggio") {
       needsTransport++;
     }
-    if (r.answers.photoInternalConsent !== true) {
+    // Minori e firme del genitore: conta la scelta del genitore (sì e no sono
+    // risposte; mancano "da chiedere" e "revocato"). Per gli altri resta la
+    // spunta nel modulo d'iscrizione.
+    const parentPhoto = getPhotoConsentBadges(r)?.photo;
+    if (parentPhoto) {
+      if (parentPhoto.tone === "warning" || parentPhoto.tone === "danger") {
+        missingPhotoConsent++;
+      }
+    } else if (r.answers.photoInternalConsent !== true) {
       missingPhotoConsent++;
     }
     const isMinor = isMinorBirthDate(r.birthDate);

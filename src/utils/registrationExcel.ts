@@ -1,5 +1,6 @@
 import type { CampManagementPlan, GenderRoleCategory, Registration } from "@/types";
 import { formatDateOnly, formatDateTime } from "@/utils/formatters";
+import { getPhotoConsentBadges } from "@/utils/parentAuthorization";
 import { getRegistrationStatusLabel } from "@/utils/registrations";
 import { formatRoomPreferenceValue, getRegistrationTextAnswer } from "@/utils/roomPreferences";
 import { slugify } from "@/utils/slugify";
@@ -31,6 +32,8 @@ export type ExportFieldKey =
   | "parentConfirmed"
   | "photoInternalConsent"
   | "photoPublicConsent"
+  | "parentPhotoConsent"
+  | "parentSocialConsent"
   | "participatingDays"
   | "registrationStatus"
   | "submittedByMode"
@@ -63,6 +66,8 @@ export const EXCEL_EXPORT_FIELDS: ExportFieldOption[] = [
   { key: "parentConfirmed", label: "Consenso genitore", group: "consensi" },
   { key: "photoInternalConsent", label: "Foto uso interno", group: "consensi" },
   { key: "photoPublicConsent", label: "Foto uso pubblico", group: "consensi" },
+  { key: "parentPhotoConsent", label: "Foto (genitore)", group: "consensi" },
+  { key: "parentSocialConsent", label: "Social (genitore)", group: "consensi" },
   { key: "participatingDays", label: "Giorni di partecipazione", group: "logistica" },
   { key: "registrationStatus", label: "Stato iscrizione", group: "meta" },
   { key: "submittedByMode", label: "Modalità invio", group: "meta" },
@@ -113,6 +118,8 @@ const fieldHeaderLabels: Record<ExportFieldKey, string> = {
   parentConfirmed: "Consenso genitore",
   photoInternalConsent: "Foto uso interno",
   photoPublicConsent: "Foto uso pubblico",
+  parentPhotoConsent: "Foto (genitore)",
+  parentSocialConsent: "Social (genitore)",
   participatingDays: "Giorni di partecipazione",
   registrationStatus: "Stato iscrizione",
   submittedByMode: "Modalità invio",
@@ -206,6 +213,10 @@ function getFieldValue(registration: Registration, field: ExportFieldKey): strin
     case "photoInternalConsent":
     case "photoPublicConsent":
       return formatBoolean(registration.answers[field]);
+    case "parentPhotoConsent":
+      return formatParentConsent(registration, "photo");
+    case "parentSocialConsent":
+      return formatParentConsent(registration, "social");
     case "participatingDays":
       return formatParticipatingDays(registration.participatingDays);
     case "registrationStatus":
@@ -217,6 +228,16 @@ function getFieldValue(registration: Registration, field: ExportFieldKey): strin
     default:
       return "";
   }
+}
+
+// Scelta del genitore su foto e social. Vuota per gli adulti senza firma.
+function formatParentConsent(registration: Registration, kind: "photo" | "social") {
+  const badges = getPhotoConsentBadges(registration);
+  if (!badges) return "";
+
+  const label = (kind === "photo" ? badges.photo : badges.social).label;
+  const value = label.slice(label.indexOf(":") + 1).trim();
+  return value.charAt(0).toLocaleUpperCase("it-IT") + value.slice(1);
 }
 
 function buildSheetRows(registrations: Registration[], fields: ExportFieldKey[]) {

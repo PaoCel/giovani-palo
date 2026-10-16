@@ -6,6 +6,7 @@ import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import { EmptyState } from "@/components/EmptyState";
+import { PhotoConsentPills } from "@/components/PhotoConsentPills";
 import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExportModal";
 import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -19,16 +20,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
 import { campManagementService } from "@/services/firestore/campManagementService";
+import { consentTasksService } from "@/services/firestore/consentTasksService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { questionsService } from "@/services/firestore/questionsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
-import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
+import {
+  parentAuthorizationService,
+  type ConsentCompletionCandidate,
+  type ConsentCompletionResult,
+} from "@/services/firestore/parentAuthorizationService";
 import type {
   CampCommitteeId,
   CampManagementPlan,
   CampPatrolPlan,
   CampPatrolRole,
+  ConsentTask,
   Question,
   Registration,
 } from "@/types";
@@ -51,6 +58,7 @@ import {
   getEventStatusTone,
   isCampEvent,
 } from "@/utils/events";
+import { needsPhotoConsentQuestion } from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
   getRegistrationAnswerEntries,
@@ -402,6 +410,9 @@ export function AdminEventDetailPage() {
     | "downloadSignedConsent"
     | "downloadSignedConsentsZip"
     | "backfillLegacyApprovals"
+    | "consentCompletionCheck"
+    | "consentCompletionSend"
+    | "consentTask"
     | "deleteRegistration"
     | "cancelRegistration"
     | "reactivateRegistration"
@@ -437,6 +448,18 @@ export function AdminEventDetailPage() {
     RegistrationCategoryFilter[]
   >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState("all");
+  const [onlyPhotoToAsk, setOnlyPhotoToAsk] = useState(false);
+  const [consentCompletion, setConsentCompletion] = useState<Extract<
+    ConsentCompletionResult,
+    { dryRun: true }
+  > | null>(null);
+  const [consentCompletionOutcome, setConsentCompletionOutcome] = useState<Extract<
+    ConsentCompletionResult,
+    { dryRun: false }
+  > | null>(null);
+  const [consentTasksRefreshKey, setConsentTasksRefreshKey] = useState(0);
+  const [consentTasksError, setConsentTasksError] = useState<string | null>(null);
+  const [busyConsentTaskId, setBusyConsentTaskId] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState("");
   const [campDraft, setCampDraft] = useState<CampManagementPlan>(
     campManagementService.getDefaultCampManagement(),
@@ -529,6 +552,21 @@ export function AdminEventDetailPage() {
       return questionsService.listAllForEvent(stakeId, eventId);
     },
     [eventId, stakeId, questionsEnabled, questionsRefreshKey],
+    [],
+  );
+
+  const canReadConsentTasks = session?.isAdmin === true;
+  const { data: consentTasks, error: consentTasksLoadError } = useAsyncData<
+    ConsentTask[]
+  >(
+    async () => {
+      if (!eventId || !canReadConsentTasks) {
+        return [];
+      }
+
+      return consentTasksService.listTasks(stakeId, eventId);
+    },
+    [eventId, stakeId, canReadConsentTasks, consentTasksRefreshKey],
     [],
   );
 
@@ -753,6 +791,8 @@ export function AdminEventDetailPage() {
         return false;
       if (!activeRegistrationFilters.includes(registration.genderRoleCategory))
         return false;
+      if (onlyPhotoToAsk && !needsPhotoConsentQuestion(registration))
+        return false;
       if (
         selectedUnitFilter !== "all" &&
         getUnitLabel(registration) !== selectedUnitFilter
@@ -776,9 +816,21 @@ export function AdminEventDetailPage() {
   }, [
     activeRegistrationFilters,
     nameSearch,
+    onlyPhotoToAsk,
     selectedUnitFilter,
     sortedRegistrations,
   ]);
+  const photoToAskCount = useMemo(
+    () =>
+      sortedRegistrations.filter(
+        (registration) =>
+          registration.registrationStatus !== "cancelled" &&
+          needsPhotoConsentQuestion(registration) &&
+          (selectedUnitFilter === "all" ||
+            getUnitLabel(registration) === selectedUnitFilter),
+      ).length,
+    [selectedUnitFilter, sortedRegistrations],
+  );
   const registrationLookupById = useMemo(() => {
     const map = new Map<string, Registration>();
     for (const registration of registrations) {
@@ -873,6 +925,8 @@ export function AdminEventDetailPage() {
       );
     },
   ).length;
+  const consentTasksTodo = consentTasks.filter((task) => task.status === "todo");
+  const consentTasksDone = consentTasks.filter((task) => task.status === "done");
   const assignedPatrolCount = patrolAssignmentByRegistrationId.size;
   const assignedCommitteeCount = committeeAssignmentByRegistrationId.size;
   const averageAge = getAverageAge(activeRegistrations);
@@ -1635,6 +1689,106 @@ export function AdminEventDetailPage() {
       );
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function handleCheckConsentCompletion() {
+    setBusy("consentCompletionCheck");
+    setActionError(null);
+    setActionInfo(null);
+    setConsentCompletion(null);
+    setConsentCompletionOutcome(null);
+
+    try {
+      // Solo simulazione: nessuna email parte da qui.
+      const result = await parentAuthorizationService.requestConsentCompletion({
+        stakeId,
+        activityId: resolvedEventId,
+        dryRun: true,
+      });
+
+      if (result.dryRun) {
+        setConsentCompletion(result);
+      }
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile controllare chi riceverebbe la mail.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSendConsentCompletion() {
+    if (!consentCompletion || consentCompletion.total === 0) return;
+
+    const total = consentCompletion.total;
+    const confirmed = window.confirm(
+      `Inviare ${total} email ai genitori?\n\n` +
+        "È un invio a persone reali e non si può annullare. " +
+        "Ogni genitore riceve un link per completare le scelte su foto e social.",
+    );
+    if (!confirmed) return;
+
+    setBusy("consentCompletionSend");
+    setActionError(null);
+    setActionInfo(null);
+
+    try {
+      const result = await parentAuthorizationService.requestConsentCompletion({
+        stakeId,
+        activityId: resolvedEventId,
+        dryRun: false,
+        expectedCount: total,
+      });
+
+      if (!result.dryRun) {
+        setConsentCompletionOutcome(result);
+        setConsentCompletion(null);
+        setActionInfo(
+          `Richiesta inviata: ${result.sent} email inviate` +
+            (result.simulated ? `, ${result.simulated} simulate` : "") +
+            (result.errors.length ? `, ${result.errors.length} errori` : "") +
+            ".",
+        );
+        setRefreshKey((current) => current + 1);
+      }
+    } catch (caughtError) {
+      setActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Impossibile inviare le email ai genitori.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSetConsentTaskDone(task: ConsentTask, done: boolean) {
+    const adminUid = session?.firebaseUser.uid;
+    if (!adminUid) return;
+
+    setBusy("consentTask");
+    setBusyConsentTaskId(task.id);
+    setConsentTasksError(null);
+
+    try {
+      await consentTasksService.setTaskDone(
+        stakeId,
+        resolvedEventId,
+        task.id,
+        done,
+        adminUid,
+      );
+      setConsentTasksRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      console.error("Aggiornamento compito consenso non riuscito", caughtError);
+      setConsentTasksError("Non sono riuscito ad aggiornare il compito. Riprova tra poco.");
+    } finally {
+      setBusy(null);
+      setBusyConsentTaskId(null);
     }
   }
 
@@ -2491,6 +2645,69 @@ export function AdminEventDetailPage() {
 
       {activeTab === "registrations" ? (
         <section className="admin-detail-stack">
+          {canReadConsentTasks &&
+          (consentTasks.length > 0 || consentTasksError || consentTasksLoadError) ? (
+            <article className="consent-tasks">
+              <div className="consent-tasks__head">
+                <h3>Da controllare</h3>
+                <small>
+                  {consentTasksTodo.length > 0
+                    ? `${consentTasksTodo.length} da fare`
+                    : "Niente da fare"}
+                </small>
+              </div>
+              {consentTasksError || consentTasksLoadError ? (
+                <p className="form-error" role="alert">
+                  {consentTasksError ??
+                    "Non sono riuscito a caricare i compiti sui consensi."}
+                </p>
+              ) : null}
+              {consentTasksTodo.map((task) => (
+                <div className="consent-task" key={task.id}>
+                  <div>
+                    <p>{task.title}</p>
+                    <small>{formatDateTime(task.createdAt)}</small>
+                  </div>
+                  <button
+                    className="button button--primary button--small"
+                    disabled={busy !== null}
+                    onClick={() => void handleSetConsentTaskDone(task, true)}
+                    type="button"
+                  >
+                    {busyConsentTaskId === task.id ? "Salvo..." : "Fatto"}
+                  </button>
+                </div>
+              ))}
+              {consentTasksDone.length > 0 ? (
+                <details className="consent-tasks__done">
+                  <summary>Completati ({consentTasksDone.length})</summary>
+                  <div className="consent-tasks__done-list">
+                    {consentTasksDone.map((task) => (
+                      <div className="consent-task consent-task--done" key={task.id}>
+                        <div>
+                          <p>{task.title}</p>
+                          {task.doneAt ? (
+                            <small>Fatto il {formatDateTime(task.doneAt)}</small>
+                          ) : null}
+                        </div>
+                        <button
+                          className="button button--ghost button--small"
+                          disabled={busy !== null}
+                          onClick={() => void handleSetConsentTaskDone(task, false)}
+                          type="button"
+                        >
+                          {busyConsentTaskId === task.id
+                            ? "Salvo..."
+                            : "Torna da fare"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </article>
+          ) : null}
+
           <div className="admin-inline-metrics admin-inline-metrics--three">
             <article className="admin-inline-metric">
               <strong>{currentCount}</strong>
@@ -2583,6 +2800,28 @@ export function AdminEventDetailPage() {
                   );
                 })}
 
+                <button
+                  aria-pressed={onlyPhotoToAsk}
+                  className={
+                    onlyPhotoToAsk
+                      ? "admin-filter-toggle admin-filter-toggle--active"
+                      : "admin-filter-toggle"
+                  }
+                  onClick={() => setOnlyPhotoToAsk((current) => !current)}
+                  type="button"
+                >
+                  <span
+                    className="admin-filter-toggle__box"
+                    aria-hidden="true"
+                  >
+                    {onlyPhotoToAsk ? <AppIcon name="check" /> : null}
+                  </span>
+                  <span className="admin-filter-toggle__label">
+                    Foto: da chiedere
+                  </span>
+                  <small>{photoToAskCount}</small>
+                </button>
+
                 <label className="admin-filter-select">
                   <span>Unità</span>
                   <select
@@ -2658,6 +2897,10 @@ export function AdminEventDetailPage() {
                               .join(", ")}
                           </small>
                         ) : null}
+                        <PhotoConsentPills
+                          className="admin-roster-row__consent"
+                          registration={registration}
+                        />
                       </button>
                     );
                   })}
@@ -2714,6 +2957,129 @@ export function AdminEventDetailPage() {
               <span>Da verificare</span>
             </article>
           </div>
+
+          {session?.isAdmin ? (
+            <article className="consent-completion">
+              <div>
+                <h3>Scelte su foto e social da completare</h3>
+                <p>
+                  Chi ha firmato prima che esistessero le due scelte riceve una
+                  email con un link per completarle. Prima si controlla
+                  l'elenco, poi si decide se inviare.
+                </p>
+              </div>
+              <div className="admin-section-actions">
+                <button
+                  className="button button--ghost button--small"
+                  disabled={busy !== null || loading}
+                  onClick={() => void handleCheckConsentCompletion()}
+                  type="button"
+                >
+                  <AppIcon name="refresh" />
+                  <span>
+                    {busy === "consentCompletionCheck"
+                      ? "Controllo..."
+                      : "Controlla chi riceverebbe la mail"}
+                  </span>
+                </button>
+              </div>
+
+              {consentCompletion ? (
+                consentCompletion.total === 0 ? (
+                  <p>
+                    Nessuno da contattare
+                    {consentCompletion.skippedAlreadyRequested > 0
+                      ? `: ${consentCompletion.skippedAlreadyRequested} hanno già ricevuto la richiesta`
+                      : ""}
+                    .
+                  </p>
+                ) : (
+                  <>
+                    <p>
+                      {consentCompletion.total} genitori riceverebbero la mail
+                      {consentCompletion.skippedAlreadyRequested > 0
+                        ? `, ${consentCompletion.skippedAlreadyRequested} già contattati saltati`
+                        : ""}
+                      {consentCompletion.skippedNoEmail > 0
+                        ? `, ${consentCompletion.skippedNoEmail} senza email saltati`
+                        : ""}
+                      . Nessuna email è ancora partita.
+                    </p>
+                    <div className="consent-completion__list">
+                      {consentCompletion.candidates.map(
+                        (candidate: ConsentCompletionCandidate) => (
+                          <div
+                            className="consent-completion__row"
+                            key={`${candidate.activityId}-${candidate.registrationId}`}
+                          >
+                            <strong>{candidate.participantName}</strong>
+                            <span>
+                              {candidate.parentEmail} - manca:{" "}
+                              {candidate.missing.length === 2
+                                ? "foto e social"
+                                : candidate.missing[0] === "photo"
+                                  ? "foto"
+                                  : "social"}
+                            </span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                    {consentCompletion.preview ? (
+                      <div className="consent-completion__preview">
+                        <strong>{consentCompletion.preview.subject}</strong>
+                        {consentCompletion.preview.paragraphs.map(
+                          (paragraph, index) => (
+                            <p key={index}>{paragraph}</p>
+                          ),
+                        )}
+                      </div>
+                    ) : null}
+                    <div className="admin-section-actions">
+                      <button
+                        className="button button--primary button--small"
+                        disabled={busy !== null}
+                        onClick={() => void handleSendConsentCompletion()}
+                        type="button"
+                      >
+                        <AppIcon name="mail" />
+                        <span>
+                          {busy === "consentCompletionSend"
+                            ? "Invio..."
+                            : `Invia ${consentCompletion.total} email`}
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )
+              ) : null}
+
+              {consentCompletionOutcome ? (
+                <div>
+                  <p>
+                    Inviate {consentCompletionOutcome.sent} email su{" "}
+                    {consentCompletionOutcome.total}
+                    {consentCompletionOutcome.simulated > 0
+                      ? ` (${consentCompletionOutcome.simulated} simulate)`
+                      : ""}
+                    {consentCompletionOutcome.errors.length > 0
+                      ? `, ${consentCompletionOutcome.errors.length} con errore`
+                      : ""}
+                    .
+                  </p>
+                  {consentCompletionOutcome.errors.length > 0 ? (
+                    <ul className="consent-completion__errors">
+                      {consentCompletionOutcome.errors.map((item) => (
+                        <li key={`${item.activityId}-${item.registrationId}`}>
+                          {item.registrationId}: {item.message}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </article>
+          ) : null}
 
           {activeRegistrations.length === 0 ? (
             <EmptyState
@@ -2877,6 +3243,7 @@ export function AdminEventDetailPage() {
                               : "warning"
                           }
                         />
+                        <PhotoConsentPills registration={registration} />
                         {isMinorRegistration(registration) ? (
                           <StatusBadge
                             label={
@@ -3898,6 +4265,8 @@ export function AdminEventDetailPage() {
                 )}
               />
             </div>
+
+            <PhotoConsentPills registration={registrationModal} />
 
             {registrationModalHighlights.length > 0 ? (
               <div className="chip-row admin-chip-row">
