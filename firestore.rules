@@ -1405,6 +1405,23 @@ service cloud.firestore {
           allow create, update, delete: if false;
         }
 
+        // Compiti "controlla album e social" dopo la revoca di un consenso:
+        // li crea solo la callable parentConsentUpdate. L'admin del palo li
+        // legge e cambia soltanto lo stato (da fare / fatto, e di nuovo da
+        // fare se ha sbagliato tocco).
+        match /consentTasks/{taskId} {
+          allow get, list: if isStakeAdmin(stakeId);
+          allow update: if isStakeAdmin(stakeId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'doneAt', 'doneByUid'])
+            && request.resource.data.status in ['todo', 'done']
+            && (request.resource.data.status == 'todo'
+              ? request.resource.data.doneAt == null && request.resource.data.doneByUid == null
+              : request.resource.data.doneAt is string
+                && request.resource.data.doneByUid == request.auth.uid);
+          allow create, delete: if false;
+        }
+
         match /transportNotes/{noteId} {
           allow get, list: if isStakeAdmin(stakeId) || isUnitLeaderOfStake(stakeId);
           allow create, update: if isUnitLeaderOfStake(stakeId)
