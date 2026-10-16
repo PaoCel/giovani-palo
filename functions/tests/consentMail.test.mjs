@@ -123,6 +123,19 @@ test("mancano entrambe: il testo copre foto e social", () => {
   }
 });
 
+test("singolare/plurale: 'non erano obbligatorie' solo per foto e social insieme", () => {
+  const both = body(["photo", "social"]);
+  assert.match(both, /le scelte su foto e social non erano obbligatorie e non hai indicato una risposta/);
+  const photo = body(["photo"]);
+  assert.match(photo, /la scelta sulle foto non era obbligatoria e non hai indicato una risposta/);
+  assert.doesNotMatch(photo, /non erano obbligatorie/);
+  const social = body(["social"]);
+  assert.match(social, /la scelta sui social non era obbligatoria e non hai indicato una risposta/);
+  assert.doesNotMatch(social, /non erano obbligatorie/);
+  // Senza `missing` vale il caso completo, al plurale.
+  assert.match(body(undefined), /non erano obbligatorie/);
+});
+
 test("i tre testi sono diversi tra loro e citano partecipante e attività", () => {
   const texts = [body(["photo"]), body(["social"]), body(["photo", "social"])];
   assert.equal(new Set(texts).size, 3);

@@ -12,6 +12,8 @@
  * log di audit.
  */
 
+const crypto = require("crypto");
+
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
@@ -44,6 +46,8 @@ const {
 } = consentHelpers;
 
 const MAX_COMPLETION_BATCH = 100;
+// Un invio "in corso" più vecchio di così si considera abbandonato.
+const SENDING_STALE_MS = 10 * 60 * 1000;
 
 const LINK_ERROR_MESSAGES = {
   expired:
@@ -189,7 +193,9 @@ const parentConsentUpdate = onCall(
       // Il link si ricontrolla dentro la transazione: se nel frattempo l'admin
       // ha corretto l'email del genitore, la vecchia casella non scrive più.
       if (usedLink) {
-        const linkStatus = deriveConsentLinkStatus(usedLink, registration);
+        const linkSnapshot = await tx.get(db.doc(`parentConsentLinks/${usedLink.tokenHash}`));
+        const freshLink = linkSnapshot.exists ? linkSnapshot.data() : null;
+        const linkStatus = deriveConsentLinkStatus(freshLink, registration);
         if (linkStatus !== "valid") {
           throw new HttpsError("failed-precondition", LINK_ERROR_MESSAGE_FOR(linkStatus), {
             reason: `link_${linkStatus}`,
@@ -209,17 +215,24 @@ const parentConsentUpdate = onCall(
       }
 
       // Una scheda rimasta aperta non deve annullare un cambio fatto altrove:
-      // se il client dice quale versione ha visto e nel frattempo è cambiata,
-      // deve rileggere (compatibile con i client che non mandano il campo).
-      if (request.data?.expectedUpdatedAt !== undefined) {
-        const expected = request.data.expectedUpdatedAt || null;
-        if (expected !== (state.consentUpdatedAt || null)) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Le scelte sono state cambiate da un'altra parte nel frattempo. Ricarica la pagina e riprova.",
-            { reason: "consent_stale" },
-          );
-        }
+      // il client dice quale versione ha visto e, se nel frattempo è cambiata,
+      // deve rileggere.
+      // Il campo è obbligatorio (null = la firma non aveva ancora una data):
+      // senza, una scheda con la versione vecchia potrebbe annullare una revoca.
+      if (request.data?.expectedUpdatedAt === undefined) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Ricarica la pagina e riprova: questa versione non è più aggiornata.",
+          { reason: "consent_stale" },
+        );
+      }
+      const expected = request.data.expectedUpdatedAt || null;
+      if (expected !== (state.consentUpdatedAt || null)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Le scelte sono state cambiate da un'altra parte nel frattempo. Ricarica la pagina e riprova.",
+          { reason: "consent_stale" },
+        );
       }
 
       const update = resolveConsentUpdate(state, request.data);
@@ -350,6 +363,14 @@ const parentConsentUpdate = onCall(
 // Richiesta di completamento ai genitori delle firme senza risposta
 // =============================================================================
 
+/** Impronta dell'elenco: chi invia conferma la lista vista in simulazione, non solo quanti sono. */
+function digestCandidates(candidates) {
+  const lines = candidates
+    .map((item) => `${item.activityId}/${item.registrationId}/${item.parentEmail}`)
+    .sort();
+  return crypto.createHash("sha256").update(lines.join("\n"), "utf8").digest("hex");
+}
+
 async function listCompletionCandidates(db, stakeId, activityId, { resend }) {
   const activityDocs = activityId
     ? [await db.doc(`stakes/${stakeId}/activities/${activityId}`).get()].filter(
@@ -436,6 +457,7 @@ const parentConsentRequestCompletion = onCall(
         ok: true,
         dryRun: true,
         total: candidates.length,
+        digest: digestCandidates(candidates),
         skippedAlreadyRequested,
         skippedNoEmail,
         candidates,
@@ -453,6 +475,12 @@ const parentConsentRequestCompletion = onCall(
         }: rifai la simulazione prima di inviare.`,
       );
     }
+    if (request.data?.expectedDigest !== digestCandidates(candidates)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "L'elenco dei destinatari è cambiato dopo la simulazione: rifai la simulazione prima di inviare.",
+      );
+    }
     if (candidates.length > MAX_COMPLETION_BATCH) {
       throw new HttpsError(
         "failed-precondition",
@@ -462,12 +490,12 @@ const parentConsentRequestCompletion = onCall(
 
     const sent = [];
     const errors = [];
-    const batchStartedAt = new Date().toISOString();
     for (const candidate of candidates) {
       const ref = db.doc(
         registrationPath(stakeId, candidate.activityId, candidate.registrationId),
       );
       const now = new Date().toISOString();
+      const claimId = crypto.randomBytes(8).toString("hex");
 
       // Prenota il turno: due invii in parallelo non mandano due mail.
       const claimed = await db.runTransaction(async (tx) => {
@@ -480,15 +508,20 @@ const parentConsentRequestCompletion = onCall(
           state.status !== "authorized" ||
           // La mail parte solo verso l'indirizzo che l'admin ha visto in elenco.
           normalizeEmail(state.parentEmail) !== candidate.parentEmail ||
-          // Già prenotato: da prima (senza resend) oppure da un altro invio
-          // partito mentre questo girava (anche con resend).
-          (state.consentCompletionRequestedAt &&
-            (!resend || state.consentCompletionRequestedAt >= batchStartedAt)) ||
+          // Già inviato (senza resend) oppure con un invio in corso e recente
+          // di un altro batch, anche con resend.
+          (state.consentCompletionRequestedAt && !resend) ||
+          (state.consentCompletionStatus === "sending" &&
+            Date.parse(state.consentCompletionRequestedAt || "") > Date.now() - SENDING_STALE_MS) ||
           (!isUnanswered(state.photoConsent) && !isUnanswered(state.socialPublicationConsent))
         ) {
           return false;
         }
-        tx.update(ref, { "parentAuthorization.consentCompletionRequestedAt": now });
+        tx.update(ref, {
+          "parentAuthorization.consentCompletionRequestedAt": now,
+          "parentAuthorization.consentCompletionStatus": "sending",
+          "parentAuthorization.consentCompletionClaimId": claimId,
+        });
         return true;
       });
       if (!claimed) continue;
@@ -510,7 +543,9 @@ const parentConsentRequestCompletion = onCall(
           consentUrl: buildConsentUrl(link.rawToken),
           missing: candidate.missing,
         });
-        // La mail è partita: un errore dell'audit non libera la prenotazione
+        // La mail è partita: da qui la prenotazione non si libera più.
+        await ref.update({ "parentAuthorization.consentCompletionStatus": "sent" });
+        // Un errore dell'audit non libera la prenotazione
         // (altrimenti un secondo invio manderebbe una seconda mail).
         try {
           await writeAuditLog(db, stakeId, candidate.activityId, candidate.registrationId, {
@@ -535,9 +570,16 @@ const parentConsentRequestCompletion = onCall(
           simulated: Boolean(result.simulated),
         });
       } catch (error) {
-        // L'invio non è partito: libera la prenotazione per un nuovo tentativo.
-        await ref.update({
-          "parentAuthorization.consentCompletionRequestedAt": FieldValue.delete(),
+        // L'invio non è partito: libera la prenotazione, ma solo se è ancora la
+        // nostra (un altro batch potrebbe averla ripresa nel frattempo).
+        await db.runTransaction(async (tx) => {
+          const snapshot = await tx.get(ref);
+          if (snapshot.data()?.parentAuthorization?.consentCompletionClaimId !== claimId) return;
+          tx.update(ref, {
+            "parentAuthorization.consentCompletionRequestedAt": FieldValue.delete(),
+            "parentAuthorization.consentCompletionStatus": FieldValue.delete(),
+            "parentAuthorization.consentCompletionClaimId": FieldValue.delete(),
+          });
         });
         errors.push({
           registrationId: candidate.registrationId,

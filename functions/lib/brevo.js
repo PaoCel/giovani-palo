@@ -703,10 +703,10 @@ function buildConsentCompletionContent({
   const missingSocial = missing.includes("social");
   const what =
     missingPhoto && missingSocial
-      ? "le scelte su foto e social"
+      ? "le scelte su foto e social non erano obbligatorie e non hai indicato una risposta"
       : missingPhoto
-        ? "la scelta sulle foto"
-        : "la scelta sui social";
+        ? "la scelta sulle foto non era obbligatoria e non hai indicato una risposta"
+        : "la scelta sui social non era obbligatoria e non hai indicato una risposta";
   const consequence =
     missingPhoto && missingSocial
       ? "non useremo foto di tuo figlio o tua figlia né per l'album dell'attività né per i social"
@@ -718,7 +718,7 @@ function buildConsentCompletionContent({
     title: "Completa le scelte su foto e social",
     greeting: `Gentile ${parentName || "genitore o tutore"},`,
     paragraphs: [
-      `quando hai firmato l'autorizzazione per ${participantName} (${activityTitle}) ${what} non era obbligatoria e non hai indicato una risposta.`,
+      `quando hai firmato l'autorizzazione per ${participantName} (${activityTitle}) ${what}.`,
       `Finché non rispondi, il silenzio vale come nessun consenso: ${consequence}.`,
       "Bastano pochi tocchi, non devi firmare di nuovo. Puoi cambiare idea in qualunque momento dallo stesso link.",
     ],
