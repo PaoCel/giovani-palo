@@ -506,6 +506,22 @@ service cloud.firestore {
     // salvataggio completo di un'iscrizione ci arriva vicino. I controlli di
     // ownership (pochi) vengono prima del payload (molti), così chi non è
     // proprietario esce subito e il ramo staff campo non paga questo costo.
+    // Annullamento del titolare (partecipante, ospite o genitore di un figlio):
+    // solo lo stato a 'cancelled' e updatedAt. È già concesso da
+    // validRegistrationUpdate, ma lì l'iscrizione di un figlio superava il
+    // limite di 1000 espressioni (emulatore, 2026-10-19): questo ramo costa
+    // poche espressioni e va valutato per primo.
+    // Il confronto sullo stato va per primo: ogni altro update del titolare
+    // (salvataggio del modulo, riattivazione) esce subito, senza pagare il
+    // diff, perché il salvataggio completo di un figlio sta nel budget per
+    // poche espressioni.
+    function validOwnerCancellation() {
+      return request.resource.data.registrationStatus == 'cancelled'
+        && isOwnRegistration(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registrationStatus', 'updatedAt'])
+        && request.resource.data.updatedAt is string;
+    }
+
     function validRegistrationUpdate() {
       let delta = request.resource.data.diff(resource.data);
       return isOwnRegistration(resource.data)
@@ -1377,7 +1393,9 @@ service cloud.firestore {
             || validRegistrationCreate(stakeId, activityId, registrationId);
           // Ordine per costo: il proprietario non deve pagare le letture del
           // ramo staff campo (attività, iscrizione adulta) prima del proprio.
-          allow update: if isStakeAdmin(stakeId) || validRegistrationUpdate() || validCampAssignmentUpdate(stakeId, activityId);
+          // validOwnerCancellation per primo: è il più economico e l'unico
+          // che sta nel budget per l'annullamento di un'iscrizione figlio.
+          allow update: if validOwnerCancellation() || isStakeAdmin(stakeId) || validRegistrationUpdate() || validCampAssignmentUpdate(stakeId, activityId);
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
 
