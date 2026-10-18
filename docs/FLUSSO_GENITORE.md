@@ -378,6 +378,10 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
 
 1. Parole: glossario su tutte le schermate, pagina Accedi con le due schede,
    `redirect` sull'"Accedi" dell'intestazione, I con "Sei entrato come".
+   **Fatta il 2026-10-18** (su `main`, non ancora in produzione): testi in
+   `src/copy/`, "Sei già dentro" come nel mockup. L'"Accedi" dell'intestazione
+   esiste solo fuori dall'area pubblica; nelle pagine attività si accede dal
+   pulsante della pagina, che porta già il `redirect`.
 2. "Annulla l'iscrizione" per il genitore in Famiglia (manca oggi) e messaggio
    "Riprendi da «Autorizza ora»".
 3. B e C dentro l'iscrizione, account nuovo `parent` con `per=figlio`, via il
