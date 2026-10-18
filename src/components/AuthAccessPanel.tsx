@@ -1,21 +1,37 @@
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { AppLoader } from "@/components/AppLoader";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
+import { ACCEDI } from "@/copy/accedi";
+import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
 import type { GenderRoleCategory, OrganizationProfile } from "@/types";
 import { isRecordNightPath } from "@/utils/activityLinks";
+import { getRoleLabel } from "@/utils/roles";
 import {
   clearPendingAccountProfile,
   readPendingAccountProfile,
 } from "@/utils/pendingAccountProfile";
 
+export type AuthMode = "login" | "signup";
+
 interface AuthAccessPanelProps {
   organization: OrganizationProfile;
   redirect?: string | null;
-  title?: string;
+  // Scheda aperta all'arrivo: "Accedi" salvo link espliciti a "Crea un account".
+  initialMode?: AuthMode;
   description?: string;
   backAction?: ReactNode;
 }
@@ -123,6 +139,12 @@ function isCompatibleRedirect(
   return true;
 }
 
+function getHomePath(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
+  return session.isAdmin && session.profile.mustChangePassword
+    ? "/password-reset"
+    : getRoleHome(session);
+}
+
 function getPostLoginPath(
   session: NonNullable<ReturnType<typeof useAuth>["session"]>,
   redirect: string | null | undefined,
@@ -136,6 +158,41 @@ function getPostLoginPath(
   }
 
   return getRoleHome(session);
+}
+
+function getInitials(fullName: string) {
+  const initials = fullName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0))
+    .slice(0, 2)
+    .join("");
+  return initials.toUpperCase() || "?";
+}
+
+// Tastiera aperta (iOS e Android riducono il visual viewport, non il layout):
+// il piede con la CTA torna nel flusso, così non copre il campo attivo e non
+// resta a metà schermo sopra la tastiera.
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const viewport = typeof window === "undefined" ? null : window.visualViewport;
+
+    if (!viewport) {
+      return;
+    }
+
+    const update = () =>
+      setOpen(viewport.scale <= 1.01 && window.innerHeight - viewport.height > 150);
+
+    update();
+    viewport.addEventListener("resize", update);
+    return () => viewport.removeEventListener("resize", update);
+  }, []);
+
+  return open;
 }
 
 function splitFullName(value: string | null | undefined) {
@@ -202,13 +259,14 @@ function GoogleMark() {
 export function AuthAccessPanel({
   organization,
   redirect,
-  title = "Login o crea un account",
+  initialMode = "login",
   description,
   backAction,
 }: AuthAccessPanelProps) {
   const navigate = useNavigate();
   const {
     session,
+    loading,
     signInWithEmail,
     signInWithGoogle,
     signUpWithEmail,
@@ -216,9 +274,20 @@ export function AuthAccessPanel({
     completeProfile,
     completeParentProfile,
     switchToParentAccount,
+    signOut,
   } = useAuth();
   const cityOptionsListId = useId();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const authIds = useId();
+  const formId = `${authIds}-form`;
+  const panelId = `${authIds}-panel`;
+  const tabIds = { login: `${authIds}-tab-login`, signup: `${authIds}-tab-signup` };
+  const keyboardOpen = useKeyboardOpen();
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  // Si va avanti da soli solo dopo un'azione fatta qui (accesso, account nuovo,
+  // profilo completato). Chi apre la pagina già dentro vede "Sei già dentro":
+  // mai un redirect muto (docs/FLUSSO_GENITORE.md, I).
+  const [actedHere, setActedHere] = useState(false);
+  const messageRef = useRef<HTMLDivElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -251,7 +320,7 @@ export function AuthAccessPanel({
   const effectiveDescription =
     description ||
     organization.accountHelpText ||
-    "Pochi dati essenziali, poi puoi gestire tutto dal tuo profilo.";
+    ACCEDI.notaDatiDefault;
 
   useEffect(() => {
     if (!session || session.isAnonymous) {
@@ -287,13 +356,27 @@ export function AuthAccessPanel({
   }, [session, unitOptions]);
 
   useEffect(() => {
-    if (!session || session.isAnonymous || requiresProfileCompletion) {
+    if (!actedHere || !session || session.isAnonymous || requiresProfileCompletion) {
       return;
     }
 
     clearPendingAccountProfile();
     navigate(getPostLoginPath(session, redirect), { replace: true });
-  }, [navigate, redirect, requiresProfileCompletion, session]);
+  }, [actedHere, navigate, redirect, requiresProfileCompletion, session]);
+
+  // L'esito arriva dopo il tocco sulla CTA in fondo: il messaggio va in vista,
+  // sopra il piede fisso (scroll-margin nel CSS), non sotto.
+  useEffect(() => {
+    if (!error && !feedback) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    messageRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [error, feedback]);
 
   useEffect(() => {
     setPassword("");
@@ -368,6 +451,8 @@ export function AuthAccessPanel({
       return;
     }
 
+    setActedHere(true);
+
     try {
       await (mode === "signup"
         ? signUpWithEmail(normalizedEmail, password)
@@ -383,6 +468,7 @@ export function AuthAccessPanel({
     setBusy("auth");
     setError(null);
     setFeedback(null);
+    setActedHere(true);
 
     try {
       await signInWithGoogle();
@@ -467,7 +553,7 @@ export function AuthAccessPanel({
 
     const shouldSwitch =
       typeof window !== "undefined" &&
-      window.confirm("Sei un genitore e stai iscrivendo un tuo figlio?");
+      window.confirm("Sei un genitore e stai iscrivendo tuo figlio o tua figlia?");
 
     if (!shouldSwitch) {
       setParentPromptDismissed(true);
@@ -522,6 +608,7 @@ export function AuthAccessPanel({
 
     setBusy("profile");
     setError(null);
+    setActedHere(true);
     const genderRoleCategory = profileState.genderRoleCategory;
 
     if (!isParentProfileFlow && !genderRoleCategory) {
@@ -563,6 +650,10 @@ export function AuthAccessPanel({
       (profileState.unitName.trim() &&
         !isConfiguredUnit(unitOptions, profileState.unitName)));
   const unitSelectValue = showManualUnitInput ? MANUAL_UNIT_VALUE : profileState.unitName;
+
+  if (loading) {
+    return <AppLoader label={ACCEDI.verificaSessione} />;
+  }
 
   if (requiresProfileCompletion) {
     const progress = ((profileStep + 1) / activeProfileSteps.length) * 100;
@@ -802,7 +893,7 @@ export function AuthAccessPanel({
                 ) : profileStep === activeProfileSteps.length - 1 ? (
                   <>
                     <AppIcon name="check" />
-                    <span>Entra nell&apos;app</span>
+                    <span>{ACCEDI.salvaEContinua}</span>
                   </>
                 ) : (
                   <>
@@ -818,63 +909,172 @@ export function AuthAccessPanel({
     );
   }
 
+  if (session && !session.isAnonymous) {
+    // Appena entrato da qui: l'effetto sopra sta già portando alla pagina giusta.
+    if (actedHere) {
+      return <AppLoader label={ACCEDI.attendi} />;
+    }
+
+    const fullName = isPlaceholderName(session.profile.fullName)
+      ? ""
+      : session.profile.fullName.trim();
+    const email = session.firebaseUser.email || session.profile.email || "";
+    const roleLabel = getRoleLabel(session.profile.role);
+
+    return (
+      <section className="auth-screen auth-screen--signed-in">
+        <div className="auth-screen__copy">
+          <h1 className="auth-screen__title">{ACCEDI.giaDentro}</h1>
+        </div>
+
+        <div className="auth-identity">
+          <span aria-hidden="true" className="auth-identity__avatar">
+            {getInitials(fullName || email)}
+          </span>
+          <div className="auth-identity__text">
+            <strong>{fullName || email}</strong>
+            {fullName && email ? <span>{email}</span> : null}
+            <span className="auth-identity__tag">
+              {session.profile.unitName
+                ? fillCopy(ACCEDI.ruoloEUnita, {
+                    ruolo: roleLabel,
+                    unita: session.profile.unitName,
+                  })
+                : roleLabel}
+            </span>
+          </div>
+        </div>
+
+        <div className="auth-identity__actions">
+          <Link className="button button--primary button--large" to={getHomePath(session)}>
+            {ACCEDI.vaiAllaTuaPagina}
+          </Link>
+          <button
+            className="button button--ghost button--large"
+            onClick={() => {
+              setMode("login");
+              void signOut();
+            }}
+            type="button"
+          >
+            <AppIcon name="logout" />
+            <span>{ACCEDI.esciECambiaAccount}</span>
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const isSignup = mode === "signup";
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextMode: AuthMode =
+      event.key === "Home" ? "login" : event.key === "End" ? "signup" : isSignup ? "login" : "signup";
+    setMode(nextMode);
+    document.getElementById(tabIds[nextMode])?.focus();
+  }
+
   return (
     <section className="auth-screen">
       <div className="auth-screen__copy">
-        <h1 className="auth-screen__title">{title}</h1>
+        <h1 className="auth-screen__title">
+          {isSignup ? ACCEDI.titoloCrea : ACCEDI.titoloAccedi}
+        </h1>
+        <p className="auth-screen__lead">{isSignup ? ACCEDI.leadCrea : ACCEDI.leadAccedi}</p>
       </div>
 
-      {error ? <div className="form-error">{error}</div> : null}
-      {feedback ? <div className="form-success">{feedback}</div> : null}
+      <div aria-label={ACCEDI.schede} className="auth-tabs" role="tablist">
+        {(["login", "signup"] as const).map((tabMode) => (
+          <button
+            aria-controls={panelId}
+            aria-selected={mode === tabMode}
+            className="auth-tabs__tab"
+            id={tabIds[tabMode]}
+            key={tabMode}
+            onClick={() => setMode(tabMode)}
+            onKeyDown={handleTabKeyDown}
+            role="tab"
+            tabIndex={mode === tabMode ? 0 : -1}
+            type="button"
+          >
+            {tabMode === "login" ? ACCEDI.schedaAccedi : ACCEDI.schedaCrea}
+          </button>
+        ))}
+      </div>
 
       {session?.isAnonymous ? (
         <p className="auth-screen__note auth-screen__note--emphasis">
-          {isRecordNightPath(redirect)
-            ? "Se hai già inviato richieste da questo telefono, restano alla verifica degli adulti: non si spostano sull'account."
-            : "Hai già iniziato come ospite: se crei un account adesso, colleghiamo subito l'iscrizione appena fatta al tuo profilo."}
+          {isRecordNightPath(redirect) ? ACCEDI.ospiteRecord : ACCEDI.ospiteIscrizione}
         </p>
       ) : null}
 
-      <div className="auth-panel">
-        <form className="auth-panel__form" noValidate onSubmit={handleEmailAuth}>
+      <div
+        aria-labelledby={tabIds[mode]}
+        className="auth-panel"
+        id={panelId}
+        role="tabpanel"
+      >
+        <button
+          className="auth-google-button"
+          disabled={busy !== null}
+          onClick={() => void handleGoogleAuth()}
+          type="button"
+        >
+          <span className="auth-google-button__mark">
+            <GoogleMark />
+          </span>
+          <span>{ACCEDI.google}</span>
+        </button>
+
+        <div className="auth-divider">
+          <span>{ACCEDI.oppureConEmail}</span>
+        </div>
+
+        <form className="auth-panel__form" id={formId} noValidate onSubmit={handleEmailAuth}>
           <label className="field">
-            <span>Email</span>
+            <span>{ACCEDI.email}</span>
             <input
               autoComplete="email"
               className={fieldErrors.email ? "input input--error" : "input"}
+              inputMode="email"
               type="email"
               value={email}
               onChange={(event) => setFieldValue("email", event.target.value, setEmail)}
-              placeholder="nome@esempio.it"
+              placeholder={ACCEDI.emailPlaceholder}
             />
           </label>
 
           <label className="field">
-            <span>Password</span>
+            <span>{ACCEDI.password}</span>
             <div className={fieldErrors.password ? "password-field password-field--error" : "password-field"}>
               <input
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete={isSignup ? "new-password" : "current-password"}
                 className={fieldErrors.password ? "input input--error" : "input"}
                 type={showPasswords ? "text" : "password"}
                 value={password}
                 onChange={(event) => setFieldValue("password", event.target.value, setPassword)}
-                placeholder={mode === "signup" ? "Almeno 6 caratteri" : "Inserisci la tua password"}
+                placeholder={isSignup ? ACCEDI.passwordPlaceholderCrea : ACCEDI.passwordPlaceholderAccedi}
               />
               <button
-                aria-label={showPasswords ? "Nascondi password" : "Mostra password"}
+                aria-label={showPasswords ? ACCEDI.nascondiPassword : ACCEDI.mostraPassword}
                 className="password-field__toggle"
                 onClick={() => setShowPasswords((current) => !current)}
                 type="button"
               >
                 <AppIcon name="eye" />
-                <span>{showPasswords ? "Nascondi" : "Mostra"}</span>
+                <span>{showPasswords ? ACCEDI.nascondi : ACCEDI.mostra}</span>
               </button>
             </div>
           </label>
 
-          {mode === "signup" ? (
+          {isSignup ? (
             <label className="field">
-              <span>Conferma password</span>
+              <span>{ACCEDI.confermaPassword}</span>
               <div
                 className={
                   fieldErrors.confirmPassword
@@ -890,70 +1090,60 @@ export function AuthAccessPanel({
                   onChange={(event) =>
                     setFieldValue("confirmPassword", event.target.value, setConfirmPassword)
                   }
-                  placeholder="Ripeti la password"
+                  placeholder={ACCEDI.confermaPasswordPlaceholder}
                 />
                 <button
-                  aria-label={showPasswords ? "Nascondi password" : "Mostra password"}
+                  aria-label={showPasswords ? ACCEDI.nascondiPassword : ACCEDI.mostraPassword}
                   className="password-field__toggle"
                   onClick={() => setShowPasswords((current) => !current)}
                   type="button"
                 >
                   <AppIcon name="eye" />
-                  <span>{showPasswords ? "Nascondi" : "Mostra"}</span>
+                  <span>{showPasswords ? ACCEDI.nascondi : ACCEDI.mostra}</span>
                 </button>
               </div>
             </label>
           ) : (
             <button
-              className="auth-link-button"
+              className="auth-link-button auth-link-button--forgot"
               disabled={busy !== null}
               onClick={() => void handlePasswordReset()}
               type="button"
             >
-              Password dimenticata
+              {ACCEDI.passwordDimenticata}
             </button>
           )}
-
-          <button className="button button--primary button--large" disabled={busy !== null} type="submit">
-            {busy === "auth" ? (
-              "Un attimo..."
-            ) : mode === "signup" ? (
-              "Crea account"
-            ) : (
-              "Login"
-            )}
-          </button>
         </form>
 
-        <div className="auth-divider">
-          <span>oppure</span>
-        </div>
+        {isSignup ? <p className="auth-screen__note">{effectiveDescription}</p> : null}
 
-        <button
-          className="auth-google-button"
-          disabled={busy !== null}
-          onClick={() => void handleGoogleAuth()}
-          type="button"
-        >
-          <span className="auth-google-button__mark">
-            <GoogleMark />
-          </span>
-          <span>{mode === "signup" ? "Registrati con Google" : "Continua con Google"}</span>
-        </button>
+        {error || feedback ? (
+          <div className="auth-panel__message" ref={messageRef}>
+            {error ? (
+              <div className="form-error" role="alert">
+                {error}
+              </div>
+            ) : null}
+            {feedback ? (
+              <div className="form-success" role="status">
+                {feedback}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      <p className="auth-switch">
-        {mode === "login" ? "Non hai un account?" : "Hai già un account?"}{" "}
+      <div className={keyboardOpen ? "auth-foot auth-foot--inline" : "auth-foot"}>
         <button
-          className="auth-link-button"
-          onClick={() => setMode((current) => (current === "login" ? "signup" : "login"))}
-          type="button"
+          className="button button--primary button--large"
+          disabled={busy !== null}
+          form={formId}
+          type="submit"
         >
-          {mode === "login" ? "Crea un account" : "Fai login"}
+          {busy === "auth" ? ACCEDI.attendi : isSignup ? ACCEDI.inviaCrea : ACCEDI.inviaAccedi}
         </button>
-      </p>
-
-      <p className="auth-screen__note">{effectiveDescription}</p>
+        <p className="auth-foot__note">{isSignup ? ACCEDI.notaCrea : ACCEDI.notaAccedi}</p>
+      </div>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-// "Accedi con Google" su un telefono che ha già una sessione anonima (iscrizione da
+// "Continua con Google" su un telefono che ha già una sessione anonima (iscrizione da
 // ospite, richieste ai record senza account). Il primo tentativo collega Google alla
 // sessione anonima (così l'iscrizione appena fatta resta sua); ma se quel Google ha
 // già un account Firebase il collegamento è impossibile: l'SDK risponde
@@ -8,6 +8,8 @@
 //
 // Qui sta solo la decisione, senza importare Firebase: i test la provano con errori
 // finti (tests/anonymousAccountSwitch.test.mjs). Il popup Google vero no.
+
+import { ACCEDI } from "../copy/accedi.ts";
 
 const EXISTING_ACCOUNT_CODES: ReadonlySet<string> = new Set([
   "auth/credential-already-in-use",
@@ -22,8 +24,7 @@ export function isExistingAccountError(error: unknown) {
 
 // Quando la credenziale non c'è: la sessione anonima è già stata lasciata, quindi
 // al prossimo tentativo l'accesso con Google entra direttamente nell'account.
-export const EXISTING_ACCOUNT_RETRY_MESSAGE =
-  "Esiste già un account con questo accesso. Premi di nuovo «Accedi con Google» per entrare.";
+export const EXISTING_ACCOUNT_RETRY_MESSAGE = ACCEDI.accountEsistenteRiprova;
 
 export const EXISTING_ACCOUNT_RETRY_CODE = "auth/existing-account-retry";
 

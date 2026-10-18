@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 
 import { AuthAccessPanel } from "@/components/AuthAccessPanel";
+import { ACCEDI } from "@/copy/accedi";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -12,6 +13,9 @@ import { getStoredPublicStakeId } from "@/utils/stakeSelection";
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
+  // `?scheda=crea` apre "Crea un account" (link "Crea un account" dopo
+  // un'iscrizione da ospite); senza, la pagina parte da "Accedi".
+  const initialMode = searchParams.get("scheda") === "crea" ? "signup" : "login";
   const { session } = useAuth();
   // Chi ha già un profilo resta nel suo palo: il completamento profilo scrive
   // `stakeId` dell'organizzazione mostrata, e per un admin/dirigente le rules
@@ -26,9 +30,6 @@ export function LoginPage() {
     [profileStakeId],
     null,
   );
-  const description =
-    "Creare un account ti aiuta a velocizzare le prossime iscrizioni. I dati restano usati solo per attività, presenze e comunicazioni collegate.";
-
   return (
     <div className="page page--auth">
       {error ? (
@@ -46,7 +47,9 @@ export function LoginPage() {
       <AuthAccessPanel
         organization={organization ?? getDefaultOrganizationProfile()}
         redirect={redirect}
-        description={description}
+        initialMode={initialMode}
+        description={ACCEDI.notaDati}
+        key={initialMode}
       />
     </div>
   );

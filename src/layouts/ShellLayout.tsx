@@ -4,9 +4,11 @@ import { NavLink, Link, Outlet, useLocation, useNavigate } from "react-router-do
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { InstallHint } from "@/components/InstallHint";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
+import { PAROLE } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { alertsService } from "@/services/firestore/alertsService";
 import type { Alert } from "@/types";
+import { getLoginPath } from "@/utils/activityLinks";
 import { getRoleLabel } from "@/utils/roles";
 
 export interface LayoutLink {
@@ -428,9 +430,12 @@ export function ShellLayout({
                 </button>
               ) : null
             ) : showDefaultAuthAction ? (
-              <Link className="button button--soft button--small" to="/login">
+              <Link
+                className="button button--soft button--small topbar__auth-link"
+                to={getLoginPath(`${location.pathname}${location.search}`)}
+              >
                 <AppIcon name="user" />
-                Accedi
+                {PAROLE.accedi}
               </Link>
             ) : null}
           </div>

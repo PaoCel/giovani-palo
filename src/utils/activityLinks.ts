@@ -35,6 +35,30 @@ export function getActivityRegistrationPath(eventId: string, stakeId?: string) {
   return `/activities/${eventId}/register${query ? `?${query}` : ""}`;
 }
 
+// Pagina Accedi con ritorno a `redirect` (la pagina da cui si parte). Niente
+// ritorno verso /login stessa né verso indirizzi che non sono un percorso
+// interno. `scheda: "crea"` apre "Crea un account" invece di "Accedi".
+export function getLoginPath(redirect?: string | null, scheda?: "crea") {
+  const params = new URLSearchParams();
+
+  if (scheda) {
+    params.set("scheda", scheda);
+  }
+
+  if (
+    redirect &&
+    redirect.startsWith("/") &&
+    !redirect.startsWith("//") &&
+    !redirect.startsWith("/\\") &&
+    !/^\/login(?:[/?#]|$)/u.test(redirect)
+  ) {
+    params.set("redirect", redirect);
+  }
+
+  const query = params.toString();
+  return `/login${query ? `?${query}` : ""}`;
+}
+
 // Notte dei Record dell'attività (docs/NOTTE_DEI_RECORD.md).
 export function getRecordNightPath(eventId: string, stakeId?: string) {
   const params = new URLSearchParams();

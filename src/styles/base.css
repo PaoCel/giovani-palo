@@ -159,8 +159,8 @@ button {
 }
 
 .topbar__back {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
@@ -185,6 +185,7 @@ button {
   align-items: center;
   gap: 0.9rem;
   min-width: 0;
+  min-height: 2.75rem;
 }
 
 .brand__mark {
@@ -352,6 +353,11 @@ button {
   font-size: 0.65rem;
   font-weight: 800;
   box-shadow: 0 8px 18px rgba(177, 78, 68, 0.24);
+}
+
+/* Target tattile da 44 px anche nella versione piccola del pulsante. */
+.topbar__auth-link {
+  min-height: 2.75rem;
 }
 
 .topbar__logout {
@@ -1154,17 +1160,25 @@ button {
 
 .auth-screen__copy {
   display: grid;
-  gap: 0.45rem;
-  text-align: center;
+  gap: 0.5rem;
 }
 
+/* Fraunces 27-32 px (docs/FLUSSO_GENITORE.md, "Finitura"). */
 .auth-screen__title {
   margin: 0;
   color: var(--heading);
-  font-size: clamp(1.9rem, 7vw, 2.5rem);
-  line-height: 1.02;
-  letter-spacing: -0.04em;
+  font-size: clamp(1.7rem, 8vw, 2rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
   font-family: "Fraunces", serif;
+}
+
+.auth-screen__lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .auth-screen__description,
@@ -1188,9 +1202,207 @@ button {
   gap: 0.95rem;
 }
 
+/* Due schede alla pari: "Accedi" e "Crea un account". */
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(16, 28, 48, 0.06);
+}
+
+.auth-tabs__tab {
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.2;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+/* A 320 px "Crea un account" deve restare su una riga. */
+@media (max-width: 359px) {
+  .auth-tabs__tab {
+    padding-inline: 0.3rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+}
+
+.auth-tabs__tab[aria-selected="true"] {
+  background: #fff;
+  color: var(--heading);
+  box-shadow: 0 2px 8px rgba(16, 28, 48, 0.1);
+}
+
+.auth-tabs__tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Piede con la CTA: fisso in basso sul telefono, nel flusso con la tastiera
+   aperta (useKeyboardOpen) e da tablet in su. */
+.auth-foot {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.auth-foot .button {
+  width: 100%;
+  min-height: 3.375rem;
+  border-radius: 999px;
+}
+
+.auth-foot__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Già entrato: con quale account, e come cambiarlo. */
+.auth-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.auth-identity__avatar {
+  width: 3.375rem;
+  height: 3.375rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c9a36d, #a77a3f);
+  color: #fff;
+  font-size: 1.06rem;
+  font-weight: 800;
+}
+
+.auth-identity__text {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+  justify-items: start;
+}
+
+.auth-identity__text strong {
+  max-width: 100%;
+  color: var(--heading);
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+
+.auth-identity__text > span:not(.auth-identity__tag) {
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.auth-identity__tag {
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.625rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #7d5a2a;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.auth-identity__actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.auth-identity__actions .button {
+  width: 100%;
+  min-height: 3.375rem;
+  border-radius: 999px;
+}
+
+@media (max-width: 719px) {
+  /* Colonna: un avviso sopra il pannello resta alto quanto il suo testo. */
+  .page--auth {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+  }
+
+  .page--auth > .auth-screen {
+    flex: 1 0 auto;
+  }
+
+  /* 16 px dal bordo: la pagina comune ne lascia 10. */
+  .auth-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem 6px 0;
+  }
+
+  .auth-foot {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Piede fisso solo dove c'è spazio: su uno schermo basso (iPhone SE)
+   coprirebbe la password a pagina ferma. */
+@media (max-width: 719px) and (min-height: 700px) {
+  .auth-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin-top: auto;
+    padding: 1.4rem 0 max(1rem, env(safe-area-inset-bottom));
+    background: linear-gradient(
+      180deg,
+      rgba(244, 247, 251, 0) 0%,
+      rgba(244, 247, 251, 0.96) 26%,
+      #f4f7fb 100%
+    );
+  }
+
+  .auth-foot--inline {
+    position: static;
+    margin-top: 0;
+    padding-top: 0.4rem;
+    background: none;
+  }
+}
+
 .auth-panel__form {
   display: grid;
   gap: 0.95rem;
+}
+
+.auth-panel__message {
+  display: grid;
+  gap: 0.6rem;
+  scroll-margin-top: 6rem;
+  /* Altezza del piede fisso con la CTA, più un respiro. */
+  scroll-margin-bottom: 9rem;
 }
 
 .auth-panel .button {
@@ -1203,14 +1415,18 @@ button {
 
 .password-field__toggle {
   position: absolute;
-  right: 0.6rem;
+  right: 0.25rem;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   border: 0;
-  padding: 0.2rem;
+  border-radius: 0.8rem;
+  padding: 0 0.55rem;
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -1241,17 +1457,25 @@ button {
   color: var(--primary-strong);
 }
 
+.auth-link-button--forgot {
+  justify-self: end;
+  min-height: 2.75rem;
+  margin: -0.4rem 0 -0.5rem;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+}
+
 .auth-google-button {
   width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  min-height: 3.35rem;
+  min-height: 3.375rem;
   padding: 0.95rem 1.1rem;
-  border-radius: 1.1rem;
-  border: 1px solid rgba(20, 39, 70, 0.08);
-  background: rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  border: 1px solid var(--surface-border-strong);
+  background: #fff;
   color: var(--heading);
   font: inherit;
   font-weight: 800;
@@ -3304,26 +3528,20 @@ button {
 }
 
 .auth-divider {
-  position: relative;
-  text-align: center;
-}
-
-.auth-divider::before {
-  content: "";
-  position: absolute;
-  inset: 50% 0 auto;
-  height: 1px;
-  background: rgba(16, 28, 48, 0.08);
-}
-
-.auth-divider span {
-  position: relative;
-  display: inline-block;
-  padding: 0 0.75rem;
-  background: rgba(255, 255, 255, 0.82);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 700;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--surface-border-strong);
 }
 
 .form-stepper {
