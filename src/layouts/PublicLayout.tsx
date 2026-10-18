@@ -5,7 +5,6 @@ export function PublicLayout() {
     <ShellLayout
       area="public"
       brandLabel="Piattaforma per Attività GU e GD Italia"
-      showDefaultAuthAction={false}
     />
   );
 }

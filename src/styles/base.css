@@ -356,8 +356,23 @@ button {
 }
 
 /* Target tattile da 44 px anche nella versione piccola del pulsante. */
-.topbar__auth-link {
+.button.topbar__auth-link {
   min-height: 2.75rem;
+  flex-shrink: 0;
+}
+
+.brand__label--short {
+  display: none;
+}
+
+@media (max-width: 479px) {
+  .brand--compact .brand__label {
+    display: none;
+  }
+
+  .brand--compact .brand__label--short {
+    display: inline;
+  }
 }
 
 .topbar__logout {

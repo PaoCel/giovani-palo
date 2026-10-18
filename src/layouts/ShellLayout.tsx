@@ -25,7 +25,6 @@ interface ShellLayoutProps {
   links?: LayoutLink[];
   actionLink?: LayoutLink;
   brandLabel?: string;
-  showDefaultAuthAction?: boolean;
 }
 
 function getSessionLabel(
@@ -48,14 +47,15 @@ function getSessionLabel(
   return "Sessione attiva";
 }
 
+const SHORT_BRAND_LABEL = "Attività GU GD";
+
 export function ShellLayout({
   area,
   eyebrow,
   title,
   links = [],
   actionLink,
-  brandLabel = "Attività GU GD",
-  showDefaultAuthAction = true,
+  brandLabel = SHORT_BRAND_LABEL,
 }: ShellLayoutProps) {
   const { session, signOut } = useAuth();
   const location = useLocation();
@@ -70,6 +70,13 @@ export function ShellLayout({
   const showTopNav = area === "admin" && links.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
   const showPublicBack = area === "public" && location.pathname !== "/";
+  // "Accedi" per chi non è entrato (anche da ospite), con ritorno alla pagina
+  // corrente. Non su /login, dove azzererebbe il redirect già in corso.
+  const showAuthLink = location.pathname !== "/login";
+  // Con "Accedi" accanto, sul telefono il nome lungo andava su quattro righe:
+  // lì si usa il nome corto delle aree riservate.
+  const compactBrand =
+    area === "public" && !session?.isAuthenticated && showAuthLink && brandLabel !== SHORT_BRAND_LABEL;
   const showAdminModeSwitch =
     Boolean(session?.isAdmin && !session.isAnonymous) && (area === "admin" || area === "user");
   const showMeta =
@@ -275,7 +282,7 @@ export function ShellLayout({
                 <span aria-hidden="true" className="topbar__back topbar__back--hidden" />
               )}
 
-              <Link className="brand" to={brandDestination}>
+              <Link className={compactBrand ? "brand brand--compact" : "brand"} to={brandDestination}>
                 <img
                   alt=""
                   aria-hidden="true"
@@ -284,7 +291,12 @@ export function ShellLayout({
                   src="/brand-logo.png"
                 />
                 <span>
-                  <strong>{brandLabel}</strong>
+                  <strong>
+                    <span className="brand__label">{brandLabel}</span>
+                    {compactBrand ? (
+                      <span className="brand__label brand__label--short">{SHORT_BRAND_LABEL}</span>
+                    ) : null}
+                  </strong>
                   {eyebrow ? <small>{eyebrow}</small> : null}
                 </span>
               </Link>
@@ -429,7 +441,7 @@ export function ShellLayout({
                   Esci
                 </button>
               ) : null
-            ) : showDefaultAuthAction ? (
+            ) : showAuthLink ? (
               <Link
                 className="button button--soft button--small topbar__auth-link"
                 to={getLoginPath(`${location.pathname}${location.search}`)}
