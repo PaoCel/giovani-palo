@@ -1,6 +1,9 @@
 # Flusso genitore chiaro
 
-Stato: **proposta, da approvare**. Fase 1 del piano autonomia del 2026-10-18,
+Stato: **approvata da Paolo il 2026-10-18** (flusso, mockup e scelte G1-G6
+come consigliate), con due richieste integrate sotto: illustrazioni proprie e
+neutre rispetto al tipo di attività al posto delle icone nelle scelte
+("Illustrazioni"), e finitura curata ("Finitura"). Fase 1 del piano autonomia del 2026-10-18,
 prima delle fondamenta visive e di S2. Mockup in `.claude/mockups/flusso-genitore/`
 (fuori da git), review Codex in `.claude/mockups/flusso-genitore/review/`.
 Nessun codice applicativo finché Paolo non approva i mockup.
@@ -304,7 +307,64 @@ dirigente in qualcos'altro.
 Il progetto non ha un catalogo i18n: ogni sostituzione si fa in tutti i file
 che usano la parola vecchia, non solo nelle schermate nuove.
 
-## Scelte per Paolo
+## Illustrazioni
+
+Le scelte "Chi partecipa?" e "Chi sei?", la guardia e "Iscrizione inviata"
+usano un set di illustrazioni
+nostre, non icone di libreria. Le attività sono di ogni tipo (campeggio,
+viaggio al tempio, serata da ballo, servizio): le illustrazioni mostrano
+**persone, non un'attività**, su uno sfondo astratto.
+
+| File | Soggetto | Dove |
+| --- | --- | --- |
+| `io` | una ragazza di circa 15 anni che cammina in avanti | B "Partecipo io" |
+| `giovani` | un ragazzo e una ragazza adolescenti | "Chi sei?" |
+| `genitore` | mamma con la mano sulla spalla del figlio | B, "Chi sei?", guardia; H se il figlio è Giovane uomo |
+| `genitore-figlia` | papà con la mano sulla spalla della figlia | H (e ogni punto col figlio noto) se è Giovane donna |
+| `dirigente` | un dirigente con badge e cartellina | "Chi sei?", guardia, B per un dirigente |
+| `inviata` | una porta aperta da cui esce luce | H per "Partecipo io" |
+
+Mamma o papà non lo sappiamo e non lo chiediamo (Paolo, 2026-10-18: troppo
+per un'illustrazione). Il gruppo del figlio sì: dove il figlio è noto,
+l'illustrazione lo segue; le due varianti mostrano una mamma e un papà. I
+ragazzi devono sembrare ragazzi (felpa, coda, proporzioni da adolescente):
+nella prima stesura la ragazza di "Partecipo io" era identica alla mamma e le
+due scelte si confondevano.
+
+Stile: carta ritagliata a strati, palette del progetto (blu `#1b3f67`,
+`#235d90`, sabbia `#b58a50`, crema), finestra ad arco, niente volti. Generate
+con Codex come set (la prima fa da riferimento di stile alle altre), bordo
+dell'arco rifinito con una maschera uguale per tutte. Originali e prompt fuori
+da git (`.claude/mockups/flusso-genitore/assets/`); nel repo solo WebP a 2× la
+misura mostrata. Le icone restano solo per i controlli (indietro, chiudi,
+frecce, campi). Sotto i 38 px non si usano: a 26 px non si leggono più (provato
+nella riga per il genitore della pagina attività, tolta).
+
+## Finitura
+
+Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
+
+- Testo di lettura e campi a **16 px** (sotto, Safari iOS ingrandisce la
+  pagina al focus); testo secondario mai sotto 13 px, contrasto AA; titoli
+  Fraunces 27-32 px; target tattili ≥ 44 px.
+- **Un solo contenitore di scorrimento** per pagina. Il piede con la CTA è
+  fisso, rispetta `env(safe-area-inset-bottom)`, e il contenuto ha sotto lo
+  spazio del piede: l'ultimo campo non finisce mai dietro il pulsante.
+- **Tastiera aperta**: il campo attivo resta visibile sopra la CTA
+  (`visualViewport`), la CTA non salta a metà schermo.
+- **Fogli dal basso**: altezza massima 90 `dvh`, scroll interno con
+  `overscroll-behavior: contain`, pagina sotto bloccata, chiusura col
+  trascinamento uguale a "Annulla".
+- **Cambio di passo**: il passo nuovo parte dall'alto con il focus sul titolo;
+  indietro ritrova la posizione di prima. Transizione breve (≤ 200 ms), niente
+  con `prefers-reduced-motion`.
+- `dvh` al posto di `vh`; nessuno scroll orizzontale da 320 px in su; immagini
+  con dimensioni dichiarate (niente salti mentre caricano).
+- Collaudo a 320, 390 e 430 px, con la tastiera aperta, in Safari nel
+  simulatore iOS sul Mac mini e in Chrome con emulazione Android; confronto
+  affiancato mockup/schermo alla stessa scala per ogni schermata.
+
+## Scelte (approvate il 2026-10-18 come consigliate)
 
 | Id | Domanda | Opzioni | Consiglio |
 | --- | --- | --- | --- |

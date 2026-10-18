@@ -1,7 +1,7 @@
 ---
 id: gugd-flusso-genitore
 title: "Flusso genitore chiaro: chi iscrivi, figlio in contesto, un verbo per accedere"
-status: needs-paolo
+status: ready
 impact: 2
 urgency: 2
 effort: L
@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "spec e mockup pronti, in attesa di approvazione"
-next: "Paolo approva mockup e scelte G1-G6, poi fase 1 (parole)"
-verified: spec dal codice + review Codex; mockup renderizzati; rules non provate
+stopped_at: "spec e mockup approvati, illustrazioni pronte"
+next: fase 1 (parole) con stringhe in un file per schermata
+verified: spec dal codice + review Codex; mockup approvati; rules non provate
 links: []
 done_at:
 ---
@@ -40,9 +40,13 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
 
 ## Da fare
 
-1. Paolo approva mockup (`.claude/mockups/flusso-genitore/0[1-3]-*.png`) e
-   scelte G1, G2, G3, G5, G6.
-2. Fasi 1-6 della spec, una alla volta, ognuna rilasciabile.
+1. ~~Paolo approva mockup e scelte G1-G6~~ (2026-10-18, come consigliate; in più
+   illustrazioni proprie e finitura, sezioni "Illustrazioni" e "Finitura").
+2. Fasi 1-6 della spec, una alla volta, ognuna rilasciabile. Nella fase 1
+   (parole) le stringhe toccate nascono già in un file per schermata, così il
+   task `gugd-i18n` parte da lì.
+3. Illustrazioni: WebP 2× da `.claude/mockups/flusso-genitore/img/` nel repo
+   quando si costruisce la prima schermata che le usa.
 
 ## Verificato
 
@@ -50,5 +54,6 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
 rivista da Codex (`gpt-6-astra`, PASS WITH CONCERNS, correzioni recepite;
 verificati nel codice: token "Autorizza ora" 60 minuti che invalida il link
 della mail, nessun annullamento per il genitore). Mockup renderizzati a 390 px
-con i token di `base.css`. "Nessuna rule nuova" dedotto dal codice, non
+con i token di `base.css`, approvati da Paolo; set di 6 illustrazioni generato
+con Codex (versione campeggio scartata: le attività sono di ogni tipo). "Nessuna rule nuova" dedotto dal codice, non
 provato nell'emulatore.
