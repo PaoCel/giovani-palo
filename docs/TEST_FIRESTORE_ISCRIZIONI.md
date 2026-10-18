@@ -23,6 +23,21 @@ locale. Verifica lettura e query famiglia, salvataggio completo del genitore,
 salvataggio partecipante e legacy, annullamento, operazioni admin e rifiuto di
 accessi estranei o modifiche a proprietà, assegnazioni e consensi.
 
+Annullamento del genitore (fase 2 del flusso genitore, 2026-10-19): il client
+manda solo `registrationStatus: cancelled` e `updatedAt`, e lo concede il ramo
+`validOwnerCancellation`, valutato per primo perché `validRegistrationUpdate`
+su un'iscrizione figlio superava il limite di 1000 espressioni. Il ramo
+comincia dal confronto sullo stato, così gli altri update non pagano il diff.
+Test con il client SDK e le chiamate esatte del client, compresi modifica e
+reiscrizione di un figlio con `parentAuthorization` valorizzato:
+`functions/tests/parentCancelRulesEmulator.test.mjs`; guardie delle callable
+del link su iscrizioni annullate:
+`functions/tests/parentAuthorizationCancelledEmulator.test.mjs` (comandi in
+testa ai file). Tre casi `todo`: il risalvataggio di un'iscrizione figlio molto
+pesante (58 risposte, firma, stanza, pattuglia, comitati) supera il limite
+anche prima della fase 2; la cura è abbassare il costo di
+`validRegistrationUpdate`.
+
 Per correggere un genitore registrato come partecipante, usare il profilo
 figlio e l'ID canonico `child_<parentUid>_<childId>`. L'account personale del
 figlio resta separato: l'iscrizione famiglia viene gestita dall'account genitore.

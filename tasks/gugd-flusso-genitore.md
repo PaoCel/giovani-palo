@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fase 1 in produzione dal 2026-10-19 (hosting, service worker v21)"
-next: "fase 2: «Annulla l'iscrizione» del genitore in Famiglia e «Riprendi da «Autorizza ora»»"
-verified: "fase 1 in produzione: bundle live uguale alla build (index-WlbHwA4C.js, sw v21), /login e /activities provati da non entrato a 320/390/430 px senza errori; prima 327 test e build sul mini, Chrome headless contro emulatori, review di un altro agente; tastiera iOS non provata"
+stopped_at: "fase 2 (annulla iscrizione in Famiglia, Riprendi da Autorizza ora, guardie del link) su main, non deployata; fase 1 in produzione"
+next: "deploy fase 2 con ok di Paolo: rules, poi functions di parentAuthorization per nome, poi hosting (service worker v22); poi fase 3"
+verified: "fase 2: unit 111 test, emulatore rules 39 + 3 todo, callable 25, registrationUpdateRules.py 5/5; browser contro emulatori a 320/390/430 (annulla, tieni, riprendi, link su annullata, altro genitore); review di un altro agente; non in produzione"
 links: []
 done_at:
 ---
@@ -56,8 +56,18 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      fai il login…" a "Se non crei un account, i tuoi dati restano salvati
      solo per questa attività." (scritto il 2026-10-19 con l'ok di Paolo,
      letto prima e dopo).
-   - Fase 2: «Annulla l'iscrizione» del genitore in Famiglia e «Riprendi da
-     «Autorizza ora»».
+   - ~~Fase 2: «Annulla l'iscrizione» del genitore in Famiglia e «Riprendi da
+     «Autorizza ora»»~~ (2026-10-19, su `main`, **non deployata**). Trovati e
+     corretti: annullamento del figlio oltre il limite di 1000 espressioni
+     (`validOwnerCancellation`), link valido che rimetteva in `confirmed` o
+     `rejected_by_parent` un'iscrizione annullata (anche da `/me` e admin),
+     reinvio mail su iscrizioni annullate, errori Firebase in inglese e attesa
+     infinita offline anche in `/me`.
+   - Aperti, c'erano già prima: risalvataggio di un'iscrizione figlio molto
+     pesante oltre il budget delle rules (3 `todo` in
+     `functions/tests/parentCancelRulesEmulator.test.mjs`); il reinvio
+     dell'admin e il cambio email lasciano due link validi e mandano due mail
+     (diagnostica in `parentAuthorizationCancelledEmulator.test.mjs`).
 3. Illustrazioni: WebP 2× da `.claude/mockups/flusso-genitore/img/` nel repo
    quando si costruisce la prima schermata che le usa.
 

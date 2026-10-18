@@ -65,7 +65,7 @@ il "Chi sei?" e il verbo unico, non i codici di collegamento.
 8. **"Chi sei?" per chi crea un account fuori da un'attività**, al posto del
    `window.confirm`: la schermata 2 di S3, con "Accedi" al posto di "Entra".
 
-## Chi vede, chi scrive (nessuna rule nuova)
+## Chi vede, chi scrive (una rule nuova, fase 2)
 
 | Operazione | Chi | Rule di oggi |
 | --- | --- | --- |
@@ -73,7 +73,7 @@ il "Chi sei?" e il verbo unico, non i codici di collegamento.
 | Passare da `parent` a `participant` (genitore che partecipa anche lui) | il titolare | `canUpdateOwnUser`: solo `participant` ↔ `parent` |
 | Creare, modificare, cancellare un figlio | il titolare, qualunque ruolo | `users/{uid}/children`: `isSelf` + `validChildPayload` |
 | Iscrivere un figlio | il titolare del figlio, qualunque ruolo | `validRegistrationCreate`: `parentUid == auth.uid` + figlio esistente |
-| Annullare l'iscrizione di un figlio | il titolare | update dell'iscrizione dal gestore (campi congelati di oggi) |
+| Annullare l'iscrizione di un figlio | il titolare | `validOwnerCancellation` (fase 2): solo `registrationStatus: cancelled` e `updatedAt`, valutata per prima per stare nel limite di 1000 espressioni |
 | Elencare le iscrizioni dei figli | il titolare | collection group su `parentUid`, indice già nel repo |
 
 Un dirigente non cambia mai ruolo da solo (le rules non lo permettono e il
@@ -83,7 +83,7 @@ mai nei dati. La guardia è solo lato client: un avviso, non un permesso.
 Da provare nell'emulatore prima del rilascio, con le query esatte del client e
 tre utenti normali (`parent`, `participant` adulto, `unit_leader`): creazione
 figlio, iscrizione `child_`, lista collection group, annullamento dal gestore.
-Il "nessuna rule nuova" è letto dal codice, non ancora provato.
+Provato nell'emulatore il 2026-10-19 per l'annullamento (`functions/tests/parentCancelRulesEmulator.test.mjs`); il resto della tabella è letto dal codice.
 
 **PWA vecchie**: schema e rules non cambiano, quindi niente si rompe. Un figlio
 aggiunto a un account dirigente con la versione nuova non si vede da una PWA
@@ -234,7 +234,7 @@ famiglia: chi sta usando l'account si legge prima di scegliere.
   controlla l'indirizzo" con "Modifica".
 - ↩ "Hai sbagliato qualcosa? Modifica o annulla dalla tua scheda" (io) o "da
   Famiglia" (genitore). **Nuovo**: "Annulla l'iscrizione" sulla riga del figlio
-  in Famiglia, stessa callable e stesso foglio di conferma di `/me`. Annullare
+  in Famiglia, stessa scrittura di `/me` (`registrationStatus: cancelled`), con un foglio di conferma. Annullare
   conserva storico e consensi firmati (come oggi), non cancella; per iscriverlo
   di nuovo si torna in E, se le iscrizioni sono ancora aperte.
 
@@ -383,6 +383,18 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    nascosto su `/login`.
 2. "Annulla l'iscrizione" per il genitore in Famiglia (manca oggi) e messaggio
    "Riprendi da «Autorizza ora»".
+   **Fatta il 2026-10-19** (su `main`, non ancora in produzione). Tre cose
+   trovate costruendola:
+   - l'annullamento di un'iscrizione figlio superava il limite di 1000
+     espressioni delle rules (permission-denied nell'emulatore): nuovo ramo
+     `validOwnerCancellation`, valutato per primo, che concede solo lo stato
+     `cancelled` e `updatedAt` al titolare;
+   - un link ancora valido rimetteva in `confirmed` (o `rejected_by_parent`)
+     un'iscrizione annullata, anche da `/me` o dall'admin: conferma, rifiuto e
+     contesto della pagina di firma ora la rifiutano;
+   - nulla distingueva il link di "Autorizza ora" da quello della mail:
+     `parentAuthorization.selfTokenIssuedAt` (lo scrive "Autorizza ora", lo
+     azzera ogni nuova mail) fa comparire "Riprendi da «Autorizza ora»".
 3. B e C dentro l'iscrizione, account nuovo `parent` con `per=figlio`, via il
    `window.confirm`, "Chi sei?" fuori dall'attività.
 4. E con foglio "Aggiungi", modulo aperto senza figli, prefill del passo
