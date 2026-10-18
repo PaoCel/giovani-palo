@@ -669,7 +669,13 @@ export const registrationsService = {
   },
 
   async cancelRegistration(stakeId: string, eventId: string, lookup: RegistrationLookup) {
-    const registrationId = getRegistrationDocId(lookup);
+    return this.cancelRegistrationById(stakeId, eventId, getRegistrationDocId(lookup));
+  },
+
+  // Famiglia annulla l'iscrizione di un figlio partendo dal documento già letto
+  // (`child_<genitore>_<figlio>`): stessa scrittura di /me, permessa dalle rules
+  // a chi ne è titolare tramite `parentUid`.
+  async cancelRegistrationById(stakeId: string, eventId: string, registrationId: string) {
     const reference = getRegistrationReference(stakeId, eventId, registrationId);
 
     await updateDoc(reference, {

@@ -757,6 +757,8 @@ export interface ParentAuthorizationState {
   authorizedAt: string | null;
   rejectedAt: string | null;
   expiresAt: string | null;
+  /** Ultimo "Autorizza ora" dall'account genitore; null dopo ogni nuova mail. */
+  selfTokenIssuedAt?: string | null;
   legalVersions: ParentAuthorizationLegalVersions | null;
   consents: ParentAuthorizationConsents | null;
   photoConsent: PhotoConsentDecision;

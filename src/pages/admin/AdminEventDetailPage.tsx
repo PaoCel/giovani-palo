@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
+import { ANNULLA } from "@/copy/annulla";
 import { AppModal } from "@/components/AppModal";
 import { EmptyState } from "@/components/EmptyState";
 import { PhotoConsentPills } from "@/components/PhotoConsentPills";
@@ -3195,8 +3196,10 @@ export function AdminEventDetailPage() {
                 const hasSignedParentAuthorizationPdf =
                   parentAuthStatus === "authorized" &&
                   Boolean(registration.parentAuthorization?.pdfPath);
+                // Un'iscrizione annullata non riceve più mail: il server la rifiuta.
                 const canResendParentEmail =
                   resolvedEvent.requiresParentAuthorization &&
+                  registration.registrationStatus !== "cancelled" &&
                   parentAuthStatus !== "authorized" &&
                   parentAuthStatus !== "rejected_by_parent";
 
@@ -4446,8 +4449,8 @@ export function AdminEventDetailPage() {
                   <span>
                     {busyRegistrationId === registrationModal.id &&
                     busy === "cancelRegistration"
-                      ? "Annullamento..."
-                      : "Annulla iscrizione"}
+                      ? ANNULLA.annullamento
+                      : ANNULLA.annullaIscrizione}
                   </span>
                 </button>
               )}

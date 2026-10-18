@@ -26,6 +26,12 @@ import type { ChildProfile, Event, PhotoConsentDecision, Registration, Unit } fr
 import { isConsentStaleError } from "@/utils/callableError";
 import { getActivitiesPath, getActivityRegistrationPath } from "@/utils/activityLinks";
 import { formatDateOnly, formatEventWindow } from "@/utils/formatters";
+import {
+  getCancelErrorMessage,
+  getCancelRegistrationCopy,
+  shouldShowResumeSigning,
+  withCancelTimeout,
+} from "@/utils/familyCancel";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
 
 const AVATAR_PALETTE = ["#235d90", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
@@ -115,6 +121,15 @@ export function FamilyDashboardPage() {
   // asincrone di un dialogo chiuso o sostituito (Annulla durante la rilettura,
   // un altro figlio aperto nel frattempo) non devono toccarne lo stato.
   const consentDialogRef = useRef(0);
+  // "Annulla l'iscrizione" di un figlio: foglio di conferma, poi la stessa
+  // scrittura di /me.
+  const [cancelTarget, setCancelTarget] = useState<{
+    registration: Registration;
+    childName: string;
+  } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
@@ -137,6 +152,49 @@ export function FamilyDashboardPage() {
           : "Impossibile aprire il modulo di autorizzazione.",
       );
       setBusy(false);
+    }
+  }
+
+  function openCancelSheet(registration: Registration, child: ChildProfile) {
+    setCancelError(null);
+    setNotice(null);
+    setCancelTarget({ registration, childName: child.firstName || child.fullName });
+  }
+
+  function closeCancelSheet() {
+    if (cancelling) return;
+    setCancelTarget(null);
+    setCancelError(null);
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelTarget || cancelling) return;
+    const { registration } = cancelTarget;
+    setCancelling(true);
+    setCancelError(null);
+
+    try {
+      const updated = await withCancelTimeout(
+        registrationsService.cancelRegistrationById(
+          registration.stakeId,
+          registration.eventId,
+          registration.id,
+        ),
+      );
+      setData((current) => ({
+        ...current,
+        registrations: current.registrations.map((item) =>
+          item.id === registration.id && item.eventId === registration.eventId
+            ? updated ?? { ...item, registrationStatus: "cancelled" }
+            : item,
+        ),
+      }));
+      setCancelTarget(null);
+      setNotice(FAMIGLIA.annullata);
+    } catch (caughtError) {
+      setCancelError(getCancelErrorMessage(caughtError));
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -470,6 +528,14 @@ export function FamilyDashboardPage() {
           </div>
         ) : null}
 
+        {notice ? (
+          <div className="notice notice--info" role="status">
+            <div>
+              <p>{notice}</p>
+            </div>
+          </div>
+        ) : null}
+
         {staleDataWarning ? (
           <div className="notice notice--info">
             <div>
@@ -566,7 +632,7 @@ export function FamilyDashboardPage() {
                                   onClick={() => void handleAuthorizeNow(registration)}
                                   type="button"
                                 >
-                                  {busy ? "Apertura..." : "Autorizza ora"}
+                                  {busy ? FAMIGLIA.apertura : FAMIGLIA.autorizzaOra}
                                 </button>
                               ) : null}
                               <Link
@@ -577,6 +643,23 @@ export function FamilyDashboardPage() {
                               </Link>
                             </div>
                             {renderConsentRow(registration, child, false)}
+                            <div className="family-reg-extra">
+                              {shouldShowResumeSigning(registration) ? (
+                                <p className="family-reg-note">{FAMIGLIA.riprendiFirma}</p>
+                              ) : null}
+                              <button
+                                aria-label={fillCopy(FAMIGLIA.annullaIscrizioneDi, {
+                                  nome: child.firstName || child.fullName,
+                                  attivita: event?.title ?? FAMIGLIA.attivitaGenerica,
+                                })}
+                                className="family-reg-cancel"
+                                disabled={busy || cancelling}
+                                onClick={() => openCancelSheet(registration, child)}
+                                type="button"
+                              >
+                                {FAMIGLIA.annullaIscrizione}
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -629,6 +712,17 @@ export function FamilyDashboardPage() {
           </div>
         )}
       </section>
+
+      {cancelTarget ? (
+        <CancelRegistrationSheet
+          busy={cancelling}
+          childName={cancelTarget.childName}
+          error={cancelError}
+          event={eventById.get(cancelTarget.registration.eventId) ?? null}
+          onClose={closeCancelSheet}
+          onConfirm={() => void handleConfirmCancel()}
+        />
+      ) : null}
 
       {consentTarget ? (
         <ConsentModal
@@ -836,6 +930,63 @@ function ConsentModal({
           </p>
         ) : null}
         {problem ? <p className="subtle-text">{problem}</p> : null}
+      </div>
+    </AppModal>
+  );
+}
+
+// Conferma di "Annulla l'iscrizione" (docs/FLUSSO_GENITORE.md, H): la scelta
+// sicura viene prima, e chiudere il foglio non annulla niente.
+function CancelRegistrationSheet({
+  childName,
+  event,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  childName: string;
+  event: Event | null;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const copy = getCancelRegistrationCopy(childName, event);
+
+  return (
+    <AppModal
+      footer={
+        <div className="family-cancel-actions">
+          <button
+            className="button button--primary"
+            disabled={busy}
+            onClick={onClose}
+            type="button"
+          >
+            {FAMIGLIA.tieniIscrizione}
+          </button>
+          <button
+            className="button button--danger"
+            disabled={busy}
+            onClick={onConfirm}
+            type="button"
+          >
+            {busy ? FAMIGLIA.annullamento : FAMIGLIA.confermaAnnulla}
+          </button>
+        </div>
+      }
+      onClose={onClose}
+      title={copy.title}
+    >
+      <div className="stack">
+        <p className="family-cancel-body">{copy.body}</p>
+        {error ? (
+          <p className="consent-choices__error" role="alert">
+            <AppIcon name="bell" />
+            <span>{error}</span>
+          </p>
+        ) : null}
       </div>
     </AppModal>
   );

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -20,6 +20,18 @@ export function AppModal({
   footer,
   size = "default",
 }: AppModalProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  // All'apertura il focus va al dialogo (chi usa tastiera o lettore di schermo
+  // parte dal titolo); alla chiusura torna al pulsante che l'ha aperto.
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, []);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -51,7 +63,9 @@ export function AppModal({
           .filter(Boolean)
           .join(" ")}
         onClick={(eventInput) => eventInput.stopPropagation()}
+        ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
       >
         <header className="app-modal__header">
           <div>

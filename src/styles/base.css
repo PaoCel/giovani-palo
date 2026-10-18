@@ -2661,7 +2661,70 @@ button {
 
 .family-reg-row__info span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
+}
+
+/* Target da 44 px anche per i pulsanti piccoli della riga. */
+.family-reg-row .button--small {
+  min-height: 2.75rem;
+}
+
+/* Sotto la riga: "Riprendi da «Autorizza ora»" e "Annulla l'iscrizione". */
+.family-reg-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem 0.75rem;
+  padding: 0 0.2rem;
+}
+
+.family-reg-note {
+  flex: 1 1 14rem;
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.family-reg-cancel {
+  min-height: 2.75rem;
+  padding: 0 0.35rem;
+  border: 0;
+  border-radius: 0.8rem;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.family-reg-cancel:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.family-reg-cancel:disabled {
+  opacity: 0.6;
+}
+
+.family-cancel-body {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.family-cancel-actions {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.family-cancel-actions .button {
+  width: 100%;
+  min-height: 3.125rem;
 }
 
 @media (max-width: 540px) {
@@ -4003,6 +4066,10 @@ button {
 
 .app-modal-backdrop--centered {
   place-items: center;
+}
+
+.app-modal:focus {
+  outline: none;
 }
 
 .app-modal {

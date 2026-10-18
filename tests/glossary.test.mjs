@@ -6,7 +6,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { ACCEDI } from "../src/copy/accedi.ts";
 import { ADMIN } from "../src/copy/admin.ts";
+import { ANNULLA } from "../src/copy/annulla.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
+import { FIRMA } from "../src/copy/firma.ts";
 import { HOME } from "../src/copy/home.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
 import { PAROLE, fillCopy } from "../src/copy/parole.ts";
@@ -102,6 +104,7 @@ test("fillCopy: riempie i testi veri delle schermate", () => {
 //    apice escapato). Il confronto non distingue maiuscole e minuscole, tranne
 //    per "Crea account", che vale solo identico: "Crea un account" è la forma
 //    giusta. "un secondo figlio" è vietato solo se non continua con "o figlia".
+//    "Annulla iscrizione" è vietato: la frase è "Annulla l'iscrizione".
 //
 // 2. La parola "login" come testo per l'utente (findLoginText): conta solo
 //    dentro le stringhe e nel testo JSX, mai nei commenti, nei percorsi
@@ -121,6 +124,8 @@ const FORBIDDEN_FORMS = [
   ["figli/e", /figli\/e\b/giu],
   ["ragazzo/a", /ragazzo\/a\b/giu],
   ["un secondo figlio", /\bun\s+secondo\s+figlio\b(?!\s+o\s+figlia)/giu],
+  // Una frase sola per il concetto: "Annulla l'iscrizione", sempre con l'articolo.
+  ["Annulla iscrizione", /\bAnnulla\s+iscrizione\b/giu],
   ["Crea account", /\bCrea\s+account\b/gu],
 ];
 
@@ -299,6 +304,12 @@ test("la guardia riconosce ogni forma vietata", () => {
     ["Aggiungi un secondo\n  figlio.", ["un secondo figlio"]],
     ["un secondo figlio oppure altro", ["un secondo figlio"]],
     ["un secondo figlio o una figlia", ["un secondo figlio"]],
+    // annullare l'iscrizione: l'articolo non si perde
+    ["Annulla iscrizione", ["Annulla iscrizione"]],
+    ["<button>Annulla iscrizione</button>", ["Annulla iscrizione"]],
+    ["<button>Annulla\n  iscrizione</button>", ["Annulla iscrizione"]],
+    ['label: "annulla iscrizione"', ["Annulla iscrizione"]],
+    ["Sì, ANNULLA ISCRIZIONE", ["Annulla iscrizione"]],
   ];
   for (const [input, expected] of MUST_FLAG) {
     assert.deepEqual(forms(input), expected, JSON.stringify(input));
@@ -315,6 +326,12 @@ test("la guardia lascia stare le forme giuste e i nomi di codice", () => {
     "Aggiungi un secondo figlio o figlia",
     "un secondo figlio\n  o figlia",
     "Un Secondo Figlio O Figlia",
+    "Annulla l'iscrizione",
+    "<button>Annulla l&apos;iscrizione</button>",
+    "Sì, annulla l'iscrizione",
+    "Annulla l'iscrizione di Marco a «Campo estivo»",
+    "annullaIscrizione",
+    "Annulla iscrizioni",
     "Esci e cambia account",
     "Cambia account",
     "Entra",
@@ -488,7 +505,7 @@ test("in src/ non compare nessuna forma vietata dal glossario", () => {
 
 // --- Testi in src/copy/ -----------------------------------------------------
 
-const COPY = { PAROLE, ACCEDI, ADMIN, FAMIGLIA, HOME, ISCRIZIONE };
+const COPY = { PAROLE, ACCEDI, ADMIN, ANNULLA, FAMIGLIA, FIRMA, HOME, ISCRIZIONE };
 
 test("ogni testo di src/copy/ è una stringa non vuota", () => {
   for (const [name, copy] of Object.entries(COPY)) {
@@ -515,6 +532,29 @@ test("schede e pulsanti riusano le parole del glossario", () => {
   assert.equal(ISCRIZIONE.aggiungiFiglio, PAROLE.aggiungiFiglio);
   assert.equal(FAMIGLIA.aggiungiFiglio, PAROLE.aggiungiFiglio);
   assert.equal(ISCRIZIONE.aggiungiFiglio, FAMIGLIA.aggiungiFiglio);
+});
+
+test("annullare l'iscrizione: le parole comuni stanno in ANNULLA e Famiglia le riusa", () => {
+  assert.equal(FAMIGLIA.annullaIscrizione, ANNULLA.annullaIscrizione);
+  assert.equal(FAMIGLIA.annullamento, ANNULLA.annullamento);
+  assert.equal(FAMIGLIA.annullata, ANNULLA.annullata);
+  assert.equal(FAMIGLIA.erroreAnnulla, ANNULLA.errore);
+});
+
+test("Autorizza ora: una parola sola, nel pulsante e nei testi che la citano", () => {
+  assert.equal(PAROLE.autorizzaOra, "Autorizza ora");
+  assert.equal(FAMIGLIA.autorizzaOra, PAROLE.autorizzaOra);
+
+  // I testi che mandano a "Autorizza ora" la nominano tra caporali, con la
+  // parola del glossario e non riscritta.
+  const quoted = `«${PAROLE.autorizzaOra}»`;
+  assert.ok(FAMIGLIA.riprendiFirma.includes(quoted), FAMIGLIA.riprendiFirma);
+
+  const citing = Object.entries(FIRMA).filter(([, value]) => /autorizza\s+ora/iu.test(value));
+  assert.ok(citing.length > 0, "nessun testo di FIRMA nomina Autorizza ora: il controllo non prova niente");
+  for (const [key, value] of citing) {
+    assert.ok(value.includes(quoted), `FIRMA.${key}: ${value}`);
+  }
 });
 
 test("il messaggio di account già esistente nomina il pulsante Continua con Google", () => {

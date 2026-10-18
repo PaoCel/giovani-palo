@@ -10,6 +10,7 @@ import {
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import { useAuth } from "@/hooks/useAuth";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
+import { FIRMA } from "@/copy/firma";
 import {
   PARENT_CONSENT_CHECKBOXES,
   SUPPORT_CONTACT_TEXT,
@@ -241,7 +242,14 @@ export function ParentConfirmPage() {
         ) : null}
 
         {view.stage === "ready" && view.status !== "valid" ? (
-          <TokenInvalidPanel status={view.status} context={view.context} />
+          <TokenInvalidPanel context={view.context} status={view.status} />
+        ) : null}
+
+        {view.stage === "ready" &&
+        view.status === "valid" &&
+        view.context.canSignInApp &&
+        view.context.createdByMode === "self" ? (
+          <p className="parent-confirm-fineprint">{FIRMA.notaLinkAutorizzaOra}</p>
         ) : null}
 
         {view.stage === "ready" && view.status === "valid" ? (
@@ -285,7 +293,7 @@ export function ParentConfirmPage() {
             {isParentSession ? (
               <Link className="button button--primary" to="/family">
                 <AppIcon name="home" />
-                <span>Torna alla tua famiglia</span>
+                <span>{FIRMA.tornaAllaFamiglia}</span>
               </Link>
             ) : null}
           </StatusPanel>
@@ -603,6 +611,9 @@ function TokenInvalidPanel({
   status: ParentTokenStatus;
   context: ParentAuthorizationContext;
 }) {
+  // Solo il genitore titolare dell'iscrizione può firmare da Famiglia: lo dice
+  // il server (un account genitore qualunque non basta).
+  const canSignInApp = Boolean(context.canSignInApp);
   const messages: Record<Exclude<ParentTokenStatus, "valid">, { title: string; body: string }> = {
     not_found: {
       title: "Link non valido",
@@ -620,13 +631,21 @@ function TokenInvalidPanel({
         "Hai già completato la procedura di autorizzazione con questo link. Non è necessario ripeterla. Se ricevi questo messaggio per errore contatta il dirigente.",
     },
     invalidated: {
-      title: "Link non più valido",
-      body:
-        "Questo link è stato sostituito da uno nuovo. Controlla l'email più recente che hai ricevuto e usa quel link al posto di questo.",
+      title: FIRMA.linkSostituitoTitolo,
+      body: canSignInApp ? FIRMA.linkSostituitoConAccount : FIRMA.linkSostituitoSenzaAccount,
     },
   };
 
-  const info = messages[status as Exclude<ParentTokenStatus, "valid">];
+  const registrationCancelled =
+    status === "invalidated" && context.reason === "registration_cancelled";
+  const info = registrationCancelled
+    ? { title: FIRMA.iscrizioneAnnullataTitolo, body: FIRMA.iscrizioneAnnullataCorpo }
+    : status === "expired" && canSignInApp
+      ? { title: FIRMA.linkScadutoTitolo, body: FIRMA.linkScadutoConAccount }
+      : messages[status as Exclude<ParentTokenStatus, "valid">] ?? messages.not_found;
+  // Per un genitore entrato la strada è Famiglia: "Autorizza ora" crea un link nuovo.
+  const showFamilyLink =
+    canSignInApp && (registrationCancelled || status === "invalidated" || status === "expired");
 
   return (
     <StatusPanel tone="info" title={info.title} icon="bell">
@@ -637,6 +656,12 @@ function TokenInvalidPanel({
           {context.activityTitle && context.participantName ? " - " : ""}
           {context.participantName || ""}
         </p>
+      ) : null}
+      {showFamilyLink ? (
+        <Link className="button button--primary" to="/family">
+          <AppIcon name="home" />
+          <span>{FIRMA.tornaAllaFamiglia}</span>
+        </Link>
       ) : null}
     </StatusPanel>
   );

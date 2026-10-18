@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "@/components/EmptyState";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { AppIcon } from "@/components/AppIcon";
+import { ANNULLA } from "@/copy/annulla";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { ShareButton } from "@/components/ShareButton";
@@ -25,6 +26,7 @@ import {
   getRegistrationStatusTone,
 } from "@/utils/registrations";
 import { getRegistrationLookupFromSession } from "@/utils/session";
+import { getCancelErrorMessage, withCancelTimeout } from "@/utils/familyCancel";
 
 // Card della Notte dei Record: caricata a parte (con il suo CSS) solo per le
 // attività che hanno il modulo attivo.
@@ -303,12 +305,13 @@ export function MyActivityDetailPage() {
     setActionError(null);
 
     try {
-      const cancelledRegistration =
-        await registrationsService.cancelRegistration(
+      const cancelledRegistration = await withCancelTimeout(
+        registrationsService.cancelRegistration(
           stakeId,
           eventId,
           getRegistrationLookupFromSession(session),
-        );
+        ),
+      );
 
       if (!cancelledRegistration) {
         throw new Error(
@@ -324,13 +327,9 @@ export function MyActivityDetailPage() {
             }
           : current,
       );
-      setFeedback("Iscrizione annullata correttamente.");
+      setFeedback(ANNULLA.annullata);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile annullare l'iscrizione.",
-      );
+      setActionError(getCancelErrorMessage(caughtError));
     } finally {
       setBusy(null);
     }
@@ -668,9 +667,7 @@ export function MyActivityDetailPage() {
                       onClick={() => void handleCancelRegistration()}
                       type="button"
                     >
-                      {busy === "cancel"
-                        ? "Annullamento..."
-                        : "Annulla iscrizione"}
+                      {busy === "cancel" ? ANNULLA.annullamento : ANNULLA.annullaIscrizione}
                     </button>
                   </section>
                 ) : null}

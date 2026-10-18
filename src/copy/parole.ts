@@ -14,6 +14,7 @@ export const PAROLE = {
   esci: "Esci",
   cambiaAccount: "Cambia account",
   aggiungiFiglio: "Aggiungi un figlio o una figlia",
+  autorizzaOra: "Autorizza ora",
 } as const;
 
 // "Ciao {nome}" + { nome: "Marco" } → "Ciao Marco". Un segnaposto senza valore
