@@ -73,10 +73,11 @@ export function ShellLayout({
   // "Accedi" per chi non è entrato (anche da ospite), con ritorno alla pagina
   // corrente. Non su /login, dove azzererebbe il redirect già in corso.
   const showAuthLink = location.pathname !== "/login";
-  // Con "Accedi" accanto, sul telefono il nome lungo andava su quattro righe:
-  // lì si usa il nome corto delle aree riservate.
+  // Da non entrati, sul telefono, il nome corto delle aree riservate: accanto
+  // ad "Accedi" il nome lungo andava su quattro righe, e su /login resta
+  // uguale alle altre pagine invece di cambiare.
   const compactBrand =
-    area === "public" && !session?.isAuthenticated && showAuthLink && brandLabel !== SHORT_BRAND_LABEL;
+    area === "public" && !session?.isAuthenticated && brandLabel !== SHORT_BRAND_LABEL;
   const showAdminModeSwitch =
     Boolean(session?.isAdmin && !session.isAnonymous) && (area === "admin" || area === "user");
   const showMeta =
