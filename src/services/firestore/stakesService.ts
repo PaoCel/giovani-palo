@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, query, setDoc, where } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
+import { ISCRIZIONE } from "@/copy/iscrizione";
 import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
   OrganizationRegistrationDefaults,
@@ -208,8 +209,7 @@ function buildDefaultStakeDocument(name = DEFAULT_STAKE_NAME) {
     codeRecoveryHelpText:
       "Se ti iscrivi senza account, conserva il codice di recupero e il PDF riepilogativo.",
     supportContact: "",
-    guestRegistrationHint:
-      "Se non fai il login, i tuoi dati verranno salvati solo per questa attività.",
+    guestRegistrationHint: ISCRIZIONE.completataSenzaAccount,
     minorConsentExampleImageUrl: "",
     minorConsentExampleImagePath: "",
     youngMenPresident: "",

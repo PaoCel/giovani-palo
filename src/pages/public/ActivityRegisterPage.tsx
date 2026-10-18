@@ -8,6 +8,8 @@ import { QuestionsSection } from "@/components/QuestionsSection";
 import { RegistrationEditor } from "@/components/RegistrationEditor";
 import { SectionCard } from "@/components/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ISCRIZIONE } from "@/copy/iscrizione";
+import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
@@ -36,7 +38,7 @@ import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/r
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { writePendingAccountProfile } from "@/utils/pendingAccountProfile";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
-import { getActivityRegistrationPath } from "@/utils/activityLinks";
+import { getActivityRegistrationPath, getLoginPath } from "@/utils/activityLinks";
 
 interface RegisterPageData {
   stakeId: string;
@@ -603,7 +605,7 @@ export function ActivityRegisterPage() {
       {anonymousCompletion ? (
         <SectionCard
           title="Iscrizione completata"
-          description="Se non fai il login, i tuoi dati verranno salvati solo per questa attività."
+          description={ISCRIZIONE.completataSenzaAccount}
         >
           <div className="stack">
             <div className="notice notice--info">
@@ -635,10 +637,10 @@ export function ActivityRegisterPage() {
                     unitName: anonymousCompletion.unitNameSnapshot,
                   });
                 }}
-                to={`/login?redirect=${encodeURIComponent(`/me/activities/${eventId}`)}`}
+                to={getLoginPath(`/me/activities/${eventId}`, "crea")}
               >
                 <AppIcon name="user" />
-                <span>Crea account</span>
+                <span>{ISCRIZIONE.creaUnAccount}</span>
               </Link>
               <button
                 className="button button--ghost"
@@ -673,10 +675,7 @@ export function ActivityRegisterPage() {
 
             {session?.isAnonymous ? (
               <p className="subtle-text">
-                Stai per iscrivere un'altra persona (es. un secondo figlio) dallo stesso
-                dispositivo? Usa "Iscrivi un'altra persona": chiude questa sessione anonima
-                e ne apre una nuova. <strong>Salva prima codice e PDF</strong>: senza non
-                potrai più modificare l'iscrizione attuale.
+                {ISCRIZIONE.altraPersonaAiuto} <strong>{ISCRIZIONE.altraPersonaSalva}</strong>
               </p>
             ) : null}
 
@@ -703,8 +702,7 @@ export function ActivityRegisterPage() {
             ) : null}
             {session?.isAnonymous ? (
               <p style={{ marginTop: "0.6rem" }}>
-                Vuoi iscrivere un'altra persona dallo stesso dispositivo (es. un secondo
-                figlio)?{" "}
+                {ISCRIZIONE.altraPersonaDomanda}{" "}
                 <button
                   className="button button--soft button--small"
                   disabled={busy !== null}
@@ -718,8 +716,7 @@ export function ActivityRegisterPage() {
                       : "Iscrivi un'altra persona"}
                   </span>
                 </button>{" "}
-                Salva prima codice di recupero e PDF dell'iscrizione attuale: una volta
-                aperta la nuova sessione non potrai più modificarla da qui senza il codice.
+                {ISCRIZIONE.altraPersonaSalvaCodice}
               </p>
             ) : null}
           </div>
@@ -735,7 +732,7 @@ export function ActivityRegisterPage() {
           title="Come vuoi procedere?"
           description={
             organization?.guestRegistrationHint ||
-            "Puoi iscriverti senza account oppure entrare con email e password."
+            ISCRIZIONE.comeVuoiProcedere
           }
         >
           <div className="inline-actions">
@@ -753,7 +750,7 @@ export function ActivityRegisterPage() {
               to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
             >
               <AppIcon name="user" />
-              <span>Login / Account</span>
+              <span>{ISCRIZIONE.accedi}</span>
             </Link>
           </div>
 
@@ -770,8 +767,8 @@ export function ActivityRegisterPage() {
           title={eventForcesAccount ? "Serve un account per questa attività" : "Serve un account"}
           description={
             eventForcesAccount
-              ? "Questa attività prevede pernottamento o trasferta: per motivi di sicurezza l'iscrizione è disponibile solo con account autenticato."
-              : "Per questa attività l'iscrizione è disponibile solo dopo autenticazione."
+              ? ISCRIZIONE.serveAccountPernottamento
+              : ISCRIZIONE.serveAccount
           }
         >
           <Link
@@ -779,7 +776,7 @@ export function ActivityRegisterPage() {
             to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
           >
             <AppIcon name="user" />
-            <span>Vai al login</span>
+            <span>{ISCRIZIONE.accedi}</span>
           </Link>
         </SectionCard>
       ) : null}
@@ -794,7 +791,7 @@ export function ActivityRegisterPage() {
             to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
           >
             <AppIcon name="user" />
-            <span>Vai al login</span>
+            <span>{ISCRIZIONE.accedi}</span>
           </Link>
         </SectionCard>
       ) : null}
@@ -802,7 +799,7 @@ export function ActivityRegisterPage() {
       {isParentSession && !selectedChild && event && formConfig && !anonymousCompletion ? (
         <SectionCard
           title="Chi vuoi iscrivere?"
-          description="Scegli il ragazzo o la ragazza da iscrivere a questa attività."
+          description={ISCRIZIONE.scegliFiglio}
         >
           {data.children.length === 0 ? (
             <EmptyState
@@ -832,7 +829,7 @@ export function ActivityRegisterPage() {
               })}
               <Link className="button button--ghost" to="/family">
                 <AppIcon name="plus" />
-                <span>Aggiungi figlio/a</span>
+                <span>{ISCRIZIONE.aggiungiFiglio}</span>
               </Link>
             </div>
           )}
@@ -844,9 +841,9 @@ export function ActivityRegisterPage() {
           <div>
             <h3>Stai iscrivendo {selectedChild.fullName || selectedChild.firstName}</h3>
             <p>
-              L'iscrizione verrà salvata sul profilo di{" "}
-              {selectedChild.firstName || "tuo figlio/a"} e resterà gestibile dalla tua
-              dashboard famiglia.
+              {fillCopy(ISCRIZIONE.salvataSulProfilo, {
+                nome: selectedChild.firstName || ISCRIZIONE.tuoFiglio,
+              })}
             </p>
           </div>
         </div>

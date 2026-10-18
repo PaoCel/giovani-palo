@@ -12,6 +12,8 @@ import {
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FAMIGLIA } from "@/copy/famiglia";
+import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { childrenService, type ChildWriteInput } from "@/services/firestore/childrenService";
@@ -386,7 +388,7 @@ export function FamilyDashboardPage() {
       setActionError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Impossibile salvare il profilo del figlio.",
+          : FAMIGLIA.erroreSalvataggio,
       );
     } finally {
       setBusy(false);
@@ -411,7 +413,9 @@ export function FamilyDashboardPage() {
 
     if (
       typeof window !== "undefined" &&
-      !window.confirm(`Rimuovere il profilo di ${child.fullName || "questo figlio"}?`)
+      !window.confirm(
+        fillCopy(FAMIGLIA.rimuoviProfilo, { nome: child.fullName || child.firstName }),
+      )
     ) {
       return;
     }
@@ -482,11 +486,11 @@ export function FamilyDashboardPage() {
         ) : data.children.length === 0 ? (
           <EmptyState
             title="Nessun figlio collegato"
-            description="Aggiungi il profilo di un figlio per iscriverlo alle attività e seguirne lo stato."
+            description={FAMIGLIA.nessunFiglioDescrizione}
             action={
               <button className="button button--primary" onClick={openCreateChild} type="button">
                 <AppIcon name="plus" />
-                <span>Aggiungi figlio/a</span>
+                <span>{FAMIGLIA.aggiungiFiglio}</span>
               </button>
             }
           />
@@ -619,7 +623,7 @@ export function FamilyDashboardPage() {
             <div className="inline-actions">
               <button className="button button--soft" onClick={openCreateChild} type="button">
                 <AppIcon name="plus" />
-                <span>Aggiungi un altro figlio/a</span>
+                <span>{FAMIGLIA.aggiungiFiglio}</span>
               </button>
             </div>
           </div>
@@ -646,7 +650,13 @@ export function FamilyDashboardPage() {
 
       {childModalOpen ? (
         <AppModal
-          title={editingChild ? "Modifica profilo figlio" : "Aggiungi figlio/a"}
+          title={
+            editingChild
+              ? fillCopy(FAMIGLIA.modificaProfilo, {
+                  nome: editingChild.fullName || editingChild.firstName,
+                })
+              : FAMIGLIA.aggiungiFiglio
+          }
           subtitle="I dati servono a precompilare le iscrizioni alle attività."
           onClose={() => setChildModalOpen(false)}
         >

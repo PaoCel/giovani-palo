@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
+import { ADMIN } from "@/copy/admin";
 import type { CustomField, EventAudience, EventFormConfig, StandardFieldKey } from "@/types";
 import {
   type StandardFieldDefinition,
@@ -170,7 +171,7 @@ export function EventFormConfigEditor({
               }))
             }
           />
-          <span>Richiedi login per modificare la registrazione</span>
+          <span>{ADMIN.richiediAccountPerModificare}</span>
         </label>
       </div>
 

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { RoomMateField } from "@/components/RoomMateField";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
+import { ISCRIZIONE } from "@/copy/iscrizione";
 import type {
   AuthSession,
   CustomField,
@@ -1569,10 +1570,7 @@ export function RegistrationEditor({
               {eventRequiresMedicalNotes || eventRequiresParentAuthorization ? (
                 <div className="surface-panel surface-panel--subtle form-subsection">
                   <h3>Note mediche e alimentari</h3>
-                  <p className="subtle-text">
-                    Tutto facoltativo. Dichiara solo ciò che ritieni utile per la
-                    sicurezza del minore. Le informazioni sono visibili solo agli admin.
-                  </p>
+                  <p className="subtle-text">{ISCRIZIONE.noteMedicheIntro}</p>
                   <div className="form-stack">
                     {eventRequiresMedicalNotes && !hasStandardAllergiesField ? (
                       <label className="field">
@@ -1604,7 +1602,7 @@ export function RegistrationEditor({
                             medications: eventInput.target.value,
                           }))
                         }
-                        placeholder="Nome e dosaggio dei farmaci che il minore deve assumere."
+                        placeholder={ISCRIZIONE.farmaciPlaceholder}
                       />
                     </label>
 

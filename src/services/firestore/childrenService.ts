@@ -6,6 +6,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
+import { FAMIGLIA } from "@/copy/famiglia";
 import { db } from "@/services/firebase/app";
 import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type { ChildProfile, GenderRoleCategory } from "@/types";
@@ -56,7 +57,7 @@ function buildPayload(input: ChildWriteInput) {
   const lastName = input.lastName.trim();
 
   if (!firstName) {
-    throw new Error("Il nome del ragazzo/a è obbligatorio.");
+    throw new Error(FAMIGLIA.nomeObbligatorio);
   }
 
   return {

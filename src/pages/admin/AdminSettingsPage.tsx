@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ADMIN } from "@/copy/admin";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
@@ -572,7 +573,7 @@ function StandardFieldsModal({
               checked={requireLoginForEdit}
               onChange={(eventInput) => setRequireLoginForEdit(eventInput.target.checked)}
             />
-            <span>Richiedi login per modificare l'iscrizione</span>
+            <span>{ADMIN.richiediAccountPerModificare}</span>
           </label>
         </div>
 

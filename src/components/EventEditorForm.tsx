@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { GuestRecordsToggle } from "@/components/admin/recordNight/GuestRecordsToggle";
+import { ADMIN } from "@/copy/admin";
 import type {
   ActivityType,
   Event,
@@ -1079,7 +1080,7 @@ export function EventEditorForm({
                       updateValue("requireLoginForEdit", event.target.checked)
                     }
                   />
-                  <span>Richiedi login per modificare l'iscrizione</span>
+                  <span>{ADMIN.richiediAccountPerModificare}</span>
                 </label>
 
                 <label className="toggle-field">
