@@ -780,6 +780,8 @@ async function sendInitialAuthorizationEmail({
   const stateBase = {
     status: "email_sent",
     tokenId: tokenHash,
+    // Il link valido torna quello della mail (vedi parentAuthorizationIssueOwnToken).
+    selfTokenIssuedAt: null,
     parentFirstName,
     parentLastName,
     parentEmail,
@@ -939,6 +941,42 @@ async function loadTokenByRawValue(db, rawToken) {
   const snapshot = await db.doc(`parentAuthorizationTokens/${tokenHash}`).get();
   if (!snapshot.exists) return null;
   return { hash: tokenHash, ...snapshot.data() };
+}
+
+// Un'iscrizione annullata (da /me, da Famiglia o dall'admin) non si conferma
+// né si rifiuta con un link ancora valido: prima la conferma la rimetteva in
+// "confirmed" e il rifiuto in "rejected_by_parent".
+const CANCELLED_REGISTRATION_MESSAGE = "L'iscrizione è annullata.";
+
+function isCancelledRegistration(registration) {
+  return registration?.status === "cancelled" || registration?.registrationStatus === "cancelled";
+}
+
+// Scrittura finale di conferma o rifiuto: fra il primo controllo e la
+// scrittura passano secondi (PDF, Storage, mail). In transazione si rilegge
+// l'iscrizione: annullata o cancellata nel frattempo, non si tocca.
+async function writeIfRegistrationActive(db, registrationRef, data) {
+  await db.runTransaction(async (tx) => {
+    const current = await tx.get(registrationRef);
+    if (!current.exists) {
+      throw new HttpsError("not-found", "Iscrizione associata non trovata.");
+    }
+    if (isCancelledRegistration(current.data())) {
+      throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
+    }
+    tx.set(registrationRef, data, { merge: true });
+  });
+}
+
+// Il genitore entrato è titolare dell'iscrizione del link: la pagina di firma
+// può mandarlo a "Autorizza ora" in Famiglia. Nessuna lettura in più.
+function canSignInApp(request, token) {
+  const uid = request.auth?.uid;
+  return Boolean(
+    uid &&
+      typeof token?.registrationId === "string" &&
+      token.registrationId.startsWith(`child_${uid}_`),
+  );
 }
 
 function deriveTokenStatus(token) {
@@ -1111,11 +1149,8 @@ const parentAuthorizationIssueOwnToken = onCall(
       );
     }
 
-    if (
-      registration.status === "cancelled" ||
-      registration.registrationStatus === "cancelled"
-    ) {
-      throw new HttpsError("failed-precondition", "L'iscrizione è annullata.");
+    if (isCancelledRegistration(registration)) {
+      throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
     }
 
     const state =
@@ -1222,6 +1257,9 @@ const parentAuthorizationIssueOwnToken = onCall(
             parentLastName,
             expiresAt,
             emailLastError: null,
+            // Famiglia lo legge per dire "Riprendi da «Autorizza ora»": da qui
+            // in poi il link della mail non vale più. Lo azzera ogni nuova mail.
+            selfTokenIssuedAt: nowIso(),
             updatedAt: nowIso(),
           },
         },
@@ -1258,7 +1296,7 @@ const parentAuthorizationGetContext = onCall(
     const token = await loadTokenByRawValue(db, rawToken.trim());
 
     if (!token) {
-      return { status: "not_found" };
+      return { status: "not_found", canSignInApp: false };
     }
 
     const status = deriveTokenStatus(token);
@@ -1268,6 +1306,27 @@ const parentAuthorizationGetContext = onCall(
         status,
         activityTitle: token.activityTitle || "",
         participantName: token.participantName || "",
+        canSignInApp: canSignInApp(request, token),
+      };
+    }
+
+    // Link valido ma iscrizione annullata o cancellata: la pagina lo dice
+    // subito, invece di far firmare e poi rifiutare.
+    const registration = await loadRegistration(
+      db,
+      token.stakeId,
+      token.activityId,
+      token.registrationId,
+    );
+    // Stato "invalidated" con un motivo: le PWA già installate conoscono solo
+    // gli stati di deriveTokenStatus e su uno nuovo andrebbero in errore.
+    if (!registration || isCancelledRegistration(registration)) {
+      return {
+        status: "invalidated",
+        reason: "registration_cancelled",
+        activityTitle: token.activityTitle || "",
+        participantName: token.participantName || "",
+        canSignInApp: canSignInApp(request, token),
       };
     }
 
@@ -1282,6 +1341,10 @@ const parentAuthorizationGetContext = onCall(
       parentEmail: token.parentEmail || "",
       hasReusableSignature: Boolean(reusableSignature),
       expiresAt: token.expiresAt || null,
+      // "self" = link di "Autorizza ora" (60 minuti): la pagina dice da dove
+      // riprendere se la firma resta a metà.
+      createdByMode: token.createdByMode || null,
+      canSignInApp: canSignInApp(request, token),
       legalVersions: LEGAL_DOC_VERSIONS,
     };
   },
@@ -1349,6 +1412,9 @@ const parentAuthorizationConfirm = onCall(
     );
     if (!registration) {
       throw new HttpsError("not-found", "Iscrizione associata non trovata.");
+    }
+    if (isCancelledRegistration(registration)) {
+      throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
     }
 
     const activity = await loadActivity(db, stakeId, activityId);
@@ -1721,21 +1787,18 @@ const parentAuthorizationConfirm = onCall(
       updatedAt: confirmedAt,
     };
 
-    await registrationRef.set(
-      {
-        parentAuthorization: newState,
-        parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
-        parentConsentDocumentPath: pdfPath,
-        parentConsentDocumentUrl: null,
-        parentConsentUploadedAt: pdfPath ? confirmedAt : null,
-        consentSignaturePath: signaturePath,
-        consentSignatureUrl: null,
-        consentSignatureSetAt: confirmedAt,
-        registrationStatus: "confirmed",
-        updatedAt: confirmedAt,
-      },
-      { merge: true },
-    );
+    await writeIfRegistrationActive(db, registrationRef, {
+      parentAuthorization: newState,
+      parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
+      parentConsentDocumentPath: pdfPath,
+      parentConsentDocumentUrl: null,
+      parentConsentUploadedAt: pdfPath ? confirmedAt : null,
+      consentSignaturePath: signaturePath,
+      consentSignatureUrl: null,
+      consentSignatureSetAt: confirmedAt,
+      registrationStatus: "confirmed",
+      updatedAt: confirmedAt,
+    });
 
     // Marca token come usato.
     await db.doc(`parentAuthorizationTokens/${tokenHash}`).set(
@@ -1808,6 +1871,17 @@ const parentAuthorizationReject = onCall(
     }
 
     const { stakeId, activityId, registrationId, hash: tokenHash } = token;
+
+    // Senza questa lettura il set(merge) qui sotto ricreava un'iscrizione
+    // cancellata e spostava un'annullata in "rejected_by_parent".
+    const registration = await loadRegistration(db, stakeId, activityId, registrationId);
+    if (!registration) {
+      throw new HttpsError("not-found", "Iscrizione associata non trovata.");
+    }
+    if (isCancelledRegistration(registration)) {
+      throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
+    }
+
     const rejectedAt = nowIso();
 
     const ipAddress = (
@@ -1827,20 +1901,17 @@ const parentAuthorizationReject = onCall(
       `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
     );
 
-    await registrationRef.set(
-      {
-        registrationStatus: "rejected_by_parent",
-        parentAuthorization: {
-          status: "rejected_by_parent",
-          rejectedAt,
-          ipAddress,
-          userAgent,
-          updatedAt: rejectedAt,
-        },
+    await writeIfRegistrationActive(db, registrationRef, {
+      registrationStatus: "rejected_by_parent",
+      parentAuthorization: {
+        status: "rejected_by_parent",
+        rejectedAt,
+        ipAddress,
+        userAgent,
         updatedAt: rejectedAt,
       },
-      { merge: true },
-    );
+      updatedAt: rejectedAt,
+    });
 
     await db.doc(`parentAuthorizationTokens/${tokenHash}`).set(
       {
@@ -1907,6 +1978,9 @@ const parentAuthorizationResend = onCall(
     const registration = await loadRegistration(db, stakeId, activityId, registrationId);
     if (!registration) {
       throw new HttpsError("not-found", "Iscrizione non trovata.");
+    }
+    if (isCancelledRegistration(registration)) {
+      throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
     }
 
     await assertCanResendParentAuthorization(
