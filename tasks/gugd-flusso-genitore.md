@@ -10,15 +10,15 @@ surface: [web, rules]
 source: paolo
 opened: 2026-10-18
 started_at: 2026-10-18
-touched: 2026-10-18
+touched: 2026-10-19
 due:
 blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fase 1 (parole e pagina Accedi) su main, non deployata"
-next: "deploy hosting della fase 1 con ok di Paolo (bump del service worker), poi fase 2: «Annulla l'iscrizione» in Famiglia"
-verified: "fase 1: 327 test unitari e build sul Mac mini; Chrome headless a 320/390/430 contro emulatori demo (schede, Sei già dentro, redirect dopo l'accesso, Esci e cambia account, Famiglia); review di un altro agente; non in produzione, tastiera iOS non provata"
+stopped_at: "fase 1 in produzione dal 2026-10-19 (hosting, service worker v20)"
+next: "fase 2: «Annulla l'iscrizione» del genitore in Famiglia e «Riprendi da «Autorizza ora»»"
+verified: "fase 1 in produzione: bundle live uguale alla build (index-C5mcL9mH.js, sw v20), /activities e /login provati da non entrato a 390 px; prima 327 test e build sul mini, Chrome headless a 320/390/430 contro emulatori, review di un altro agente; tastiera iOS non provata"
 links: []
 done_at:
 ---
@@ -43,20 +43,19 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
 1. ~~Paolo approva mockup e scelte G1-G6~~ (2026-10-18, come consigliate; in più
    illustrazioni proprie e finitura, sezioni "Illustrazioni" e "Finitura").
 2. Fasi 1-6 della spec, una alla volta, ognuna rilasciabile.
-   - ~~Fase 1, parole e pagina Accedi~~ (2026-10-18, su `main`, **non
-     deployata**). Testi toccati in `src/copy/<schermata>.ts` (`parole.ts` per
+   - ~~Fase 1, parole e pagina Accedi~~ (in produzione dal 2026-10-19,
+     hosting con service worker v20). Testi toccati in `src/copy/<schermata>.ts` (`parole.ts` per
      il glossario, `accedi.ts`, `iscrizione.ts`, `famiglia.ts`); guardia in
      `tests/glossary.test.mjs`. `npm test` ora esiste
      (`node --test tests/*.test.mjs`, 327 test).
-   - Trovato: nell'area pubblica l'intestazione non ha "Accedi"
-     (`PublicLayout`, `showDefaultAuthAction={false}`), quindi il `redirect`
-     aggiunto a `ShellLayout` vale solo nelle aree protette. Da una pagina
-     attività si accede dal pulsante della pagina, che il `redirect` lo aveva
-     già. Mostrarlo anche nell'area pubblica è una scelta di Paolo.
-   - Dati in produzione: `stakes/roma-est.guestRegistrationHint` contiene
-     ancora "Se non fai il login, i tuoi dati verranno salvati solo per questa
-     attività." (letto il 2026-10-18) e vince sul default del codice. Da
-     cambiare da Impostazioni o con una scrittura confermata da Paolo.
+   - "Accedi" anche nell'intestazione pubblica (Paolo, 2026-10-19), per chi
+     non è entrato, ospiti compresi, con ritorno alla pagina corrente; non su
+     `/login`. Sul telefono accanto ad "Accedi" il nome del sito è quello
+     corto ("Attività GU GD").
+   - Dati in produzione: `stakes/roma-est.guestRegistrationHint` da "Se non
+     fai il login…" a "Se non crei un account, i tuoi dati restano salvati
+     solo per questa attività." (scritto il 2026-10-19 con l'ok di Paolo,
+     letto prima e dopo).
    - Fase 2: «Annulla l'iscrizione» del genitore in Famiglia e «Riprendi da
      «Autorizza ora»».
 3. Illustrazioni: WebP 2× da `.claude/mockups/flusso-genitore/img/` nel repo
@@ -79,7 +78,14 @@ fisso. Confronto affiancato con il mockup 03-accesso. Review del diff da un
 altro agente (PASS WITH CONCERNS): corretti errore sotto la CTA, avviso che si
 allungava e le forme rimaste ("Richiedi login" nelle schermate admin, "un
 secondo figlio", "minori" in home, default `guestRegistrationHint`). Non
-provati: tastiera aperta su Safari iOS e Android veri, produzione.
+provati: tastiera aperta su Safari iOS e Android veri.
+
+2026-10-19, rilascio: deploy hosting da `main` pulito (`004542a`, service
+worker v20) con l'ok di Paolo. Su gugditalia.it e giovani-palo.web.app il
+bundle servito è quello della build (`index-C5mcL9mH.js`) e `sw.js` è v20.
+Da non entrato, a 390 px: "Accedi" in alto su `/activities` porta a
+`/login?redirect=%2Factivities`, la pagina Accedi ha le due schede e nessun
+errore in console.
 
 2026-10-18: spec scritta leggendo il codice (mappa del flusso di oggi),
 rivista da Codex (`gpt-6-astra`, PASS WITH CONCERNS, correzioni recepite;
