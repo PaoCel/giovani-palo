@@ -96,10 +96,16 @@ Per il viaggio di domani nessuna di queste è pronta: se vuoi, ti preparo in
 privato (fuori dal repo) l'elenco dei 14 ragazzi con la foto senza risposta,
 da dare a chi scatta per l'album dello staff.
 
-### Stato di S1 (2026-10-16): costruito in locale, NON in produzione
+### Stato di S1: in produzione dal 2026-10-18
 
-Decisioni C1-a e C2-a approvate. Codice su `main`, nessun deploy (viaggio del
-16-18/10, galleria in uso). Dati prod riletti il 2026-10-16 in sola lettura:
+Rilasciata il 2026-10-18 nell'ordine rules → functions (`parentConsentGetContext`,
+`parentConsentUpdate`, `parentConsentRequestCompletion`, più `onRoomRegistrationUpdated`
+delle stanze) → hosting con service worker v19. Verificato: ruleset live identico a
+git, callable che rispondono con gli errori previsti, pagina `/parent-consent` con
+link non valido. La mail di completamento ai genitori non è ancora stata inviata.
+
+Decisioni C1-a e C2-a approvate. Codice costruito su `main` il 2026-10-16, deploy
+rimandato a dopo il viaggio del 16-18/10 (galleria in uso). Dati prod riletti il 2026-10-16 in sola lettura:
 
 | Attività | Firmate (non annullate) | Foto senza risposta | Social senza risposta | Con almeno una scelta mancante |
 | --- | --- | --- | --- | --- |
