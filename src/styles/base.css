@@ -4272,7 +4272,13 @@ button {
 /* "Iscrivi tuo figlio o tua figlia" nella scheda di un adulto (G2): stessi
    margini delle schede sotto. */
 .my-activity-child {
+  display: flex;
   margin: 0 1rem 0.9rem;
+}
+
+.my-activity-child .button {
+  flex: 1 1 auto;
+  justify-content: center;
 }
 
 .page--admin-dashboard {
@@ -7882,9 +7888,12 @@ button {
 
 .unit-activity-row {
   display: flex;
+  /* Con quattro indicatori la riga non stava in 320 px e allargava la
+     pagina: gli indicatori vanno sotto il titolo. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.6rem 1rem;
   padding: 0.85rem 1rem;
   background: rgba(255, 255, 255, 0.84);
   border: 1px solid rgba(16, 28, 48, 0.08);
@@ -7901,6 +7910,8 @@ button {
 
 .unit-activity-row__info {
   display: grid;
+  flex: 1 1 9rem;
+  min-width: 0;
   gap: 0.15rem;
 }
 
@@ -7916,6 +7927,7 @@ button {
 
 .unit-activity-row__stats {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;

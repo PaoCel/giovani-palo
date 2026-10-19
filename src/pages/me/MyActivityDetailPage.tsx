@@ -11,6 +11,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { childrenService } from "@/services/firestore/childrenService";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
@@ -366,17 +367,27 @@ export function MyActivityDetailPage() {
     ? getRegistrationAnswerEntries(data.formConfig, data.registration)
     : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
-  // Adulto iscritto lui (dirigente, accompagnatore, G2): da qui iscrive anche
-  // un figlio, finché le iscrizioni sono aperte.
+  // Adulto iscritto lui (dirigente, accompagnatore, o chi ha già figli: G2):
+  // da qui iscrive anche un figlio, finché le iscrizioni sono aperte. Stessa
+  // regola di "Iscrizione inviata".
+  const familyUid = session && canManageFamily(session) ? session.firebaseUser.uid : "";
+  const { data: childCount } = useAsyncData(
+    async () =>
+      familyUid
+        ? (await childrenService.listChildren(familyUid).catch(() => [])).length
+        : 0,
+    [familyUid],
+    0,
+  );
   const offerChild = Boolean(
     data &&
       session &&
       data.formConfig &&
       suggestsChildAfterOwn({
-        canManageFamily: canManageFamily(session),
+        canManageFamily: Boolean(familyUid),
         role: session.profile.role,
         category: session.profile.genderRoleCategory,
-        hasChildren: false,
+        hasChildren: childCount > 0,
       }) &&
       getRegistrationAvailability(data.event, data.formConfig, session, { forChild: true }) ===
         "open",
@@ -485,7 +496,7 @@ export function MyActivityDetailPage() {
       )}
 
       {data && offerChild ? (
-        <div className="inline-actions my-activity-child">
+        <div className="my-activity-child">
           <Link
             className="button button--soft"
             to={withRegisterFor(getActivityRegistrationPath(data.event.id, stakeId), "figlio")}

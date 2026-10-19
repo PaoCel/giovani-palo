@@ -159,7 +159,7 @@ export function UnitDashboardPage() {
       </section>
 
       {/* Figli del dirigente (G2): iscritti da qui, seguiti in Famiglia. */}
-      <FamilyHomeSection />
+      <FamilyHomeSection variant="unit" />
 
       <section className="admin-section">
         <div className="admin-section__head">

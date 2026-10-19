@@ -515,7 +515,15 @@ export function ActivityRegisterPage() {
     account: resettingGuest || session?.isAnonymous ? "guest" : !session ? "none" : "user",
     profileComplete,
     role: getRegisterRole(session?.profile.role ?? ""),
-    isMinor: isMinorAccount,
+    // Per il percorso conta anche un partecipante completo che non può avere
+    // figli per una data illeggibile: come l'account di un minore, niente E
+    // (i suoi figli non si caricherebbero).
+    isMinor:
+      isMinorAccount ||
+      (isUserAccount &&
+        profileComplete &&
+        session?.profile.role === "participant" &&
+        !familySession),
     guestAllowed: allowGuestForThisActivity,
     childSelected: Boolean(selectedChild),
     submitted: isLiveRegistration(data.registration),

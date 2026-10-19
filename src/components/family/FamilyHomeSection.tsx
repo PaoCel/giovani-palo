@@ -35,7 +35,9 @@ function describeChild(child: ChildProfile, registrations: Registration[]) {
 // "I tuoi figli" nella home di un account adulto che non è da genitore
 // (partecipante, dirigente, admin: G2, docs/FLUSSO_GENITORE.md fase 6). Per
 // l'account da genitore la home è già Famiglia. Senza figli non compare.
-export function FamilyHomeSection() {
+// L'intestazione segue la pagina che la ospita: la home /me ha l'etichetta
+// sopra il titolo, /unit le sezioni con il titolo e la riga sotto.
+export function FamilyHomeSection({ variant = "me" }: { variant?: "me" | "unit" }) {
   const { session } = useAuth();
   const uid =
     session && !session.isParent && canManageFamily(session) ? session.firebaseUser.uid : "";
@@ -60,12 +62,21 @@ export function FamilyHomeSection() {
   }
 
   return (
-    <section className="dash-section">
-      <div className="dash-section__head">
-        <span className="dash-section__eyebrow">{FAMIGLIA.homeEyebrow}</span>
-        <h2 className="dash-section__title">{FAMIGLIA.homeTitolo}</h2>
-        <p className="dash-section__sub">{FAMIGLIA.homeSottotitolo}</p>
-      </div>
+    <section className={variant === "unit" ? "admin-section family-home" : "dash-section family-home"}>
+      {variant === "unit" ? (
+        <div className="admin-section__head">
+          <div>
+            <h2>{FAMIGLIA.homeTitolo}</h2>
+            <p className="subtle-text">{FAMIGLIA.homeSottotitolo}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="dash-section__head">
+          <span className="dash-section__eyebrow">{FAMIGLIA.homeEyebrow}</span>
+          <h2 className="dash-section__title">{FAMIGLIA.homeTitolo}</h2>
+          <p className="dash-section__sub">{FAMIGLIA.homeSottotitolo}</p>
+        </div>
+      )}
       <div className="dash-list">
         {error || !data ? (
           <article className="dash-list-row">
@@ -73,7 +84,7 @@ export function FamilyHomeSection() {
               <strong>{FAMIGLIA.homeEyebrow}</strong>
               <span className="subtle-text">{FAMIGLIA.homeErrore}</span>
             </div>
-            <Link className="button button--soft button--small" to="/family">
+            <Link className="button button--soft" to="/family">
               {FAMIGLIA.homeApri}
             </Link>
           </article>
@@ -86,7 +97,7 @@ export function FamilyHomeSection() {
               </div>
               <Link
                 aria-label={`${FAMIGLIA.homeApri}: ${child.fullName || child.firstName}`}
-                className="button button--soft button--small"
+                className="button button--soft"
                 to="/family"
               >
                 {FAMIGLIA.homeApri}
