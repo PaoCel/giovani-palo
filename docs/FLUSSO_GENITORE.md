@@ -397,6 +397,39 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
      azzera ogni nuova mail) fa comparire "Riprendi da «Autorizza ora»".
 3. B e C dentro l'iscrizione, account nuovo `parent` con `per=figlio`, via il
    `window.confirm`, "Chi sei?" fuori dall'attività.
+   **Su `main` dal 2026-10-19, non deployata.** Passi nell'URL
+   (`src/utils/registerFlow.ts`), D come "I tuoi dati" condiviso con Accedi,
+   A con "Iscriviti" anche dove serve l'account e la riga "Sei un genitore?".
+   Fino alle fasi 5 e 6 due schede dicono quale account serve, senza
+   convertire nessun ruolo: "Serve l'account di un genitore" (figlio scelto da
+   un ragazzo, da un adulto partecipante o da un dirigente: "Cambia account" o
+   "Partecipo io"; per il ragazzo con "Esci e accedi come genitore" e
+   "Iscrivi Marco con il suo account") e "Questo account iscrive i tuoi figli"
+   ("Partecipo io" da un genitore già completo). Trovato costruendola:
+   - entrare con Google da "Iscrivo mio figlio" trasformava in genitore
+     qualunque account esistente, anche quello di un ragazzo: il tipo
+     scelto vale solo per un account appena creato; e all'accesso la
+     seconda lettura del profilo poteva rimettere il ruolo di prima
+     (`ensureProfileForUser` non riscrive più `role`);
+   - il profilo proponeva come nome la parte dell'email prima della @;
+   - gli errori di accesso arrivavano in inglese ("Firebase: Error
+     (auth/…)") e la finestra di Google chiusa mostrava un errore: ora un
+     testo per codice (`src/utils/authErrors.ts`) e nessun messaggio;
+   - altri tre dialoghi del browser nello stesso flusso (cambio di tipo di
+     account in `/me/profile` e `/family/profile`, "Iscrivi un'altra persona"
+     da ospite) sono fogli nella pagina; `/me/profile` non offre più
+     "Passa ad account genitore" all'account di un minore;
+   - il grigio dei testi secondari (`--muted`) era 4,2:1 sullo sfondo della
+     pagina: scurito a 4,7:1 (AA);
+   - le uscite nuove dal modulo ("Cambia", freccia, "Esci") buttavano le
+     risposte non inviate: il foglio "Esci dall'iscrizione?" di F c'è già,
+     anche per l'indietro del browser dentro l'app (non per chi chiude la
+     scheda);
+   - "Gestisci" in Famiglia (link con il solo `child`) porta al modulo del
+     figlio anche senza `per`: con "Chi partecipa?" come primo passo il
+     figlio si perdeva.
+   Nessuna rule nuova: le scritture del profilo provate nell'emulatore con
+   le chiamate del client (`functions/tests/accountTypeRulesEmulator.test.mjs`).
 4. E con foglio "Aggiungi", modulo aperto senza figli, prefill del passo
    genitore, bozze per figlio, H.
 5. Guardia G e tabella "Account già esistente".
