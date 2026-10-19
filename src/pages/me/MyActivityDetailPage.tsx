@@ -142,6 +142,17 @@ export function MyActivityDetailPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<YouthActivityTab>("registration");
+  // Figli dell'account (G2): "Iscrivi tuo figlio o tua figlia" segue la regola
+  // di "Iscrizione inviata". Prima di ogni return: è un hook.
+  const familyUid = session && canManageFamily(session) ? session.firebaseUser.uid : "";
+  const { data: childCount } = useAsyncData(
+    async () =>
+      familyUid
+        ? (await childrenService.listChildren(familyUid).catch(() => [])).length
+        : 0,
+    [familyUid],
+    0,
+  );
 
   const { data, loading, error, setData } = useAsyncData(
     async () => {
@@ -370,15 +381,6 @@ export function MyActivityDetailPage() {
   // Adulto iscritto lui (dirigente, accompagnatore, o chi ha già figli: G2):
   // da qui iscrive anche un figlio, finché le iscrizioni sono aperte. Stessa
   // regola di "Iscrizione inviata".
-  const familyUid = session && canManageFamily(session) ? session.firebaseUser.uid : "";
-  const { data: childCount } = useAsyncData(
-    async () =>
-      familyUid
-        ? (await childrenService.listChildren(familyUid).catch(() => [])).length
-        : 0,
-    [familyUid],
-    0,
-  );
   const offerChild = Boolean(
     data &&
       session &&
