@@ -15,7 +15,10 @@ import {
 //  1. lo stato dopo il salvataggio (src/utils/registrationStatus.ts: il modulo
 //     chiede sempre "in attesa" con i dati del genitore);
 //  2. se il trigger onRegistrationPendingParentAuth manda la mail
-//     (functions/lib/parentAuthorization.js);
+//     (functions/lib/parentAuthorization.js). Una reiscrizione, cioè un'annullata
+//     che torna in attesa, è una richiesta nuova: link nuovo e mail comunque
+//     (restartParentAuthorizationAfterCancellation), qualunque fosse lo stato
+//     dell'autorizzazione tranne "authorized", che torna attiva senza mail;
 //  3. l'esito della mail mostrato all'utente (getParentEmailOutcome: "email_sent"
 //     vale "partita" solo con brevoMessageId).
 //
@@ -110,7 +113,10 @@ const CASI = [
     "autorizzata",
   ],
 
-  // Annullata senza firma: il salvataggio la rimette in attesa.
+  // Annullata senza firma: il salvataggio la rimette in attesa e il trigger
+  // vede annullata -> in attesa, cioè una reiscrizione: link nuovo e mail
+  // SEMPRE, qualunque fosse lo stato dell'autorizzazione (anche un link già
+  // partito, un invio fallito, "Autorizza ora" o un rifiuto del genitore).
   ["annullata senza parentAuthorization (null)", iscrizione("cancelled", null), "nuovo_link"],
   [
     "annullata senza parentAuthorization (campo assente)",
@@ -118,23 +124,101 @@ const CASI = [
     "nuovo_link",
   ],
   [
-    "annullata con email_sent, brevoMessageId e tokenId (torna in attesa, nessuna mail nuova)",
+    "annullata con email_sent, brevoMessageId e tokenId (link già partito: ne parte uno nuovo)",
     iscrizione("cancelled", firma("email_sent", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID })),
-    "scritto",
+    "nuovo_link",
   ],
   [
     "annullata con email_sent e tokenId ma senza brevoMessageId",
     iscrizione("cancelled", firma("email_sent", { tokenId: TOKEN_ID })),
-    "in_invio",
+    "nuovo_link",
   ],
   [
-    "annullata con email_error",
+    "annullata con email_sent e brevoMessageId ma tokenId null",
+    iscrizione("cancelled", firma("email_sent", { brevoMessageId: MAIL_ID })),
+    "nuovo_link",
+  ],
+  [
+    "annullata con email_error (il tetto dei riprovi non c'entra: è un gesto della persona)",
     iscrizione("cancelled", firma("email_error", { tokenId: TOKEN_ID, emailRetryCount: 1 })),
-    "mail_fallita",
+    "nuovo_link",
+  ],
+  [
+    "annullata con email_error esattamente al tetto dei tentativi",
+    iscrizione(
+      "cancelled",
+      firma("email_error", { tokenId: TOKEN_ID, emailRetryCount: MAX_EMAIL_RETRIES }),
+    ),
+    "nuovo_link",
+  ],
+  [
+    "annullata con email_error oltre il tetto dei tentativi",
+    iscrizione(
+      "cancelled",
+      firma("email_error", { tokenId: TOKEN_ID, emailRetryCount: MAX_EMAIL_RETRIES + 2 }),
+    ),
+    "nuovo_link",
+  ],
+  [
+    "annullata con email_error oltre il tetto e senza tokenId",
+    iscrizione(
+      "cancelled",
+      firma("email_error", { tokenId: null, emailRetryCount: MAX_EMAIL_RETRIES + 2 }),
+    ),
+    "nuovo_link",
+  ],
+  [
+    "annullata con selfTokenIssuedAt (link di \"Autorizza ora\": se ne emette uno nuovo)",
+    iscrizione(
+      "cancelled",
+      firma("pending_parent_authorization", { tokenId: TOKEN_ID, selfTokenIssuedAt: SELF_IL }),
+    ),
+    "nuovo_link",
   ],
   [
     "annullata con autorizzazione ancora senza link",
     iscrizione("cancelled", firma("pending_request")),
+    "nuovo_link",
+  ],
+  [
+    "annullata con pending_request e tokenId",
+    iscrizione("cancelled", firma("pending_request", { tokenId: TOKEN_ID })),
+    "nuovo_link",
+  ],
+  [
+    // `invalidated` è uno stato dei token, non di parentAuthorization (il tipo
+    // non lo prevede): è il caso di un link invalidato che il trigger non
+    // riconosce come decisione, quindi manda comunque la richiesta.
+    "annullata con status invalidated e tokenId null",
+    iscrizione("cancelled", firma("invalidated", { tokenId: null })),
+    "nuovo_link",
+  ],
+  [
+    "annullata con status invalidated e tokenId vecchio",
+    iscrizione("cancelled", firma("invalidated", { tokenId: TOKEN_ID })),
+    "nuovo_link",
+  ],
+  [
+    "annullata con link scaduto (expired)",
+    iscrizione("cancelled", firma("expired", { tokenId: TOKEN_ID })),
+    "nuovo_link",
+  ],
+  [
+    "annullata dopo il rifiuto del genitore (il genitore riceve una richiesta nuova)",
+    iscrizione("cancelled", firma("rejected_by_parent", { tokenId: TOKEN_ID })),
+    "nuovo_link",
+  ],
+  [
+    "annullata dopo il rifiuto, senza tokenId",
+    iscrizione("cancelled", firma("rejected_by_parent")),
+    "nuovo_link",
+  ],
+  [
+    "annullata dopo il rifiuto, con brevoMessageId dell'invio precedente",
+    iscrizione(
+      "cancelled",
+      firma("rejected_by_parent", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID }),
+    ),
     "nuovo_link",
   ],
 
@@ -218,7 +302,8 @@ const CASI = [
     "autorizza_ora",
   ],
 
-  // Rifiuto: nessuna mail, nemmeno con un indirizzo nuovo.
+  // Rifiuto su un'iscrizione NON annullata: nessuna mail, nemmeno con un
+  // indirizzo nuovo (il trigger salta una decisione già presa).
   ["rejected_by_parent come stato dell'iscrizione, senza autorizzazione", iscrizione("rejected_by_parent", null), "rifiutata"],
   [
     "rejected_by_parent come stato dell'iscrizione, con autorizzazione ancora in corso",
@@ -240,16 +325,8 @@ const CASI = [
     iscrizione("active", firma("rejected_by_parent", { tokenId: TOKEN_ID })),
     "rifiutata",
   ],
-  [
-    "annullata con autorizzazione rejected_by_parent",
-    iscrizione("cancelled", firma("rejected_by_parent", { tokenId: TOKEN_ID })),
-    "rifiutata",
-  ],
-  [
-    "annullata con autorizzazione rejected_by_parent e senza tokenId",
-    iscrizione("cancelled", firma("rejected_by_parent")),
-    "rifiutata",
-  ],
+  // (L'annullata dopo un rifiuto non sta qui: reiscriversi riapre la richiesta,
+  // vedi sopra.)
 
   // Lo stato resta com'è, senza firma né mail.
   ["active senza autorizzazione (null)", iscrizione("active", null), "nessuno"],
@@ -302,6 +379,88 @@ test("emailRetryCount mancante o non numerico non cambia l'avviso", () => {
     tokenId: TOKEN_ID,
   });
   assert.equal(getParentStepNotice(senzaConteggio), "mail_fallita");
+});
+
+test("annullata con email_error, sotto o oltre il tetto: la reiscrizione riparte da zero", () => {
+  // Il trigger guarda la reiscrizione prima di retryCapReached e l'invio
+  // azzera emailRetryCount: non esiste un "mail_fallita" per un'annullata.
+  for (const emailRetryCount of [0, 1, MAX_EMAIL_RETRIES - 1, MAX_EMAIL_RETRIES, MAX_EMAIL_RETRIES + 5]) {
+    for (const tokenId of [null, TOKEN_ID]) {
+      const esistente = iscrizione("cancelled", firma("email_error", { tokenId, emailRetryCount }));
+      assert.equal(
+        getParentStepNotice(esistente),
+        "nuovo_link",
+        `emailRetryCount ${emailRetryCount}, tokenId ${tokenId}`,
+      );
+    }
+  }
+  // Senza conteggio.
+  assert.equal(
+    getParentStepNotice(iscrizione("cancelled", { status: "email_error", tokenId: TOKEN_ID })),
+    "nuovo_link",
+  );
+});
+
+// --- Reiscrizione di un'annullata --------------------------------------------
+
+// Tutti gli stati che l'autorizzazione di un'annullata può avere, compresi
+// quelli che nessuno scrive più o che sono stati dei token (`invalidated`):
+// il trigger li tratta da "non decisi" e li sostituisce.
+const AUTORIZZAZIONI_NON_FIRMATE = [
+  null,
+  undefined,
+  firma("not_required"),
+  firma("pending_request"),
+  firma("pending_request", { tokenId: TOKEN_ID }),
+  firma("pending_parent_authorization"),
+  firma("pending_parent_authorization", { tokenId: TOKEN_ID }),
+  firma("pending_parent_authorization", { tokenId: TOKEN_ID, selfTokenIssuedAt: SELF_IL }),
+  firma("email_sent"),
+  firma("email_sent", { tokenId: TOKEN_ID }),
+  firma("email_sent", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID }),
+  firma("email_error", { tokenId: TOKEN_ID, emailRetryCount: MAX_EMAIL_RETRIES }),
+  firma("expired", { tokenId: TOKEN_ID }),
+  firma("revoked", { tokenId: TOKEN_ID }),
+  firma("invalidated"),
+  firma("invalidated", { tokenId: TOKEN_ID }),
+  firma("rejected_by_parent"),
+  firma("rejected_by_parent", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID }),
+];
+
+test("annullata non firmata: reiscriversi manda sempre un link nuovo e il suggerimento sotto l'email lo promette", () => {
+  for (const autorizzazione of AUTORIZZAZIONI_NON_FIRMATE) {
+    const esistente = congela(structuredClone(iscrizione("cancelled", autorizzazione)));
+    const avviso = getParentStepNotice(esistente);
+    const dove = JSON.stringify(autorizzazione) ?? "undefined";
+    assert.equal(avviso, "nuovo_link", dove);
+    assert.equal(parentStepNoticeSendsLink(avviso), true, dove);
+  }
+});
+
+test("annullata firmata: resta autorizzata, torna attiva e nessuna mail parte", () => {
+  const firmate = [
+    firma("authorized"),
+    firma("authorized", { tokenId: TOKEN_ID }),
+    firma("authorized", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID }),
+    firma("authorized", { tokenId: TOKEN_ID, selfTokenIssuedAt: SELF_IL }),
+    firma("authorized", { tokenId: TOKEN_ID, emailRetryCount: MAX_EMAIL_RETRIES }),
+  ];
+  for (const autorizzazione of firmate) {
+    const avviso = getParentStepNotice(iscrizione("cancelled", autorizzazione));
+    assert.equal(avviso, "autorizzata", JSON.stringify(autorizzazione));
+    assert.equal(parentStepNoticeSendsLink(avviso), false, JSON.stringify(autorizzazione));
+  }
+});
+
+test("il rifiuto vale solo finché l'iscrizione non è annullata: dopo l'annullamento la richiesta si riapre", () => {
+  const rifiuto = firma("rejected_by_parent", { tokenId: TOKEN_ID });
+  for (const stato of ["active", IN_ATTESA, "waitlist", "submitted"]) {
+    assert.equal(getParentStepNotice(iscrizione(stato, rifiuto)), "rifiutata", stato);
+  }
+  assert.equal(getParentStepNotice(iscrizione("cancelled", rifiuto)), "nuovo_link");
+  // Un'iscrizione che ha come stato "rifiutata" (non annullata) resta rifiutata.
+  assert.equal(getParentStepNotice(iscrizione("rejected_by_parent", rifiuto)), "rifiutata");
+  assert.equal(getParentStepNotice(iscrizione("rejected_by_parent", null)), "rifiutata");
 });
 
 // --- Funzione pura ----------------------------------------------------------
@@ -374,8 +533,7 @@ const STATI_ISCRIZIONE = [
   "rejected_by_parent",
 ];
 
-// Stati che le functions scrivono davvero sull'autorizzazione ("expired",
-// "revoked" e "not_required" restano nel tipo ma nessuno li scrive).
+// Stati che le functions scrivono davvero sull'autorizzazione.
 const STATI_AUTORIZZAZIONE = [
   "pending_request",
   "pending_parent_authorization",
@@ -385,8 +543,20 @@ const STATI_AUTORIZZAZIONE = [
   "rejected_by_parent",
 ];
 
+// Stati che nessuno scrive più o che sono stati dei token ("invalidated" non
+// è nemmeno nel tipo ParentAuthorizationStatus): il trigger non li riconosce
+// come decisioni, quindi per lui sono "non decisi".
+const STATI_AUTORIZZAZIONE_RESIDUI = ["not_required", "expired", "revoked", "invalidated"];
+
 function tutteLeAutorizzazioni() {
   const stati = [null];
+  for (const status of STATI_AUTORIZZAZIONE_RESIDUI) {
+    for (const tokenId of [null, TOKEN_ID]) {
+      for (const brevoMessageId of [null, MAIL_ID]) {
+        stati.push(firma(status, { tokenId, brevoMessageId }));
+      }
+    }
+  }
   for (const status of STATI_AUTORIZZAZIONE) {
     for (const tokenId of [null, TOKEN_ID]) {
       for (const brevoMessageId of [null, MAIL_ID]) {
@@ -414,13 +584,36 @@ function statoDopoIlSalvataggio(esistente) {
   return esistente.parentAuthorization?.status === "authorized" ? "active" : IN_ATTESA;
 }
 
+// Reiscrizione: il trigger vede before annullata e after in attesa
+// (onRegistrationPendingParentAuth: `before && isCancelledRegistration(before)`).
+function eUnaReiscrizione(esistente) {
+  return (
+    esistente?.registrationStatus === "cancelled" &&
+    statoDopoIlSalvataggio(esistente) === IN_ATTESA
+  );
+}
+
+// Reiscrizione: restartParentAuthorizationAfterCancellation chiama
+// sendInitialAuthorizationEmail con `restart`, e la transazione si ferma solo
+// davanti a una decisione già presa. L'eccezione è il rifiuto che l'evento ha
+// visto (`reopenRejection`), che si sostituisce. Niente tetto dei riprovi, niente
+// "link già emesso", niente selfTokenIssuedAt: la richiesta riparte da zero.
+// Si assume che il modulo abbia scritto i dati del genitore (parentEmail
+// compresa), altrimenti l'invio salta con missing_request_payload.
+function laReiscrizioneScrive(stato) {
+  const riapreIlRifiuto = stato?.status === "rejected_by_parent";
+  return !DECIDED_PARENT_AUTH_STATUSES.includes(stato?.status) || riapreIlRifiuto;
+}
+
 // Il trigger scrive al genitore, con lo stesso indirizzo di prima?
-// onRegistrationPendingParentAuth: solo iscrizioni in attesa; mai su una
-// decisione già presa; si ferma al tetto dei tentativi; con un link già
-// emesso non rimanda, tranne dopo un invio fallito.
+// onRegistrationPendingParentAuth: solo iscrizioni in attesa; la reiscrizione
+// passa prima di tutto il resto; mai su una decisione già presa; si ferma al
+// tetto dei tentativi; con un link già emesso non rimanda, tranne dopo un
+// invio fallito.
 function ilTriggerScrive(esistente) {
   if (statoDopoIlSalvataggio(esistente) !== IN_ATTESA) return false;
   const stato = esistente?.parentAuthorization;
+  if (eUnaReiscrizione(esistente)) return laReiscrizioneScrive(stato);
   if (!stato) return true;
   if (DECIDED_PARENT_AUTH_STATUSES.includes(stato.status)) return false;
   if (stato.status === "email_error") return stato.emailRetryCount < MAX_EMAIL_RETRIES;
@@ -428,16 +621,46 @@ function ilTriggerScrive(esistente) {
 }
 
 // Può partire un link, magari solo con un indirizzo diverso? Il trigger
-// rimette in gioco solo le autorizzazioni non ancora decise.
+// rimette in gioco solo le autorizzazioni non ancora decise, più il rifiuto
+// di una reiscrizione.
 function unLinkPuoPartire(esistente) {
   if (statoDopoIlSalvataggio(esistente) !== IN_ATTESA) return false;
   const stato = esistente?.parentAuthorization;
+  if (eUnaReiscrizione(esistente)) return laReiscrizioneScrive(stato);
   return !stato || !DECIDED_PARENT_AUTH_STATUSES.includes(stato.status);
 }
+
+test("il trigger gestisce la reiscrizione prima del tetto dei riprovi e del link già emesso", () => {
+  // Il modello sopra riproduce questo ordine: se il codice delle functions
+  // cambia forma, il test si ferma qui invece di confrontare con un modello
+  // vecchio.
+  const inizio = FUNCTIONS_TESTO.indexOf("const onRegistrationPendingParentAuth");
+  assert.ok(inizio > 0, "onRegistrationPendingParentAuth non trovato");
+  const trigger = FUNCTIONS_TESTO.slice(inizio);
+
+  const reiscrizione = trigger.indexOf("isCancelledRegistration(before)");
+  const ripartenza = trigger.indexOf("restartParentAuthorizationAfterCancellation(");
+  const tetto = trigger.indexOf("retryCapReached(after)");
+  const linkEmesso = trigger.indexOf("after.parentAuthorization.tokenId");
+
+  assert.ok(reiscrizione > 0, "il trigger non guarda più lo stato precedente annullato");
+  assert.ok(ripartenza > reiscrizione, "la ripartenza non segue il controllo dell'annullata");
+  assert.ok(tetto > ripartenza, "il tetto dei riprovi viene prima della reiscrizione");
+  assert.ok(linkEmesso > ripartenza, "il link già emesso viene prima della reiscrizione");
+
+  // La reiscrizione riapre solo il rifiuto: la firma non si tocca mai.
+  assert.ok(DECIDED_PARENT_AUTH_STATUSES.includes("authorized"));
+  assert.ok(DECIDED_PARENT_AUTH_STATUSES.includes("rejected_by_parent"));
+  assert.match(
+    FUNCTIONS_TESTO,
+    /reopenRejection:\s*registration\.parentAuthorization\?\.status\s*===\s*"rejected_by_parent"/,
+  );
+});
 
 test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", () => {
   const autorizzazioni = tutteLeAutorizzazioni();
   let verificate = 0;
+  const viste = { reiscrizioni: 0, dopoRifiuto: 0, oltreTetto: 0, conSelfToken: 0, firmateAnnullate: 0 };
 
   for (const registrationStatus of STATI_ISCRIZIONE) {
     for (const parentAuthorization of autorizzazioni) {
@@ -445,10 +668,32 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
       const avviso = getParentStepNotice(esistente);
       const dove = `${registrationStatus} + ${JSON.stringify(parentAuthorization)} => ${avviso}`;
       const stato = parentAuthorization;
+      const reiscrizione = eUnaReiscrizione(esistente);
+      // Un rifiuto conta finché l'iscrizione non è annullata: dopo, reiscriversi
+      // lo riapre.
       const rifiuto =
-        registrationStatus === "rejected_by_parent" || stato?.status === "rejected_by_parent";
+        !reiscrizione &&
+        (registrationStatus === "rejected_by_parent" || stato?.status === "rejected_by_parent");
       const firmata =
         !rifiuto && (registrationStatus === "confirmed" || stato?.status === "authorized");
+
+      // Reiscrizione: link nuovo e mail, qualunque cosa ci fosse prima (tranne
+      // la firma, che la rende attiva senza mail).
+      if (reiscrizione) {
+        assert.equal(ilTriggerScrive(esistente), true, `reiscrizione senza mail: ${dove}`);
+        assert.equal(avviso, "nuovo_link", `reiscrizione senza nuovo_link: ${dove}`);
+        viste.reiscrizioni += 1;
+        if (stato?.status === "rejected_by_parent") viste.dopoRifiuto += 1;
+        if (stato?.status === "email_error" && stato.emailRetryCount >= MAX_EMAIL_RETRIES) {
+          viste.oltreTetto += 1;
+        }
+        if (stato?.selfTokenIssuedAt) viste.conSelfToken += 1;
+      }
+      if (registrationStatus === "cancelled" && stato?.status === "authorized") {
+        assert.equal(ilTriggerScrive(esistente), false, `annullata firmata con mail: ${dove}`);
+        assert.equal(avviso, "autorizzata", `annullata firmata: ${dove}`);
+        viste.firmateAnnullate += 1;
+      }
 
       // Se il trigger scrive, l'avviso non può dire che nessuno scriverà.
       if (ilTriggerScrive(esistente)) {
@@ -461,9 +706,11 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
       }
 
       // Un invio fallito: o il trigger riprova, o siamo al tetto dei tentativi.
+      // Mai per un'annullata: la reiscrizione riparte da zero.
       if (avviso === "mail_fallita") {
         assert.equal(stato?.status, "email_error", `mail_fallita senza errore: ${dove}`);
         assert.equal(statoDopoIlSalvataggio(esistente), IN_ATTESA, `mail_fallita fuori attesa: ${dove}`);
+        assert.equal(reiscrizione, false, `mail_fallita su una reiscrizione: ${dove}`);
         if (!ilTriggerScrive(esistente)) {
           assert.ok(stato.emailRetryCount >= MAX_EMAIL_RETRIES, `mail_fallita senza tetto: ${dove}`);
         }
@@ -474,6 +721,7 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
         assert.equal(ilTriggerScrive(esistente), false, `mail nuova sotto "${avviso}": ${dove}`);
         assert.ok(stato?.tokenId, `${avviso} senza link emesso: ${dove}`);
         assert.equal(statoDopoIlSalvataggio(esistente), IN_ATTESA, `${avviso} fuori attesa: ${dove}`);
+        assert.equal(reiscrizione, false, `${avviso} su una reiscrizione: ${dove}`);
       }
 
       // "scritto" solo con la conferma del provider.
@@ -482,11 +730,18 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
         assert.ok(stato.brevoMessageId, `scritto senza brevoMessageId: ${dove}`);
       }
 
-      // "Autorizza ora" solo se è stato usato, e se è stato usato lo dice.
+      // "Autorizza ora" solo se è stato usato, e se è stato usato lo dice (una
+      // reiscrizione lo sostituisce con un link nuovo).
       if (avviso === "autorizza_ora") {
         assert.ok(stato?.selfTokenIssuedAt, `autorizza_ora senza selfTokenIssuedAt: ${dove}`);
       }
-      if (stato?.selfTokenIssuedAt && statoDopoIlSalvataggio(esistente) === IN_ATTESA && !rifiuto && !firmata) {
+      if (
+        stato?.selfTokenIssuedAt &&
+        statoDopoIlSalvataggio(esistente) === IN_ATTESA &&
+        !reiscrizione &&
+        !rifiuto &&
+        !firmata
+      ) {
         assert.equal(avviso, "autorizza_ora", `autorizza_ora ignorato: ${dove}`);
       }
 
@@ -498,7 +753,7 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
         assert.equal(firmata, true, `firma inventata: ${dove}`);
       }
 
-      // Rifiuto, anche annullato.
+      // Rifiuto: solo su un'iscrizione che non si sta reiscrivendo.
       assert.equal(avviso === "rifiutata", rifiuto, dove);
 
       // Il suggerimento promette un link solo dove ne può partire uno.
@@ -510,6 +765,10 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
 
   assert.equal(verificate, STATI_ISCRIZIONE.length * autorizzazioni.length);
   assert.ok(verificate > 200, `combinazioni verificate: ${verificate}`);
+  // Il generatore non deve perdere per strada i casi che contano.
+  for (const [nome, quante] of Object.entries(viste)) {
+    assert.ok(quante > 0, `nessuna combinazione "${nome}" verificata`);
+  }
 });
 
 // --- Frasi condivise con il server e con il modulo -------------------------
