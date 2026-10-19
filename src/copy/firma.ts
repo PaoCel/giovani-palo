@@ -19,6 +19,8 @@ export const FIRMA = {
   linkScadutoConAccount: `Questo link è scaduto. Per firmare, ${RIPRENDI}: ne crea uno nuovo.`,
   // Iscrizione annullata: il link non serve più.
   iscrizioneAnnullataTitolo: "Iscrizione annullata",
+  // Firma disegnata che non si riesce a esportare: nel passo, mai un alert.
+  firmaIlleggibile: "Non sono riuscito a leggere la firma disegnata. Ridisegna la firma e riprova.",
   iscrizioneAnnullataCorpo:
     "L'iscrizione è stata annullata, quindi non serve più autorizzarla. Se è un errore, rifai l'iscrizione dalla pagina dell'attività o contatta il dirigente della tua unità.",
 } as const;

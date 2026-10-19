@@ -85,6 +85,7 @@ export function ParentConfirmPage() {
   // Messaggio della callable da mostrare nel passo foto quando si torna indietro.
   const [photoStepNotice, setPhotoStepNotice] = useState<string | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const signatureRef = useRef<SignaturePadHandle>(null);
@@ -162,11 +163,11 @@ export function ParentConfirmPage() {
     const shouldUseStoredSignature = hasReusableSignature && !signatureDataUrl;
 
     if (!signatureDataUrl && !shouldUseStoredSignature) {
-      window.alert(
-        "Non sono riuscito a leggere la firma disegnata. Ridisegna la firma e riprova.",
-      );
+      setSignatureError(FIRMA.firmaIlleggibile);
       return;
     }
+
+    setSignatureError(null);
 
     setView({ stage: "submitting" });
 
@@ -267,10 +268,17 @@ export function ParentConfirmPage() {
             hasSignature={hasSignature}
             canSubmit={canSubmit}
             signatureRef={signatureRef}
-            onStepChange={setStepIndex}
+            onStepChange={(index) => {
+              setStepIndex(index);
+              setSignatureError(null);
+            }}
             onToggleConsent={toggleConsent}
             onChoicesChange={changeChoices}
-            onSignatureChange={setHasSignature}
+            signatureError={signatureError}
+            onSignatureChange={(value) => {
+              setHasSignature(value);
+              setSignatureError(null);
+            }}
             onConfirm={handleConfirm}
             onOpenReject={() => setShowRejectModal(true)}
           />
@@ -362,6 +370,7 @@ interface ConfirmationWizardProps {
   hasSignature: boolean;
   canSubmit: boolean;
   signatureRef: React.RefObject<SignaturePadHandle | null>;
+  signatureError: string | null;
   onStepChange: (index: number) => void;
   onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
   onChoicesChange: (value: ConsentChoicesValue) => void;
@@ -382,6 +391,7 @@ function ConfirmationWizard({
   hasSignature,
   canSubmit,
   signatureRef,
+  signatureError,
   onStepChange,
   onToggleConsent,
   onChoicesChange,
@@ -533,6 +543,12 @@ function ConfirmationWizard({
                 onChange={(hasContent) => onSignatureChange(hasContent)}
               />
             </div>
+            {signatureError ? (
+              <p className="consent-choices__error" role="alert">
+                <AppIcon name="bell" />
+                <span>{signatureError}</span>
+              </p>
+            ) : null}
             <p className="parent-confirm-fineprint">
               Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
               accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica
