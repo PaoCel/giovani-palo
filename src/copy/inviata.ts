@@ -1,6 +1,7 @@
 // "Iscrizione inviata" (docs/FLUSSO_GENITORE.md, H), al posto del ritorno
 // muto in Famiglia o nella propria scheda. Convenzioni in ./parole.ts.
 
+import { ATTIVITA } from "./attivita.ts";
 import { FAMIGLIA } from "./famiglia.ts";
 import { ISCRIZIONE } from "./iscrizione.ts";
 import { PAROLE } from "./parole.ts";
@@ -45,4 +46,6 @@ export const INVIATA = {
   schedaTitolo: "La ritrovi nella tua scheda",
   schedaTesto: "Hai sbagliato qualcosa? Modifica o annulla dalla tua scheda.",
   vaiAllaScheda: "Vai alla tua scheda",
+  // Adulto che si è iscritto lui (per esempio un dirigente): poi un figlio.
+  iscriviFiglio: ATTIVITA.iscriviFiglio,
 } as const;

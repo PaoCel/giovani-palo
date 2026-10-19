@@ -17,6 +17,7 @@ import {
   isPlaceholderName,
   needsProfileCompletion,
 } from "@/utils/profileCompletion";
+import { canManageFamily } from "@/utils/family";
 import { getRoleLabel } from "@/utils/roles";
 
 export type { AuthMode } from "@/components/auth/AuthCredentialsForm";
@@ -71,9 +72,14 @@ function isCompatibleRedirect(
     );
   }
   if (redirect.startsWith("/unit")) return session.isUnitLeader;
-  if (redirect.startsWith("/family")) return session.isParent;
+  // Famiglia vale per ogni account che può avere figli (G2), non solo `parent`.
+  if (redirect.startsWith("/family")) return canManageFamily(session);
   if (redirect.startsWith("/me"))
-    return !session.isAdmin && !session.isUnitLeader && !session.isParent;
+    return (
+      (!session.isAdmin && !session.isUnitLeader && !session.isParent) ||
+      // La propria scheda vale anche per un dirigente di unità che partecipa.
+      (session.isUnitLeader && /^\/me\/activities\/[^/?]+/u.test(redirect))
+    );
   return true;
 }
 

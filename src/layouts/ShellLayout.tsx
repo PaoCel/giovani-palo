@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { alertsService } from "@/services/firestore/alertsService";
 import type { Alert } from "@/types";
 import { getLoginPath } from "@/utils/activityLinks";
+import { getAccountHomePath } from "@/utils/family";
 import { needsProfileCompletion } from "@/utils/profileCompletion";
 import { getRoleLabel } from "@/utils/roles";
 
@@ -103,7 +104,9 @@ export function ShellLayout({
       : area === "unit"
         ? "/unit"
         : area === "family"
-          ? "/family"
+          ? session && !session.isParent
+            ? getAccountHomePath(session.profile.role)
+            : "/family"
           : area === "user"
             ? "/me"
             : session?.isAuthenticated && !session.isAnonymous

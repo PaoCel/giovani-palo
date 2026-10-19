@@ -79,6 +79,7 @@ import {
   readAdultGuardConfirmations,
   writeAdultGuardConfirmation,
 } from "@/utils/adultGuard";
+import { canManageFamily, suggestsChildAfterOwn } from "@/utils/family";
 import { formatDateOnly, formatDateRange } from "@/utils/formatters";
 import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
 import {
@@ -133,7 +134,7 @@ interface RegisterPageData {
   // contatti del genitore: lo step genitore parte compilato, da confermare.
   parentDetailsSource: Registration | null;
   children: ChildProfile[];
-  // Unità del palo per il foglio del figlio (solo account da genitore).
+  // Unità del palo per il foglio del figlio (solo account che possono avere figli).
   units: Unit[];
   // "Già iscritto": l'iscrizione di ogni figlio a questa attività, o null.
   childRegistrations: Record<string, Registration | null>;
@@ -309,13 +310,17 @@ export function ActivityRegisterPage() {
   const [searchParams] = useSearchParams();
   const { session, loading: authLoading, signInAnonymously, signOut } = useAuth();
   const historyState = (location.state ?? null) as RegisterHistoryState | null;
-  // Cambia anche quando l'account diventa da genitore: i figli si rileggono.
+  const isParentSession = Boolean(session?.isParent);
+  // Può avere figli nel suo account (G2): da genitore, dello staff o adulto.
+  // Il ruolo dice solo se l'account partecipa lui stesso.
+  const familySession = canManageFamily(session);
+  // Cambia anche quando l'account cambia tipo o diventa adulto (data salvata
+  // in «I tuoi dati»): i figli si rileggono.
   const sessionKey = session
-    ? `${session.firebaseUser.uid}:${session.isAnonymous}:${session.isParent}`
+    ? `${session.firebaseUser.uid}:${session.isAnonymous}:${session.profile.role}:${familySession}`
     : "public";
   const requestedStakeId = searchParams.get("stake") ?? "";
-  const isParentSession = Boolean(session?.isParent);
-  const childIdParam = isParentSession ? (searchParams.get("child") ?? "") : "";
+  const childIdParam = familySession ? (searchParams.get("child") ?? "") : "";
   const perParam = parseRegisterFor(searchParams.get("per"));
   const passoParam = parseRegisterPasso(searchParams.get("passo"));
   const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset" | "account">(
@@ -347,7 +352,7 @@ export function ActivityRegisterPage() {
 
       // Step 2-5 sono indipendenti tra loro (basta lo stakeId): in parallelo
       // tagliamo ~60% del tempo percepito sulla pagina di iscrizione.
-      const parentUid = isParentSession && session ? session.firebaseUser.uid : "";
+      const parentUid = familySession && session ? session.firebaseUser.uid : "";
       const [organization, event, formConfig, registration, children, units] = await Promise.all([
         organizationService.getProfile(stakeId),
         eventsService.getPublicEventById(stakeId, eventId),
@@ -448,7 +453,7 @@ export function ActivityRegisterPage() {
   const eventForcesAccount = Boolean(event?.requiresAccount);
   const allowGuestForThisActivity =
     Boolean(formConfig?.allowGuestRegistration) && !eventForcesAccount;
-  const selectedChild = isParentSession
+  const selectedChild = familySession
     ? (data.children.find((child) => child.id === childIdParam) ?? null)
     : null;
   // Chi ha già la sua iscrizione (account o ospite) riparte dal modulo, non
@@ -515,7 +520,6 @@ export function ActivityRegisterPage() {
     childSelected: Boolean(selectedChild),
     submitted: isLiveRegistration(data.registration),
     adultGuard: existingAccountGuard,
-    parentHasChildren: isParentSession ? data.children.length > 0 : undefined,
     editOwnData: Boolean(historyState?.ownData),
   });
   const keepChild =
@@ -1463,8 +1467,13 @@ export function ActivityRegisterPage() {
     : null;
   const registrationsOpen =
     registrationWindow === "guest-allowed" || registrationWindow === "login-required";
-  const availability =
-    formConfig ? getRegistrationAvailability(event, formConfig, session) : null;
+  // Per un figlio il pubblico si guarda sul figlio (audienceMismatch), non
+  // sulla categoria di chi lo iscrive.
+  const availability = formConfig
+    ? getRegistrationAvailability(event, formConfig, session, {
+        forChild: Boolean(selectedChild),
+      })
+    : null;
   const canEditExisting = Boolean(data.registration);
   const audienceMismatch =
     session?.isAuthenticated &&
@@ -1481,7 +1490,9 @@ export function ActivityRegisterPage() {
     Boolean(formConfig && session) &&
     !audienceMismatch &&
     !accountBlockedForGuest &&
+    // Il modulo di un figlio vale solo con un figlio dell'account scelto.
     (!isParentSession || Boolean(selectedChild)) &&
+    (flow.per !== "figlio" || Boolean(selectedChild)) &&
     (canEditExisting || availability === "open" || availability === "guest-allowed");
   const accountName = session && isUserAccount ? getAccountName(session) : "";
   const selectedChildName = selectedChild
@@ -1490,7 +1501,7 @@ export function ActivityRegisterPage() {
   const firstDay = activityFirstDay;
   // Passo "Genitore e sicurezza" del figlio: nome, email e telefono dell'account.
   const parentAccount: ParentAccountPrefill | null =
-    session && isParentSession && selectedChild
+    session && familySession && selectedChild
       ? {
           firstName: accountHasName(session) ? session.profile.firstName : "",
           lastName: accountHasName(session) ? session.profile.lastName : "",
@@ -1510,8 +1521,7 @@ export function ActivityRegisterPage() {
     (flow.screen === "chi" ||
       flow.screen === "figlio" ||
       flow.screen === "guardia" ||
-      flow.screen === "serve-genitore" ||
-      flow.screen === "solo-figli");
+      flow.screen === "serve-genitore");
   const identity =
     session && showsIdentity
       ? {
@@ -1618,8 +1628,15 @@ export function ActivityRegisterPage() {
 
 
   // Iscrizioni chiuse o non ancora aperte: niente percorso, salvo chi ha già
-  // un'iscrizione da rivedere (o un account da genitore con i figli).
-  if (formConfig && !registrationsOpen && !hasOwnRegistration && !isParentSession) {
+  // un'iscrizione da rivedere (o i figli: l'account da genitore, o un adulto
+  // che ha scelto "Iscrivo mio figlio").
+  if (
+    formConfig &&
+    !registrationsOpen &&
+    !hasOwnRegistration &&
+    !isParentSession &&
+    !(familySession && requested.per === "figlio")
+  ) {
     const notYet = registrationWindow === "not-open-yet";
 
     return (
@@ -1682,8 +1699,10 @@ export function ActivityRegisterPage() {
           session &&
           canBecomeParent(session.profile.role, session.profile.birthDate, new Date())
         ? CHI_PARTECIPA.iscrivoFiglioCompleta
-        : isParentSession
-          ? CHI_PARTECIPA.iscrivoFiglioGenitore
+        : familySession
+          ? data.children.length > 0
+            ? CHI_PARTECIPA.iscrivoFiglioGenitore
+            : CHI_PARTECIPA.iscrivoFiglioAggiungi
           : CHI_PARTECIPA.iscrivoFiglioServeGenitore;
 
     return (
@@ -1766,7 +1785,9 @@ export function ActivityRegisterPage() {
 
   if (flow.screen === "dati" && session && organization) {
     // Dirigenti, admin e chi ha una data di nascita da minore completano i
-    // loro dati, anche se hanno scelto il figlio: la scheda dopo dice cosa serve.
+    // loro dati, anche se hanno scelto il figlio: poi "Chi iscrivi?" (G2), o
+    // per un minore la scheda che dice quale account serve. Il titolo non dice
+    // "Sei tu a partecipare": iscrivono un figlio.
     const forParent =
       flow.per === "figlio" &&
       canBecomeParent(session.profile.role, session.profile.birthDate, new Date());
@@ -1825,7 +1846,7 @@ export function ActivityRegisterPage() {
           lead={forParent ? PROFILO.leadGenitore : PROFILO.leadIo}
           organization={organization}
           submitLabel={PROFILO.continua}
-          title={forParent ? PROFILO.titoloDati : PROFILO.titoloIo}
+          title={flow.per === "figlio" ? PROFILO.titoloDati : PROFILO.titoloIo}
           variant={forParent ? "genitore" : "io"}
         />
         {exitSheet}
@@ -1833,6 +1854,8 @@ export function ActivityRegisterPage() {
     );
   }
 
+  // Figlio scelto dall'account di un minore: l'account del ragazzo non
+  // diventa mai da genitore (tabella "Account già esistente").
   if (flow.screen === "serve-genitore" && session) {
     const firstName = session.profile.firstName || accountName;
     const age = getAgeOn(session.profile.birthDate, new Date());
@@ -1842,49 +1865,32 @@ export function ActivityRegisterPage() {
       <div className="page page--flow">
         {header}
         {errorNotices}
-        {isMinorAccount ? (
-          <AccountNeededCard
-            body={fillCopy(CHI_PARTECIPA.serveGenitoreRagazzo, { nome: firstName })}
-            busy={busyAccount}
-            identity={{
-              label: PERCORSO.seiEntratoCome,
-              name: accountName,
-              initials: getInitials(accountName),
-              detail:
-                age !== null && category
-                  ? fillCopy(CHI_PARTECIPA.etaEGruppo, {
-                      eta: String(age),
-                      gruppo: CATEGORY_LABELS[category],
-                    })
-                  : undefined,
-            }}
-            primary={{
-              icon: "logout",
-              label: CHI_PARTECIPA.esciEAccediComeGenitore,
-              onClick: () => confirmExitThen(() => void handleSwitchAccount("figlio")),
-            }}
-            secondary={{
-              label: fillCopy(CHI_PARTECIPA.iscriviConIlSuoAccount, { nome: firstName }),
-              onClick: () => goTo("io", "modulo"),
-            }}
-            title={CHI_PARTECIPA.serveGenitoreTitolo}
-          />
-        ) : (
-          <AccountNeededCard
-            body={CHI_PARTECIPA.serveGenitoreAdulto}
-            busy={busyAccount}
-            primary={{
-              icon: "logout",
-              label: CHI_PARTECIPA.cambiaAccount,
-              onClick: () => confirmExitThen(() => void handleSwitchAccount("figlio")),
-            }}
-            secondary={{
-              label: CHI_PARTECIPA.partecipoIoInvece,
-              onClick: () => goTo("io", null),
-            }}
-            title={CHI_PARTECIPA.serveGenitoreTitolo}
-          />
-        )}
+        <AccountNeededCard
+          body={fillCopy(CHI_PARTECIPA.serveGenitoreRagazzo, { nome: firstName })}
+          busy={busyAccount}
+          identity={{
+            label: PERCORSO.seiEntratoCome,
+            name: accountName,
+            initials: getInitials(accountName),
+            detail:
+              age !== null && category
+                ? fillCopy(CHI_PARTECIPA.etaEGruppo, {
+                    eta: String(age),
+                    gruppo: CATEGORY_LABELS[category],
+                  })
+                : undefined,
+          }}
+          primary={{
+            icon: "logout",
+            label: CHI_PARTECIPA.esciEAccediComeGenitore,
+            onClick: () => confirmExitThen(() => void handleSwitchAccount("figlio")),
+          }}
+          secondary={{
+            label: fillCopy(CHI_PARTECIPA.iscriviConIlSuoAccount, { nome: firstName }),
+            onClick: () => goTo("io", "modulo"),
+          }}
+          title={CHI_PARTECIPA.serveGenitoreTitolo}
+        />
         {exitSheet}
       </div>
     );
@@ -1911,30 +1917,6 @@ export function ActivityRegisterPage() {
             onWrongDate={() => openOwnData("data")}
           />
         </section>
-        {exitSheet}
-      </div>
-    );
-  }
-
-  if (flow.screen === "solo-figli") {
-    return (
-      <div className="page page--flow">
-        {header}
-        {errorNotices}
-        <AccountNeededCard
-          body={CHI_PARTECIPA.soloFigliTesto}
-          busy={busyAccount}
-          primary={{
-            icon: "logout",
-            label: CHI_PARTECIPA.cambiaAccount,
-            onClick: () => confirmExitThen(() => void handleSwitchAccount("io")),
-          }}
-          secondary={{
-            label: CHI_PARTECIPA.iscrivoFiglioInvece,
-            onClick: () => goTo("figlio", null),
-          }}
-          title={CHI_PARTECIPA.soloFigliTitolo}
-        />
         {exitSheet}
       </div>
     );
@@ -2049,6 +2031,16 @@ export function ActivityRegisterPage() {
     }
 
     const forChild = flow.per === "figlio" && Boolean(selectedChild);
+    // Dopo la propria iscrizione, un adulto che può avere figli (dirigente,
+    // accompagnatore, o chi ne ha già) iscrive un figlio senza uscire (G2).
+    const offerChild =
+      !forChild &&
+      suggestsChildAfterOwn({
+        canManageFamily: familySession,
+        role: session?.profile.role ?? "",
+        category: session?.profile.genderRoleCategory ?? "",
+        hasChildren: data.children.length > 0,
+      });
     const personName = forChild ? selectedChildName : registration.fullName || accountName;
     const personFirstName = forChild
       ? selectedChild?.firstName ?? ""
@@ -2068,6 +2060,15 @@ export function ActivityRegisterPage() {
             goTo("figlio", "figlio");
           }}
           onAuthorize={() => handleAuthorizeNow(registration)}
+          onChild={
+            offerChild
+              ? () => {
+                  writeStoredRegisterFor(event.id, "figlio");
+                  setChildChoice(null);
+                  goTo("figlio", "figlio");
+                }
+              : undefined
+          }
           onClose={() => navigate(getActivityPath(event.id, requestedStakeId || undefined))}
           onEdit={() => goTo("io", "modulo")}
           onFamily={() => navigate("/family")}
@@ -2255,6 +2256,7 @@ export function ActivityRegisterPage() {
             onDraftChange={handleDraftChange}
             parentAccount={parentAccount}
             childFirstName={selectedChild?.firstName}
+            forChild={Boolean(selectedChild)}
           />
         </section>
       ) : null}

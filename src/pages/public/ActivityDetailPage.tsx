@@ -27,6 +27,7 @@ import {
   getEventStatusTone,
   getRegistrationAvailability,
 } from "@/utils/events";
+import { canManageFamily } from "@/utils/family";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
 import {
@@ -181,8 +182,14 @@ export function ActivityDetailPage() {
   const standardFieldDefinitions = getVisibleStandardFieldDefinitions(
     data.organization?.registrationDefaults.fieldOverrides,
   );
+  // Chi può avere figli (G2) entra nell'iscrizione anche se l'attività non è
+  // per il suo gruppo: il pubblico si guarda su chi partecipa, nel modulo.
   const availability =
-    event && formConfig ? getRegistrationAvailability(event, formConfig, session) : null;
+    event && formConfig
+      ? getRegistrationAvailability(event, formConfig, session, {
+          forChild: canManageFamily(session),
+        })
+      : null;
   const fieldLabels =
     formConfig
       ? normalizeStandardFieldKeys(formConfig.enabledStandardFields)

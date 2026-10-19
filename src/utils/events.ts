@@ -136,6 +136,7 @@ export function getRegistrationAvailability(
   event: Event,
   formConfig: EventFormConfig,
   session: AuthSession | null,
+  options: { forChild?: boolean } = {},
 ): RegistrationAvailability {
   const now = Date.now();
   const opensAt = new Date(event.registrationOpen).getTime();
@@ -158,10 +159,10 @@ export function getRegistrationAvailability(
   }
 
   if (session?.isAuthenticated && !session.isAnonymous) {
-    // I genitori iscrivono i figli: l'idoneità di genere si valuta sul figlio
-    // selezionato (audienceMismatch nella pagina di iscrizione), non
-    // sull'account genitore che non ha una categoria propria.
-    if (session.isParent) {
+    // Chi iscrive i figli (l'account da genitore, o un adulto che iscrive un
+    // suo figlio, G2): l'idoneità di genere si valuta sul figlio selezionato
+    // (audienceMismatch nella pagina di iscrizione), non sull'account.
+    if (session.isParent || options.forChild) {
       return "open";
     }
 

@@ -9,6 +9,7 @@ import {
 } from "@/components/ConsentChoices";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import { useAuth } from "@/hooks/useAuth";
+import { canManageFamily } from "@/utils/family";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { FIRMA } from "@/copy/firma";
 import {
@@ -74,7 +75,8 @@ export function ParentConfirmPage() {
   // Chi arriva dal magic-link non è loggato; chi firma dall'app sì, e merita
   // una via di ritorno invece di "puoi chiudere questa pagina".
   const { session } = useAuth();
-  const isParentSession = Boolean(session?.isParent);
+  // Famiglia per ogni account che può avere figli (G2), non solo `parent`.
+  const familySession = canManageFamily(session);
   const [view, setView] = useState<ViewState>({ stage: "loading" });
   const [stepIndex, setStepIndex] = useState(0);
   const [consents, setConsents] = useState<ParentAuthorizationConsents>(INITIAL_CONSENTS);
@@ -288,9 +290,9 @@ export function ParentConfirmPage() {
             <p className="parent-confirm-fineprint">
               Le scelte su foto e social si cambiano quando vuoi dal link nella mail con la
               copia firmata
-              {isParentSession ? " o dalla pagina famiglia" : ""}.
+              {familySession ? " o dalla pagina famiglia" : ""}.
             </p>
-            {isParentSession ? (
+            {familySession ? (
               <Link className="button button--primary" to="/family">
                 <AppIcon name="home" />
                 <span>{FIRMA.tornaAllaFamiglia}</span>
@@ -388,7 +390,8 @@ function ConfirmationWizard({
   onOpenReject,
 }: ConfirmationWizardProps) {
   const { session } = useAuth();
-  const isParentSession = Boolean(session?.isParent);
+  // Famiglia per ogni account che può avere figli (G2), non solo `parent`.
+  const familySession = canManageFamily(session);
   const step = WIZARD_STEPS[stepIndex];
   const isLastStep = stepIndex === WIZARD_STEPS.length - 1;
   const nextDisabled =
@@ -499,7 +502,7 @@ function ConfirmationWizard({
             ) : null}
             <p className="parent-confirm-fineprint">
               Potrai cambiare idea quando vuoi dal link nella mail con la copia firmata
-              {isParentSession ? " o dalla pagina famiglia" : ""}.
+              {familySession ? " o dalla pagina famiglia" : ""}.
             </p>
           </>
         ) : null}
@@ -533,7 +536,7 @@ function ConfirmationWizard({
             <p className="parent-confirm-fineprint">
               Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
               accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica
-              {isParentSession
+              {familySession
                 ? " dal tuo account genitore, autenticato su questa piattaforma."
                 : " con link unico inviato all'indirizzo email che ci hai fornito."}
             </p>

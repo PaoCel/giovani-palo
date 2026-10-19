@@ -65,6 +65,10 @@ interface RegistrationEditorProps {
   parentAccount?: ParentAccountPrefill | null;
   // Nome del figlio nei testi del passo genitore.
   childFirstName?: string;
+  // Modulo di un figlio: data di nascita e gruppo sono quelli del figlio e si
+  // vedono sempre, qualunque cosa ci sia nel profilo dell'account (un
+  // dirigente o un adulto ha i suoi, G2).
+  forChild?: boolean;
   // "flow": dentro il percorso d'iscrizione (docs/FLUSSO_GENITORE.md, F e
   // "Finitura"): titolo del passo come titolo della pagina, col focus a ogni
   // passo, "Passo 2 di 4 · Titolo" con i segmenti, piede fisso con la CTA.
@@ -352,6 +356,7 @@ export function RegistrationEditor({
   onDraftChange,
   parentAccount,
   childFirstName,
+  forChild = false,
   layout = "card",
 }: RegistrationEditorProps) {
   const flowLayout = layout === "flow";
@@ -499,9 +504,10 @@ export function RegistrationEditor({
   const shouldAskEmailField =
     isAuthenticatedAccount &&
     !hasFilledText(session?.profile.email || session?.firebaseUser.email || "");
-  const shouldHideBirthDateField = isAuthenticatedAccount && hasFilledText(session?.profile.birthDate);
+  const shouldHideBirthDateField =
+    !forChild && isAuthenticatedAccount && hasFilledText(session?.profile.birthDate);
   const shouldHideCategoryField =
-    isAuthenticatedAccount && hasFilledText(session?.profile.genderRoleCategory);
+    !forChild && isAuthenticatedAccount && hasFilledText(session?.profile.genderRoleCategory);
   const shouldHideUnitField = isAuthenticatedAccount && hasFilledText(session?.profile.unitName);
   // Se l'utente ha un account e il telefono è già nel profilo, non lo
   // ri-chiediamo: il dato è già nostro, vogliamo solo le info specifiche

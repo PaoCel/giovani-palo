@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { FamilyHomeSection } from "@/components/family/FamilyHomeSection";
 import { EmptyState } from "@/components/EmptyState";
 import { ShareButton } from "@/components/ShareButton";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
@@ -205,6 +206,9 @@ export function MeDashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Figli di un account adulto che non è da genitore (G2). */}
+      <FamilyHomeSection />
 
       {/* Campeggio (foto/video) — card calma, gestisce da sé la visibilità. */}
       <ActivityMediaHighlight />

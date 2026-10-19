@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { SectionCard } from "@/components/SectionCard";
@@ -21,6 +21,12 @@ export function FamilyProfilePage() {
 
   if (!session) {
     return null;
+  }
+
+  // Famiglia aperta a ogni account adulto (G2): il profilo di chi non è da
+  // genitore è quello della sua area (un dirigente di unità non ne ha uno).
+  if (!session.isParent) {
+    return <Navigate replace to={session.isUnitLeader ? "/unit" : "/me/profile"} />;
   }
 
   async function handleSave(event: FormEvent) {

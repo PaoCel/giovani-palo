@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
+import { FamilyHomeSection } from "@/components/family/FamilyHomeSection";
 import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -156,6 +157,9 @@ export function UnitDashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Figli del dirigente (G2): iscritti da qui, seguiti in Famiglia. */}
+      <FamilyHomeSection />
 
       <section className="admin-section">
         <div className="admin-section__head">

@@ -11,6 +11,7 @@ import {
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
 import { SUPPORT_CONTACT_TEXT } from "@/constants/legalDocs";
 import { useAuth } from "@/hooks/useAuth";
+import { canManageFamily } from "@/utils/family";
 import {
   parentAuthorizationService,
   type ParentConsentContext,
@@ -60,7 +61,8 @@ export function ParentConsentPage() {
 
   const { token } = useParams();
   const { session } = useAuth();
-  const isParentSession = Boolean(session?.isParent);
+  // Famiglia per ogni account che può avere figli (G2), non solo `parent`.
+  const familySession = canManageFamily(session);
   const [view, setView] = useState<ViewState>({ stage: "loading" });
   const [choices, setChoices] = useState<ConsentChoicesValue>({ photo: null, social: null });
   const [saving, setSaving] = useState(false);
@@ -246,7 +248,7 @@ export function ParentConsentPage() {
               <AppIcon name="pencil" />
               <span>{reloading ? "Un attimo..." : "Modifica ancora"}</span>
             </button>
-            {isParentSession ? (
+            {familySession ? (
               <Link className="button button--primary" to="/family">
                 <AppIcon name="home" />
                 <span>Torna alla tua famiglia</span>

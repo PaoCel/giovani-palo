@@ -38,4 +38,16 @@ export const FAMIGLIA = {
   autorizzaOra: PAROLE.autorizzaOra,
   apertura: "Apertura...",
   riprendiFirma: `Firma lasciata a metà? Riprendi da «${PAROLE.autorizzaOra}»: il link della mail non vale più.`,
+
+  // Home di un account adulto che non è da genitore (/me, /unit) con figli
+  // salvati (docs/FLUSSO_GENITORE.md, fase 6): un rimando a Famiglia.
+  homeEyebrow: "Famiglia",
+  homeTitolo: "I tuoi figli",
+  homeSottotitolo: "Le loro iscrizioni le segui in Famiglia.",
+  homeNessuna: "Nessuna iscrizione attiva",
+  homeUna: "1 iscrizione",
+  homePiu: "{n} iscrizioni",
+  homeDaAutorizzare: "da autorizzare",
+  homeErrore: "Non riesco a leggere i tuoi figli adesso.",
+  homeApri: "Apri",
 } as const;

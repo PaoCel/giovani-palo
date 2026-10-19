@@ -48,6 +48,9 @@ interface IscrizioneInviataStepProps {
   // Io: "Modifica" se la mail al genitore non è partita, e la tua scheda.
   onEdit?: () => void;
   onScheda?: () => void;
+  // Io, account adulto che può avere figli (G2, per esempio un dirigente):
+  // "Iscrivi tuo figlio o tua figlia" porta a "Chi iscrivi?".
+  onChild?: () => void;
 }
 
 // "Iscrizione inviata" (docs/FLUSSO_GENITORE.md, H): dice cosa succede dopo,
@@ -67,6 +70,7 @@ export function IscrizioneInviataStep({
   onFamily,
   onEdit,
   onScheda,
+  onChild,
 }: IscrizioneInviataStepProps) {
   const titleId = `${useId()}-title`;
   const titleRef = useRef<HTMLHeadingElement | null>(null);
@@ -257,6 +261,15 @@ export function IscrizioneInviataStep({
             </button>
             <button className="button button--ghost button--large" onClick={onFamily} type="button">
               {INVIATA.vaiAFamiglia}
+            </button>
+          </div>
+        ) : onChild ? (
+          <div className="inviata-foot">
+            <button className="button button--primary button--large" onClick={onScheda} type="button">
+              {INVIATA.vaiAllaScheda}
+            </button>
+            <button className="button button--ghost button--large" onClick={onChild} type="button">
+              {INVIATA.iscriviFiglio}
             </button>
           </div>
         ) : (

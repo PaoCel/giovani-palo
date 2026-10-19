@@ -4269,6 +4269,12 @@ button {
   width: auto;
 }
 
+/* "Iscrivi tuo figlio o tua figlia" nella scheda di un adulto (G2): stessi
+   margini delle schede sotto. */
+.my-activity-child {
+  margin: 0 1rem 0.9rem;
+}
+
 .page--admin-dashboard {
   gap: 1.1rem;
 }

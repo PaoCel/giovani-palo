@@ -16,9 +16,20 @@ import { registrationsService } from "@/services/firestore/registrationsService"
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import type { CampPublicMember, Registration } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
-import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
+import { ATTIVITA } from "@/copy/attivita";
+import {
+  getAbsoluteUrl,
+  getActivityPath,
+  getActivityRegistrationPath,
+  withRegisterFor,
+} from "@/utils/activityLinks";
+import { canManageFamily, suggestsChildAfterOwn } from "@/utils/family";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
-import { getEventAudienceLabel, isCampEvent } from "@/utils/events";
+import {
+  getEventAudienceLabel,
+  getRegistrationAvailability,
+  isCampEvent,
+} from "@/utils/events";
 import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
 import {
   getRegistrationAnswerEntries,
@@ -355,6 +366,21 @@ export function MyActivityDetailPage() {
     ? getRegistrationAnswerEntries(data.formConfig, data.registration)
     : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
+  // Adulto iscritto lui (dirigente, accompagnatore, G2): da qui iscrive anche
+  // un figlio, finché le iscrizioni sono aperte.
+  const offerChild = Boolean(
+    data &&
+      session &&
+      data.formConfig &&
+      suggestsChildAfterOwn({
+        canManageFamily: canManageFamily(session),
+        role: session.profile.role,
+        category: session.profile.genderRoleCategory,
+        hasChildren: false,
+      }) &&
+      getRegistrationAvailability(data.event, data.formConfig, session, { forChild: true }) ===
+        "open",
+  );
   // Solo un campeggio ha checklist zaino, pattuglie, comitati e area
   // /campeggio: per un viaggio (es. tempio) o un'attività standard la pagina
   // mostra cosa portare e la stanza, se comunicate, e il riepilogo iscrizione.
@@ -457,6 +483,18 @@ export function MyActivityDetailPage() {
           <h1 className="camp-youth-title">Caricamento iscrizione...</h1>
         </section>
       )}
+
+      {data && offerChild ? (
+        <div className="inline-actions my-activity-child">
+          <Link
+            className="button button--soft"
+            to={withRegisterFor(getActivityRegistrationPath(data.event.id, stakeId), "figlio")}
+          >
+            <AppIcon name="plus" />
+            <span>{ATTIVITA.iscriviFiglio}</span>
+          </Link>
+        </div>
+      ) : null}
 
       {data ? (
         <ActivityMediaCard className="ag-card--inset" stakeId={stakeId} event={data.event} />
