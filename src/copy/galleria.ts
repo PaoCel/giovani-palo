@@ -1,6 +1,8 @@
 // Galleria dell'attività e lightbox (ActivityGallery, MediaLightbox): solo le
 // frasi dei fogli "Elimina"; convenzioni in ./parole.ts.
 
+import { PAROLE } from "./parole.ts";
+
 export const GALLERIA = {
   // Fogli di conferma (mai un dialogo del browser): la scelta sicura viene prima.
   eliminaFotoTitolo: "Eliminare questa foto?",
@@ -16,4 +18,5 @@ export const GALLERIA = {
   confermaEliminaCommento: "Sì, elimina il commento",
   eliminazione: "Eliminazione...",
   erroreElimina: "Non sono riuscito a eliminarlo. Riprova.",
+  erroreRete: PAROLE.erroreRete,
 } as const;

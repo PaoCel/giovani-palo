@@ -62,6 +62,20 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   const [deleteHiddenBusy, setDeleteHiddenBusy] = useState(false);
   const [deleteHiddenError, setDeleteHiddenError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const deletingHiddenId = deletingHidden?.id ?? null;
+
+  // Il foglio "Elimina" di un nascosto vale finché quel contenuto è fra i
+  // nascosti (un altro responsabile può rimetterlo o eliminarlo) e per
+  // l'account che l'ha aperto.
+  useEffect(() => {
+    if (deletingHiddenId && !hidden.some((item) => item.id === deletingHiddenId)) {
+      setDeletingHidden(null);
+    }
+  }, [hidden, deletingHiddenId]);
+
+  useEffect(() => {
+    setDeletingHidden(null);
+  }, [uid]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const galleryId = gallery?.id ?? "";

@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { GALLERIA } from "@/copy/galleria";
+import { keepTabInside, useInertBackground } from "@/hooks/useModalLayer";
 import type { GalleryMediaType } from "@/types";
 // Si apre anche dal lightbox della home, dove la galleria non è caricata.
 import "@/styles/activityGallery.css";
@@ -52,11 +53,15 @@ export function GalleryConfirmSheet({
   onCancel,
   onConfirm,
 }: GalleryConfirmSheetProps) {
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const titleId = `${useId()}-title`;
   const cancel = () => {
     if (!busy) onCancel();
   };
   useSheetKeys(cancel);
+  // Lightbox e pagina sotto fuori dalla tastiera e dallo screen reader.
+  useInertBackground(layerRef);
 
   // Focus al foglio all'apertura, di nuovo al pulsante "Elimina" alla chiusura.
   useEffect(() => {
@@ -74,17 +79,25 @@ export function GalleryConfirmSheet({
       className="ag-sheet-layer"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="ag-confirm-title"
+      aria-labelledby={titleId}
+      ref={layerRef}
     >
+      {/* Tocco fuori = tieni. Per tastiera e screen reader c'è già il pulsante. */}
       <button
         type="button"
         className="ag-sheet-scrim"
-        aria-label={cancelLabel}
+        aria-hidden="true"
+        tabIndex={-1}
         onClick={cancel}
       />
-      <div className="ag-sheet" ref={sheetRef} tabIndex={-1}>
+      <div
+        className="ag-sheet"
+        ref={sheetRef}
+        tabIndex={-1}
+        onKeyDown={(event) => keepTabInside(event, sheetRef.current)}
+      >
         <span className="ag-sheet__grab" aria-hidden="true" />
-        <h3 id="ag-confirm-title">{title}</h3>
+        <h3 id={titleId}>{title}</h3>
         <p>{body}</p>
         {error ? (
           <p className="form-error" role="alert">

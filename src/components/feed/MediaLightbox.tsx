@@ -14,6 +14,7 @@ import { GALLERIA } from "@/copy/galleria";
 import { useAuth } from "@/hooks/useAuth";
 import { galleryCommentsService } from "@/services/firestore/galleryCommentsService";
 import type { GalleryComment, GalleryMedia } from "@/types";
+import { isConnectionError, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface MediaLightboxProps {
   media: GalleryMedia[];
@@ -91,6 +92,21 @@ export function MediaLightbox({
   >(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const sessionUid = session?.firebaseUser.uid ?? "";
+  const confirmMediaId = confirm?.item.id ?? null;
+
+  // Il foglio vale per l'account e il contenuto con cui è stato aperto: se il
+  // contenuto sparisce dalla lista (eliminato o nascosto da un altro) o
+  // l'account cambia, si chiude senza agire.
+  useEffect(() => {
+    if (confirmMediaId && !media.some((item) => item.id === confirmMediaId)) {
+      setConfirm(null);
+    }
+  }, [media, confirmMediaId]);
+
+  useEffect(() => {
+    setConfirm(null);
+  }, [sessionUid]);
 
   const current = media[index];
 
@@ -222,14 +238,16 @@ export function MediaLightbox({
     if (confirm.kind === "comment") {
       const { comment } = confirm;
       try {
-        await galleryCommentsService.remove(item.stakeId, item.galleryId, item.id, comment.id);
+        await withWriteTimeout(
+          galleryCommentsService.remove(item.stakeId, item.galleryId, item.id, comment.id),
+        );
         setComments((prev) => ({
           ...prev,
           [item.id]: (prev[item.id] ?? []).filter((entry) => entry.id !== comment.id),
         }));
         setConfirm(null);
-      } catch {
-        setConfirmError(GALLERIA.erroreElimina);
+      } catch (caughtError) {
+        setConfirmError(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
       } finally {
         setConfirmBusy(false);
       }
@@ -239,13 +257,13 @@ export function MediaLightbox({
     if (!onDeleteMedia) return;
     setDeleting(true);
     try {
-      await onDeleteMedia(item);
+      await withWriteTimeout(onDeleteMedia(item));
       // Il chiamante rimuove il media dalla lista; chiudiamo il lightbox.
       onClose();
-    } catch {
+    } catch (caughtError) {
       setDeleting(false);
       setConfirmBusy(false);
-      setConfirmError(GALLERIA.erroreElimina);
+      setConfirmError(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
     }
   }
 
