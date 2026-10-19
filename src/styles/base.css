@@ -4111,7 +4111,9 @@ button {
 .app-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  /* Sopra il dock dei caricamenti (1200) e i lightbox (1000): un modale aperto
+     da lì resta davanti. Sotto i fogli della galleria (1300). */
+  z-index: 1250;
   display: grid;
   place-items: center;
   padding: 0.75rem;
@@ -4166,6 +4168,11 @@ button {
   gap: 0.8rem;
   align-items: flex-start;
   border-bottom: 1px solid rgba(16, 28, 48, 0.06);
+}
+
+/* Un titolo lungo a 320 px non stringe "Chiudi" sotto i 44 px. */
+.app-modal__header .icon-button {
+  flex-shrink: 0;
 }
 
 .app-modal__header h2 {

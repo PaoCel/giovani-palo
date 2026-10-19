@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { keepTabInside, useInertBackground } from "@/hooks/useModalLayer";
 
 interface AppModalProps {
   title: string;
@@ -21,6 +22,10 @@ export function AppModal({
   size = "default",
 }: AppModalProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  // Id unico: due modali aperti insieme non condividono il titolo.
+  const titleId = `${useId()}-title`;
+  useInertBackground(backdropRef);
 
   // All'apertura il focus va al dialogo (chi usa tastiera o lettore di schermo
   // parte dal titolo); alla chiusura torna al pulsante che l'ha aperto.
@@ -51,9 +56,10 @@ export function AppModal({
           : "app-modal-backdrop"
       }
       onClick={onClose}
+      ref={backdropRef}
     >
       <section
-        aria-labelledby="app-modal-title"
+        aria-labelledby={titleId}
         aria-modal="true"
         className={[
           "app-modal",
@@ -63,13 +69,14 @@ export function AppModal({
           .filter(Boolean)
           .join(" ")}
         onClick={(eventInput) => eventInput.stopPropagation()}
+        onKeyDown={(eventInput) => keepTabInside(eventInput, dialogRef.current)}
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
         <header className="app-modal__header">
           <div>
-            <h2 id="app-modal-title">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {subtitle ? <p>{subtitle}</p> : null}
           </div>
           <button
