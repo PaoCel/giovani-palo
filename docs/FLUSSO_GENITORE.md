@@ -288,6 +288,12 @@ dopo dal profilo.
 Non si trasforma mai l'account di un minore in account genitore, né un
 dirigente in qualcos'altro.
 
+Le righe 1 e 3 e la riga 2 per un genitore **con figli** hanno bisogno di
+Famiglia su ogni account adulto (G2): stanno nella fase 6. Fino ad allora
+restano le schede della fase 3 ("Serve l'account di un genitore" e "Questo
+account iscrive i tuoi figli"). La riga 2 per un genitore **senza figli** è
+nella fase 5: non c'è nulla in Famiglia da perdere.
+
 ## Matrice stati × superfici
 
 | Stato | Pagina attività | Iscrizione | Famiglia / profilo | Come si annulla |
@@ -505,6 +511,48 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    Rispetto al mockup F il genitore ha ancora nome e cognome in due campi: la
    firma e la mail li usano separati.
 5. Guardia G e tabella "Account già esistente".
+   Su `main` dal 2026-10-19, non ancora in produzione (solo client: nessuna
+   rule, function o indice). Cosa c'è:
+   - G dentro D, sotto la data, al «Continua» del primo passo (scheda
+     `AdultGuardCard`, niente «Continua» finché non si sceglie); in cima al
+     modulo come schermata `guardia` (il passo nell'URL resta `modulo`) per un
+     partecipante già entrato, iscritto come giovane, senza un'iscrizione sua.
+     Non scatta per dirigenti e accompagnatori (anche già scelti nel passo),
+     per ruoli diversi da `participant`, per chi è già iscritto, per i minori;
+     la soglia è `ADULT_GUARD_AGE` sul primo giorno (`src/utils/adultGuard.ts`);
+   - da un account già salvato "Partecipo come dirigente" e "Ho sbagliato la
+     data" aprono «I tuoi dati» (`passo=dati` con `ownData` nella cronologia,
+     non nell'URL: un `passo=dati` scritto a mano su un profilo completo porta
+     al modulo); al salvataggio si va al modulo sostituendo la voce;
+   - "Iscrivo mio figlio" da un account nuovo apre i dati da genitore con nome
+     e cognome già scritti; da un account già salvato porta a `per=figlio`
+     (oggi la scheda "Serve l'account di un genitore", con G2 sarà E);
+   - "Confermo" vale per account, attività e data (`sessionStorage`, cancellato
+     uscendo o cambiando account); la bozza di D resta in memoria per account e
+     attività: "Cambia" e di nuovo "Partecipo io" ritrovano la data;
+   - "Partecipo io" da un genitore senza figli: «I tuoi dati» e al salvataggio
+     account da partecipante (B lo dice: "Completi i tuoi dati e ti iscrivi.").
+   Fuori, con il perché: la guardia per gli ospiti (la data è nel modulo, non
+   in D) e le righe della tabella che richiedono G2 (sopra).
+   Trovato dal collaudo e dalla review (Codex, BLOCKED due volte, poi
+   corretto):
+   - "Ho sbagliato la data" metteva il focus sul titolo: con lo StrictMode
+     l'effetto gira due volte e vinceva l'altro ramo (ora dopo il disegno);
+   - una bozza senza data, o nomi svuotati con la guardia aperta, arrivavano
+     al salvataggio saltando il primo passo: prima di scrivere si ricontrolla
+     il passo 1, e "Partecipo come dirigente" riparte da lì se la bozza non
+     regge;
+   - «I tuoi dati» aperto dalla guardia lasciava due voci del modulo nella
+     cronologia: salvando, o con la freccia, si torna alla voce della guardia;
+   - dentro D la guardia scattava anche per dirigenti e admin col profilo da
+     completare e per chi era già iscritto, e un'iscrizione annullata la
+     spegneva (chi annulla e si riscrive la rivede);
+   - bozza e conferme si cancellavano solo uscendo con la pagina
+     dell'iscrizione aperta: ora le cancella AuthProvider a ogni uscita o
+     cambio di account, seguendo anche l'uid dell'ospite che collega un
+     account (questo caso non si è riprodotto nel collaudo: l'uscita puliva
+     comunque);
+   - testo della guardia a 16 px, niente transizioni con movimento ridotto.
 6. G2 = a: famiglia su ogni account adulto (rotte, home `/me` e `/unit`,
    ricerche), collaudo con un dirigente.
 

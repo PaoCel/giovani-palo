@@ -1,7 +1,7 @@
 ---
 id: gugd-flusso-genitore
 title: "Flusso genitore chiaro: chi iscrivi, figlio in contesto, un verbo per accedere"
-status: in-progress
+status: ready
 impact: 2
 urgency: 2
 effort: L
@@ -15,10 +15,10 @@ due:
 blocked_by: []
 branch:
 worktree:
-session:
-stopped_at: "fasi 1-4 in produzione dal 2026-10-19; ultimo deploy: reiscrizione di un'annullata con link nuovo (function onRegistrationPendingParentAuth + hosting da 18982f7, service worker v26)"
-next: "fase 5: guardia G e tabella «Account già esistente»"
-verified: "fase 4 in produzione (servito sw v24 e bundle index-BUqffvZx.js uguale alla build su gugditalia.it e web.app, home senza errori; flusso loggato in prod non provato): sul mini 629 test unitari (118 nuovi di un altro agente), tsc e build verdi; rules nell'emulatore 46 nuovi + 105 di parentCancel verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori con functions 200/200 a 320/390/430; review di un altro agente BLOCKED → PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione"
+session: 66626b70-2316-4dbc-bf39-6f19f96b1439
+stopped_at: "fase 5 su main dal 2026-10-19 (guardia adulto e genitore senza figli che partecipa), non ancora in produzione; in produzione fino alla reiscrizione di un'annullata (service worker v26)"
+next: "rilascio della fase 5 con l'ok di Paolo (solo hosting, service worker v27), poi fase 6: G2, famiglia su ogni account adulto e le righe della tabella «Account già esistente» rimaste"
+verified: "fase 5 su main, non in produzione: sul mini 785 test unitari (99 nuovi di un altro agente: adultGuard, registerFlowGuardia, glossario) e tsc verdi, build verde; rules nell'emulatore 14 nuovi (adultGuardRulesEmulator, altro agente) verdi senza rule nuove; collaudo Playwright contro emulatori 176/176 a 320/390/430; review Codex gpt-6-astra BLOCKED, BLOCKED, poi PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione, il caso ospite che collega un account del secondo giro di review (non riprodotto)"
 links: []
 done_at:
 ---
@@ -95,6 +95,12 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      poi hosting (service worker v26, bundle `index-BIs2B9SO.js` con sha
      uguale alla build su gugditalia.it e web.app, home senza errori). Non
      provata in produzione una reiscrizione vera.
+   - Fase 5: guardia adulto G (in «I tuoi dati» e in cima al modulo) e, della
+     tabella «Account già esistente», il genitore senza figli che partecipa
+     lui. Su `main` dal 2026-10-19, non ancora in produzione (solo hosting quando
+     esce: nessuna rule, function o indice). Le righe della tabella che
+     richiedono figli su un account non genitore passano alla fase 6 (spec,
+     "Account già esistente o sbagliato"). Dettaglio nella spec, sezione "Fasi".
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
@@ -104,6 +110,38 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
    genitore, giovani, dirigente, genitore-figlia e inviata a 240 px).
 
 ## Verificato
+
+2026-10-19, fase 5 su `main` (non in produzione). Sul mini: `npm test` 785
+verdi (99 nuovi scritti da un altro agente: `tests/adultGuard.test.mjs`,
+`tests/registerFlowGuardia.test.mjs` con un confronto esaustivo contro una
+tabella della spec, `GUARDIA` nel glossario; 24 mutazioni del codice tutte
+prese), l'unico rosso è `accentApostrophes` che sul mini non ha git (in
+locale 55/55); `tsc` e build verdi. Nell'emulatore, dallo stesso agente,
+`functions/tests/adultGuardRulesEmulator.test.mjs` 14 verdi: "Partecipo come
+dirigente" e la data corretta da un partecipante, D-genitore da un account
+nuovo, genitore con un figlio che passa a partecipante (il figlio resta
+leggibile), negativi con ruoli privilegiati e profili altrui; nessuna rule
+nuova. Collaudo Playwright sul mini contro emulatori auth e firestore in una
+copia separata (`.claude/qa-fase5/`), 176/176: account nuovo con data da
+adulto (G sotto la data, niente «Continua», focus sul titolo, niente salvato;
+"Ho sbagliato la data" col cursore sul campo; "Partecipo come dirigente" con
+Dirigente già scelto e la riga dell'età scegliendo Giovane uomo; "Iscrivo mio
+figlio" ai dati da genitore con nome e cognome, "Cambia" e "Partecipo io" che
+ritrovano la data; "Confermo" che non torna ricaricando) a 320, 390 e 430;
+partecipante già entrato (G in cima al modulo con "Sei entrato come", titolo
+27-32 px; ogni risposta, indietro del browser e freccia; "Iscrivo mio figlio"
+alla scheda "Serve l'account di un genitore"); niente guardia per chi è già
+iscritto, dirigente, ragazzo, 18 anni il primo giorno, unit_leader col profilo
+da completare; guardia per chi compie 19 anni proprio il primo giorno e per
+chi aveva annullato; genitore senza figli che partecipa (diventa partecipante)
+o che con una data da adulto va a "Chi iscrivi?"; genitore con figli sulla
+scheda di prima; i casi della review (bozza senza data, nomi svuotati con la
+guardia aperta, cronologia dopo il salvataggio, uscita da /login, ospite che
+collega un account). Finitura misurata (campi 16 px, target 44, testo ≥ 13 px
+e 16 px nella guardia, niente scroll orizzontale), console pulita, nessun
+dialogo del browser. Review Codex (`gpt-6-astra`): BLOCKED (5 punti), BLOCKED
+(uno rimasto), PASS. Non provati: tastiera vera su Safari iOS e Android,
+produzione.
 
 2026-10-19, fase 4 in produzione con l'ok di Paolo: solo hosting da una copia
 isolata di `4809680` (service worker v24), insieme alla correzione
