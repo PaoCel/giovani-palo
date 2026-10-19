@@ -5,7 +5,7 @@
 // passo valido. Funzioni pure: le caricano anche i test Node.
 
 export type RegisterFor = "io" | "figlio";
-export type RegisterPasso = "chi" | "account" | "dati" | "figlio" | "modulo";
+export type RegisterPasso = "chi" | "account" | "dati" | "figlio" | "modulo" | "inviata";
 
 // Le schermate sono i passi, più due schede che (fino alle fasi 5 e 6 della
 // spec) dicono quale account serve:
@@ -30,6 +30,9 @@ export interface RegisterFlowState {
   guestAllowed: boolean;
   // `?child=` punta a un figlio dell'account da genitore.
   childSelected: boolean;
+  // C'è un'iscrizione non annullata per chi partecipa (te o il figlio scelto):
+  // solo allora "Iscrizione inviata" (H) è un passo valido.
+  submitted?: boolean;
 }
 
 export interface RegisterFlowResult {
@@ -40,7 +43,7 @@ export interface RegisterFlowResult {
   passo: RegisterPasso | null;
 }
 
-const PASSI: readonly RegisterPasso[] = ["chi", "account", "dati", "figlio", "modulo"];
+const PASSI: readonly RegisterPasso[] = ["chi", "account", "dati", "figlio", "modulo", "inviata"];
 
 export function parseRegisterFor(value: string | null | undefined): RegisterFor | null {
   return value === "io" || value === "figlio" ? value : null;
@@ -96,7 +99,23 @@ function result(screen: RegisterScreen, per: RegisterFor | null): RegisterFlowRe
   return { screen, per, passo };
 }
 
+// "Iscrizione inviata" (H) vale dove vale il modulo, per un account vero con
+// l'iscrizione già salvata; altrimenti si torna al primo passo valido.
 export function resolveRegisterFlow(state: RegisterFlowState): RegisterFlowResult {
+  if (state.passo !== "inviata") {
+    return resolveSteps(state);
+  }
+
+  const asForm = resolveSteps({ ...state, passo: "modulo" });
+
+  if (asForm.screen === "modulo" && state.account === "user" && state.submitted) {
+    return { screen: "inviata", per: asForm.per, passo: "inviata" };
+  }
+
+  return asForm;
+}
+
+function resolveSteps(state: RegisterFlowState): RegisterFlowResult {
   const { per, passo, account } = state;
   const user = account === "user";
 
@@ -159,7 +178,7 @@ export function getRegisterBackTarget(
   per: RegisterFor | null,
   isMinorAccount: boolean,
 ): RegisterBackTarget {
-  if (screen === "chi" || isMinorAccount) {
+  if (screen === "chi" || screen === "inviata" || isMinorAccount) {
     return { kind: "activity" };
   }
 

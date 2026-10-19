@@ -27,6 +27,14 @@ interface RegisterFlowHeaderProps {
   onSignOut?: () => void;
   // Riga sola sotto la barra, senza "Sei entrato come".
   note?: string | null;
+  // Modulo di un figlio: la scheda dice chi stai iscrivendo, al posto
+  // dell'attività, e "Cambia" torna a "Chi iscrivi?".
+  subject?: {
+    name: string;
+    initials: string;
+    tone: string;
+    onChange: () => void;
+  } | null;
   // Percorso in tre tappe: indice della tappa attiva, null per nasconderlo.
   progress?: { index: number; labels: readonly [string, string, string] } | null;
   busy?: boolean;
@@ -44,6 +52,7 @@ export function RegisterFlowHeader({
   identity,
   onSignOut,
   note,
+  subject,
   progress,
   busy = false,
 }: RegisterFlowHeaderProps) {
@@ -90,26 +99,47 @@ export function RegisterFlowHeader({
         <p className="flow-header__note">{note}</p>
       ) : null}
 
-      <div className="flow-context">
-        <span aria-hidden="true" className="flow-context__mark">
-          <AppIcon name="ticket" />
-        </span>
-        <span className="flow-context__text">
-          <strong>{eventTitle}</strong>
-          <span>{per ? (per === "io" ? PERCORSO.perTe : PERCORSO.perFiglio) : eventDates}</span>
-        </span>
-        {per && onChangePer ? (
+      {subject ? (
+        <div className="flow-context flow-context--subject">
+          <span aria-hidden="true" className={`kid-avatar kid-avatar--small kid-avatar--${subject.tone}`}>
+            {subject.initials}
+          </span>
+          <span className="flow-context__text">
+            <span>{PERCORSO.staiIscrivendo}</span>
+            <strong>{subject.name}</strong>
+          </span>
           <button
-            aria-label={PERCORSO.cambiaPerChi}
+            aria-label={PERCORSO.cambiaFiglio}
             className="flow-context__change"
             disabled={busy}
-            onClick={onChangePer}
+            onClick={subject.onChange}
             type="button"
           >
             {PERCORSO.cambia}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <div className="flow-context">
+          <span aria-hidden="true" className="flow-context__mark">
+            <AppIcon name="ticket" />
+          </span>
+          <span className="flow-context__text">
+            <strong>{eventTitle}</strong>
+            <span>{per ? (per === "io" ? PERCORSO.perTe : PERCORSO.perFiglio) : eventDates}</span>
+          </span>
+          {per && onChangePer ? (
+            <button
+              aria-label={PERCORSO.cambiaPerChi}
+              className="flow-context__change"
+              disabled={busy}
+              onClick={onChangePer}
+              type="button"
+            >
+              {PERCORSO.cambia}
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {progress ? (
         <ol className="flow-progress">

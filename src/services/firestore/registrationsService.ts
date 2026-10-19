@@ -10,6 +10,7 @@ import {
   query,
   where,
   deleteDoc,
+  onSnapshot,
   writeBatch,
 } from "firebase/firestore";
 
@@ -491,6 +492,30 @@ export const registrationsService = {
       })
       .filter((registration): registration is Registration => registration !== null)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  },
+
+  // "Iscrizione inviata" segue l'iscrizione dal vivo: l'esito della mail di
+  // autorizzazione lo scrive il trigger dopo l'invio, la firma può arrivare
+  // da un'altra scheda. Un errore di ascolto lascia lo stato già mostrato.
+  watchRegistration(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    onChange: (registration: Registration | null) => void,
+  ) {
+    return onSnapshot(
+      getRegistrationReference(stakeId, eventId, registrationId),
+      (snapshot) => {
+        onChange(
+          snapshot.exists()
+            ? mapRegistration(eventId, stakeId, snapshot.id, snapshot.data())
+            : null,
+        );
+      },
+      (error) => {
+        console.warn("Iscrizione non più seguita dal vivo.", error);
+      },
+    );
   },
 
   async getRegistrationById(stakeId: string, eventId: string, registrationId: string) {

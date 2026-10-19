@@ -12,6 +12,9 @@ export const PERCORSO = {
   perFiglio: "Per: un figlio o una figlia",
   cambia: "Cambia",
   cambiaPerChi: "Cambia per chi è l'iscrizione",
+  // Modulo di un figlio: "Stai iscrivendo Marco Rossi · Cambia" (torna a "Chi iscrivi?").
+  staiIscrivendo: "Stai iscrivendo",
+  cambiaFiglio: "Cambia chi iscrivi",
   // Percorso in tre tappe.
   tappaAccount: "Il tuo account",
   tappaDati: "I tuoi dati",

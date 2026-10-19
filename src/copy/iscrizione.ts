@@ -52,11 +52,18 @@ export const ISCRIZIONE = {
   esciTesto: "Le risposte non inviate si perdono.",
   continuaACompilare: "Continua a compilare",
   esci: PAROLE.esci,
-  // Account da genitore senza figli salvati (fino alla fase 4: si aggiungono in Famiglia).
-  nessunFiglioTitolo: "Nessun figlio collegato",
-  nessunFiglioTesto:
-    "Aggiungi i tuoi figli in Famiglia: servono nome, data di nascita e unità. Poi torna su questa attività e scegli «Iscrivi tuo figlio o tua figlia».",
   vaiAFamiglia: "Vai a Famiglia",
+  // Passo "Genitore e sicurezza" compilato da un account che iscrive un figlio.
+  datiAccountInseriti: "Abbiamo inserito i dati del tuo account: controllali.",
+  linkDopoInvio:
+    "Dopo l'invio ti mandiamo un link per autorizzare la partecipazione di {nome}. Puoi farlo anche subito, alla fine.",
+  // Invio senza rete o senza risposta: le risposte restano nel modulo.
+  invioRete: "Il server non risponde: controlla la connessione e riprova. Le risposte restano qui.",
+  invioErrore: "Non siamo riusciti a inviare l'iscrizione: riprova.",
+  // Lettura dell'attività, dei figli o dell'iscrizione non riuscita.
+  caricamentoTitolo: "Caricamento non riuscito",
+  caricamentoTesto: "Non riusciamo a leggere l'attività: controlla la connessione e riprova.",
+  riprova: "Riprova",
   supporto: "Per supporto rapido puoi contattare: {contatto}.",
   apriSessione: "Apertura sessione...",
 } as const;

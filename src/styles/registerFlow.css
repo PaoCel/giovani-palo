@@ -661,3 +661,772 @@
     margin-top: auto;
   }
 }
+
+/* --- Fase 4: "Chi iscrivi?", foglio del figlio, "Iscrizione inviata" --- */
+
+/* Avatar con le iniziali: stesso colore per lo stesso nome. */
+.kid-avatar {
+  width: 2.875rem;
+  height: 2.875rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.kid-avatar--small {
+  width: 2.375rem;
+  height: 2.375rem;
+  font-size: 0.8125rem;
+}
+
+.kid-avatar--blue {
+  background: linear-gradient(135deg, #3d7bb0, #235d90);
+}
+
+.kid-avatar--sand {
+  background: linear-gradient(135deg, #c9a36d, #a77a3f);
+}
+
+.kid-avatar--green {
+  background: linear-gradient(135deg, #4c8a74, #2d6b56);
+}
+
+.kid-avatar--slate {
+  background: linear-gradient(135deg, #8090a6, #5d6c82);
+}
+
+/* "Stai iscrivendo Marco Rossi · Cambia" al posto dell'attività. */
+.flow-context--subject .flow-context__text span {
+  font-size: 0.8125rem;
+}
+
+.flow-context--subject .flow-context__text strong {
+  font-size: 0.9375rem;
+}
+
+/* Una scheda per figlio. */
+.kid-list {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kid-card {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.375rem 0.5rem 0.375rem 0.375rem;
+  border-radius: 1.375rem;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.kid-card--selected {
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 4px var(--primary-soft),
+    var(--shadow-soft);
+}
+
+.kid-card__main {
+  flex: 1;
+  min-width: 0;
+  min-height: 3.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.5rem;
+  border: 0;
+  border-radius: 1.125rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kid-card__main--static {
+  cursor: default;
+}
+
+.kid-card__main:focus-visible,
+.kid-card__edit:focus-visible,
+.kid-card__open:focus-visible,
+.kid-add:focus-visible,
+.bottom-sheet__close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.kid-card--blocked .kid-card__main {
+  cursor: default;
+}
+
+.kid-card--blocked .kid-avatar,
+.kid-card--blocked .kid-radio {
+  opacity: 0.45;
+}
+
+.kid-radio {
+  width: 1.625rem;
+  height: 1.625rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--surface-border-strong);
+  color: #fff;
+}
+
+.kid-radio svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.kid-card--selected .kid-radio {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.kid-card__text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 0.15rem;
+}
+
+.kid-card__text strong {
+  max-width: 100%;
+  color: var(--heading);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.kid-card__text > span:not(.kid-tag) {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.kid-card__warning,
+.kid-card__reason {
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.kid-card__warning {
+  color: var(--warning);
+}
+
+.kid-card__reason {
+  color: var(--muted);
+}
+
+.kid-card__edit {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.kid-card__edit svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.kid-card__open {
+  flex: none;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.kid-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.625rem;
+  margin-top: 0.15rem;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.kid-tag svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.kid-tag--ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.kid-tag--sand {
+  background: var(--accent-soft);
+  color: #7d5a2a;
+}
+
+.kid-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.5rem 1rem;
+  border: 1.5px dashed rgba(35, 93, 144, 0.35);
+  border-radius: 1.375rem;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.kid-add svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.kid-card__main:disabled,
+.kid-card__edit:disabled,
+.kid-card__open:disabled,
+.kid-add:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Modulo del figlio (pagina e foglio). */
+.child-form__fields {
+  min-width: 0;
+  display: grid;
+  gap: 0.95rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field .child-form__unit {
+  position: relative;
+  display: block;
+  color: inherit;
+  font-weight: inherit;
+}
+
+.field .child-form__same {
+  position: absolute;
+  top: 50%;
+  right: 2.6rem;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.child-form__unit .input {
+  padding-right: 7.5rem;
+}
+
+.field .child-form__warning {
+  color: var(--warning);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Avvisi brevi nel modulo: dati presi dall'account, link dopo l'invio. */
+.flow-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border-radius: 1.125rem;
+  background: var(--primary-soft);
+  color: #1d3e5f;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.flow-banner svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--primary);
+}
+
+.flow-banner--ok {
+  background: var(--success-soft);
+  color: #234d3f;
+}
+
+.flow-banner--ok svg {
+  color: var(--success);
+}
+
+/* Foglio dal basso: 90 dvh al massimo, scroll interno, pagina ferma. */
+.bottom-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bottom-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 18, 32, 0.46);
+}
+
+.bottom-sheet {
+  position: relative;
+  width: min(32rem, 100%);
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.875rem 1.875rem 0 0;
+  background: #fbfcfe;
+  box-shadow: 0 -20px 50px rgba(10, 18, 32, 0.18);
+  transition: transform 0.18s ease;
+}
+
+.bottom-sheet--dragging {
+  transition: none;
+}
+
+.bottom-sheet__head {
+  flex: none;
+  padding: 0.625rem 1.25rem 0.5rem;
+  touch-action: none;
+  cursor: grab;
+}
+
+.bottom-sheet__grab {
+  display: block;
+  width: 2.625rem;
+  height: 5px;
+  margin: 0 auto 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-border-strong);
+}
+
+.bottom-sheet__top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bottom-sheet__close {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bottom-sheet__close svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.bottom-sheet__title {
+  margin: 0.5rem 0 0;
+  color: var(--heading);
+  font-family: "Fraunces", serif;
+  font-size: 1.5625rem;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.bottom-sheet__title:focus {
+  outline: none;
+}
+
+.bottom-sheet__lead {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.bottom-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem 1.25rem 1rem;
+}
+
+.bottom-sheet__foot {
+  flex: none;
+  padding: 0.75rem 1.25rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--surface-border);
+  background: #fbfcfe;
+}
+
+.bottom-sheet__foot .button {
+  width: 100%;
+  min-height: 3.375rem;
+  border-radius: 999px;
+}
+
+@media (min-width: 720px) {
+  .bottom-sheet-layer {
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .bottom-sheet {
+    border-radius: 1.875rem;
+  }
+
+  .bottom-sheet__grab {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bottom-sheet {
+    animation: bottom-sheet-in 0.2s ease-out;
+  }
+
+  .bottom-sheet-scrim {
+    animation: flow-step-in 0.2s ease-out;
+  }
+}
+
+@keyframes bottom-sheet-in {
+  from {
+    transform: translateY(2.5rem);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-sheet,
+  .kid-card {
+    transition: none;
+  }
+}
+
+/* "Iscrizione inviata". */
+.inviata__hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.inviata__image {
+  width: 5.25rem;
+  height: auto;
+  flex: none;
+  filter: drop-shadow(0 10px 14px rgba(16, 28, 48, 0.22));
+}
+
+.inviata__copy {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+
+.inviata__copy .auth-screen__lead {
+  overflow-wrap: anywhere;
+}
+
+.inviata__copy .auth-screen__lead strong {
+  color: var(--heading);
+}
+
+.inviata-next {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  padding: 1.25rem 1.125rem 1.125rem;
+  border-radius: 1.625rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(201, 163, 109, 0.35), transparent 40%),
+    linear-gradient(150deg, #2c6597, #1b3f67);
+  box-shadow: 0 22px 44px -18px rgba(27, 63, 103, 0.6);
+}
+
+.inviata-next__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.625rem;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.inviata-next__tag svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.inviata-next h2 {
+  margin: 0.25rem 0 0;
+  font-family: "Fraunces", serif;
+  font-size: 1.4375rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.inviata-next p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.inviata-next .inviata-next__button {
+  width: 100%;
+  min-height: 3.375rem;
+  margin-top: 0.4rem;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--primary-strong);
+  font-weight: 800;
+}
+
+.inviata-next .inviata-next__error {
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.inviata-steps__title {
+  margin: 0 0 0.25rem;
+  color: var(--heading);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.inviata-steps__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inviata-step {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0.75rem 0;
+}
+
+.inviata-step + .inviata-step {
+  border-top: 1px solid var(--surface-border);
+}
+
+.inviata-step__mark {
+  width: 1.875rem;
+  height: 1.875rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.inviata-step__mark svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.inviata-step--now .inviata-step__mark {
+  background: var(--accent);
+  color: #fff;
+}
+
+.inviata-step__text {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.inviata-step__text strong {
+  color: var(--heading);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.inviata-step__text > span {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.inviata-foot {
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* Modulo dentro il percorso: "Passo 2 di 4" e la barra, senza le etichette
+   piccole dei passi (testo secondario mai sotto 13 px). */
+.page--flow .form-stepper--registration .form-stepper__steps {
+  display: none;
+}
+
+.page--flow .form-stepper--registration .form-stepper__progress-count {
+  padding: 0;
+  background: none;
+  color: var(--heading);
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Modulo (F) nel percorso: niente riquadri annidati, il passo è la pagina
+   (mockup 02-genitore, "F · Genitore e sicurezza"). */
+.page--flow > .flow-form {
+  width: min(28rem, 100%);
+  margin-inline: auto;
+}
+
+.page--flow-wide > .flow-form {
+  width: min(44rem, 100%);
+  margin-inline: 0 auto;
+}
+
+.form-stepper--flow {
+  gap: 1.1rem;
+}
+
+.form-stepper__flow-progress {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.form-stepper__flow-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.form-stepper__flow-count strong {
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.form-stepper__segments {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 0.375rem;
+}
+
+.form-stepper__segment {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-border-strong);
+}
+
+.form-stepper__segment--done {
+  background: var(--primary);
+  opacity: 0.45;
+}
+
+.form-stepper__segment--on {
+  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+}
+
+.form-stepper--flow .form-stepper__panel {
+  gap: 1.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.form-stepper--flow .form-stepper__panel-head {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.form-stepper--flow .surface-panel.form-subsection {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.form-stepper--flow .form-subsection > h3 {
+  color: var(--heading);
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+
+.form-stepper--flow .card-grid--two {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.form-stepper--flow .flow-banner + .form-subsection,
+.form-stepper--flow .form-subsection + .form-subsection {
+  margin-top: 0.4rem;
+}

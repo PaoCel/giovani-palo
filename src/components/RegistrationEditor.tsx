@@ -5,6 +5,9 @@ import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { RoomMateField } from "@/components/RoomMateField";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
 import { ISCRIZIONE } from "@/copy/iscrizione";
+import { fillCopy } from "@/copy/parole";
+import { PROFILO } from "@/copy/profilo";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import type {
   AuthSession,
   CustomField,
@@ -48,9 +51,36 @@ interface RegistrationEditorProps {
   // Risposte toccate dall'utente e non ancora inviate (foglio "Esci
   // dall'iscrizione?"): conta solo l'input vero, non i riempimenti automatici.
   onDirtyChange?: (dirty: boolean) => void;
+  // Bozza in memoria per account, attività e persona (docs/FLUSSO_GENITORE.md,
+  // F): tornando a questo modulo si riparte dalle risposte e dal passo di prima.
+  draftKey?: string;
+  initialDraft?: RegistrationEditorDraft | null;
+  // Riceve anche la chiave: la bozza resta legata alla persona di questo modulo.
+  onDraftChange?: (draft: RegistrationEditorDraft, draftKey: string | undefined) => void;
+  // Account che iscrive un figlio: il passo "Genitore e sicurezza" parte con
+  // nome, email e telefono dell'account, modificabili.
+  parentAccount?: ParentAccountPrefill | null;
+  // Nome del figlio nei testi del passo genitore.
+  childFirstName?: string;
+  // "flow": dentro il percorso d'iscrizione (docs/FLUSSO_GENITORE.md, F e
+  // "Finitura"): titolo del passo come titolo della pagina, col focus a ogni
+  // passo, "Passo 2 di 4 · Titolo" con i segmenti, piede fisso con la CTA.
+  layout?: "card" | "flow";
 }
 
-interface RegistrationEditorValues {
+export interface ParentAccountPrefill {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
+export interface RegistrationEditorDraft {
+  values: RegistrationEditorValues;
+  stepIndex: number;
+}
+
+export interface RegistrationEditorValues {
   firstName: string;
   lastName: string;
   email: string;
@@ -125,16 +155,31 @@ function splitFullName(value: string | null | undefined) {
   };
 }
 
+const ACCOUNT_PARENT_FIELDS: Record<string, keyof ParentAccountPrefill> = {
+  parentFirstName: "firstName",
+  parentLastName: "lastName",
+  parentEmail: "email",
+  parentPhone: "phone",
+};
+
 function getInitialValues(
   session: AuthSession | null,
   formConfig: EventFormConfig,
   registration?: Registration | null,
   parentDetailsSource?: Registration | null,
+  parentAccount?: ParentAccountPrefill | null,
 ): RegistrationEditorValues {
   // I campi genitore/sanitari ricadono sull'ultima iscrizione del
-  // partecipante quando questa è nuova: si conferma, non si ridigita.
+  // partecipante quando questa è nuova: si conferma, non si ridigita. Chi
+  // iscrive un figlio dal suo account parte dai dati dell'account per nome,
+  // email e telefono; ciò che l'iscrizione ha già salvato vince sempre.
+  const accountField = (key: string) => {
+    const accountKey = ACCOUNT_PARENT_FIELDS[key];
+    return accountKey && parentAccount ? parentAccount[accountKey].trim() : "";
+  };
   const parentField = (key: string) =>
     getStoredParentField(registration, key) ||
+    accountField(key) ||
     getStoredParentField(parentDetailsSource, key);
   const registrationNames = splitFullName(registration?.fullName);
   const sessionNames = splitFullName(session?.profile.fullName);
@@ -299,7 +344,19 @@ export function RegistrationEditor({
   submitLabel,
   onSubmit,
   onDirtyChange,
+  draftKey,
+  initialDraft,
+  onDraftChange,
+  parentAccount,
+  childFirstName,
+  layout = "card",
 }: RegistrationEditorProps) {
+  const flowLayout = layout === "flow";
+  const keyboardOpen = useKeyboardOpen();
+  const stepTitleRef = useRef<HTMLHeadingElement | null>(null);
+  // Doppio tocco su "Continua" nel penultimo passo: il secondo tocco cadrebbe
+  // su "Conferma iscrizione", nello stesso punto, prima di vedere l'ultimo passo.
+  const stepEnteredAtRef = useRef(0);
   const cityOptionsListId = useId();
   // Un account genitore riceve anche una Registration sintetica che precompila
   // i dati del figlio scelto (buildChildPrefill): ha id vuoto e stato "active".
@@ -312,14 +369,30 @@ export function RegistrationEditor({
     initialRegistration?.id ?? "new",
     parentDetailsSource?.id ?? "no-parent-source",
     session?.firebaseUser.uid ?? "no-session",
+    draftKey ?? "no-draft",
   ].join(":");
   const [values, setValues] = useState<RegistrationEditorValues>(
-    getInitialValues(session, formConfig, initialRegistration, parentDetailsSource),
+    () =>
+      initialDraft?.values ??
+      getInitialValues(session, formConfig, initialRegistration, parentDetailsSource, parentAccount),
   );
-  // Un campo toccato dall'utente (non i riempimenti automatici).
-  const touchedRef = useRef(false);
+  // Un campo toccato dall'utente (non i riempimenti automatici). Una bozza
+  // ritrovata conta come già toccata.
+  const touchedRef = useRef(Boolean(initialDraft));
+  const identityKeyRef = useRef(editorIdentityKey);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [currentStepIndex, setCurrentStepIndex] = useState(initialDraft?.stepIndex ?? 0);
+  // "Abbiamo inserito i dati del tuo account": solo se il passo genitore
+  // parte davvero dall'account, non da un'iscrizione già salvata.
+  const parentPrefilledFromAccount = useMemo(
+    () =>
+      Boolean(
+        parentAccount &&
+          (hasFilledText(parentAccount.email) || hasFilledText(parentAccount.firstName)) &&
+          !hasFilledText(getStoredParentField(initialRegistration, "parentEmail")),
+      ),
+    [parentAccount, initialRegistration],
+  );
   const sessionNames = useMemo(
     () => splitFullName(session?.profile.fullName),
     [session?.profile.fullName],
@@ -574,8 +647,16 @@ export function RegistrationEditor({
     // session con nuovi oggetti equivalenti mentre l'utente sta compilando.
     // Resettare su ogni cambio di riferimento cancellava la bozza e riportava
     // al primo passo. Si riparte solo quando cambia davvero il soggetto del
-    // modulo (attività, iscrizione, sorgente genitore o sessione).
-    setValues(getInitialValues(session, formConfig, initialRegistration, parentDetailsSource));
+    // modulo (attività, iscrizione, sorgente genitore, sessione o bozza), mai
+    // al primo montaggio: lì valgono i valori iniziali o la bozza ritrovata.
+    if (identityKeyRef.current === editorIdentityKey) {
+      return;
+    }
+
+    identityKeyRef.current = editorIdentityKey;
+    setValues(
+      getInitialValues(session, formConfig, initialRegistration, parentDetailsSource, parentAccount),
+    );
     setFieldErrors({});
     setCurrentStepIndex(0);
     touchedRef.current = false;
@@ -584,16 +665,32 @@ export function RegistrationEditor({
 
   // Avvisa la pagina dopo il render, mai dentro l'evento del campo: un
   // aggiornamento del genitore durante l'input faceva perdere la prima
-  // lettera digitata.
+  // lettera digitata. La bozza segue risposte e passo.
   useEffect(() => {
     if (touchedRef.current) {
       onDirtyChange?.(true);
+      onDraftChange?.({ values, stepIndex: currentStepIndex }, draftKey);
     }
-  }, [values, onDirtyChange]);
+  }, [values, currentStepIndex, onDirtyChange, onDraftChange, draftKey]);
 
   useEffect(() => {
     setCurrentStepIndex((current) => Math.min(current, registrationSteps.length - 1));
   }, [registrationSteps.length]);
+
+  useEffect(() => {
+    stepEnteredAtRef.current = Date.now();
+  }, [currentStepIndex]);
+
+  // Passo nuovo dentro il percorso: si riparte dall'alto con il focus sul
+  // titolo (anche all'apertura del modulo e su una bozza ritrovata).
+  useEffect(() => {
+    if (!flowLayout) {
+      return;
+    }
+
+    stepTitleRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0 });
+  }, [currentStepIndex, flowLayout]);
 
   useEffect(() => {
     if (!supportsParticipatingDays || availableEventDays.length === 0) return;
@@ -1095,6 +1192,10 @@ export function RegistrationEditor({
       return;
     }
 
+    if (flowLayout && currentStepIndex > 0 && Date.now() - stepEnteredAtRef.current < 600) {
+      return;
+    }
+
     const fullName = `${values.firstName.trim()} ${values.lastName.trim()}`.trim();
     const category = getGenderRoleCategory(values.category);
     const youthGroup = getYouthGroupLabel(category);
@@ -1207,7 +1308,37 @@ export function RegistrationEditor({
       }}
       onSubmit={handleSubmit}
     >
-      <div className="form-stepper form-stepper--registration">
+      <div
+        className={
+          flowLayout
+            ? "form-stepper form-stepper--registration form-stepper--flow"
+            : "form-stepper form-stepper--registration"
+        }
+      >
+        {flowLayout ? (
+          <div className="form-stepper__flow-progress">
+            <p className="form-stepper__flow-count">
+              <strong>
+                Passo {currentStepIndex + 1} di {registrationSteps.length}
+              </strong>{" "}
+              · {currentStep.title}
+            </p>
+            <div aria-hidden="true" className="form-stepper__segments">
+              {registrationSteps.map((step, index) => (
+                <span
+                  className={
+                    index === currentStepIndex
+                      ? "form-stepper__segment form-stepper__segment--on"
+                      : index < currentStepIndex
+                        ? "form-stepper__segment form-stepper__segment--done"
+                        : "form-stepper__segment"
+                  }
+                  key={step.id}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
         <div className="form-stepper__progress">
           <div className="form-stepper__progress-meta">
             <span className="form-stepper__progress-count">
@@ -1238,10 +1369,20 @@ export function RegistrationEditor({
           </div>
         </div>
 
+        )}
+
         <div key={currentStep.id} className="form-stepper__panel">
           <div className="form-stepper__panel-head">
-            <h3>{currentStep.title}</h3>
-            <p>{currentStep.description}</p>
+            {flowLayout ? (
+              <h1 className="auth-screen__title" ref={stepTitleRef} tabIndex={-1}>
+                {currentStep.title}
+              </h1>
+            ) : (
+              <>
+                <h3>{currentStep.title}</h3>
+                <p>{currentStep.description}</p>
+              </>
+            )}
           </div>
           {currentStep.id === "identity" ? (
             <div className="card-grid card-grid--two">
@@ -1453,19 +1594,30 @@ export function RegistrationEditor({
 
           {currentStep.id === "parent" ? (
             <div className="form-stack">
-              <div className="form-info-banner">
-                <strong>
-                  {hasPrefilledParentContacts
-                    ? "Controlla i dati del genitore o tutore"
-                    : "Dati genitore o tutore richiesti"}
-                </strong>
-                <span>
-                  Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
-                  per autorizzare la partecipazione. L&apos;iscrizione sarà in stato
-                  <em> &quot;in attesa autorizzazione&quot; </em>
-                  finché il genitore non conferma. Il link scade dopo 14 giorni.
-                </span>
-              </div>
+              {parentAccount ? (
+                <>
+                  {parentPrefilledFromAccount ? (
+                    <p className="flow-banner flow-banner--ok">
+                      <AppIcon name="check" />
+                      <span>{ISCRIZIONE.datiAccountInseriti}</span>
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <div className="form-info-banner">
+                  <strong>
+                    {hasPrefilledParentContacts
+                      ? "Controlla i dati del genitore o tutore"
+                      : "Dati genitore o tutore richiesti"}
+                  </strong>
+                  <span>
+                    Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
+                    per autorizzare la partecipazione. L&apos;iscrizione sarà in stato
+                    <em> &quot;in attesa autorizzazione&quot; </em>
+                    finché il genitore non conferma. Il link scade dopo 14 giorni.
+                  </span>
+                </div>
+              )}
 
               <div className="surface-panel surface-panel--subtle form-subsection">
                 <h3>Contatti del genitore o tutore</h3>
@@ -1540,6 +1692,17 @@ export function RegistrationEditor({
                   </label>
                 </div>
               </div>
+
+              {parentAccount && !existingRegistration ? (
+                <p className="flow-banner">
+                  <AppIcon name="mail" />
+                  <span>
+                    {fillCopy(ISCRIZIONE.linkDopoInvio, {
+                      nome: childFirstName || ISCRIZIONE.tuoFiglio,
+                    })}
+                  </span>
+                </p>
+              ) : null}
 
               {eventRequiresEmergencyContacts ? (
                 <div className="surface-panel surface-panel--subtle form-subsection">
@@ -1784,6 +1947,34 @@ export function RegistrationEditor({
           ) : null}
         </div>
 
+        {flowLayout ? (
+          <div className={keyboardOpen ? "auth-foot auth-foot--inline" : "auth-foot"}>
+            <div
+              className={
+                currentStepIndex > 0
+                  ? "flow-foot-actions flow-foot-actions--two form-stepper__flow-actions"
+                  : "flow-foot-actions form-stepper__flow-actions"
+              }
+            >
+              {currentStepIndex > 0 ? (
+                <button
+                  className="button button--ghost button--large"
+                  disabled={busy}
+                  onClick={() => {
+                    setFieldErrors({});
+                    setCurrentStepIndex((current) => Math.max(current - 1, 0));
+                  }}
+                  type="button"
+                >
+                  <span>{PROFILO.indietro}</span>
+                </button>
+              ) : null}
+              <button className="button button--primary button--large" disabled={busy} type="submit">
+                {busy ? PROFILO.salvataggio : isLastStep ? submitLabel : PROFILO.continua}
+              </button>
+            </div>
+          </div>
+        ) : (
         <div
           className={
             currentStepIndex > 0
@@ -1828,6 +2019,7 @@ export function RegistrationEditor({
             )}
           </button>
         </div>
+        )}
       </div>
     </form>
   );
