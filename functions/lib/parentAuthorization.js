@@ -774,6 +774,9 @@ async function recordEmailOutcome(db, registrationRef, tokenId, fields) {
 //   passano: il reinvio dell'admin sostituisce quello che c'è.
 // - shouldStillSend (trigger): ricontrolla nella transazione la condizione
 //   che ha fatto partire l'invio.
+// - restart (trigger): reiscrizione di un'annullata, cioè una richiesta
+//   nuova: tentativi da zero e, con `reopenRejection`, un rifiuto che l'evento
+//   ha già visto si sostituisce. Un'autorizzazione firmata non si tocca mai.
 async function sendInitialAuthorizationEmail({
   db,
   stakeId,
@@ -783,6 +786,7 @@ async function sendInitialAuthorizationEmail({
   expectedTokenId,
   shouldStillSend = null,
   actorUserId = null,
+  restart = null,
 }) {
   const registrationRef = db.doc(
     `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
@@ -810,8 +814,11 @@ async function sendInitialAuthorizationEmail({
         ? registration.parentAuthorization
         : null;
     // Un'autorizzazione già firmata (o rifiutata) non si tocca: un invio
-    // arrivato in ritardo ne cancellerebbe firma, PDF e consensi.
-    if (DECIDED_PARENT_AUTH_STATUSES.includes(state?.status)) {
+    // arrivato in ritardo ne cancellerebbe firma, PDF e consensi. L'eccezione
+    // è il rifiuto prima di una reiscrizione, che chiede di nuovo al genitore.
+    const reopensRejection =
+      Boolean(restart?.reopenRejection) && state?.status === "rejected_by_parent";
+    if (DECIDED_PARENT_AUTH_STATUSES.includes(state?.status) && !reopensRejection) {
       return { skipped: true, reason: "already_decided", status: state.status };
     }
 
@@ -887,8 +894,9 @@ async function sendInitialAuthorizationEmail({
           emailSentAt: nowIso(),
           emailLastError: null,
           // Conservato fino all'invio riuscito: azzerarlo qui rimetteva a zero
-          // i tentativi a ogni giro e rendeva il tetto inefficace.
-          emailRetryCount: Number(state?.emailRetryCount ?? 0),
+          // i tentativi a ogni giro e rendeva il tetto inefficace. Riparte da
+          // zero solo con una reiscrizione, che il trigger vede una volta.
+          emailRetryCount: restart ? 0 : Number(state?.emailRetryCount ?? 0),
           emailProvider: "brevo",
           brevoMessageId: null,
           authorizedAt: null,
@@ -1130,6 +1138,61 @@ function deriveTokenStatus(token) {
 // Cloud Function: trigger Firestore (auto invio iniziale)
 // =============================================================================
 
+// Reiscrizione di un'annullata (annullata -> in attesa): vale come iscrizione
+// nuova, quindi link nuovo e mail anche se ne era già partito uno. Prima il
+// trigger vedeva il tokenId vecchio e sincronizzava solo i dati sanitari: con
+// il link scaduto o invalidato, o dopo un rifiuto, il minore restava in attesa
+// senza nessun link valido (2026-10-19, 10 annullate su 22 in produzione).
+// Il rifiuto si riapre solo se l'evento l'ha visto: uno arrivato fra la
+// reiscrizione e la transazione (col vecchio link) è una decisione nuova.
+async function restartParentAuthorizationAfterCancellation({
+  db,
+  stakeId,
+  activityId,
+  registrationId,
+  registration,
+}) {
+  const activity = await loadActivity(db, stakeId, activityId);
+  if (!activity) {
+    logger.warn("Attività non trovata per la reiscrizione.", {
+      stakeId,
+      activityId,
+      registrationId,
+    });
+    return;
+  }
+
+  try {
+    const result = await sendInitialAuthorizationEmail({
+      db,
+      stakeId,
+      activityId,
+      registrationId,
+      activity,
+      expectedTokenId: annotatedTokenId(registration.parentAuthorization),
+      shouldStillSend: (current) => isAwaitingParentAuthorization(current),
+      restart: {
+        reopenRejection: registration.parentAuthorization?.status === "rejected_by_parent",
+      },
+    });
+    if (result.skipped) return;
+
+    logger.info("Autorizzazione richiesta di nuovo dopo la reiscrizione.", {
+      stakeId,
+      activityId,
+      registrationId,
+      tokenId: result.tokenId,
+    });
+  } catch (error) {
+    logger.error("Richiesta di autorizzazione dopo la reiscrizione fallita.", {
+      stakeId,
+      activityId,
+      registrationId,
+      detail: error.message,
+    });
+  }
+}
+
 // Un invio fallito lascia status email_error, e ogni scrittura successiva
 // sul documento fa ripartire il trigger: senza tetto, un disservizio del
 // provider lo mette in rincorsa su se stesso (visto in emulatore il
@@ -1164,6 +1227,20 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
     }
 
     if (after.registrationStatus !== "pending_parent_authorization") {
+      return;
+    }
+
+    // Prima del tetto dei riprovi: la reiscrizione è un gesto della persona,
+    // non un riprovo automatico, e riparte da zero tentativi.
+    const before = event.data?.before?.data();
+    if (before && isCancelledRegistration(before)) {
+      await restartParentAuthorizationAfterCancellation({
+        db: getFirestore(),
+        stakeId: event.params.stakeId,
+        activityId: event.params.activityId,
+        registrationId: event.params.registrationId,
+        registration: after,
+      });
       return;
     }
 
