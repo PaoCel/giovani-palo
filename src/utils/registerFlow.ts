@@ -7,12 +7,13 @@
 export type RegisterFor = "io" | "figlio";
 export type RegisterPasso = "chi" | "account" | "dati" | "figlio" | "modulo" | "inviata";
 
-// Le schermate sono i passi, più due schede che (fino alle fasi 5 e 6 della
-// spec) dicono quale account serve:
+// Le schermate sono i passi, più la guardia adulto in cima al modulo (G, un
+// partecipante già entrato con almeno 19 anni) e due schede che (fino alla
+// fase 6 della spec) dicono quale account serve:
 // - "serve-genitore": figlio scelto da un account che non è da genitore
 //   (ragazzo, adulto partecipante, dirigente, admin);
-// - "solo-figli": "Partecipo io" scelto da un account da genitore già completo.
-export type RegisterScreen = RegisterPasso | "serve-genitore" | "solo-figli";
+// - "solo-figli": "Partecipo io" scelto da un account da genitore con figli.
+export type RegisterScreen = RegisterPasso | "guardia" | "serve-genitore" | "solo-figli";
 
 export type RegisterAccountKind = "none" | "guest" | "user";
 export type RegisterRole = "participant" | "parent" | "staff";
@@ -33,6 +34,17 @@ export interface RegisterFlowState {
   // C'è un'iscrizione non annullata per chi partecipa (te o il figlio scelto):
   // solo allora "Iscrizione inviata" (H) è un passo valido.
   submitted?: boolean;
+  // Partecipante già entrato da fermare con la guardia adulto prima del
+  // modulo (`needsExistingAccountGuard`).
+  adultGuard?: boolean;
+  // Account da genitore: ha figli salvati. Senza figli "Partecipo io" passa
+  // da «I tuoi dati» e l'account diventa da partecipante; con figli resta la
+  // scheda "solo-figli" fino alla fase 6. Non noto: come con figli.
+  parentHasChildren?: boolean;
+  // «I tuoi dati» aperto dalla guardia per un profilo già completo ("Ho
+  // sbagliato la data", "Partecipo come dirigente"): vive nella cronologia,
+  // non nell'URL, così un passo `dati` digitato a mano non lo apre.
+  editOwnData?: boolean;
 }
 
 export interface RegisterFlowResult {
@@ -90,7 +102,9 @@ function result(screen: RegisterScreen, per: RegisterFor | null): RegisterFlowRe
   const passo: RegisterPasso | null =
     screen === "serve-genitore" || screen === "solo-figli"
       ? null
-      : screen === "chi"
+      : screen === "guardia"
+        ? "modulo"
+        : screen === "chi"
         ? per
           ? "chi"
           : null
@@ -106,13 +120,14 @@ export function resolveRegisterFlow(state: RegisterFlowState): RegisterFlowResul
     return resolveSteps(state);
   }
 
-  const asForm = resolveSteps({ ...state, passo: "modulo" });
+  // Con l'iscrizione salvata la guardia adulto non ha più nulla da fermare.
+  const asForm = resolveSteps({ ...state, passo: "modulo", adultGuard: false });
 
   if (asForm.screen === "modulo" && state.account === "user" && state.submitted) {
     return { screen: "inviata", per: asForm.per, passo: "inviata" };
   }
 
-  return asForm;
+  return resolveSteps({ ...state, passo: "modulo" });
 }
 
 function resolveSteps(state: RegisterFlowState): RegisterFlowResult {
@@ -152,7 +167,17 @@ function resolveSteps(state: RegisterFlowState): RegisterFlowResult {
   }
 
   if (per === "io") {
-    return state.role === "parent" ? result("solo-figli", per) : result("modulo", per);
+    if (state.role === "parent") {
+      return state.parentHasChildren === false ? result("dati", per) : result("solo-figli", per);
+    }
+
+    if (passo === "dati" && state.editOwnData) {
+      return result("dati", per);
+    }
+
+    return state.adultGuard && state.role === "participant"
+      ? result("guardia", per)
+      : result("modulo", per);
   }
 
   if (state.role !== "parent") {

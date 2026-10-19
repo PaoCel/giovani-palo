@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 export type AppIconName =
+  | "alert"
   | "arrow-left"
   | "arrow-right"
   | "badge"
@@ -288,6 +289,8 @@ function getIconPaths(name: AppIconName) {
       );
     case "flag":
       return <path d="M5.25 20.25V4.5m0 0h11.25l-2.25 4.13 2.25 4.12H5.25" />;
+    case "alert":
+      return <path d="M12 8.25v4.5m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 4.13h.01" />;
     case "play":
       return <path d="M8.25 5.25v13.5L18.75 12 8.25 5.25Z" fill="currentColor" />;
     default:

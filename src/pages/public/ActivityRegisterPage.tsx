@@ -16,6 +16,7 @@ import { ProfileForm } from "@/components/auth/ProfileForm";
 import { EmptyState } from "@/components/EmptyState";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { AccountNeededCard } from "@/components/register/AccountNeededCard";
+import { AdultGuardCard } from "@/components/register/AdultGuardCard";
 import { ChiIscriviStep } from "@/components/register/ChiIscriviStep";
 import { ChiPartecipaStep } from "@/components/register/ChiPartecipaStep";
 import { getChildUnitOptions } from "@/components/register/ChildForm";
@@ -71,6 +72,13 @@ import {
   validateChildForm,
   type ChildFormValues,
 } from "@/utils/childChoice";
+import {
+  getAdultGuardAge,
+  getAdultGuardKey,
+  needsExistingAccountGuard,
+  readAdultGuardConfirmations,
+  writeAdultGuardConfirmation,
+} from "@/utils/adultGuard";
 import { formatDateOnly, formatDateRange } from "@/utils/formatters";
 import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
 import {
@@ -83,6 +91,7 @@ import { getRegistrationLookupFromSession } from "@/utils/session";
 import { writePendingAccountProfile } from "@/utils/pendingAccountProfile";
 import {
   canBecomeParent,
+  canChooseAccountType,
   getAgeOn,
   isEmailDerivedName,
   isMinorOn,
@@ -138,6 +147,9 @@ interface RegisterPageData {
 interface RegisterHistoryState {
   registerFrom?: string;
   fromActivity?: boolean;
+  // «I tuoi dati» aperto dalla guardia in cima al modulo per un profilo già
+  // completo (docs/FLUSSO_GENITORE.md, G): da dove ripartire nel passo.
+  ownData?: "data" | "dirigente";
 }
 
 const initialData: RegisterPageData = {
@@ -449,6 +461,46 @@ export function ActivityRegisterPage() {
     childSelected: Boolean(selectedChild),
     hasOwnRegistration,
   });
+  // Primo giorno dell'attività: età e avvisi (figli, guardia adulto) valgono
+  // per quel giorno.
+  const activityFirstDay = getActivityFirstDay(event?.startDate, new Date());
+  // Guardia adulto (docs/FLUSSO_GENITORE.md, G): "Confermo, partecipo io come
+  // giovane" vale per account, attività e data di nascita.
+  const [guardConfirmations, setGuardConfirmations] = useState(() =>
+    readAdultGuardConfirmations(),
+  );
+  const guardUid = session && !session.isAnonymous ? session.firebaseUser.uid : "";
+  const isGuardConfirmed = (birthDate: string) =>
+    Boolean(
+      guardUid &&
+        event &&
+        guardConfirmations.has(getAdultGuardKey({ uid: guardUid, eventId: event.id, birthDate })),
+    );
+  const confirmAdultGuard = (birthDate: string) => {
+    if (!guardUid || !event) {
+      return;
+    }
+
+    const key = getAdultGuardKey({ uid: guardUid, eventId: event.id, birthDate });
+    writeAdultGuardConfirmation(key);
+    setGuardConfirmations((current) => new Set(current).add(key));
+  };
+  // Un'iscrizione annullata non ferma la guardia: si sta iscrivendo di nuovo.
+  const hasLiveOwnRegistration = isLiveRegistration(data.registration) && !selectedChild;
+  const existingAccountGuard = Boolean(
+    session &&
+      event &&
+      isUserAccount &&
+      needsExistingAccountGuard({
+        role: session.profile.role,
+        profileComplete,
+        category: session.profile.genderRoleCategory,
+        birthDate: session.profile.birthDate,
+        firstDay: activityFirstDay,
+        hasOwnRegistration: hasLiveOwnRegistration,
+        confirmed: isGuardConfirmed(session.profile.birthDate || ""),
+      }),
+  );
   // "Iscrivi un'altra persona" esce dalla sessione da ospite e ne apre
   // un'altra: nel mezzo si resta ospiti, sul modulo.
   const resettingGuest = busy === "reset";
@@ -462,6 +514,9 @@ export function ActivityRegisterPage() {
     guestAllowed: allowGuestForThisActivity,
     childSelected: Boolean(selectedChild),
     submitted: isLiveRegistration(data.registration),
+    adultGuard: existingAccountGuard,
+    parentHasChildren: isParentSession ? data.children.length > 0 : undefined,
+    editOwnData: Boolean(historyState?.ownData),
   });
   const keepChild =
     flow.per === "figlio" &&
@@ -600,6 +655,13 @@ export function ActivityRegisterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUid]);
 
+  // Conferme della guardia adulto: AuthProvider le cancella a ogni uscita o
+  // cambio di account; la pagina le rilegge a ogni account, anche al primo
+  // accesso con la pagina già aperta.
+  useEffect(() => {
+    setGuardConfirmations(readAdultGuardConfirmations());
+  }, [currentUid]);
+
   // Passo nuovo: si riparte dall'alto (il titolo prende il focus nel passo);
   // indietro del browser ritrova la posizione di prima.
   const navigationType = useNavigationType();
@@ -666,6 +728,49 @@ export function ActivityRegisterPage() {
     );
   }
 
+  // Dalla guardia in cima al modulo: «I tuoi dati» del profilo già salvato,
+  // con il cursore sulla data o con Dirigente già scelto.
+  function openOwnData(start: "data" | "dirigente") {
+    setActionError(null);
+    navigate(
+      { search: buildRegisterSearch(searchParams, { per: "io", passo: "dati", child: null }) },
+      {
+        state: {
+          registerFrom: searchParams.toString(),
+          ownData: start,
+        } satisfies RegisterHistoryState,
+      },
+    );
+  }
+
+  // «I tuoi dati» aperto dalla guardia: la voce prima è quella del modulo
+  // (la guardia), e si torna lì, salvando o con la freccia, senza lasciare
+  // due voci del modulo una dopo l'altra.
+  const openedFromGuard =
+    Boolean(historyState?.ownData) &&
+    parseRegisterPasso(new URLSearchParams(historyState?.registerFrom ?? "").get("passo")) ===
+      "modulo";
+
+  // «I tuoi dati» salvato da chi partecipa: si va al modulo, e indietro non
+  // riporta al passo appena chiuso.
+  function handleOwnDataSaved() {
+    if (openedFromGuard) {
+      navigate(-1);
+      return;
+    }
+
+    navigate(
+      { search: buildRegisterSearch(searchParams, { per: "io", passo: "modulo", child: null }) },
+      {
+        replace: true,
+        state: {
+          registerFrom: historyState?.registerFrom,
+          fromActivity: historyState?.fromActivity,
+        } satisfies RegisterHistoryState,
+      },
+    );
+  }
+
   function handleChoose(per: RegisterFor) {
     if (eventId) {
       writeStoredRegisterFor(eventId, per);
@@ -677,6 +782,11 @@ export function ActivityRegisterPage() {
 
   function handleBack() {
     if (!event) {
+      return;
+    }
+
+    if (flow.screen === "dati" && openedFromGuard) {
+      navigate(-1);
       return;
     }
 
@@ -1377,8 +1487,7 @@ export function ActivityRegisterPage() {
   const selectedChildName = selectedChild
     ? selectedChild.fullName || `${selectedChild.firstName} ${selectedChild.lastName}`.trim()
     : "";
-  // Primo giorno dell'attività: età e avvisi dei figli valgono per quel giorno.
-  const firstDay = getActivityFirstDay(event.startDate, new Date());
+  const firstDay = activityFirstDay;
   // Passo "Genitore e sicurezza" del figlio: nome, email e telefono dell'account.
   const parentAccount: ParentAccountPrefill | null =
     session && isParentSession && selectedChild
@@ -1400,6 +1509,7 @@ export function ActivityRegisterPage() {
     !isMinorAccount &&
     (flow.screen === "chi" ||
       flow.screen === "figlio" ||
+      flow.screen === "guardia" ||
       flow.screen === "serve-genitore" ||
       flow.screen === "solo-figli");
   const identity =
@@ -1556,7 +1666,9 @@ export function ActivityRegisterPage() {
     const partecipoIoDetail =
       isUserAccount && profileComplete && session
         ? isParentSession
-          ? CHI_PARTECIPA.partecipoIoGenitore
+          ? data.children.length > 0
+            ? CHI_PARTECIPA.partecipoIoGenitore
+            : CHI_PARTECIPA.partecipoIoGenitoreSenzaFigli
           : category && session.profile.unitName
             ? fillCopy(CHI_PARTECIPA.partecipoIoCome, {
                 categoria: CATEGORY_WORDS[category],
@@ -1658,12 +1770,38 @@ export function ActivityRegisterPage() {
     const forParent =
       flow.per === "figlio" &&
       canBecomeParent(session.profile.role, session.profile.birthDate, new Date());
+    const ownDataStart = profileComplete ? historyState?.ownData : undefined;
 
     return (
       <div className="page page--flow">
         {header}
         {errorNotices}
         <ProfileForm
+          // Chi partecipa lui: guardia adulto al «Continua» della data (G).
+          // Non per dirigenti e admin (completano i loro dati) né per chi ha
+          // già un'iscrizione attiva (la modifica).
+          adultGuard={
+            flow.per === "io" &&
+            canChooseAccountType(session.profile.role) &&
+            !hasLiveOwnRegistration
+              ? {
+                  firstDay: activityFirstDay,
+                  existingAccount: profileComplete,
+                  isConfirmed: isGuardConfirmed,
+                  onConfirm: confirmAdultGuard,
+                  // Account nuovo: dati da genitore, niente salvato. Profilo
+                  // già salvato: "Chi iscrivi?" (o la scheda che dice quale
+                  // account serve), l'account resta com'è.
+                  onChooseChild: () => {
+                    writeStoredRegisterFor(event.id, "figlio");
+                    goTo("figlio", profileComplete ? null : "dati");
+                  },
+                }
+              : undefined
+          }
+          draftKey={`${session.firebaseUser.uid}|${event.id}`}
+          onSaved={flow.per === "io" ? handleOwnDataSaved : undefined}
+          start={ownDataStart}
           aside={
             forParent ? (
               <p className="flow-aside">
@@ -1683,7 +1821,7 @@ export function ActivityRegisterPage() {
           }
           autoFocusTitle
           footNote={PROFILO.piede}
-          key={session.firebaseUser.uid}
+          key={`${session.firebaseUser.uid}:${ownDataStart ?? ""}`}
           lead={forParent ? PROFILO.leadGenitore : PROFILO.leadIo}
           organization={organization}
           submitLabel={PROFILO.continua}
@@ -1747,6 +1885,32 @@ export function ActivityRegisterPage() {
             title={CHI_PARTECIPA.serveGenitoreTitolo}
           />
         )}
+        {exitSheet}
+      </div>
+    );
+  }
+
+  // Partecipante già entrato con almeno 19 anni il primo giorno: la guardia
+  // in cima al modulo (docs/FLUSSO_GENITORE.md, G). Niente è salvato qui.
+  if (flow.screen === "guardia" && session) {
+    const birthDate = session.profile.birthDate || "";
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        <section className="flow-step">
+          <AdultGuardCard
+            age={getAdultGuardAge(birthDate, activityFirstDay) ?? 0}
+            existingAccount
+            firstDay={activityFirstDay}
+            headingLevel="h1"
+            onChooseAdult={() => openOwnData("dirigente")}
+            onChooseChild={() => handleChoose("figlio")}
+            onConfirm={() => confirmAdultGuard(birthDate)}
+            onWrongDate={() => openOwnData("data")}
+          />
+        </section>
         {exitSheet}
       </div>
     );

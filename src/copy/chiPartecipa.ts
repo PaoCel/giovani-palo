@@ -11,8 +11,10 @@ export const CHI_PARTECIPA = {
   // Entrato con un profilo completo: come partecipa.
   partecipoIoCome: "Come {categoria}, {unita}.",
   partecipoIoAccount: "Ti iscrivi con il tuo account.",
-  // Account da genitore già completo: per sé serve un altro account (fino alla fase 5).
+  // Account da genitore con figli: per sé serve un altro account (fino alla fase 6).
   partecipoIoGenitore: "Per te serve un account personale.",
+  // Account da genitore senza figli: completa i suoi dati e diventa da partecipante.
+  partecipoIoGenitoreSenzaFigli: "Completi i tuoi dati e ti iscrivi.",
   categoriaGiovaneUomo: "giovane uomo",
   categoriaGiovaneDonna: "giovane donna",
   categoriaDirigente: "dirigente",
@@ -36,7 +38,7 @@ export const CHI_PARTECIPA = {
   iscriviConIlSuoAccount: "Iscrivi {nome} con il suo account",
   partecipoIoInvece: "Partecipo io",
 
-  // "Partecipo io" da un account da genitore già completo.
+  // "Partecipo io" da un account da genitore con figli (fino alla fase 6).
   soloFigliTitolo: "Questo account iscrive i tuoi figli",
   soloFigliTesto:
     "Il tuo è un account da genitore. Per partecipare tu, esci e accedi con il tuo account personale, oppure creane uno.",

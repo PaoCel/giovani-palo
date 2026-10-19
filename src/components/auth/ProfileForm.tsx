@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
+import { AdultGuardCard } from "@/components/register/AdultGuardCard";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
 import { fillCopy } from "@/copy/parole";
 import { PROFILO } from "@/copy/profilo";
@@ -8,7 +9,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
 import type { AuthSession, GenderRoleCategory, OrganizationProfile } from "@/types";
+import { getAdultGuardAge, getAdultGuardSentence, isAdultCategory } from "@/utils/adultGuard";
 import { readPendingAccountProfile } from "@/utils/pendingAccountProfile";
+import { deleteProfileDraft, readProfileDraft, writeProfileDraft } from "@/utils/profileDrafts";
 import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 import {
   BIRTH_DATE_MIN,
@@ -22,6 +25,19 @@ import {
 import "@/styles/registerFlow.css";
 
 export type ProfileVariant = "io" | "genitore";
+
+// Guardia adulto al «Continua» della data di nascita (docs/FLUSSO_GENITORE.md,
+// G): solo dentro un'iscrizione e solo per chi partecipa lui.
+export interface ProfileAdultGuard {
+  // Primo giorno dell'attività: l'età si conta lì.
+  firstDay: Date;
+  // Profilo già salvato (aperto dalla guardia del modulo o da un genitore
+  // senza figli): cambia il testo sotto "Iscrivo mio figlio o mia figlia".
+  existingAccount: boolean;
+  isConfirmed: (birthDate: string) => boolean;
+  onConfirm: (birthDate: string) => void;
+  onChooseChild: () => void;
+}
 
 interface ProfileFormProps {
   organization: OrganizationProfile;
@@ -40,6 +56,13 @@ interface ProfileFormProps {
   footNote?: string;
   // Al primo passo il focus va sul titolo (cambio di passo nell'iscrizione).
   autoFocusTitle?: boolean;
+  adultGuard?: ProfileAdultGuard;
+  // Dalla guardia in cima al modulo: "dirigente" apre Organizzazione con
+  // Dirigente già scelto, "data" mette il cursore sulla data di nascita.
+  start?: "data" | "dirigente";
+  // Risposte non salvate da ritrovare tornando qui nella stessa attività
+  // ("Cambia" e poi di nuovo "Partecipo io"). Senza chiave, nessuna memoria.
+  draftKey?: string;
   onSubmitStart?: () => void;
   onSaved?: (session: AuthSession) => void;
 }
@@ -92,6 +115,8 @@ function buildInitialState(session: AuthSession | null, presetCategory?: GenderR
   };
 }
 
+type ProfileValues = ReturnType<typeof buildInitialState>;
+
 // "I tuoi dati" (docs/FLUSSO_GENITORE.md, D): niente è scritto sul profilo
 // finché non si preme il pulsante in fondo. Il salvataggio decide anche il tipo
 // di account (genitore o partecipante), solo per chi può sceglierlo.
@@ -106,6 +131,9 @@ export function ProfileForm({
   submitLabel,
   footNote,
   autoFocusTitle = false,
+  adultGuard,
+  start,
+  draftKey,
   onSubmitStart,
   onSaved,
 }: ProfileFormProps) {
@@ -116,6 +144,7 @@ export function ProfileForm({
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const messageRef = useRef<HTMLDivElement | null>(null);
   const focusedOnceRef = useRef(false);
+  const birthDateRef = useRef<HTMLInputElement | null>(null);
   const role = session?.profile.role ?? "participant";
   // Dirigenti e admin non diventano genitori da qui (le rules non lo
   // permettono), né chi ha già una data di nascita da minore: completano i
@@ -125,8 +154,25 @@ export function ProfileForm({
     canBecomeParent(role, session?.profile.birthDate, new Date())
       ? "genitore"
       : "io";
-  const [values, setValues] = useState(() => buildInitialState(session, presetCategory));
-  const [step, setStep] = useState(0);
+  const [values, setValues] = useState<ProfileValues>(() => {
+    const base =
+      (draftKey ? readProfileDraft(draftKey) : undefined) ??
+      buildInitialState(session, presetCategory);
+    return start === "dirigente" ? { ...base, genderRoleCategory: "dirigente" } : base;
+  });
+  // "Partecipo come dirigente" apre Organizzazione solo se nome, cognome e
+  // data (anche di una bozza) reggono: altrimenti si riparte da lì.
+  const [step, setStep] = useState(() =>
+    start === "dirigente" &&
+    variant === "io" &&
+    values.firstName.trim() &&
+    values.lastName.trim() &&
+    isAcceptableBirthDate(values.birthDate, new Date())
+      ? 1
+      : 0,
+  );
+  // Età che ha fatto scattare la guardia: la scheda resta finché non si sceglie.
+  const [guardAge, setGuardAge] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const unitOptions = useMemo(() => organization.units.filter(Boolean), [organization.units]);
@@ -144,18 +190,38 @@ export function ProfileForm({
   const todayValue = toCalendarDateValue(today);
   const isLastStep = step >= totalSteps - 1;
 
-  // Cambiare percorso ("Sei tu a partecipare") riparte dal primo passo con
-  // nome e cognome già scritti.
+  // Cambiare percorso ("Sei tu a partecipare", o "Iscrivo mio figlio" dalla
+  // guardia) riparte dal primo passo con nome e cognome già scritti.
+  const previousVariantRef = useRef(variant);
   useEffect(() => {
+    if (previousVariantRef.current === variant) {
+      return;
+    }
+
+    previousVariantRef.current = variant;
     setStep(0);
     setError(null);
+    setGuardAge(null);
   }, [variant]);
+
+  useEffect(() => {
+    if (draftKey) {
+      writeProfileDraft(draftKey, values);
+    }
+  }, [draftKey, values]);
 
   // Passo nuovo (o percorso cambiato): il focus va al titolo, così si
   // riparte dall'alto. Al primo render solo se richiesto.
   useEffect(() => {
     if (!focusedOnceRef.current) {
       focusedOnceRef.current = true;
+
+      // "Ho sbagliato la data" dalla guardia del modulo: cursore sul campo,
+      // dopo il primo disegno (vince anche su un secondo giro dell'effetto).
+      if (start === "data") {
+        window.requestAnimationFrame(() => birthDateRef.current?.focus());
+        return;
+      }
 
       if (!autoFocusTitle) {
         return;
@@ -183,6 +249,11 @@ export function ProfileForm({
   function update<K extends keyof typeof values>(key: K, value: (typeof values)[K]) {
     setValues((current) => ({ ...current, [key]: value }));
     setError(null);
+
+    // Una data nuova si guarda di nuovo al «Continua».
+    if (key === "birthDate") {
+      setGuardAge(null);
+    }
   }
 
   function validateStep(currentStep: number) {
@@ -239,9 +310,38 @@ export function ProfileForm({
       return;
     }
 
+    // Chi partecipa con almeno 19 anni il primo giorno sceglie prima di
+    // andare avanti; dirigenti e accompagnatori già scelti no.
+    if (
+      step === 0 &&
+      variant === "io" &&
+      adultGuard &&
+      !isAdultCategory(values.genderRoleCategory) &&
+      !adultGuard.isConfirmed(values.birthDate)
+    ) {
+      const age = getAdultGuardAge(values.birthDate, adultGuard.firstDay);
+
+      if (age !== null) {
+        setGuardAge(age);
+        return;
+      }
+    }
+
     if (!isLastStep) {
       setStep((current) => current + 1);
       return;
+    }
+
+    // Il passo di prima si ricontrolla prima di scrivere: nomi o data possono
+    // essere cambiati con la guardia aperta, o arrivare da una bozza.
+    if (step > 0) {
+      const firstStepError = validateStep(0);
+
+      if (firstStepError) {
+        setStep(0);
+        setError(firstStepError);
+        return;
+      }
     }
 
     // Senza rete la scrittura del profilo aspetterebbe il server per sempre.
@@ -275,6 +375,10 @@ export function ProfileForm({
               ...(role === "parent" ? { role: "participant" as const } : {}),
             }),
       );
+      if (draftKey) {
+        deleteProfileDraft(draftKey);
+      }
+
       onSaved?.(nextSession);
     } catch (caughtError) {
       setError(
@@ -294,6 +398,14 @@ export function ProfileForm({
   const showNames = step === 0;
   const showBelonging = variant === "genitore" || step === 1;
   const submitDisabled = busy || (variant === "io" && step === 0 && !values.birthDate);
+  const guardOpen = guardAge !== null && adultGuard !== undefined;
+  // Scegliendo un gruppo dei giovani resta la riga "Il … avrai 47 anni.".
+  const guardLineAge =
+    adultGuard &&
+    variant === "io" &&
+    (values.genderRoleCategory === "giovane_uomo" || values.genderRoleCategory === "giovane_donna")
+      ? getAdultGuardAge(values.birthDate, adultGuard.firstDay)
+      : null;
 
   const unitField = (
     <label className="field">
@@ -398,14 +510,42 @@ export function ProfileForm({
             <span>{PROFILO.dataNascita}</span>
             <input
               autoComplete="bday"
-              className="input"
+              className={guardOpen ? "input input--guard" : "input"}
               max={todayValue}
               min={BIRTH_DATE_MIN}
+              ref={birthDateRef}
               type="date"
               value={values.birthDate}
               onChange={(eventInput) => update("birthDate", eventInput.target.value)}
             />
           </label>
+        ) : null}
+
+        {guardOpen && adultGuard && guardAge !== null ? (
+          <AdultGuardCard
+            age={guardAge}
+            existingAccount={adultGuard.existingAccount}
+            firstDay={adultGuard.firstDay}
+            headingLevel="h2"
+            onChooseAdult={() => {
+              setValues((current) => ({ ...current, genderRoleCategory: "dirigente" }));
+              setGuardAge(null);
+              setStep(1);
+            }}
+            onChooseChild={() => {
+              setGuardAge(null);
+              adultGuard.onChooseChild();
+            }}
+            onConfirm={() => {
+              adultGuard.onConfirm(values.birthDate);
+              setGuardAge(null);
+              setStep(1);
+            }}
+            onWrongDate={() => {
+              setGuardAge(null);
+              window.requestAnimationFrame(() => birthDateRef.current?.focus());
+            }}
+          />
         ) : null}
 
         {variant === "io" && step === 1 ? (
@@ -433,6 +573,12 @@ export function ProfileForm({
                 </label>
               ))}
             </div>
+            {guardLineAge !== null && adultGuard ? (
+              <p className="flow-guard-line">
+                <AppIcon name="alert" />
+                <span>{getAdultGuardSentence(guardLineAge, adultGuard.firstDay).text}</span>
+              </p>
+            ) : null}
           </fieldset>
         ) : null}
 
@@ -468,33 +614,36 @@ export function ProfileForm({
         ) : null}
       </form>
 
-      <div className={keyboardOpen ? "auth-foot auth-foot--inline" : "auth-foot"}>
-        <div className={step > 0 ? "flow-foot-actions flow-foot-actions--two" : "flow-foot-actions"}>
-          {step > 0 ? (
+      {/* Con la guardia aperta si sceglie nella scheda: niente «Continua». */}
+      {guardOpen ? null : (
+        <div className={keyboardOpen ? "auth-foot auth-foot--inline" : "auth-foot"}>
+          <div className={step > 0 ? "flow-foot-actions flow-foot-actions--two" : "flow-foot-actions"}>
+            {step > 0 ? (
+              <button
+                className="button button--ghost button--large"
+                disabled={busy}
+                onClick={() => {
+                  setError(null);
+                  setStep((current) => Math.max(current - 1, 0));
+                }}
+                type="button"
+              >
+                <AppIcon name="arrow-left" />
+                <span>{PROFILO.indietro}</span>
+              </button>
+            ) : null}
             <button
-              className="button button--ghost button--large"
-              disabled={busy}
-              onClick={() => {
-                setError(null);
-                setStep((current) => Math.max(current - 1, 0));
-              }}
-              type="button"
+              className="button button--primary button--large"
+              disabled={submitDisabled}
+              form={`${titleId}-form`}
+              type="submit"
             >
-              <AppIcon name="arrow-left" />
-              <span>{PROFILO.indietro}</span>
+              {busy ? PROFILO.salvataggio : isLastStep ? submitLabel : PROFILO.continua}
             </button>
-          ) : null}
-          <button
-            className="button button--primary button--large"
-            disabled={submitDisabled}
-            form={`${titleId}-form`}
-            type="submit"
-          >
-            {busy ? PROFILO.salvataggio : isLastStep ? submitLabel : PROFILO.continua}
-          </button>
+          </div>
+          {footNote ? <p className="auth-foot__note">{footNote}</p> : null}
         </div>
-        {footNote ? <p className="auth-foot__note">{footNote}</p> : null}
-      </div>
+      )}
     </section>
   );
 }

@@ -9,7 +9,9 @@ import { authService } from "@/services/auth/authService";
 import { usersService } from "@/services/firestore/usersService";
 import { adminPushService } from "@/services/push/adminPushService";
 import type { AuthContextValue, AuthSession, GenderRoleCategory } from "@/types";
+import { clearAdultGuardConfirmations } from "@/utils/adultGuard";
 import { shouldApplyAccountType } from "@/utils/profileCompletion";
+import { clearProfileDrafts } from "@/utils/profileDrafts";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -19,10 +21,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
+    // Account di prima (undefined al primo giro): uscendo o cambiando account
+    // le memorie dell'iscrizione dell'altro (bozza di «I tuoi dati», conferme
+    // della guardia adulto) spariscono, qualunque pagina sia aperta.
+    let previousUid: string | null | undefined;
 
     const unsubscribeAuth = authService.observeAuthState(async (firebaseUser) => {
       unsubscribeProfile?.();
       unsubscribeProfile = null;
+
+      // Anche l'ospite conta col suo uid: collegando un account l'uid resta lo
+      // stesso e Firebase non chiama di nuovo questo ascoltatore, quindi
+      // l'uscita dopo il collegamento deve trovare l'uid di prima.
+      const uid = firebaseUser?.uid ?? null;
+
+      if (previousUid !== undefined && previousUid !== uid) {
+        clearProfileDrafts();
+        clearAdultGuardConfirmations();
+      }
+
+      previousUid = uid;
 
       if (!firebaseUser) {
         setSession(null);
