@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
+import { useSheetKeys } from "@/components/gallery/GalleryConfirmSheet";
 import type { GalleryMediaType, GalleryReportReason } from "@/types";
 
 interface ReportMediaSheetProps {
@@ -20,6 +21,8 @@ export function ReportMediaSheet({ mediaType, onCancel, onConfirm }: ReportMedia
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const noun = mediaType === "video" ? "questo video" : "questa foto";
+  // Esc chiude il foglio, non il lightbox sotto.
+  useSheetKeys(onCancel);
 
   async function submit() {
     setSending(true);

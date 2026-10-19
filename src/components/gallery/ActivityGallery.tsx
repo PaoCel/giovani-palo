@@ -11,7 +11,9 @@ import "@/styles/activityGallery.css";
 
 import { AppIcon } from "@/components/AppIcon";
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
+import { GalleryConfirmSheet, getDeleteMediaCopy } from "@/components/gallery/GalleryConfirmSheet";
 import { ReportMediaSheet } from "@/components/gallery/ReportMediaSheet";
+import { GALLERIA } from "@/copy/galleria";
 import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { deleteMediaFolder } from "@/services/firebase/galleryUploadService";
@@ -55,6 +57,10 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   const [filter, setFilter] = useState<MediaFilter>(initialView === "hidden" ? "hidden" : "all");
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [reporting, setReporting] = useState<GalleryMedia | null>(null);
+  // "Elimina" di un contenuto nascosto: prima il foglio, mai un dialogo del browser.
+  const [deletingHidden, setDeletingHidden] = useState<GalleryMedia | null>(null);
+  const [deleteHiddenBusy, setDeleteHiddenBusy] = useState(false);
+  const [deleteHiddenError, setDeleteHiddenError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -181,10 +187,20 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
     setLightboxId(null);
   }
 
-  async function handleDeleteHidden(item: GalleryMedia) {
-    if (!window.confirm("Eliminare definitivamente questo contenuto dalla galleria?")) return;
-    await galleriesService.deleteHiddenMedia(stakeId, item.galleryId, item.id);
-    setLightboxId(null);
+  async function handleConfirmDeleteHidden() {
+    const item = deletingHidden;
+    if (!item || deleteHiddenBusy) return;
+    setDeleteHiddenBusy(true);
+    setDeleteHiddenError(null);
+    try {
+      await galleriesService.deleteHiddenMedia(stakeId, item.galleryId, item.id);
+      setDeletingHidden(null);
+      setLightboxId(null);
+    } catch {
+      setDeleteHiddenError(GALLERIA.erroreElimina);
+    } finally {
+      setDeleteHiddenBusy(false);
+    }
   }
 
   function onPick(changeEvent: ChangeEvent<HTMLInputElement>) {
@@ -391,7 +407,10 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
                       <button
                         type="button"
                         className="media-lightbox__delete"
-                        onClick={() => void handleDeleteHidden(item)}
+                        onClick={() => {
+                          setDeleteHiddenError(null);
+                          setDeletingHidden(item);
+                        }}
                       >
                         Elimina
                       </button>
@@ -411,6 +430,17 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
               </button>
             );
           }}
+        />
+      ) : null}
+
+      {deletingHidden ? (
+        <GalleryConfirmSheet
+          {...getDeleteMediaCopy(deletingHidden.type)}
+          body={GALLERIA.eliminaContenutoCorpo}
+          busy={deleteHiddenBusy}
+          error={deleteHiddenError}
+          onCancel={() => setDeletingHidden(null)}
+          onConfirm={() => void handleConfirmDeleteHidden()}
         />
       ) : null}
 

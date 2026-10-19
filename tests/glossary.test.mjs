@@ -14,6 +14,7 @@ import { CHI_SEI } from "../src/copy/chiSei.ts";
 import { DOMANDE } from "../src/copy/domande.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
 import { FIRMA } from "../src/copy/firma.ts";
+import { GALLERIA } from "../src/copy/galleria.ts";
 import { GUARDIA } from "../src/copy/guardia.ts";
 import { HOME } from "../src/copy/home.ts";
 import { INVIATA } from "../src/copy/inviata.ts";
@@ -527,6 +528,7 @@ const COPY = {
   DOMANDE,
   FAMIGLIA,
   FIRMA,
+  GALLERIA,
   GUARDIA,
   HOME,
   INVIATA,

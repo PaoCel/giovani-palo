@@ -9,6 +9,8 @@ import {
 
 import { AppIcon } from "@/components/AppIcon";
 import { LikeButton } from "@/components/feed/LikeButton";
+import { GalleryConfirmSheet, getDeleteMediaCopy } from "@/components/gallery/GalleryConfirmSheet";
+import { GALLERIA } from "@/copy/galleria";
 import { useAuth } from "@/hooks/useAuth";
 import { galleryCommentsService } from "@/services/firestore/galleryCommentsService";
 import type { GalleryComment, GalleryMedia } from "@/types";
@@ -80,6 +82,15 @@ export function MediaLightbox({
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
+  // "Elimina" (foto, video o commento): prima il foglio, mai un dialogo del
+  // browser. Il foglio tiene l'elemento scelto anche se la foto sotto cambia.
+  const [confirm, setConfirm] = useState<
+    | { kind: "media"; item: GalleryMedia }
+    | { kind: "comment"; item: GalleryMedia; comment: GalleryComment }
+    | null
+  >(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const current = media[index];
 
@@ -188,41 +199,53 @@ export function MediaLightbox({
     }
   }
 
-  async function handleDeleteComment(comment: GalleryComment) {
+  function handleDeleteComment(comment: GalleryComment) {
     if (!current) return;
     if (!session) return;
     if (comment.uid !== session.firebaseUser.uid && !session.isAdmin) return;
-    if (!window.confirm("Eliminare questo commento?")) return;
-    try {
-      await galleryCommentsService.remove(
-        current.stakeId,
-        current.galleryId,
-        current.id,
-        comment.id,
-      );
-      setComments((prev) => ({
-        ...prev,
-        [current.id]: (prev[current.id] ?? []).filter((entry) => entry.id !== comment.id),
-      }));
-    } catch (caughtError) {
-      setCommentError(
-        caughtError instanceof Error ? caughtError.message : "Errore eliminazione.",
-      );
-    }
+    setConfirmError(null);
+    setConfirm({ kind: "comment", item: current, comment });
   }
 
-  async function handleDeleteMedia() {
+  function handleDeleteMedia() {
     if (!current || !onDeleteMedia) return;
-    if (!window.confirm("Eliminare definitivamente questo contenuto dalla galleria?")) {
+    setConfirmError(null);
+    setConfirm({ kind: "media", item: current });
+  }
+
+  async function handleConfirmDelete() {
+    if (!confirm || confirmBusy) return;
+    const { item } = confirm;
+    setConfirmBusy(true);
+    setConfirmError(null);
+
+    if (confirm.kind === "comment") {
+      const { comment } = confirm;
+      try {
+        await galleryCommentsService.remove(item.stakeId, item.galleryId, item.id, comment.id);
+        setComments((prev) => ({
+          ...prev,
+          [item.id]: (prev[item.id] ?? []).filter((entry) => entry.id !== comment.id),
+        }));
+        setConfirm(null);
+      } catch {
+        setConfirmError(GALLERIA.erroreElimina);
+      } finally {
+        setConfirmBusy(false);
+      }
       return;
     }
+
+    if (!onDeleteMedia) return;
     setDeleting(true);
     try {
-      await onDeleteMedia(current);
+      await onDeleteMedia(item);
       // Il chiamante rimuove il media dalla lista; chiudiamo il lightbox.
       onClose();
     } catch {
       setDeleting(false);
+      setConfirmBusy(false);
+      setConfirmError(GALLERIA.erroreElimina);
     }
   }
 
@@ -342,7 +365,7 @@ export function MediaLightbox({
               disabled={deleting}
               aria-label="Elimina contenuto"
             >
-              {deleting ? "Elimino…" : "Elimina"}
+              {deleting ? GALLERIA.eliminazione : "Elimina"}
             </button>
           ) : null}
           {renderExtraActions ? renderExtraActions(current) : null}
@@ -437,6 +460,23 @@ export function MediaLightbox({
       >
         ›
       </button>
+
+      {confirm ? (
+        <GalleryConfirmSheet
+          {...(confirm.kind === "comment"
+            ? {
+                title: GALLERIA.eliminaCommentoTitolo,
+                body: GALLERIA.eliminaCommentoCorpo,
+                cancelLabel: GALLERIA.tieniCommento,
+                confirmLabel: GALLERIA.confermaEliminaCommento,
+              }
+            : { ...getDeleteMediaCopy(confirm.item.type), body: GALLERIA.eliminaContenutoCorpo })}
+          busy={confirmBusy}
+          error={confirmError}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => void handleConfirmDelete()}
+        />
+      ) : null}
     </div>
   );
 }
