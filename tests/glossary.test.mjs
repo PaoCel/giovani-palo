@@ -13,6 +13,7 @@ import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
 import { CHI_SEI } from "../src/copy/chiSei.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
 import { FIRMA } from "../src/copy/firma.ts";
+import { GUARDIA } from "../src/copy/guardia.ts";
 import { HOME } from "../src/copy/home.ts";
 import { INVIATA } from "../src/copy/inviata.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
@@ -524,6 +525,7 @@ const COPY = {
   CHI_SEI,
   FAMIGLIA,
   FIRMA,
+  GUARDIA,
   HOME,
   INVIATA,
   ISCRIZIONE,
@@ -708,4 +710,20 @@ test("Chi iscrivi? riusa i testi di Famiglia per la modifica e per la rete", () 
   assert.equal(CHI_ISCRIVI.modificaDi, FAMIGLIA.modificaProfilo);
   assert.equal(CHI_ISCRIVI.foglioTitoloModifica, FAMIGLIA.modificaProfilo);
   assert.equal(CHI_ISCRIVI.erroreRete, FAMIGLIA.erroreRete);
+});
+
+test("la guardia adulto riusa i testi di Chi partecipa? e dice sempre «figlio o figlia»", () => {
+  // Titolo e prima opzione sono quelli di B, non riscritti (docs/FLUSSO_GENITORE.md, G).
+  assert.equal(GUARDIA.chiPartecipa, CHI_PARTECIPA.titolo);
+  assert.equal(GUARDIA.iscrivoFiglio, CHI_PARTECIPA.iscrivoFiglio);
+
+  // Il controllo deve provare qualcosa: almeno un testo nomina il figlio.
+  assert.ok(
+    Object.values(GUARDIA).some((value) => /\bfigli[oa]?\b/iu.test(value)),
+    "nessun testo di GUARDIA nomina un figlio: il controllo non prova niente",
+  );
+
+  for (const [key, value] of Object.entries(GUARDIA)) {
+    assert.doesNotMatch(withoutAllowedFiglio(value), /\bfigli[oa]\b/iu, `GUARDIA.${key}: ${value}`);
+  }
 });
