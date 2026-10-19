@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -321,14 +321,24 @@ export function MyActivityDetailPage() {
     return { patrol, committees };
   }, [data]);
 
-  // Cambio di account con la pagina aperta: il foglio di quello di prima si
-  // chiude, nessun annullamento parte per l'account nuovo.
+  // Cambio di account o di attività (Indietro/Avanti fra due schede) con il
+  // foglio aperto: si chiude, nessun annullamento parte per l'altra.
+  const routeEventIdRef = useRef(eventId);
+  routeEventIdRef.current = eventId;
   useEffect(() => {
     setCancelSheetOpen(false);
     setCancelError(null);
-  }, [sessionKey]);
+    setFeedback(null);
+  }, [sessionKey, eventId]);
+  // I dati mostrati sono dell'attività nell'URL (durante un cambio di scheda
+  // restano un attimo quelli di prima).
+  const dataMatchesRoute = Boolean(data && data.event.id === eventId);
 
   function openCancelSheet() {
+    if (!dataMatchesRoute) {
+      return;
+    }
+
     setFeedback(null);
     setCancelError(null);
     setCancelSheetOpen(true);
@@ -336,6 +346,11 @@ export function MyActivityDetailPage() {
 
   async function handleConfirmCancel() {
     if (!session || !eventId || !stakeId || busy !== null) {
+      return;
+    }
+
+    if (!dataMatchesRoute) {
+      setCancelSheetOpen(false);
       return;
     }
 
@@ -355,6 +370,12 @@ export function MyActivityDetailPage() {
         throw new Error(
           "Impossibile rileggere la registrazione dopo l'annullamento.",
         );
+      }
+
+      // Se nel frattempo la scheda è cambiata, quella nuova si rilegge da sola:
+      // niente esito né dati dell'altra attività.
+      if (routeEventIdRef.current !== eventId) {
+        return;
       }
 
       setData((current) =>
@@ -956,7 +977,7 @@ export function MyActivityDetailPage() {
         </>
       ) : null}
 
-      {cancelSheetOpen && data ? (
+      {cancelSheetOpen && data && dataMatchesRoute ? (
         <ConfirmSheet
           {...getOwnCancelRegistrationCopy(data.event)}
           busy={busy === "cancel"}
