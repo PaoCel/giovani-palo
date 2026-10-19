@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-flusso-genitore
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/charming-napier-0de44e
 session: c8ee5a28-752d-489d-b6a1-41a04aaf9ce0
-stopped_at: "fase 5 su main dal 2026-10-19 (guardia adulto e genitore senza figli che partecipa), non ancora in produzione; in produzione fino alla reiscrizione di un'annullata (service worker v26)"
-next: "rilascio della fase 5 con l'ok di Paolo (solo hosting, service worker v27), poi fase 6: G2, famiglia su ogni account adulto e le righe della tabella «Account già esistente» rimaste"
-verified: "fase 5 su main, non in produzione: sul mini 785 test unitari (99 nuovi di un altro agente: adultGuard, registerFlowGuardia, glossario) e tsc verdi, build verde; rules nell'emulatore 14 nuovi (adultGuardRulesEmulator, altro agente) verdi senza rule nuove; collaudo Playwright contro emulatori 176/176 a 320/390/430; review Codex gpt-6-astra BLOCKED, BLOCKED, poi PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione, il caso ospite che collega un account del secondo giro di review (non riprodotto)"
+stopped_at: "fasi 1-5 in produzione dal 2026-10-19 (fase 5: solo hosting da 7bfb4b5, service worker v27, bundle index-CAUy6Fzo.js)"
+next: "fase 6: G2, famiglia su ogni account adulto e le righe della tabella «Account già esistente» rimaste (sessione separata dal 2026-10-19)"
+verified: "fase 5 in produzione (servito sw v27 e bundle index-CAUy6Fzo.js con sha uguale alla build su gugditalia.it e web.app; /activities e una pagina d'iscrizione da non entrato senza errori; flusso loggato in prod non provato, nessuna attività aperta): sul mini 785 test unitari (99 nuovi di un altro agente) e tsc verdi; rules nell'emulatore 14 nuovi verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori 176/176 a 320/390/430; review Codex BLOCKED, BLOCKED, PASS. Non provati: tastiera vera su iOS/Android, produzione da loggati"
 links: []
 done_at:
 ---
@@ -116,6 +116,15 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
    genitore, giovani, dirigente, genitore-figlia e inviata a 240 px).
 
 ## Verificato
+
+2026-10-19, fase 5 in produzione con l'ok di Paolo: solo hosting da una copia
+isolata di `7bfb4b5` (build sul Mac mini, service worker v27). Fra il commit
+pubblicato prima (`18982f7`) e questo l'unico cambio del bundle è la fase 5.
+Servito su gugditalia.it e giovani-palo.web.app: `sw.js` v27, bundle
+`index-CAUy6Fzo.js` con sha256 uguale alla build; da non entrato
+`/activities` e `/register` del viaggio al tempio ("Iscrizioni chiuse")
+senza errori in console. Non provato: il percorso da loggati in produzione
+(nessuna attività ha le iscrizioni aperte).
 
 2026-10-19, fase 5 su `main` (non in produzione). Sul mini: `npm test` 785
 verdi (99 nuovi scritti da un altro agente: `tests/adultGuard.test.mjs`,

@@ -516,8 +516,9 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    Rispetto al mockup F il genitore ha ancora nome e cognome in due campi: la
    firma e la mail li usano separati.
 5. Guardia G e tabella "Account già esistente".
-   Su `main` dal 2026-10-19, non ancora in produzione (solo client: nessuna
-   rule, function o indice). Cosa c'è:
+   **In produzione dal 2026-10-19** (solo hosting da una copia isolata di
+   `7bfb4b5`, service worker v27, bundle `index-CAUy6Fzo.js`; nessuna rule,
+   function o indice). Cosa c'è:
    - G dentro D, sotto la data, al «Continua» del primo passo (scheda
      `AdultGuardCard`, niente «Continua» finché non si sceglie); in cima al
      modulo come schermata `guardia` (il passo nell'URL resta `modulo`) per un
