@@ -44,6 +44,17 @@ export function getCancelRegistrationCopy(
   };
 }
 
+// Lo stesso foglio per la propria iscrizione, dalla scheda dell'attività.
+export function getOwnCancelRegistrationCopy(event: CancelEvent, now = Date.now()) {
+  const attivita = event.title?.trim() || FAMIGLIA.attivitaGenerica;
+  return {
+    title: ANNULLA.titoloTua,
+    body: areRegistrationsOpen(event, now)
+      ? fillCopy(ANNULLA.corpoAperteTua, { attivita, data: formatDateOnly(event.registrationClose) })
+      : fillCopy(ANNULLA.corpoChiuseTua, { attivita }),
+  };
+}
+
 // "Firma lasciata a metà?": c'è stato un "Autorizza ora" e l'autorizzazione
 // aspetta ancora la firma.
 export function shouldShowResumeSigning(

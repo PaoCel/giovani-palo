@@ -9,6 +9,8 @@ interface ConfirmSheetProps {
   busyLabel?: string;
   busy?: boolean;
   error?: string | null;
+  // "danger" per le azioni che tolgono qualcosa (annullare, eliminare).
+  tone?: "neutral" | "danger";
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -23,6 +25,7 @@ export function ConfirmSheet({
   busyLabel,
   busy = false,
   error,
+  tone = "neutral",
   onCancel,
   onConfirm,
 }: ConfirmSheetProps) {
@@ -38,7 +41,12 @@ export function ConfirmSheet({
           >
             {cancelLabel}
           </button>
-          <button className="button button--ghost" disabled={busy} onClick={onConfirm} type="button">
+          <button
+            className={tone === "danger" ? "button button--danger" : "button button--ghost"}
+            disabled={busy}
+            onClick={onConfirm}
+            type="button"
+          >
             {busy && busyLabel ? busyLabel : confirmLabel}
           </button>
         </div>

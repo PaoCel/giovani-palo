@@ -33,8 +33,8 @@ export const FAMIGLIA = {
     "Non risulterà più tra gli iscritti di «{attivita}». Lo storico resta, ma le iscrizioni sono chiuse: non potrai rifarla.",
   // Attività non trovata (non pubblica o di un altro palo): niente promesse.
   annullaCorpoSenzaAttivita: "Non risulterà più tra gli iscritti. Lo storico resta.",
-  tieniIscrizione: "Tieni l'iscrizione",
-  confermaAnnulla: "Sì, annulla l'iscrizione",
+  tieniIscrizione: ANNULLA.tieniIscrizione,
+  confermaAnnulla: ANNULLA.confermaAnnulla,
   annullata: ANNULLA.annullata,
   erroreAnnulla: ANNULLA.errore,
   attivitaGenerica: "Attività",

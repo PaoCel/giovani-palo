@@ -1,9 +1,10 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { AppIcon } from "@/components/AppIcon";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { ANNULLA } from "@/copy/annulla";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { QuestionsSection } from "@/components/QuestionsSection";
@@ -38,7 +39,11 @@ import {
   getRegistrationStatusTone,
 } from "@/utils/registrations";
 import { getRegistrationLookupFromSession } from "@/utils/session";
-import { getCancelErrorMessage, withCancelTimeout } from "@/utils/familyCancel";
+import {
+  getCancelErrorMessage,
+  getOwnCancelRegistrationCopy,
+  withCancelTimeout,
+} from "@/utils/familyCancel";
 
 // Card della Notte dei Record: caricata a parte (con il suo CSS) solo per le
 // attività che hanno il modulo attivo.
@@ -140,7 +145,9 @@ export function MyActivityDetailPage() {
   const stakeId = session?.profile.stakeId ?? "";
   const [busy, setBusy] = useState<null | "cancel">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // "Annulla l'iscrizione": prima il foglio, mai un dialogo del browser.
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<YouthActivityTab>("registration");
   // Figli dell'account (G2): "Iscrivi tuo figlio o tua figlia" segue la regola
   // di "Iscrizione inviata". Prima di ogni return: è un hook.
@@ -314,20 +321,26 @@ export function MyActivityDetailPage() {
     return { patrol, committees };
   }, [data]);
 
-  async function handleCancelRegistration() {
-    if (!session || !eventId || !stakeId) {
-      return;
-    }
+  // Cambio di account con la pagina aperta: il foglio di quello di prima si
+  // chiude, nessun annullamento parte per l'account nuovo.
+  useEffect(() => {
+    setCancelSheetOpen(false);
+    setCancelError(null);
+  }, [sessionKey]);
 
-    const confirmed = window.confirm("Vuoi annullare questa iscrizione?");
+  function openCancelSheet() {
+    setFeedback(null);
+    setCancelError(null);
+    setCancelSheetOpen(true);
+  }
 
-    if (!confirmed) {
+  async function handleConfirmCancel() {
+    if (!session || !eventId || !stakeId || busy !== null) {
       return;
     }
 
     setBusy("cancel");
-    setFeedback(null);
-    setActionError(null);
+    setCancelError(null);
 
     try {
       const cancelledRegistration = await withCancelTimeout(
@@ -352,9 +365,10 @@ export function MyActivityDetailPage() {
             }
           : current,
       );
+      setCancelSheetOpen(false);
       setFeedback(ANNULLA.annullata);
     } catch (caughtError) {
-      setActionError(getCancelErrorMessage(caughtError));
+      setCancelError(getCancelErrorMessage(caughtError));
     } finally {
       setBusy(null);
     }
@@ -536,15 +550,6 @@ export function MyActivityDetailPage() {
         </div>
       ) : null}
 
-      {actionError ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Azione non completata</h3>
-            <p>{actionError}</p>
-          </div>
-        </div>
-      ) : null}
-
       {feedback ? (
         <div className="notice notice--info">
           <div>
@@ -718,7 +723,7 @@ export function MyActivityDetailPage() {
                     <button
                       className="button button--ghost button--danger"
                       disabled={busy !== null}
-                      onClick={() => void handleCancelRegistration()}
+                      onClick={openCancelSheet}
                       type="button"
                     >
                       {busy === "cancel" ? ANNULLA.annullamento : ANNULLA.annullaIscrizione}
@@ -949,6 +954,20 @@ export function MyActivityDetailPage() {
             ) : null}
           </section>
         </>
+      ) : null}
+
+      {cancelSheetOpen && data ? (
+        <ConfirmSheet
+          {...getOwnCancelRegistrationCopy(data.event)}
+          busy={busy === "cancel"}
+          busyLabel={ANNULLA.annullamento}
+          cancelLabel={ANNULLA.tieniIscrizione}
+          confirmLabel={ANNULLA.confermaAnnulla}
+          error={cancelError}
+          onCancel={() => setCancelSheetOpen(false)}
+          onConfirm={() => void handleConfirmCancel()}
+          tone="danger"
+        />
       ) : null}
     </div>
   );
