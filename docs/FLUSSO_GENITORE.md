@@ -620,6 +620,40 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    Da sapere: nelle rules ogni dirigente del palo legge le iscrizioni di un
    campeggio (staff del campo), quindi anche quelle dei figli di un altro
    dirigente; non le annulla. C'era già, ora riguarda più famiglie.
+7. Finitura di Famiglia e dialoghi del browser rimasti (task
+   `gugd-finitura-famiglia`, solo client). Famiglia: tasti piccoli a 44 px,
+   stati e consensi a 13 px. Fogli in pagina al posto di `window.confirm` e
+   `window.alert` fuori dall'admin: "Annulla l'iscrizione" dalla scheda
+   `/me/activities/:id` (stesso testo di Famiglia, in seconda persona),
+   errore della firma dentro il passo (sparisce al primo tocco sul
+   riquadro), domande per il caminetto, foto, video, commenti e contenuti
+   nascosti della galleria (`GalleryConfirmSheet`, stile di "Segnala").
+   Trovato costruendola:
+   - un foglio, a differenza di `window.confirm`, resta aperto mentre la
+     pagina cambia: con Indietro/Avanti fra due schede la conferma avrebbe
+     annullato l'iscrizione dell'altra attività. Ogni foglio si lega
+     all'oggetto con cui è stato aperto e si chiude se cambia account,
+     rotta o se l'oggetto sparisce (review Codex);
+   - `AppModal` (quindi `ConfirmSheet`) lasciava la pagina sotto
+     raggiungibile con Tab, aveva lo stesso id per ogni titolo e stava sotto
+     il dock dei caricamenti: ora pagina `inert` e Tab nel foglio, z-index
+     1250. `AppModal`, `BottomSheet`, `GuestSheet` e i fogli della galleria
+     usano una pila sola (`src/utils/modalLayers.ts`): con `ChildSheet` sotto
+     e la conferma "Esci" sopra, il foglio sotto che si chiude per primo
+     riattivava la pagina (review Codex, secondo giro);
+   - errori di un salvataggio mostrati solo nella pagina, dietro il modale
+     ancora aperto (figlio in Famiglia, info e codice della galleria admin):
+     ora dentro il modale;
+   - l'esito di una richiesta partita da un foglio chiuso nel frattempo non
+     tocca il foglio aperto dopo (numero del foglio, chiave account+attività);
+   - sopra il lightbox Esc chiudeva il lightbox invece del foglio, anche per
+     "Segnala": i fogli prendono Esc e frecce prima (`useSheetKeys`);
+   - senza rete le eliminazioni lasciavano il foglio bloccato: timeout delle
+     scritture e `PAROLE.erroreRete`.
+   Restano dialoghi del browser solo nell'admin (11 in 4 file), guardati da
+   `tests/browserDialogs.test.mjs`. Rilievi fuori perimetro, da decidere:
+   etichette della home `/me` (10,9 e 11,2 px), chip e tasti da 42-43 px
+   della home e della scheda attività, passi della pagina di firma a 11 px.
 
 Test (da un agente diverso da chi scrive il codice): unitari su `per`, primo
 passo valido per ogni tipo di account, guardia (soglia, data dell'attività,
