@@ -25,7 +25,7 @@ il catalogo delle attività: nessun indizio che un'iscrizione esista altrove.
   `parentUid`, `anonymousUid`, nessuno per `manual_`). Non cambia.
 - **Partecipante collegato**: l'account della persona che partecipa, se
   diverso dal gestore. Il legame **non** si scrive sull'iscrizione (le rules di
-  update sono a un passo dal limite di 1000 espressioni, e un campo nuovo
+  update costano 650-780 delle 1000 espressioni ammesse, e un campo nuovo
   scritto dal server "avvelena" il documento per gli update del gestore se non
   entra nell'allowlist). Vive in un documento a parte, scritto solo dal server:
   `stakes/{s}/activities/{a}/registrationLinks/{registrationId}` =

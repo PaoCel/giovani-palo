@@ -353,6 +353,9 @@ function resave(actor, path, current, registrationStatus, changes = {}) {
   });
 }
 
+// `before` va letto prima di creare la scrittura: con
+// `expectDenied(scrittura, path, await stored(path))` un rifiuto che arriva
+// prima della lettura è una rejection non gestita e node --test fallisce.
 async function expectDenied(promise, path, before) {
   await assert.rejects(promise, (error) => {
     assert.equal(error?.code, "permission-denied", `${error?.code}: ${error?.message}`);
@@ -511,7 +514,8 @@ describe("chi non è il genitore titolare non annulla", () => {
     ]) {
       test(`${label}: iscrizione ${stato}`, async () => {
         const { path } = await seed(build);
-        await expectDenied(cancel(actor, path), path, await stored(path));
+        const before = await stored(path);
+        await expectDenied(cancel(actor, path), path, before);
       });
     }
   }
@@ -567,7 +571,8 @@ describe("annullamento insieme ad altri campi: negato", () => {
 
   test("il genitore non cancella il documento (Famiglia annulla, non elimina)", async () => {
     const { path } = await seed(signedRegistration);
-    await expectDenied(deleteDoc(ref("genitore", path)), path, await stored(path));
+    const before = await stored(path);
+    await expectDenied(deleteDoc(ref("genitore", path)), path, before);
   });
 });
 
@@ -576,13 +581,9 @@ describe("annullamento insieme ad altri campi: negato", () => {
 // budget delle 1000 espressioni (ramo validRegistrationUpdate)
 // ===========================================================================
 
-// TODO (lavoro separato): il risalvataggio del modulo su un'iscrizione figlio
-// "pesante" supera le 1000 espressioni nel ramo validRegistrationUpdate, già con
-// le rules di HEAD prima della fase 2. Va ridotto il costo di quella funzione;
-// intanto questi casi restano `todo`: girano, il rosso resta visibile nel report
-// di node --test, ma non fanno fallire la suite.
-const HEAVY_RESAVE_TODO =
-  "costo di validRegistrationUpdate: un'iscrizione figlio pesante supera le 1000 espressioni (lavoro separato)";
+// I casi "pesante" superavano le 1000 espressioni nel ramo
+// validRegistrationUpdate (anche prima della fase 2) e sono rimasti `todo` fino
+// alla riduzione del costo di quella funzione (2026-10-19).
 
 /** Iscrizione già annullata, seminata direttamente: isola la reiscrizione dall'annullamento. */
 const asCancelled = (build) => (parentUid, id) => ({ ...build(parentUid, id), registrationStatus: "cancelled" });
@@ -591,10 +592,10 @@ describe("modulo «Gestisci»: modifica di un'iscrizione figlio con parentAuthor
   const CASES = [
     ["in attesa della firma (email_sent)", pendingRegistration, "pending_parent_authorization"],
     ["firmata e confermata", signedRegistration, "confirmed"],
-    ["pesante, firmata e confermata", heavyRegistration, "confirmed", HEAVY_RESAVE_TODO],
+    ["pesante, firmata e confermata", heavyRegistration, "confirmed"],
   ];
-  for (const [label, build, status, todo] of CASES) {
-    test(label, { todo }, async () => {
+  for (const [label, build, status] of CASES) {
+    test(label, async () => {
       const { path } = await seed(build);
       const before = await stored(path);
 
@@ -617,11 +618,11 @@ describe("reiscrizione dopo l'annullamento (risalvataggio del modulo)", () => {
   const CASES = [
     ["in attesa della firma", pendingRegistration],
     ["firmata", signedRegistration],
-    ["pesante, firmata", heavyRegistration, HEAVY_RESAVE_TODO],
+    ["pesante, firmata", heavyRegistration],
   ];
-  for (const [label, build, todo] of CASES) {
+  for (const [label, build] of CASES) {
     for (const target of ["pending_parent_authorization", "active"]) {
-      test(`${label}: cancelled -> ${target}`, { todo }, async () => {
+      test(`${label}: cancelled -> ${target}`, async () => {
         const { path } = await seed(asCancelled(build));
         const current = await stored(path);
 
@@ -668,5 +669,398 @@ describe("reiscrizione dopo l'annullamento (risalvataggio del modulo)", () => {
     const { path } = await seed(asCancelled(signedRegistration));
     const current = await stored(path);
     await expectDenied(resave("altroGenitore", path, current, "active"), path, current);
+  });
+});
+
+// ===========================================================================
+// validRegistrationUpdate: confronti dettagliati e iscrizione massima
+// ===========================================================================
+
+// Il risalvataggio del modulo passa dalle scorciatoie della rule (nessuna
+// chiave del gruppo in affectedKeys). Qui si prova l'altro lato: i confronti
+// dettagliati su pattuglia, stanza, comitati, consensi e codici di accesso
+// quando la scorciatoia non vale, con le scritture del client (updateDoc), e
+// l'iscrizione figlio con ogni campo valorizzato, il caso peggiore del budget
+// delle 1000 espressioni.
+describe("validRegistrationUpdate: rami dettagliati e iscrizione massima", () => {
+  /** Campi che il modulo «Gestisci» cambia davvero; tutto il resto resta identico. */
+  const CHANGED_BY_FORM = ["phone", "answers", "registrationStatus", "updatedAt"];
+  const withoutKeys = (data, keys) => Object.fromEntries(Object.entries(data).filter(([key]) => !keys.includes(key)));
+
+  /** updateDoc mirato: solo i campi indicati più updatedAt. */
+  const patch = (actor, path, fields) =>
+    updateDoc(ref(actor, path), { ...fields, updatedAt: new Date().toISOString() });
+
+  /** Iscrizione figlio leggera, come dopo la prima mail al genitore, con campi a scelta. */
+  const light = (overrides = {}) => (parentUid) =>
+    childRegistration(parentUid, { parentAuthorization: emailSentState("token-in-attesa"), ...overrides });
+
+  /** Documento precedente a stanze pubblicate e comitati: senza quei due campi. */
+  const legacy = (build) => (parentUid, id) => {
+    const { assignedRoomName: _room, assignedCommittees: _committees, ...rest } = build(parentUid, id);
+    return rest;
+  };
+
+  /** Ogni campo opzionale valorizzato: il caso peggiore di costo per validRegistrationUpdate. */
+  function maximalRegistration(parentUid, registrationId) {
+    const base = `parentAuthorizations/${stakeId}/act/${registrationId}`;
+    return {
+      ...heavyRegistration(parentUid, registrationId),
+      anonymousTokenId: "token-anonimo-1",
+      accessCode: "ACC-1234",
+      recoveryCode: "REC-5678",
+      recoveryPdfGenerated: true,
+      parentConsentDocumentUrl: "https://storage.example.invalid/consenso.pdf",
+      consentSignatureUrl: "https://storage.example.invalid/firma.png",
+      parentIdDocumentName: `documento-${registrationId}.pdf`,
+      parentIdDocumentUrl: "https://storage.example.invalid/documento.pdf",
+      parentIdDocumentPath: `${base}/documento.pdf`,
+      parentIdUploadedAt: SIGNED_AT,
+      linkedLaterToUserId: uid("partecipante"),
+      assignedTempleShiftId: "turno-tempio-3",
+      assignedServiceTeamIds: ["squadra-cucina", "squadra-pulizie"],
+    };
+  }
+
+  /** Scrittura ammessa: cambiano solo i campi indicati (e updatedAt), il resto è identico. */
+  async function expectOnlyChanged(path, before, changes) {
+    const after = await stored(path);
+    for (const [key, value] of Object.entries(changes)) assert.deepEqual(after[key], value, key);
+    const touched = [...Object.keys(changes), "updatedAt"];
+    assert.deepEqual(withoutKeys(after, touched), withoutKeys(before, touched));
+    return after;
+  }
+
+  // -------------------------------------------------------------------------
+  // Codici di accesso e recupero: si impostano una volta, poi restano
+  // -------------------------------------------------------------------------
+
+  describe("codici di accesso e recupero", () => {
+    for (const field of ["accessCode", "recoveryCode", "anonymousTokenId"]) {
+      test(`${field}: da null a stringa è ammesso`, async () => {
+        const { path } = await seed(light({ [field]: null }));
+        const before = await stored(path);
+
+        await patch("genitore", path, { [field]: "valore-1" });
+
+        await expectOnlyChanged(path, before, { [field]: "valore-1" });
+      });
+
+      test(`${field}: da stringa a un'altra stringa è negato`, async () => {
+        const { path } = await seed(light({ [field]: "valore-1" }));
+        const before = await stored(path);
+        await expectDenied(patch("genitore", path, { [field]: "valore-2" }), path, before);
+      });
+
+      test(`${field}: da stringa a null è negato`, async () => {
+        const { path } = await seed(light({ [field]: "valore-1" }));
+        const before = await stored(path);
+        await expectDenied(patch("genitore", path, { [field]: null }), path, before);
+      });
+    }
+
+    test("recoveryPdfGenerated: false -> true è ammesso", async () => {
+      const { path } = await seed(light({ recoveryPdfGenerated: false }));
+      const before = await stored(path);
+
+      await patch("genitore", path, { recoveryPdfGenerated: true });
+
+      await expectOnlyChanged(path, before, { recoveryPdfGenerated: true });
+    });
+
+    test("recoveryPdfGenerated: true -> false è negato", async () => {
+      const { path } = await seed(light({ recoveryPdfGenerated: true }));
+      const before = await stored(path);
+      await expectDenied(patch("genitore", path, { recoveryPdfGenerated: false }), path, before);
+    });
+
+    test("i quattro campi insieme (forma di saveAnonymousRecovery): null/false -> valori è ammesso", async () => {
+      const { path } = await seed(light());
+      const before = await stored(path);
+      const changes = {
+        anonymousTokenId: "token-anonimo-1",
+        accessCode: "ACC-1234",
+        recoveryCode: "ACC-1234",
+        recoveryPdfGenerated: true,
+      };
+
+      await patch("genitore", path, changes);
+
+      await expectOnlyChanged(path, before, changes);
+    });
+
+    test("iscrizione pesante: accessCode da null a stringa è ammesso (confronto dettagliato nel budget)", async () => {
+      const { path } = await seed(heavyRegistration);
+      const before = await stored(path);
+
+      await patch("genitore", path, { accessCode: "ACC-1234" });
+
+      await expectOnlyChanged(path, before, { accessCode: "ACC-1234" });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Pattuglia, stanza, comitati, consensi: il titolare non li cambia da solo
+  // -------------------------------------------------------------------------
+
+  describe("campi assegnati e consensi: la modifica diretta è negata", () => {
+    const CASES = [
+      ["consenso: parentIdDocumentPath da null a valore", light(), {
+        parentIdDocumentPath: `parentAuthorizations/${stakeId}/act/x/documento.pdf`,
+      }],
+      ["consenso: parentIdDocumentName da null a valore", light(), { parentIdDocumentName: "documento.pdf" }],
+      ["consenso: consentSignatureUrl da null a valore", light(), {
+        consentSignatureUrl: "https://storage.example.invalid/firma.png",
+      }],
+      ["consenso: parentConsentDocumentPath da valore a un altro", signedRegistration, {
+        parentConsentDocumentPath: `parentAuthorizations/${stakeId}/act/x/altro.pdf`,
+      }],
+      ["consenso: consentSignaturePath da valore a null", signedRegistration, { consentSignaturePath: null }],
+      ["comitati: da [] a un elemento", light(), { assignedCommittees: ["cucina"] }],
+      ["comitati: da un elemento a []", light({ assignedCommittees: ["cucina"] }), { assignedCommittees: [] }],
+      ["comitati: da un elemento a un altro", light({ assignedCommittees: ["cucina"] }), {
+        assignedCommittees: ["pulizie"],
+      }],
+      ["pattuglia: assignedPatrolId da null a valore", light(), { assignedPatrolId: "pattuglia-lupi" }],
+      ["pattuglia: assignedPatrolName da null a valore", light(), { assignedPatrolName: "Lupi" }],
+      ["pattuglia: assignedPatrolRole da null a leader", light(), { assignedPatrolRole: "leader" }],
+      ["pattuglia: assignedPatrolRole da member a null", heavyRegistration, { assignedPatrolRole: null }],
+      ["stanza: assignedRoomName da assente a valore", light(), { assignedRoomName: "Stanza 1" }],
+      ["stanza: assignedRoomName da valore a null", heavyRegistration, { assignedRoomName: null }],
+      ["childId cambiato", light(), { childId: "altro-figlio" }],
+      ["iscrizione massima: accessCode cambiato", maximalRegistration, { accessCode: "ACC-9999" }],
+      ["iscrizione massima: parentIdDocumentPath azzerato", maximalRegistration, { parentIdDocumentPath: null }],
+    ];
+
+    for (const [label, build, fields] of CASES) {
+      test(label, async () => {
+        const { path } = await seed(build);
+        const before = await stored(path);
+        await expectDenied(patch("genitore", path, fields), path, before);
+      });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Documenti legacy: assignedRoomName e assignedCommittees assenti
+  // -------------------------------------------------------------------------
+
+  describe("documenti legacy senza assignedRoomName e assignedCommittees", () => {
+    test("assignedCommittees: aggiungere [] è ammesso (assente e vuoto si equivalgono)", async () => {
+      const { path } = await seed(legacy(light()));
+      const before = await stored(path);
+      assert.ok(!("assignedCommittees" in before));
+
+      await patch("genitore", path, { assignedCommittees: [] });
+
+      await expectOnlyChanged(path, before, { assignedCommittees: [] });
+    });
+
+    test("assignedCommittees: aggiungere un elemento è negato", async () => {
+      const { path } = await seed(legacy(light()));
+      const before = await stored(path);
+      await expectDenied(patch("genitore", path, { assignedCommittees: ["cucina"] }), path, before);
+    });
+
+    test("assignedRoomName: aggiungere null è ammesso (assente e null si equivalgono)", async () => {
+      const { path } = await seed(legacy(light()));
+      const before = await stored(path);
+
+      await patch("genitore", path, { assignedRoomName: null });
+
+      await expectOnlyChanged(path, before, { assignedRoomName: null });
+    });
+
+    test("assignedRoomName: aggiungere un valore è negato", async () => {
+      const { path } = await seed(legacy(light()));
+      const before = await stored(path);
+      await expectDenied(patch("genitore", path, { assignedRoomName: "Stanza 1" }), path, before);
+    });
+
+    test("assignedRoomName: da null a campo rimosso è ammesso", async () => {
+      const { path } = await seed(light({ assignedRoomName: null }));
+      const before = await stored(path);
+
+      await patch("genitore", path, { assignedRoomName: deleteField() });
+
+      const after = await expectOnlyChanged(path, before, { assignedRoomName: undefined });
+      assert.ok(!("assignedRoomName" in after));
+    });
+
+    test("assignedRoomName: da valore a campo rimosso è negato", async () => {
+      const { path } = await seed(heavyRegistration);
+      const before = await stored(path);
+      await expectDenied(patch("genitore", path, { assignedRoomName: deleteField() }), path, before);
+    });
+
+    // Con il campo nel documento precedente e non nel nuovo, la rule legge un
+    // campo mancante: errore, quindi negato.
+    test("assignedCommittees: da [] a campo rimosso è negato", async () => {
+      const { path } = await seed(light());
+      const before = await stored(path);
+      await expectDenied(patch("genitore", path, { assignedCommittees: deleteField() }), path, before);
+    });
+
+    for (const [label, build, status] of [
+      ["in attesa della firma", pendingRegistration, "pending_parent_authorization"],
+      ["firmata", signedRegistration, "confirmed"],
+      ["pesante, firmata", heavyRegistration, "confirmed"],
+    ]) {
+      test(`${label}: il modulo risalva e i due campi restano assenti`, async () => {
+        const { path } = await seed(legacy(build));
+        const before = await stored(path);
+        assert.ok(!("assignedCommittees" in before) && !("assignedRoomName" in before));
+
+        await resave("genitore", path, before, status, { phone: "3339999999" });
+
+        const after = await stored(path);
+        assert.equal(after.phone, "3339999999");
+        assert.equal(after.registrationStatus, status);
+        assert.ok(!("assignedCommittees" in after) && !("assignedRoomName" in after));
+        assert.deepEqual(withoutKeys(after, CHANGED_BY_FORM), withoutKeys(before, CHANGED_BY_FORM));
+      });
+
+      test(`${label}: annullata e riattivata dal modulo`, async () => {
+        const { path } = await seed(asCancelled(legacy(build)));
+        const before = await stored(path);
+
+        await resave("genitore", path, before, "active");
+
+        const after = await stored(path);
+        assert.equal(after.registrationStatus, "active");
+        assert.ok(!("assignedCommittees" in after) && !("assignedRoomName" in after));
+        assert.deepEqual(withoutKeys(after, CHANGED_BY_FORM), withoutKeys(before, CHANGED_BY_FORM));
+      });
+    }
+
+    // Due gruppi nel ramo dettagliato nella stessa scrittura, su un'iscrizione
+    // pesante: si pagano i confronti su pattuglia, stanza, comitati e codici
+    // (i consensi restano sulla loro scorciatoia). Nessun client la fa: è la
+    // sonda del caso peggiore del budget.
+    for (const [label, build, registrationStatus] of [
+      ["stato invariato", legacy(heavyRegistration), null],
+      ["con riattivazione", asCancelled(legacy(heavyRegistration)), "active"],
+    ]) {
+      test(`caso peggiore, due gruppi dettagliati su iscrizione pesante: ${label}`, async () => {
+        const { path } = await seed(build);
+        const before = await stored(path);
+        const changes = {
+          assignedCommittees: [],
+          assignedRoomName: null,
+          anonymousTokenId: "token-anonimo-1",
+          accessCode: "ACC-1234",
+          recoveryCode: "REC-5678",
+          recoveryPdfGenerated: true,
+          ...(registrationStatus ? { registrationStatus } : {}),
+        };
+
+        await patch("genitore", path, changes);
+
+        await expectOnlyChanged(path, before, changes);
+      });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Iscrizione figlio massima: modulo, annullamento e riattivazione
+  // -------------------------------------------------------------------------
+
+  describe("iscrizione figlio massima (ogni campo opzionale valorizzato)", () => {
+    test("il genitore la annulla: cambiano solo stato e updatedAt", async () => {
+      const { path } = await seed(maximalRegistration);
+      const before = await stored(path);
+      const startedAt = new Date().toISOString();
+
+      await cancel("genitore", path);
+
+      assertOnlyCancelled(before, await stored(path), startedAt);
+    });
+
+    test("modulo «Gestisci»: telefono e risposte cambiano, codici e consensi restano", async () => {
+      const { path } = await seed(maximalRegistration);
+      const before = await stored(path);
+
+      await resave("genitore", path, before, "confirmed", {
+        phone: "3339999999",
+        answers: { ...before.answers, transportMode: "auto" },
+      });
+
+      const after = await stored(path);
+      assert.equal(after.phone, "3339999999");
+      assert.equal(after.answers.transportMode, "auto");
+      assert.equal(after.registrationStatus, "confirmed");
+      assert.equal(after.accessCode, "ACC-1234");
+      assert.equal(after.recoveryPdfGenerated, true);
+      assert.deepEqual(withoutKeys(after, CHANGED_BY_FORM), withoutKeys(before, CHANGED_BY_FORM));
+    });
+
+    for (const target of ["pending_parent_authorization", "active"]) {
+      test(`riattivazione dopo l'annullamento: cancelled -> ${target}`, async () => {
+        const { path } = await seed(asCancelled(maximalRegistration));
+        const current = await stored(path);
+
+        await resave("genitore", path, current, target);
+
+        const after = await stored(path);
+        assert.equal(after.registrationStatus, target);
+        assert.deepEqual(withoutKeys(after, CHANGED_BY_FORM), withoutKeys(current, CHANGED_BY_FORM));
+      });
+    }
+
+    test("annullata dal genitore e poi risalvata: il percorso completo di Famiglia", async () => {
+      const { path } = await seed(maximalRegistration);
+      await cancel("genitore", path);
+      const current = await stored(path);
+
+      await resave("genitore", path, current, "active");
+
+      const after = await stored(path);
+      assert.equal(after.registrationStatus, "active");
+      assert.deepEqual(withoutKeys(after, CHANGED_BY_FORM), withoutKeys(current, CHANGED_BY_FORM));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Titolarità: validRegistrationUpdate non rilegge isOwnRegistration(resource.data)
+  // -------------------------------------------------------------------------
+
+  describe("chi non è titolare non modifica né si appropria dell'iscrizione", () => {
+    const OUTSIDERS = [
+      ["un altro genitore", "altroGenitore"],
+      ["un partecipante dello stesso palo", "partecipante"],
+      ["un utente non autenticato", "nonAutenticato"],
+    ];
+    for (const [label, actor] of OUTSIDERS) {
+      for (const [stato, build] of [
+        ["leggera", light()],
+        ["pesante", heavyRegistration],
+        ["massima", maximalRegistration],
+      ]) {
+        test(`${label}: telefono di un'iscrizione ${stato}`, async () => {
+          const { path } = await seed(build);
+          const before = await stored(path);
+          await expectDenied(patch(actor, path, { phone: "3330000001" }), path, before);
+        });
+      }
+    }
+
+    // L'iscrizione passerebbe registrationBelongsToCaller: ciò che la ferma è
+    // l'uguaglianza di parentUid con il documento precedente.
+    for (const [label, actor, name] of [
+      ["un altro genitore", "altroGenitore", "altro-genitore"],
+      ["un partecipante dello stesso palo", "partecipante", "partecipante"],
+    ]) {
+      test(`${label}: si intesta l'iscrizione (parentUid)`, async () => {
+        const { path } = await seed(light());
+        const before = await stored(path);
+        await expectDenied(patch(actor, path, { parentUid: uid(name) }), path, before);
+      });
+
+      test(`${label}: si intesta l'iscrizione (userId)`, async () => {
+        const { path } = await seed(light());
+        const before = await stored(path);
+        await expectDenied(patch(actor, path, { userId: uid(name) }), path, before);
+      });
+    }
   });
 });

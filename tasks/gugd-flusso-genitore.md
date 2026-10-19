@@ -64,9 +64,11 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      `rejected_by_parent` un'iscrizione annullata (anche da `/me` e admin),
      reinvio mail su iscrizioni annullate, errori Firebase in inglese e attesa
      infinita offline anche in `/me`.
-   - Aperti, c'erano già prima: risalvataggio di un'iscrizione figlio molto
-     pesante oltre il budget delle rules (3 `todo` in
-     `functions/tests/parentCancelRulesEmulator.test.mjs`); il reinvio
+   - Aperti, c'erano già prima: ~~risalvataggio di un'iscrizione figlio molto
+     pesante oltre il budget delle rules~~ (corretto su `main` il 2026-10-19:
+     `validRegistrationUpdate` da oltre 1000 a 650-780 espressioni, permessi
+     invariati, i 3 `todo` di `parentCancelRulesEmulator.test.mjs` ora verdi;
+     rules da pubblicare con l'ok di Paolo); il reinvio
      dell'admin e il cambio email lasciano due link validi e mandano due mail
      (diagnostica in `parentAuthorizationCancelledEmulator.test.mjs`). Tutti e
      due in sessioni separate dal 2026-10-19.

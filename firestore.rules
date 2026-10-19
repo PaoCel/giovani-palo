@@ -488,24 +488,90 @@ service cloud.firestore {
         && request.resource.data.linkedLaterToUserId == null;
     }
 
-    function manualConsentFieldsUnchanged() {
-      return request.resource.data.get('parentConsentDocumentName', null) == resource.data.get('parentConsentDocumentName', null)
-        && request.resource.data.get('parentConsentDocumentUrl', null) == resource.data.get('parentConsentDocumentUrl', null)
-        && request.resource.data.get('parentConsentDocumentPath', null) == resource.data.get('parentConsentDocumentPath', null)
-        && request.resource.data.get('parentConsentUploadedAt', null) == resource.data.get('parentConsentUploadedAt', null)
-        && request.resource.data.get('consentSignatureUrl', null) == resource.data.get('consentSignatureUrl', null)
-        && request.resource.data.get('consentSignaturePath', null) == resource.data.get('consentSignaturePath', null)
-        && request.resource.data.get('consentSignatureSetAt', null) == resource.data.get('consentSignatureSetAt', null)
-        && request.resource.data.get('parentIdDocumentName', null) == resource.data.get('parentIdDocumentName', null)
-        && request.resource.data.get('parentIdDocumentUrl', null) == resource.data.get('parentIdDocumentUrl', null)
-        && request.resource.data.get('parentIdDocumentPath', null) == resource.data.get('parentIdDocumentPath', null)
-        && request.resource.data.get('parentIdUploadedAt', null) == resource.data.get('parentIdUploadedAt', null);
+    function manualConsentFieldsUnchanged(next, prev) {
+      return next.get('parentConsentDocumentName', null) == prev.get('parentConsentDocumentName', null)
+        && next.get('parentConsentDocumentUrl', null) == prev.get('parentConsentDocumentUrl', null)
+        && next.get('parentConsentDocumentPath', null) == prev.get('parentConsentDocumentPath', null)
+        && next.get('parentConsentUploadedAt', null) == prev.get('parentConsentUploadedAt', null)
+        && next.get('consentSignatureUrl', null) == prev.get('consentSignatureUrl', null)
+        && next.get('consentSignaturePath', null) == prev.get('consentSignaturePath', null)
+        && next.get('consentSignatureSetAt', null) == prev.get('consentSignatureSetAt', null)
+        && next.get('parentIdDocumentName', null) == prev.get('parentIdDocumentName', null)
+        && next.get('parentIdDocumentUrl', null) == prev.get('parentIdDocumentUrl', null)
+        && next.get('parentIdDocumentPath', null) == prev.get('parentIdDocumentPath', null)
+        && next.get('parentIdUploadedAt', null) == prev.get('parentIdUploadedAt', null);
     }
 
-    // Budget: Firestore valuta al massimo 1000 espressioni per richiesta e il
-    // salvataggio completo di un'iscrizione ci arriva vicino. I controlli di
-    // ownership (pochi) vengono prima del payload (molti), così chi non è
-    // proprietario esce subito e il ramo staff campo non paga questo costo.
+    // Campi assegnati da staff e server e proprietà: il titolare li rimanda
+    // invariati. Assente e null si equivalgono dove i documenti legacy non
+    // hanno il campo.
+    function registrationAssignedFieldsUnchanged(next, prev) {
+      return next.assignedPatrolId == prev.get('assignedPatrolId', null)
+        && next.assignedPatrolName == prev.get('assignedPatrolName', null)
+        && next.assignedPatrolRole == prev.get('assignedPatrolRole', null)
+        && next.get('assignedRoomName', null) == prev.get('assignedRoomName', null)
+        && (
+          (
+            !('assignedCommittees' in prev)
+            && (
+              !('assignedCommittees' in next)
+              || next.assignedCommittees.size() == 0
+            )
+          )
+          || (
+            'assignedCommittees' in prev
+            && next.assignedCommittees == prev.assignedCommittees
+          )
+        )
+        && next.get('parentUid', null) == prev.get('parentUid', null)
+        && next.get('childId', null) == prev.get('childId', null);
+    }
+
+    // Codici di accesso e recupero: si impostano una volta, poi restano.
+    function registrationAccessFieldsUnchanged(next, prev) {
+      return (
+          next.anonymousTokenId == prev.anonymousTokenId
+          || (
+            prev.anonymousTokenId == null
+            && (
+              next.anonymousTokenId == null
+              || next.anonymousTokenId is string
+            )
+          )
+        )
+        && (
+          next.recoveryCode == prev.recoveryCode
+          || (
+            prev.recoveryCode == null
+            && (
+              next.recoveryCode == null
+              || next.recoveryCode is string
+            )
+          )
+        )
+        && (
+          next.accessCode == prev.accessCode
+          || (
+            prev.accessCode == null
+            && (
+              next.accessCode == null
+              || next.accessCode is string
+            )
+          )
+        )
+        && (
+          next.recoveryPdfGenerated == prev.recoveryPdfGenerated
+          || (
+            prev.recoveryPdfGenerated == false
+            && next.recoveryPdfGenerated == true
+          )
+        );
+    }
+
+    // Budget: Firestore valuta al massimo 1000 espressioni per richiesta. I
+    // controlli di ownership (pochi) vengono prima del payload (molti), così
+    // chi non è proprietario esce subito e il ramo staff campo non paga questo
+    // costo.
     // Annullamento del titolare (partecipante, ospite o genitore di un figlio):
     // solo lo stato a 'cancelled' e updatedAt. È già concesso da
     // validRegistrationUpdate, ma lì l'iscrizione di un figlio superava il
@@ -513,8 +579,7 @@ service cloud.firestore {
     // poche espressioni e va valutato per primo.
     // Il confronto sullo stato va per primo: ogni altro update del titolare
     // (salvataggio del modulo, riattivazione) esce subito, senza pagare il
-    // diff, perché il salvataggio completo di un figlio sta nel budget per
-    // poche espressioni.
+    // diff.
     function validOwnerCancellation() {
       return request.resource.data.registrationStatus == 'cancelled'
         && isOwnRegistration(resource.data)
@@ -522,86 +587,68 @@ service cloud.firestore {
         && request.resource.data.updatedAt is string;
     }
 
+    // Costo: ogni accesso `request.resource.data.x` vale più espressioni; i
+    // confronti dei campi protetti ne costavano circa 250 e un'iscrizione
+    // figlio pesante (58 risposte, firma, stanza, pattuglia, comitati) sforava
+    // al risalvataggio e alla riattivazione (emulatore, 2026-10-19). Ora i dati
+    // passano da `let` e ogni gruppo di confronti ha una scorciatoia: se
+    // nessuna sua chiave è in affectedKeys() i valori sono uguali, o assenti in
+    // entrambi (i campi letti senza `in` li rende obbligatori
+    // validRegistrationPayload), e il confronto dettagliato è vero per
+    // costruzione; altrimenti si valuta quello, identico a prima.
+    // registrationBelongsToCaller(next), con userId e anonymousUid invariati e
+    // parentUid uguale, implica isOwnRegistration(prev): non si ripete.
+    // Test: functions/tests/parentCancelRulesEmulator.test.mjs e
+    // functions/tests/registrationUpdateRules.py.
     function validRegistrationUpdate() {
-      let delta = request.resource.data.diff(resource.data);
-      return isOwnRegistration(resource.data)
-        && registrationBelongsToCaller(request.resource.data)
-        && validRegistrationPayload(request.resource.data)
+      let next = request.resource.data;
+      let prev = resource.data;
+      let delta = next.diff(prev);
+      let changed = delta.affectedKeys();
+      return registrationBelongsToCaller(next)
+        && validRegistrationPayload(next)
         && delta.unchangedKeys().hasAll([
           'userId', 'anonymousUid', 'createdAt', 'submittedByMode', 'unitId',
           'assignedRoomId', 'assignedTempleShiftId', 'assignedServiceTeamIds',
           'linkedLaterToUserId'
         ])
-        && request.resource.data.assignedPatrolId == resource.data.get('assignedPatrolId', null)
-        && request.resource.data.assignedPatrolName == resource.data.get('assignedPatrolName', null)
-        && request.resource.data.assignedPatrolRole == resource.data.get('assignedPatrolRole', null)
-        && request.resource.data.get('assignedRoomName', null) == resource.data.get('assignedRoomName', null)
+        && !changed.hasAny(['parentAuthorization'])
         && (
-          (
-            !('assignedCommittees' in resource.data)
-            && (
-              !('assignedCommittees' in request.resource.data)
-              || request.resource.data.assignedCommittees.size() == 0
-            )
-          )
-          || (
-            'assignedCommittees' in resource.data
-            && request.resource.data.assignedCommittees == resource.data.assignedCommittees
-          )
+          !changed.hasAny([
+            'assignedPatrolId', 'assignedPatrolName', 'assignedPatrolRole',
+            'assignedRoomName', 'assignedCommittees', 'parentUid', 'childId'
+          ])
+          || registrationAssignedFieldsUnchanged(next, prev)
         )
-        && request.resource.data.get('parentUid', null) == resource.data.get('parentUid', null)
-        && request.resource.data.get('childId', null) == resource.data.get('childId', null)
+        // Gruppo a parte: un client vecchio che risalva l'intero documento
+        // aggiunge assignedCommittees: [] alle iscrizioni legacy, e non deve
+        // pagare anche gli 11 confronti dei consensi.
         && (
-          request.resource.data.anonymousTokenId == resource.data.anonymousTokenId
-          || (
-            resource.data.anonymousTokenId == null
-            && (
-              request.resource.data.anonymousTokenId == null
-              || request.resource.data.anonymousTokenId is string
-            )
-          )
+          !changed.hasAny([
+            'parentConsentDocumentName', 'parentConsentDocumentUrl',
+            'parentConsentDocumentPath', 'parentConsentUploadedAt',
+            'consentSignatureUrl', 'consentSignaturePath', 'consentSignatureSetAt',
+            'parentIdDocumentName', 'parentIdDocumentUrl', 'parentIdDocumentPath',
+            'parentIdUploadedAt'
+          ])
+          || manualConsentFieldsUnchanged(next, prev)
         )
         && (
-          request.resource.data.recoveryCode == resource.data.recoveryCode
-          || (
-            resource.data.recoveryCode == null
-            && (
-              request.resource.data.recoveryCode == null
-              || request.resource.data.recoveryCode is string
-            )
-          )
+          !changed.hasAny(['anonymousTokenId', 'recoveryCode', 'accessCode', 'recoveryPdfGenerated'])
+          || registrationAccessFieldsUnchanged(next, prev)
         )
         && (
-          request.resource.data.accessCode == resource.data.accessCode
-          || (
-            resource.data.accessCode == null
-            && (
-              request.resource.data.accessCode == null
-              || request.resource.data.accessCode is string
-            )
-          )
-        )
-        && (
-          request.resource.data.recoveryPdfGenerated == resource.data.recoveryPdfGenerated
-          || (
-            resource.data.recoveryPdfGenerated == false
-            && request.resource.data.recoveryPdfGenerated == true
-          )
-        )
-        && (
-          request.resource.data.registrationStatus == resource.data.registrationStatus
-          || request.resource.data.registrationStatus == 'cancelled'
+          next.registrationStatus == prev.registrationStatus
+          || next.registrationStatus == 'cancelled'
           // Riattivazione: chi ha annullato può reiscriversi risalvando il
           // modulo. Senza questo ramo il salvataggio passava ma lo stato
           // restava 'cancelled' e l'iscrizione era invisibile agli admin.
           // 'confirmed' resta escluso: lo scrive solo il genitore che firma.
           || (
-            resource.data.registrationStatus == 'cancelled'
-            && request.resource.data.registrationStatus in ['active', 'pending_parent_authorization']
+            prev.registrationStatus == 'cancelled'
+            && next.registrationStatus in ['active', 'pending_parent_authorization']
           )
-        )
-        && manualConsentFieldsUnchanged()
-        && !delta.affectedKeys().hasAny(['parentAuthorization']);
+        );
     }
 
     function validCampAssignmentUpdate(stakeId, activityId) {
@@ -1393,8 +1440,8 @@ service cloud.firestore {
             || validRegistrationCreate(stakeId, activityId, registrationId);
           // Ordine per costo: il proprietario non deve pagare le letture del
           // ramo staff campo (attività, iscrizione adulta) prima del proprio.
-          // validOwnerCancellation per primo: è il più economico e l'unico
-          // che sta nel budget per l'annullamento di un'iscrizione figlio.
+          // validOwnerCancellation per primo: è il più economico (circa 12
+          // espressioni contro le 600-800 di validRegistrationUpdate).
           allow update: if validOwnerCancellation() || isStakeAdmin(stakeId) || validRegistrationUpdate() || validCampAssignmentUpdate(stakeId, activityId);
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
