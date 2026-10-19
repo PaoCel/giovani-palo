@@ -440,8 +440,9 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    le chiamate del client (`functions/tests/accountTypeRulesEmulator.test.mjs`).
 4. E con foglio "Aggiungi", modulo aperto senza figli, prefill del passo
    genitore, bozze per figlio, H.
-   **Su main dal 2026-10-19, non deployata** (solo hosting: nessuna rule né
-   function; al rilascio service worker v24). "Chi iscrivi?" legge per ogni
+   **In produzione dal 2026-10-19** (solo hosting da una copia isolata di
+   `4809680`, service worker v24, bundle `index-BUqffvZx.js`; nessuna rule né
+   function). "Chi iscrivi?" legge per ogni
    figlio l'iscrizione `child_<genitore>_<figlio>` (id fisso: un doppione non
    può nascere); bozze in memoria per account, attività e persona
    (`src/utils/childChoice.ts`); F con la scheda "Stai iscrivendo" e il modulo

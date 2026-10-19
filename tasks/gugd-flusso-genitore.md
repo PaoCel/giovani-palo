@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fasi 1-3 in produzione dal 2026-10-19; fase 4 (Chi iscrivi?, foglio Aggiungi, bozze per figlio, prefill del genitore, Iscrizione inviata) su main, non deployata"
-next: "rilascio fase 4 con l'ok di Paolo (solo hosting, service worker v24, da copia isolata del commit); poi fase 5: guardia G e tabella «Account già esistente»"
-verified: "fase 4 su main (non deployata): sul mini 629 test unitari (118 nuovi di un altro agente), tsc e build verdi; rules nell'emulatore 46 nuovi + 105 di parentCancel verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori con functions 200/200 a 320/390/430; review di un altro agente BLOCKED → PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione"
+stopped_at: "fasi 1-4 in produzione dal 2026-10-19 (fase 4: solo hosting da 4809680, service worker v24)"
+next: "fase 5: guardia G e tabella «Account già esistente»"
+verified: "fase 4 in produzione (servito sw v24 e bundle index-BUqffvZx.js uguale alla build su gugditalia.it e web.app, home senza errori; flusso loggato in prod non provato): sul mini 629 test unitari (118 nuovi di un altro agente), tsc e build verdi; rules nell'emulatore 46 nuovi + 105 di parentCancel verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori con functions 200/200 a 320/390/430; review di un altro agente BLOCKED → PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione"
 links: []
 done_at:
 ---
@@ -79,10 +79,11 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      `onRegistrationPendingParentAuth`, `parentAuthorizationResend`,
      `…IssueOwnToken`, `…Confirm`, `…Reject`). Tutti e due in sessioni
      separate dal 2026-10-19.
-   - Fase 4: «Chi iscrivi?» con foglio «Aggiungi» e modulo aperto senza
+   - ~~Fase 4: «Chi iscrivi?» con foglio «Aggiungi» e modulo aperto senza
      figli, bozze per figlio, passo genitore dai dati dell'account, «Iscrizione
-     inviata» con «Autorizza ora»: su `main` dal 2026-10-19, non deployata
-     (solo hosting). Dettaglio e cose trovate nella spec, sezione "Fasi".
+     inviata» con «Autorizza ora»~~ (in produzione dal 2026-10-19: solo
+     hosting, service worker v24). Dettaglio e cose trovate nella spec,
+     sezione "Fasi".
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
@@ -93,7 +94,14 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
 
 ## Verificato
 
-2026-10-19, fase 4 su `main` (non deployata). Sul mini: `npm test` 629 verdi
+2026-10-19, fase 4 in produzione con l'ok di Paolo: solo hosting da una copia
+isolata di `4809680` (service worker v24), insieme alla correzione
+dell'ospite che collega un account (`1fb665d`, `c6ad1e4`, test `882d04a`).
+Servito su gugditalia.it e giovani-palo.web.app: `sw.js` v24, bundle
+`index-BUqffvZx.js` con sha256 uguale alla build, home senza errori in
+console. Non provato: il flusso da loggati in produzione.
+
+2026-10-19, fase 4 su `main`. Sul mini: `npm test` 629 verdi
 (118 nuovi scritti da un altro agente: `childChoice`, passo `inviata`,
 `writeTimeout`, glossario dei testi nuovi; uno ha trovato le date d'inizio
 impossibili), `tsc` e build verdi (bundle iniziale 387 kB). Nell'emulatore,
