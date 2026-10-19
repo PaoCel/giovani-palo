@@ -2714,9 +2714,14 @@ button {
   font-size: 0.8125rem;
 }
 
-/* Target da 44 px anche per i pulsanti piccoli della riga. */
-.family-reg-row .button--small {
+/* Famiglia (docs/FLUSSO_GENITORE.md, "Finitura"): target da 44 px anche per
+   i pulsanti piccoli e stati da 13 px, come il resto del testo secondario. */
+.page--family .button--small {
   min-height: 2.75rem;
+}
+
+.page--family .status-badge {
+  font-size: 0.8125rem;
 }
 
 /* Sotto la riga: "Riprendi da «Autorizza ora»" e "Annulla l'iscrizione". */

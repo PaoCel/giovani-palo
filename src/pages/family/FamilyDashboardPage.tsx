@@ -573,7 +573,7 @@ export function FamilyDashboardPage() {
   }
 
   return (
-    <div className="page page--user-dashboard">
+    <div className="page page--user-dashboard page--family">
       <ActivityMediaHighlight />
 
       <section className="user-dashboard-section">
