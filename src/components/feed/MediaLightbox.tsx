@@ -95,6 +95,15 @@ export function MediaLightbox({
   // Ogni foglio aperto o chiuso ha il suo numero: l'esito di una richiesta
   // partita da un foglio precedente non tocca quello di adesso.
   const confirmRunRef = useRef(0);
+  // Un'eliminazione che finisce dopo la chiusura di questo lightbox non deve
+  // chiudere quello aperto nel frattempo su un altro contenuto.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const sessionUid = session?.firebaseUser.uid ?? "";
   const confirmMediaId = confirm?.item.id ?? null;
 
@@ -270,8 +279,9 @@ export function MediaLightbox({
     try {
       await withWriteTimeout(onDeleteMedia(item));
       // Il chiamante rimuove il media dalla lista; chiudiamo il lightbox.
-      onClose();
+      if (mountedRef.current) onClose();
     } catch (caughtError) {
+      if (!mountedRef.current) return;
       setDeleting(false);
       // Se il foglio si è già chiuso (contenuto tolto dalla lista in attesa
       // del server) l'errore lo mostra la galleria, che resta aperta.

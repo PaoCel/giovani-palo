@@ -20,7 +20,7 @@ import { deleteMediaFolder } from "@/services/firebase/galleryUploadService";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, GalleryMedia, HiddenGalleryMedia } from "@/types";
-import { isConnectionError } from "@/utils/writeTimeout";
+import { isConnectionError, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface ActivityGalleryProps {
   stakeId: string;
@@ -193,14 +193,20 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
 
   const handleDeleteMedia = useCallback(
     async (item: GalleryMedia) => {
+      // Il lightbox si chiude appena il contenuto sparisce dalla lista (cache
+      // locale, prima del server): l'esito lo dice la galleria. Il lightbox
+      // si chiude solo se mostra ancora questo contenuto, e un rifiuto del
+      // server che lo rimette in lista non lo riapre sopra l'avviso.
+      const closeIfShowing = () =>
+        setLightboxId((current) => (current === item.id ? null : current));
       try {
-        await galleriesService.deleteMedia(stakeId, item.galleryId, item.id);
+        await withWriteTimeout(galleriesService.deleteMedia(stakeId, item.galleryId, item.id));
       } catch (caughtError) {
-        // Il lightbox si chiude appena il contenuto sparisce dalla lista (in
-        // attesa del server): se il server rifiuta, lo si dice qui.
-        setNotice(GALLERIA.erroreElimina);
+        closeIfShowing();
+        setNotice(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
         throw caughtError;
       }
+      closeIfShowing();
       await deleteMediaFolder(stakeId, item.galleryId, item.id);
     },
     [stakeId],
