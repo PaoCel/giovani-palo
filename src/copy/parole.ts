@@ -18,6 +18,8 @@ export const PAROLE = {
   // Scrittura senza risposta dal server (offline): resta in coda e parte al
   // ritorno della rete; il pulsante si sblocca.
   erroreRete: "Il server non risponde: controlla la connessione e riprova.",
+  // Pulsante di un foglio "Elimina" mentre la cancellazione è in corso.
+  eliminazione: "Eliminazione...",
 } as const;
 
 // "Ciao {nome}" + { nome: "Marco" } → "Ciao Marco". Un segnaposto senza valore

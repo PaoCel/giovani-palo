@@ -509,11 +509,11 @@ export function MediaLightbox({
           {...(confirm.kind === "comment"
             ? {
                 title: GALLERIA.eliminaCommentoTitolo,
-                body: GALLERIA.eliminaCommentoCorpo,
+                body: GALLERIA.eliminaCorpo,
                 cancelLabel: GALLERIA.tieniCommento,
                 confirmLabel: GALLERIA.confermaEliminaCommento,
               }
-            : { ...getDeleteMediaCopy(confirm.item.type), body: GALLERIA.eliminaContenutoCorpo })}
+            : { ...getDeleteMediaCopy(confirm.item.type), body: GALLERIA.eliminaCorpo })}
           busy={confirmBusy}
           error={confirmError}
           onCancel={() => showConfirm(null)}

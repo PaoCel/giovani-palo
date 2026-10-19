@@ -199,11 +199,19 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
       // server che lo rimette in lista non lo riapre sopra l'avviso.
       const closeIfShowing = () =>
         setLightboxId((current) => (current === item.id ? null : current));
+      const deletion = galleriesService.deleteMedia(stakeId, item.galleryId, item.id);
       try {
-        await withWriteTimeout(galleriesService.deleteMedia(stakeId, item.galleryId, item.id));
+        await withWriteTimeout(deletion);
       } catch (caughtError) {
         closeIfShowing();
         setNotice(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
+        if (isConnectionError(caughtError)) {
+          // La scrittura resta in coda e parte al ritorno della rete: i file
+          // si tolgono quando il server l'ha confermata.
+          void deletion
+            .then(() => deleteMediaFolder(stakeId, item.galleryId, item.id))
+            .catch(() => undefined);
+        }
         throw caughtError;
       }
       closeIfShowing();
@@ -477,7 +485,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
       {deletingHidden ? (
         <GalleryConfirmSheet
           {...getDeleteMediaCopy(deletingHidden.type)}
-          body={GALLERIA.eliminaContenutoCorpo}
+          body={GALLERIA.eliminaCorpo}
           busy={deleteHiddenBusy}
           error={deleteHiddenError}
           onCancel={() => showDeleteHidden(null)}
