@@ -132,3 +132,40 @@ Conservare l'iscrizione errata annullata e i documenti firmati originali,
 invalidare il vecchio token e richiedere un nuovo consenso per il partecipante
 corretto. Applicare la correzione in modo atomico con precondizioni sulle
 versioni lette; nessun nominativo, contatto o snapshot reale va nel repository.
+
+## Ospite che collega un account (2026-10-19)
+
+Un ospite (sessione anonima, iscrizione `guest_<uid>`) che poi collega Google o
+un'email tiene lo stesso uid. Prima, al primo risalvataggio, il client copiava
+il documento in `user_<uid>` (stato, `parentAuthorization`, firma, consensi,
+stanza, pattuglia, comitati) e cancellava `guest_<uid>`: per un ospite in
+attesa del genitore o già firmato `validRegistrationCreate` rifiuta quella
+create, e l'id nuovo avrebbe staccato token del genitore, domande, stanze,
+pattuglie e comitati che puntano a `guest_<uid>`. Ora `upsertRegistration`
+aggiorna `guest_<uid>` sul posto con la stessa `updateDoc` del ramo "esiste
+già" (le rules lo concedono: `anonymousUid == request.auth.uid` vale anche dopo
+il collegamento), e le domande usano l'id dell'iscrizione mostrata invece di
+ricostruire `user_<uid>` dalla sessione. Nessuna rule cambiata.
+
+Censimento in produzione prima della correzione, in sola lettura: 71
+iscrizioni `guest_`, tutte `active`, nessuna con autorizzazione, firma o
+assegnazioni; 15 ospiti hanno poi collegato un account. Il campeggio aperto
+ammetteva ospiti con autorizzazione del genitore: lì il caso poteva succedere.
+
+Misure (documento ospite con 55 risposte; "pesante" = firmato con consensi,
+stanza, turno, squadra, pattuglia e comitati):
+
+| Scrittura dell'account collegato | Esito | Costo |
+| --- | --- | --- |
+| prima: create `user_` da ospite adulto attivo | passa | 747 |
+| prima: create `user_` da ospite minore in attesa | negata | - |
+| prima: create `user_` da ospite minore firmato pesante | negata | - |
+| ora: update `guest_`, adulto attivo | passa | 632 |
+| ora: update `guest_`, minore in attesa | passa | 637 |
+| ora: update `guest_`, minore firmato pesante | passa | 725 |
+| ora: riattivazione `guest_` firmato pesante | passa | 765 |
+
+Restano negati in place: `pending` verso `confirmed`, la riattivazione ad
+`active` di un minore non firmato e la scrittura di un altro account (questi
+escono per il limite di 1000 espressioni, non per `false`: restano negati).
+Test: `functions/tests/guestLinkedAccountRulesEmulator.test.mjs`.
