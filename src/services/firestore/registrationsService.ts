@@ -294,16 +294,6 @@ function getGenderFromAnswers(answers: RegistrationWriteInput["answers"]) {
   );
 }
 
-function mergeRoomPreferenceMatches(
-  source: unknown,
-  target: unknown,
-): RoomPreferenceMatches {
-  return {
-    ...parseRoomPreferenceMatches(source),
-    ...parseRoomPreferenceMatches(target),
-  };
-}
-
 function areRoomPreferenceMatchesEqual(
   left: RoomPreferenceMatches,
   right: RoomPreferenceMatches,
@@ -558,18 +548,21 @@ export const registrationsService = {
     const registrationId = getRegistrationDocId(lookup);
     const reference = getRegistrationReference(stakeId, eventId, registrationId);
     const snapshot = await getDoc(reference);
-    const guestReference =
-      lookup.userId
-        ? getRegistrationReference(stakeId, eventId, `guest_${lookup.userId}`)
-        : null;
+    // Ospite che ha poi collegato Google o un'email: stesso uid, quindi la sua
+    // iscrizione resta `guest_<uid>` e si aggiorna lì, come fa già
+    // getRegistrationByActor in lettura. Copiarla in `user_<uid>` era una
+    // create con stato, firma e assegnazioni già valorizzati, che le rules
+    // rifiutano; e l'id cambiato staccava token del genitore, domande, stanze,
+    // pattuglie e comitati (emulatore, 2026-10-19).
     const guestSnapshot =
-      lookup.userId && !snapshot.exists() && guestReference ? await getDoc(guestReference) : null;
-    const timestamp = nowIso();
-    const existing = snapshot.exists()
-      ? mapRegistration(eventId, stakeId, snapshot.id, snapshot.data())
-      : guestSnapshot?.exists()
-        ? mapRegistration(eventId, stakeId, guestSnapshot.id, guestSnapshot.data())
+      lookup.userId && !snapshot.exists()
+        ? await getDoc(getRegistrationReference(stakeId, eventId, `guest_${lookup.userId}`))
         : null;
+    const target = snapshot.exists() ? snapshot : guestSnapshot?.exists() ? guestSnapshot : null;
+    const timestamp = nowIso();
+    const existing = target
+      ? mapRegistration(eventId, stakeId, target.id, target.data())
+      : null;
     const fullName = input.fullName.trim();
     const names = splitFullName(fullName);
     const genderRoleCategory = getGenderFromAnswers(input.answers);
@@ -640,12 +633,12 @@ export const registrationsService = {
       updatedAt: timestamp,
     };
 
-    if (snapshot.exists()) {
+    if (target) {
       // Aggiorna solo i campi gestiti dal partecipante. Riscrivere l'intero
       // documento poteva includere una copia stale di parentAuthorization,
       // aggiornata in parallelo dalla Cloud Function, e le rules rifiutavano
       // correttamente il salvataggio con permission-denied.
-      await updateDoc(reference, {
+      await updateDoc(target.ref, {
         firstName: registrationPayload.firstName,
         lastName: registrationPayload.lastName,
         fullName: registrationPayload.fullName,
@@ -662,10 +655,6 @@ export const registrationsService = {
       });
     } else {
       await setDoc(reference, registrationPayload);
-    }
-
-    if (lookup.userId && guestSnapshot?.exists() && guestReference) {
-      await deleteDoc(guestReference);
     }
 
     if (lookup.userId) {
@@ -688,7 +677,11 @@ export const registrationsService = {
       }
     }
 
-    const savedRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
+    const savedRegistration = await this.getRegistrationById(
+      stakeId,
+      eventId,
+      target?.id ?? registrationId,
+    );
 
     return savedRegistration;
   },
@@ -797,94 +790,6 @@ export const registrationsService = {
     });
 
     return this.getRegistrationById(stakeId, eventId, registrationId);
-  },
-
-  async linkAnonymousRegistrationsToUser(anonymousUid: string, userId: string) {
-    const snapshot = await getDocs(
-      query(collectionGroup(db, "registrations"), where("anonymousUid", "==", anonymousUid)),
-    );
-    let latestRegistration: Registration | null = null;
-
-    for (const registrationDocument of snapshot.docs) {
-      const context = getStakeAndEventFromRegistrationPath(registrationDocument.ref.path);
-
-      if (!context?.stakeId || !context.eventId) {
-        continue;
-      }
-
-      const { stakeId, eventId } = context;
-      const targetRegistrationId = `user_${userId}`;
-      const guestRegistration = mapRegistration(
-        eventId,
-        stakeId,
-        registrationDocument.id,
-        registrationDocument.data(),
-      );
-      const targetReference = getRegistrationReference(
-        stakeId,
-        eventId,
-        targetRegistrationId,
-      );
-      const targetSnapshot = await getDoc(targetReference);
-      const targetData = targetSnapshot.exists()
-        ? (targetSnapshot.data() as Record<string, unknown>)
-        : null;
-      const sourceData = registrationDocument.data() as Record<string, unknown>;
-      const timestamp = nowIso();
-
-      await setDoc(
-        targetReference,
-        {
-          ...sourceData,
-          ...targetData,
-          userId,
-          anonymousUid: null,
-          linkedLaterToUserId: userId,
-          anonymousTokenId:
-            (typeof targetData?.anonymousTokenId === "string"
-              ? targetData.anonymousTokenId
-              : guestRegistration.anonymousTokenId) ?? null,
-          answers: {
-            ...(sourceData.answers && typeof sourceData.answers === "object"
-              ? sourceData.answers
-              : {}),
-            ...(targetData?.answers && typeof targetData.answers === "object"
-              ? targetData.answers
-              : {}),
-          },
-          roomPreferenceMatches: mergeRoomPreferenceMatches(
-            sourceData.roomPreferenceMatches,
-            targetData?.roomPreferenceMatches,
-          ),
-          createdAt:
-            (typeof targetData?.createdAt === "string" ? targetData.createdAt : null) ??
-            guestRegistration.createdAt ??
-            timestamp,
-          updatedAt: timestamp,
-        },
-        { merge: true },
-      );
-
-      if (registrationDocument.id !== targetRegistrationId) {
-        await deleteDoc(registrationDocument.ref);
-      }
-
-      const linkedRegistration = await this.getRegistrationById(
-        stakeId,
-        eventId,
-        targetRegistrationId,
-      );
-
-      if (
-        linkedRegistration &&
-        (!latestRegistration ||
-          linkedRegistration.updatedAt.localeCompare(latestRegistration.updatedAt) > 0)
-      ) {
-        latestRegistration = linkedRegistration;
-      }
-    }
-
-    return latestRegistration;
   },
 
   async markRecoveryPdfGenerated(stakeId: string, eventId: string, registrationId: string) {
