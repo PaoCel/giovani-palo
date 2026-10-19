@@ -8,11 +8,13 @@ import { ACCEDI } from "../src/copy/accedi.ts";
 import { ADMIN } from "../src/copy/admin.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
 import { ATTIVITA } from "../src/copy/attivita.ts";
+import { CHI_ISCRIVI } from "../src/copy/chiIscrivi.ts";
 import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
 import { CHI_SEI } from "../src/copy/chiSei.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
 import { FIRMA } from "../src/copy/firma.ts";
 import { HOME } from "../src/copy/home.ts";
+import { INVIATA } from "../src/copy/inviata.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
 import { PAROLE, fillCopy } from "../src/copy/parole.ts";
 import { PERCORSO } from "../src/copy/percorso.ts";
@@ -517,11 +519,13 @@ const COPY = {
   ADMIN,
   ANNULLA,
   ATTIVITA,
+  CHI_ISCRIVI,
   CHI_PARTECIPA,
   CHI_SEI,
   FAMIGLIA,
   FIRMA,
   HOME,
+  INVIATA,
   ISCRIZIONE,
   PERCORSO,
   PROFILO,
@@ -626,4 +630,82 @@ test("ogni oggetto esportato da src/copy/ è coperto da questi controlli", async
       }
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// Il figlio nei testi nuovi di "Chi iscrivi?" e "Iscrizione inviata"
+// ---------------------------------------------------------------------------
+
+// Glossario (docs/FLUSSO_GENITORE.md, "Parole"): il figlio di cui non si sa il
+// nome è sempre "figlio o figlia" ("Iscrivo mio figlio o mia figlia", "Per: un
+// figlio o una figlia"); più figli sono "i tuoi figli". Le coppie ammesse sono
+// "figlio o figlia" e quelle con l'articolo o il possessivo accordato (un/una,
+// mio/mia, tuo/tua, suo/sua). Il plurale "figli" non conta.
+const FIGLIO_PAIR = /\b(?:(un|mio|tuo|suo)\s+)?figlio\s+o\s+(?:(una|mia|tua|sua)\s+)?figlia\b/giu;
+const FIGLIO_AGREEMENT = { un: "una", mio: "mia", tuo: "tua", suo: "sua" };
+
+/** Il testo con le coppie ammesse tolte: ciò che resta non deve dire figlio né figlia. */
+function withoutAllowedFiglio(value) {
+  return value.replace(FIGLIO_PAIR, (match, before, after) => {
+    const left = before?.toLowerCase();
+    const right = after?.toLowerCase();
+    // "figlio o figlia" senza determinanti, oppure con la coppia accordata.
+    if (!left && !right) {
+      return "";
+    }
+    if (left && right && FIGLIO_AGREEMENT[left] === right) {
+      return "";
+    }
+    // "un figlio o figlia", "tuo figlio o mia figlia": restano e vengono segnalate.
+    return match;
+  });
+}
+
+test("glossario del figlio: la guardia riconosce le forme giuste e quelle sbagliate", () => {
+  for (const ok of [
+    "Aggiungi un figlio o una figlia",
+    "Iscrivo mio figlio o mia figlia",
+    "Aggiungi tuo figlio o tua figlia: i dati restano nel tuo account.",
+    "Iscrivi un altro figlio o figlia",
+    "Per ognuno dei tuoi figli.",
+    "Iscrivi i tuoi figli",
+    "Famiglia",
+  ]) {
+    assert.doesNotMatch(withoutAllowedFiglio(ok), /\bfigli[oa]\b/iu, ok);
+  }
+
+  for (const wrong of [
+    "Iscrivi tuo figlio",
+    "Iscrivi un altro figlio",
+    "Il figlio è iscritto.",
+    "Aggiungi la figlia",
+    "Figlio/a",
+    "tuo figlio o mia figlia",
+    "un figlio o figlia",
+    "Aggiungi un figlio o una figlia, poi il figlio.",
+  ]) {
+    assert.match(withoutAllowedFiglio(wrong), /\bfigli[oa]\b/iu, wrong);
+  }
+});
+
+test("nei testi di Chi iscrivi? e Iscrizione inviata il figlio è sempre «figlio o figlia»", () => {
+  const values = [CHI_ISCRIVI, INVIATA].flatMap((copy, index) =>
+    Object.entries(copy).map(([key, value]) => [`${index === 0 ? "CHI_ISCRIVI" : "INVIATA"}.${key}`, value]),
+  );
+
+  // Il controllo deve provare qualcosa: almeno un testo nomina il figlio.
+  assert.ok(
+    values.some(([, value]) => /\bfigli[oa]?\b/iu.test(value)),
+    "nessun testo di CHI_ISCRIVI o INVIATA nomina un figlio: il controllo non prova niente",
+  );
+
+  for (const [name, value] of values) {
+    assert.doesNotMatch(withoutAllowedFiglio(value), /\bfigli[oa]\b/iu, `${name}: ${value}`);
+  }
+});
+
+test("Chi iscrivi? riusa i testi di Famiglia per la modifica e per la rete", () => {
+  assert.equal(CHI_ISCRIVI.modificaDi, FAMIGLIA.modificaProfilo);
+  assert.equal(CHI_ISCRIVI.foglioTitoloModifica, FAMIGLIA.modificaProfilo);
+  assert.equal(CHI_ISCRIVI.erroreRete, FAMIGLIA.erroreRete);
 });
