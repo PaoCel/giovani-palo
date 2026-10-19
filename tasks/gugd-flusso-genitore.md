@@ -1,7 +1,7 @@
 ---
 id: gugd-flusso-genitore
 title: "Flusso genitore chiaro: chi iscrivi, figlio in contesto, un verbo per accedere"
-status: in-progress
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-10-18
 started_at: 2026-10-18
 touched: 2026-10-19
 due:
-blocked_by: []
-branch: task/gugd-flusso-genitore
-worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/charming-napier-0de44e
+blocked_by: ["decisione: ok al rilascio della fase 6 (solo hosting, service worker v28)"]
+branch:
+worktree:
 session: c8ee5a28-752d-489d-b6a1-41a04aaf9ce0
-stopped_at: "fasi 1-5 in produzione dal 2026-10-19 (fase 5: solo hosting da 7bfb4b5, service worker v27, bundle index-CAUy6Fzo.js)"
-next: "fase 6: G2, famiglia su ogni account adulto e le righe della tabella «Account già esistente» rimaste (sessione separata dal 2026-10-19)"
-verified: "fase 5 in produzione (servito sw v27 e bundle index-CAUy6Fzo.js con sha uguale alla build su gugditalia.it e web.app; /activities e una pagina d'iscrizione da non entrato senza errori; flusso loggato in prod non provato, nessuna attività aperta): sul mini 785 test unitari (99 nuovi di un altro agente) e tsc verdi; rules nell'emulatore 14 nuovi verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori 176/176 a 320/390/430; review Codex BLOCKED, BLOCKED, PASS. Non provati: tastiera vera su iOS/Android, produzione da loggati"
+stopped_at: "fase 6 (G2: figli su ogni account adulto, righe 1-3 di «Account già esistente») su main dal 2026-10-19, non in produzione; in produzione le fasi 1-5 (service worker v27)"
+next: "rilascio della fase 6 con l'ok di Paolo: solo hosting da una copia isolata del commit di main, service worker v28; poi task chiuso"
+verified: "fase 6 su main, non in produzione: sul mini 852 test unitari (851 verdi, rosso solo accentApostrophes senza git; 40 nuovi e 3 file riscritti da un altro agente, 16 mutazioni su 16), tsc e build verdi; rules nell'emulatore 123 + 13 callable nuovi (altro agente) verdi senza rule nuove con partecipante adulto, unit_leader, admin ed ex genitore; collaudo Playwright contro emulatori 246/252 a 320/390/430 (i 6 rossi sono finiture già esistenti di Famiglia e della home); review Codex gpt-6-astra BLOCKED, BLOCKED, BLOCKED, PASS. Non provati: tastiera vera, produzione, cambio di account diretto con la pagina aperta"
 links: []
 done_at:
 ---
@@ -104,9 +104,9 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      esistente» (adulto o dirigente → E; genitore con figli che partecipa →
      D-io e poi partecipante coi figli; dirigente F → H → "Iscrivi tuo figlio
      o tua figlia" → E), Famiglia aperta a ogni adulto, "I tuoi figli" in
-     `/me` e `/unit`. Solo client: nessuna rule, function o indice. Rilascio
-     (solo hosting, service worker v28) con l'ok di Paolo. Dettaglio nella
-     spec, sezione "Fasi".
+     `/me` e `/unit`. Su `main` dal 2026-10-19, non in produzione. Solo
+     client: nessuna rule, function o indice. Rilascio (solo hosting, service
+     worker v28) con l'ok di Paolo. Dettaglio nella spec, sezione "Fasi".
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
@@ -116,6 +116,46 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
    genitore, giovani, dirigente, genitore-figlia e inviata a 240 px).
 
 ## Verificato
+
+2026-10-19, fase 6 (G2) su `main`, non in produzione (solo client: nessuna
+rule, function o indice; rilascio con hosting e service worker v28). Sul mini:
+`npm test` 852 test, 851 verdi (l'unico rosso è `accentApostrophes`, che sul
+mini non ha git; in locale 55/55), di cui 40 nuovi e 3 file riscritti da un
+altro agente (`tests/family.test.mjs`, `registerFlow*.test.mjs`; 16 mutazioni
+su 16 prese); `tsc` e build verdi (bundle iniziale 397 kB). Nell'emulatore, da
+un altro agente, `functions/tests/familyAnyAdultRulesEmulator.test.mjs` 123
+verdi e `familyAnyAdultCallablesEmulator.test.mjs` 13 verdi: figli, Famiglia,
+iscrizione propria e del figlio nella stessa attività, annullamento,
+`deleteChild`, «Autorizza ora» e `parentConsentUpdate` per partecipante
+adulto, `unit_leader`, admin ed ex genitore convertito, negativi per altri
+adulti, dirigenti di altre unità e admin di altri pali; nessuna rule nuova.
+Collaudo Playwright sul mini contro emulatori auth, firestore e functions in
+una copia separata (`.claude/qa-fase6/` del checkout principale), 246/252 a
+320, 390 e 430: riga 1 (partecipante adulto: B → E con "Sei entrato come",
+freccia che non scrive niente, figlio nuovo, F con la data del figlio
+visibile e il passo genitore dai dati dell'account, H, Famiglia con Home e
+Famiglia, "I tuoi figli" in `/me`, "Annulla l'iscrizione", foglio
+"Rimuovi" con "Tieni il profilo", `/family/profile` → `/me/profile`, ruolo
+invariato); riga 2 (genitore con un figlio: "Partecipo io" → D-io, "Cambia"
+non salva, G, Dirigente, al salvataggio participant con il figlio, H → E con
+il figlio, home `/me`); riga 3 (dirigente di unità: F per sé, H → "Iscrivi
+tuo figlio o tua figlia" → E, figlio, H, "Autorizza ora" apre la firma,
+Famiglia → Home `/unit` con "I tuoi figli", ruolo, unità e categoria
+invariati, pagina attività → la sua scheda con l'invito, E con "Già
+iscritta"); adulto già iscritto dalla scheda a E; ragazzo (scheda del minore,
+`/family` → `/me`); guardia della fase 5 → E; papà su un'attività solo GD
+(entra, il figlio GU ha il motivo, per sé "Iscrizione non disponibile");
+admin a E e Famiglia con Home `/admin`; redirect a `/family` dopo l'accesso
+(adulto sì, ragazzo no); data illeggibile (scheda del minore, freccia
+all'attività); scheda senza iscrizione senza errori. Console pulita, nessun
+dialogo del browser. I 6 rossi sono finiture che c'erano già: Famiglia con
+tasti da 42 px e badge da 12,8 px, etichetta della home `/me` a 10,9 px. Lo
+script delle fasi 1-5 non vedeva lo scroll orizzontale con `isMobile`: con
+il controllo corretto è uscita la riga di `/unit` a 320 px (corretta).
+Review Codex (`gpt-6-astra`): BLOCKED (3 punti), BLOCKED (4 punti nelle
+correzioni), BLOCKED (1 punto), PASS. Non provati: tastiera vera su iOS/Android, produzione,
+il cambio di account diretto con la pagina aperta (scenario dedotto dalla
+review, non riproducibile dall'interfaccia).
 
 2026-10-19, fase 5 in produzione con l'ok di Paolo: solo hosting da una copia
 isolata di `7bfb4b5` (build sul Mac mini, service worker v27). Fra il commit

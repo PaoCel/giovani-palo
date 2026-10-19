@@ -565,8 +565,9 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    - testo della guardia a 16 px, niente transizioni con movimento ridotto.
 6. G2 = a: famiglia su ogni account adulto (rotte, home `/me` e `/unit`,
    ricerche), collaudo con un dirigente.
-   Costruita il 2026-10-19 su `task/gugd-flusso-genitore` (solo client:
-   nessuna rule, function o indice). "Può avere
+   Su `main` dal 2026-10-19, non ancora in produzione (solo client: nessuna
+   rule, function o indice; il rilascio è solo hosting, service worker v28).
+   "Può avere
    figli" non è più "ruolo `parent`": `canManageFamily` (`src/utils/family.ts`)
    vale per `parent`, `unit_leader`, `admin`, `super_admin` e per un
    `participant` con almeno 18 anni oggi; mai per un ospite, un minore o un
@@ -605,6 +606,13 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
      dell'account se non era `parent` (`getRegistrationLookupFromSession`);
    - un partecipante "completo" con una data illeggibile sarebbe finito in E
      senza poter caricare i figli: il percorso lo tratta come un minore;
+   - "Rimuovi" di un figlio in Famiglia usava `window.confirm`: ora un foglio
+     come "Annulla l'iscrizione" (Famiglia ora la vedono tutti gli adulti);
+   - dalla review (Codex, BLOCKED tre volte, poi PASS): un hook dopo un
+     `return` nella scheda; dati e fogli di Famiglia e "I tuoi figli" letti
+     per l'account di prima al cambio di account (anche una rilettura dei
+     consensi in corso); "Rimuovi" senza rete restava bloccato; con una data
+     illeggibile percorso e freccia usavano criteri diversi;
    - le righe delle attività di `/unit` non andavano a capo e a 320 px
      allargavano la pagina (c'era già; il collaudo di prima non lo vedeva:
      con `isMobile` la finestra si allarga e `innerWidth` la segue).
