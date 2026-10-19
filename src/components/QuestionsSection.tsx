@@ -8,6 +8,7 @@ import { questionsService } from "@/services/firestore/questionsService";
 import type { AuthSession, Question, Registration } from "@/types";
 import { formatDateTime } from "@/utils/formatters";
 import { getRegistrationLookupFromSession } from "@/utils/session";
+import { isConnectionError, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface QuestionsSectionProps {
   stakeId: string;
@@ -207,7 +208,11 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      await questionsService.remove(stakeId, eventId, registration.id, questionId);
+      // Senza rete la cancellazione aspetterebbe il server per sempre, col
+      // foglio bloccato: dopo il timeout si sblocca e lo si dice.
+      await withWriteTimeout(
+        questionsService.remove(stakeId, eventId, registration.id, questionId),
+      );
       setQuestions((current) => current.filter((question) => question.id !== questionId));
 
       if (editingId === questionId) {
@@ -218,9 +223,11 @@ export function QuestionsSection({
       setInfo("Domanda eliminata.");
     } catch (caughtError) {
       setDeleteError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare la domanda.",
+        isConnectionError(caughtError)
+          ? DOMANDE.erroreRete
+          : caughtError instanceof Error
+            ? caughtError.message
+            : "Impossibile eliminare la domanda.",
       );
     } finally {
       setBusy(false);

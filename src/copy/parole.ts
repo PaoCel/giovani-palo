@@ -15,6 +15,9 @@ export const PAROLE = {
   cambiaAccount: "Cambia account",
   aggiungiFiglio: "Aggiungi un figlio o una figlia",
   autorizzaOra: "Autorizza ora",
+  // Scrittura senza risposta dal server (offline): resta in coda e parte al
+  // ritorno della rete; il pulsante si sblocca.
+  erroreRete: "Il server non risponde: controlla la connessione e riprova.",
 } as const;
 
 // "Ciao {nome}" + { nome: "Marco" } → "Ciao Marco". Un segnaposto senza valore

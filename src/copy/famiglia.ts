@@ -17,7 +17,7 @@ export const FAMIGLIA = {
   rimozione: "Rimozione...",
   erroreSalvataggio: "Impossibile salvare il profilo.",
   // Offline la scrittura resta in coda: si sblocca il pulsante e lo si dice.
-  erroreRete: "Il server non risponde: controlla la connessione e riprova.",
+  erroreRete: PAROLE.erroreRete,
   nomeObbligatorio: "Il nome è obbligatorio.",
 
   // Annullare l'iscrizione di un figlio (docs/FLUSSO_GENITORE.md, H e fase 2).
