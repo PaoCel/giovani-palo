@@ -63,6 +63,7 @@ export function GalleryAdminPanel({
   function openInfoModal() {
     setEditTitle(gallery.title);
     setEditDescription(gallery.description);
+    setError(null);
     setInfoModalOpen(true);
   }
 
@@ -327,6 +328,7 @@ export function GalleryAdminPanel({
               className="icon-button"
               onClick={() => {
                 setNewCode(gallerySecretsService.generateReadableCode("ATT"));
+                setError(null);
                 setCodeModalOpen(true);
               }}
               aria-label="Codice galleria"
@@ -440,6 +442,12 @@ export function GalleryAdminPanel({
                 Salva subito il codice: per sicurezza non sarà più mostrato.
               </small>
             </label>
+            {/* L'errore nel modale: la pagina sotto è coperta e inerte. */}
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
             <div className="form-actions">
               <button
                 type="button"
@@ -488,6 +496,12 @@ export function GalleryAdminPanel({
                 disabled={savingInfo}
               />
             </label>
+            {/* L'errore nel modale: la pagina sotto è coperta e inerte. */}
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
             <div className="form-actions">
               <button
                 type="button"
