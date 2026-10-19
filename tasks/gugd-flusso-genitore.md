@@ -68,10 +68,16 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      pesante oltre il budget delle rules~~ (corretto su `main` il 2026-10-19:
      `validRegistrationUpdate` da oltre 1000 a 650-780 espressioni, permessi
      invariati, i 3 `todo` di `parentCancelRulesEmulator.test.mjs` ora verdi;
-     rules da pubblicare con l'ok di Paolo); il reinvio
-     dell'admin e il cambio email lasciano due link validi e mandano due mail
-     (diagnostica in `parentAuthorizationCancelledEmulator.test.mjs`). Tutti e
-     due in sessioni separate dal 2026-10-19.
+     rules da pubblicare con l'ok di Paolo); ~~il reinvio
+     dell'admin e il cambio email lasciano due link validi e mandano due mail~~
+     (corretto su `main` il 2026-10-19: ogni emissione è una transazione che
+     invalida tutti i link pendenti, anche alla firma; il reinvio rifiuta
+     un'autorizzazione già decisa o senza dati del genitore; test in
+     `parentAuthorizationCancelledEmulator.test.mjs` e
+     `parentConsentEmulator.test.mjs`; da pubblicare con l'ok di Paolo:
+     `onRegistrationPendingParentAuth`, `parentAuthorizationResend`,
+     `…IssueOwnToken`, `…Confirm`, `…Reject`). Tutti e due in sessioni
+     separate dal 2026-10-19.
 3. Illustrazioni: WebP 2× da `.claude/mockups/flusso-genitore/img/` nel repo
    quando si costruisce la prima schermata che le usa.
 
