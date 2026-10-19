@@ -279,6 +279,7 @@ export function ParentConfirmPage() {
               setHasSignature(value);
               setSignatureError(null);
             }}
+            onSignatureTouch={() => setSignatureError(null)}
             onConfirm={handleConfirm}
             onOpenReject={() => setShowRejectModal(true)}
           />
@@ -375,6 +376,8 @@ interface ConfirmationWizardProps {
   onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
   onChoicesChange: (value: ConsentChoicesValue) => void;
   onSignatureChange: (hasSignature: boolean) => void;
+  // Ogni tocco sul riquadro (un tratto nuovo, "Cancella"): l'errore sparisce.
+  onSignatureTouch: () => void;
   onConfirm: () => void;
   onOpenReject: () => void;
 }
@@ -396,6 +399,7 @@ function ConfirmationWizard({
   onToggleConsent,
   onChoicesChange,
   onSignatureChange,
+  onSignatureTouch,
   onConfirm,
   onOpenReject,
 }: ConfirmationWizardProps) {
@@ -537,7 +541,7 @@ function ConfirmationWizard({
                 attesta la tua dichiarazione.
               </p>
             )}
-            <div className="parent-confirm-signature-wrapper">
+            <div className="parent-confirm-signature-wrapper" onPointerDown={onSignatureTouch}>
               <SignaturePad
                 ref={signatureRef}
                 onChange={(hasContent) => onSignatureChange(hasContent)}
