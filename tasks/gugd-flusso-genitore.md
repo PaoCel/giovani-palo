@@ -1,7 +1,7 @@
 ---
 id: gugd-flusso-genitore
 title: "Flusso genitore chiaro: chi iscrivi, figlio in contesto, un verbo per accedere"
-status: ready
+status: in-progress
 impact: 2
 urgency: 2
 effort: L
@@ -13,9 +13,9 @@ started_at: 2026-10-18
 touched: 2026-10-19
 due:
 blocked_by: []
-branch:
-worktree:
-session: 66626b70-2316-4dbc-bf39-6f19f96b1439
+branch: task/gugd-flusso-genitore
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/charming-napier-0de44e
+session: c8ee5a28-752d-489d-b6a1-41a04aaf9ce0
 stopped_at: "fase 5 su main dal 2026-10-19 (guardia adulto e genitore senza figli che partecipa), non ancora in produzione; in produzione fino alla reiscrizione di un'annullata (service worker v26)"
 next: "rilascio della fase 5 con l'ok di Paolo (solo hosting, service worker v27), poi fase 6: G2, famiglia su ogni account adulto e le righe della tabella «Account già esistente» rimaste"
 verified: "fase 5 su main, non in produzione: sul mini 785 test unitari (99 nuovi di un altro agente: adultGuard, registerFlowGuardia, glossario) e tsc verdi, build verde; rules nell'emulatore 14 nuovi (adultGuardRulesEmulator, altro agente) verdi senza rule nuove; collaudo Playwright contro emulatori 176/176 a 320/390/430; review Codex gpt-6-astra BLOCKED, BLOCKED, poi PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione, il caso ospite che collega un account del secondo giro di review (non riprodotto)"
@@ -95,12 +95,18 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      poi hosting (service worker v26, bundle `index-BIs2B9SO.js` con sha
      uguale alla build su gugditalia.it e web.app, home senza errori). Non
      provata in produzione una reiscrizione vera.
-   - Fase 5: guardia adulto G (in «I tuoi dati» e in cima al modulo) e, della
+   - ~~Fase 5: guardia adulto G (in «I tuoi dati» e in cima al modulo) e, della
      tabella «Account già esistente», il genitore senza figli che partecipa
-     lui. Su `main` dal 2026-10-19, non ancora in produzione (solo hosting quando
-     esce: nessuna rule, function o indice). Le righe della tabella che
-     richiedono figli su un account non genitore passano alla fase 6 (spec,
-     "Account già esistente o sbagliato"). Dettaglio nella spec, sezione "Fasi".
+     lui~~ (in produzione dal 2026-10-19: solo hosting da `7bfb4b5`, service
+     worker v27 servito su gugditalia.it e web.app, letto il 2026-10-19).
+     Dettaglio nella spec, sezione "Fasi".
+   - Fase 6: G2 = a, figli su ogni account adulto, righe 1-3 di «Account già
+     esistente» (adulto o dirigente → E; genitore con figli che partecipa →
+     D-io e poi partecipante coi figli; dirigente F → H → "Iscrivi tuo figlio
+     o tua figlia" → E), Famiglia aperta a ogni adulto, "I tuoi figli" in
+     `/me` e `/unit`. Solo client: nessuna rule, function o indice. Rilascio
+     (solo hosting, service worker v28) con l'ok di Paolo. Dettaglio nella
+     spec, sezione "Fasi".
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,

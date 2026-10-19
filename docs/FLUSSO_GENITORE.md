@@ -89,6 +89,11 @@ Provato nell'emulatore il 2026-10-19: l'annullamento
 `child_<genitore>_<figlio>` anche quando manca, iscrizione pesante del figlio e
 risalvataggio, ascolto dal vivo e lista di Famiglia, con i tre ruoli
 (`functions/tests/parentChildFlowRulesEmulator.test.mjs`). Nessuna rule nuova.
+Con la fase 6, da un altro agente, ogni chiamata di Famiglia, «Chi iscrivi?»
+e «Iscrizione inviata» per partecipante adulto, `unit_leader`, admin ed ex
+genitore convertito, compresi `deleteChild`, annullamento, «Autorizza ora» e
+`parentConsentUpdate` (`functions/tests/familyAnyAdultRulesEmulator.test.mjs`,
+`…CallablesEmulator.test.mjs`): ancora nessuna rule nuova.
 
 **PWA vecchie**: schema e rules non cambiano, quindi niente si rompe. Un figlio
 aggiunto a un account dirigente con la versione nuova non si vede da una PWA
@@ -289,10 +294,10 @@ Non si trasforma mai l'account di un minore in account genitore, né un
 dirigente in qualcos'altro.
 
 Le righe 1 e 3 e la riga 2 per un genitore **con figli** hanno bisogno di
-Famiglia su ogni account adulto (G2): stanno nella fase 6. Fino ad allora
-restano le schede della fase 3 ("Serve l'account di un genitore" e "Questo
-account iscrive i tuoi figli"). La riga 2 per un genitore **senza figli** è
-nella fase 5: non c'è nulla in Famiglia da perdere.
+Famiglia su ogni account adulto (G2): sono la fase 6. Da lì la scheda "Serve
+l'account di un genitore" resta solo per l'account di un minore e "Questo
+account iscrive i tuoi figli" non c'è più. La riga 2 per un genitore **senza
+figli** è nella fase 5: non c'è nulla in Famiglia da perdere.
 
 ## Matrice stati × superfici
 
@@ -555,6 +560,52 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    - testo della guardia a 16 px, niente transizioni con movimento ridotto.
 6. G2 = a: famiglia su ogni account adulto (rotte, home `/me` e `/unit`,
    ricerche), collaudo con un dirigente.
+   Costruita il 2026-10-19 su `task/gugd-flusso-genitore` (solo client:
+   nessuna rule, function o indice). "Può avere
+   figli" non è più "ruolo `parent`": `canManageFamily` (`src/utils/family.ts`)
+   vale per `parent`, `unit_leader`, `admin`, `super_admin` e per un
+   `participant` con almeno 18 anni oggi; mai per un ospite, un minore o un
+   partecipante senza data. Il ruolo resta quello che è.
+   Stati e ritorni, per chi può avere figli (account già entrato):
+
+   | Stato | Pagina attività / scheda | Iscrizione | Famiglia, home | Come si torna |
+   | --- | --- | --- | --- | --- |
+   | Adulto o dirigente, "Iscrivo mio figlio" | "Iscriviti" (genitore: "Iscrivi tuo figlio…") | B → E con "Sei entrato come … · Cambia account" | — | freccia o "Cambia" → B, niente scritto finché non si salva un figlio |
+   | Figlio aggiunto da un account non genitore | come sopra | scheda in E | home `/me` o `/unit`: sezione "I tuoi figli" con "Apri" → `/family` | matita in E; cancellazione in Famiglia |
+   | Iscrizione del figlio inviata | — | H con "Autorizza ora", "Iscrivi un altro figlio o figlia", "Vai a Famiglia" | riga in Famiglia con "Autorizza ora" e "Annulla l'iscrizione" | "Annulla l'iscrizione" in Famiglia |
+   | Genitore con figli, "Partecipo io" | — | D-io; al salvataggio `participant`, figli intatti; poi G o F | la home diventa `/me`, con "I tuoi figli" | "Cambia" → B prima di salvare; dopo, "Passa ad account genitore" da `/me/profile` |
+   | Dirigente iscritto lui | "La tua scheda" (anche per `unit_leader`) | H per sé con "Iscrivi tuo figlio o tua figlia" → E | — | dalla scheda; ruolo, unità e accesso staff invariati |
+   | Adulto già iscritto lui, figlio dopo | scheda con "Iscrivi tuo figlio o tua figlia" | B → E | — | come la prima riga |
+
+   Famiglia (`/family`) si apre a ogni account che può avere figli: per chi
+   non è `parent` la barra ha "Home" (la sua area) e "Famiglia", e
+   `/family/profile` porta al suo profilo. Il minore resta com'è (scheda
+   "Serve l'account di un genitore"); la scheda `solo-figli` sparisce. Un
+   partecipante col profilo da completare che sceglie il figlio passa ancora
+   da D-genitore (account senza attività, come un account nuovo).
+   "Iscrivi tuo figlio o tua figlia" dopo la propria iscrizione (H e scheda)
+   lo vede chi ha l'aria di un genitore (`suggestsChildAfterOwn`: staff,
+   dirigente, accompagnatore, o chi ha già figli), non un diciottenne iscritto
+   come giovane. Trovato costruendola:
+   - `/me/activities/:id` mandava il dirigente di unità a `/unit`: "Vai alla
+     tua scheda" e la pagina attività di un dirigente iscritto erano un
+     vicolo cieco; ora la scheda e la sua modifica valgono anche per lui;
+   - un'attività solo per un gruppo dava "Iscrizione riservata" a un
+     accompagnatore o a un papà che voleva iscrivere la figlia: il pubblico
+     si guarda sul figlio (`getRegistrationAvailability`, `forChild`);
+   - nel modulo del figlio data di nascita e gruppo erano nascosti a chi li
+     ha nel suo profilo (un dirigente), come se fossero i suoi: ora si
+     vedono sempre, come per il genitore;
+   - le domande del caminetto di un figlio cercavano l'iscrizione con l'uid
+     dell'account se non era `parent` (`getRegistrationLookupFromSession`);
+   - un partecipante "completo" con una data illeggibile sarebbe finito in E
+     senza poter caricare i figli: il percorso lo tratta come un minore;
+   - le righe delle attività di `/unit` non andavano a capo e a 320 px
+     allargavano la pagina (c'era già; il collaudo di prima non lo vedeva:
+     con `isMobile` la finestra si allarga e `innerWidth` la segue).
+   Da sapere: nelle rules ogni dirigente del palo legge le iscrizioni di un
+   campeggio (staff del campo), quindi anche quelle dei figli di un altro
+   dirigente; non le annulla. C'era già, ora riguarda più famiglie.
 
 Test (da un agente diverso da chi scrive il codice): unitari su `per`, primo
 passo valido per ogni tipo di account, guardia (soglia, data dell'attività,
