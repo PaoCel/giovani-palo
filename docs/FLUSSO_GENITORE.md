@@ -565,8 +565,9 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    - testo della guardia a 16 px, niente transizioni con movimento ridotto.
 6. G2 = a: famiglia su ogni account adulto (rotte, home `/me` e `/unit`,
    ricerche), collaudo con un dirigente.
-   Su `main` dal 2026-10-19, non ancora in produzione (solo client: nessuna
-   rule, function o indice; il rilascio è solo hosting, service worker v28).
+   **In produzione dal 2026-10-19** (solo hosting da una copia isolata di
+   `e211214`, service worker v28, bundle `index-93-NbHJc.js`; nessuna rule,
+   function o indice).
    "Può avere
    figli" non è più "ruolo `parent`": `canManageFamily` (`src/utils/family.ts`)
    vale per `parent`, `unit_leader`, `admin`, `super_admin` e per un

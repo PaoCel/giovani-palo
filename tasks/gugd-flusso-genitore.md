@@ -1,7 +1,7 @@
 ---
 id: gugd-flusso-genitore
 title: "Flusso genitore chiaro: chi iscrivi, figlio in contesto, un verbo per accedere"
-status: needs-paolo
+status: done
 impact: 2
 urgency: 2
 effort: L
@@ -12,15 +12,15 @@ opened: 2026-10-18
 started_at: 2026-10-18
 touched: 2026-10-19
 due:
-blocked_by: ["decisione: ok al rilascio della fase 6 (solo hosting, service worker v28)"]
+blocked_by: []
 branch:
 worktree:
 session: c8ee5a28-752d-489d-b6a1-41a04aaf9ce0
-stopped_at: "fase 6 (G2: figli su ogni account adulto, righe 1-3 di «Account già esistente») su main dal 2026-10-19, non in produzione; in produzione le fasi 1-5 (service worker v27)"
-next: "rilascio della fase 6 con l'ok di Paolo: solo hosting da una copia isolata del commit di main, service worker v28; poi task chiuso"
-verified: "fase 6 su main, non in produzione: sul mini 852 test unitari (851 verdi, rosso solo accentApostrophes senza git; 40 nuovi e 3 file riscritti da un altro agente, 16 mutazioni su 16), tsc e build verdi; rules nell'emulatore 123 + 13 callable nuovi (altro agente) verdi senza rule nuove con partecipante adulto, unit_leader, admin ed ex genitore; collaudo Playwright contro emulatori 246/252 a 320/390/430 (i 6 rossi sono finiture già esistenti di Famiglia e della home); review Codex gpt-6-astra BLOCKED, BLOCKED, BLOCKED, PASS. Non provati: tastiera vera, produzione, cambio di account diretto con la pagina aperta"
+stopped_at: "fasi 1-6 in produzione dal 2026-10-19 (fase 6: solo hosting da e211214, service worker v28, bundle index-93-NbHJc.js)"
+next: ""
+verified: "fasi 1-6 in produzione. Fase 6: servito sw v28 e bundle index-93-NbHJc.js con sha uguale alla build su gugditalia.it e web.app, pagine da non entrato senza errori; prima del rilascio sul mini 851/852 test unitari (rosso solo accentApostrophes senza git), tsc e build verdi, rules nell'emulatore 123 + 13 nuovi (altro agente) senza rule nuove con parent, participant adulto, unit_leader e admin, collaudo Playwright contro emulatori 246/252 a 320/390/430 (6 rossi = finiture già esistenti), review Codex gpt-6-astra BLOCKED x3 poi PASS. Non provati: percorso da loggati in produzione (nessuna attività aperta), tastiera vera su iOS/Android"
 links: []
-done_at:
+done_at: 2026-10-19
 ---
 
 ## Contesto
@@ -100,13 +100,13 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      lui~~ (in produzione dal 2026-10-19: solo hosting da `7bfb4b5`, service
      worker v27 servito su gugditalia.it e web.app, letto il 2026-10-19).
      Dettaglio nella spec, sezione "Fasi".
-   - Fase 6: G2 = a, figli su ogni account adulto, righe 1-3 di «Account già
+   - ~~Fase 6: G2 = a, figli su ogni account adulto, righe 1-3 di «Account già
      esistente» (adulto o dirigente → E; genitore con figli che partecipa →
      D-io e poi partecipante coi figli; dirigente F → H → "Iscrivi tuo figlio
      o tua figlia" → E), Famiglia aperta a ogni adulto, "I tuoi figli" in
-     `/me` e `/unit`. Su `main` dal 2026-10-19, non in produzione. Solo
-     client: nessuna rule, function o indice. Rilascio (solo hosting, service
-     worker v28) con l'ok di Paolo. Dettaglio nella spec, sezione "Fasi".
+     `/me` e `/unit`~~ (in produzione dal 2026-10-19: solo hosting da
+     `e211214`, service worker v28; nessuna rule, function o indice).
+     Dettaglio nella spec, sezione "Fasi".
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
@@ -116,6 +116,15 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
    genitore, giovani, dirigente, genitore-figlia e inviata a 240 px).
 
 ## Verificato
+
+2026-10-19, fase 6 in produzione con l'ok di Paolo: solo hosting da una copia
+isolata di `e211214` (build sul Mac mini, service worker v28). Fra il commit
+pubblicato prima (`7bfb4b5`) e questo il client cambia solo con la fase 6.
+Servito su gugditalia.it e giovani-palo.web.app: `sw.js` v28, bundle
+`index-93-NbHJc.js` con sha256 uguale alla build; da non entrato `/`,
+`/activities` e `/login` senza errori in console, `/family` e `/me` portano
+ad Accedi con il ritorno. Non provato: il percorso da loggati in produzione
+(oggi nessuna attività in programma).
 
 2026-10-19, fase 6 (G2) su `main`, non in produzione (solo client: nessuna
 rule, function o indice; rilascio con hosting e service worker v28). Sul mini:
