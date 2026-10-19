@@ -292,6 +292,19 @@ function registrationDoc({
   };
 }
 
+/**
+ * Iscrizione come la crea il client per un minorenne (birthDate 2010) in
+ * un'attività con requiresParentAuthorization: richiesta al genitore nelle
+ * risposte e stato pending_parent_authorization (resolveRegistrationStatusOnSave).
+ * Le creazioni di un non-admin passano da qui: la rule non accetta 'confirmed'
+ * né 'active' per un minorenne in quel caso, quindi un rifiuto nei casi
+ * negativi dipende dalla proprietà o dal palo e non dallo stato. I seed con
+ * l'Admin SDK restano su registrationDoc.
+ */
+function clientRegistrationDoc(fields) {
+  return registrationDoc({ ...fields, status: "pending_parent_authorization", withRequest: true });
+}
+
 function pendingAuthorization(tokenId) {
   const now = iso();
   return {
@@ -854,17 +867,17 @@ const RULE_CASES = [
   ["partecipante A crea la propria iscrizione in un'attività aperta (controllo positivo, payload completo)", "participantA", true, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.A.id}/activities/open/registrations/user_${c.actors.participantA.uid}`),
-      registrationDoc({ firstName: "Ginevra", lastName: "Alderighi", unit: c.A.unit1, userId: c.actors.participantA.uid }),
+      clientRegistrationDoc({ firstName: "Ginevra", lastName: "Alderighi", unit: c.A.unit1, userId: c.actors.participantA.uid }),
     )],
   ["partecipante A non crea un'iscrizione a nome di un altro utente (payload valido)", "participantA", false, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.A.id}/activities/open/registrations/user_${c.B.participant.uid}`),
-      registrationDoc({ firstName: "Ottavia", lastName: "Zanzibar", unit: c.A.unit1, userId: c.B.participant.uid }),
+      clientRegistrationDoc({ firstName: "Ottavia", lastName: "Zanzibar", unit: c.A.unit1, userId: c.B.participant.uid }),
     )],
   ["partecipante A non crea iscrizioni in un'attività non pubblica di B (payload valido)", "participantA", false, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.B.id}/activities/priv/registrations/user_${c.actors.participantA.uid}`),
-      registrationDoc({ firstName: "Ginevra", lastName: "Alderighi", unit: c.B.unit1, userId: c.actors.participantA.uid }),
+      clientRegistrationDoc({ firstName: "Ginevra", lastName: "Alderighi", unit: c.B.unit1, userId: c.actors.participantA.uid }),
     )],
 
   // --- genitore A -------------------------------------------------------------------------
@@ -884,17 +897,17 @@ const RULE_CASES = [
   ["genitore A crea l'iscrizione di un proprio figlio in un'attività aperta (controllo positivo, payload completo)", "parentA", true, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.A.id}/activities/open/registrations/child_${c.actors.parentA.uid}_figlio-1`),
-      registrationDoc({
-        firstName: "Marco", lastName: "GenitoreA", unit: c.A.unit1, category: "giovane_uomo", status: "active",
-        parentUid: c.actors.parentA.uid, childId: "figlio-1", withRequest: true,
+      clientRegistrationDoc({
+        firstName: "Marco", lastName: "GenitoreA", unit: c.A.unit1, category: "giovane_uomo",
+        parentUid: c.actors.parentA.uid, childId: "figlio-1",
       }),
     )],
   ["genitore A non crea un'iscrizione a nome di un figlio di un altro genitore (payload valido)", "parentA", false, (db, c) =>
     setDoc(
       doc(db, `stakes/${c.A.id}/activities/open/registrations/child_${c.B.parent.uid}_figlio-1`),
-      registrationDoc({
-        firstName: "Marco", lastName: "GenitoreB", unit: c.A.unit1, category: "giovane_uomo", status: "active",
-        parentUid: c.B.parent.uid, childId: "figlio-1", withRequest: true,
+      clientRegistrationDoc({
+        firstName: "Marco", lastName: "GenitoreB", unit: c.A.unit1, category: "giovane_uomo",
+        parentUid: c.B.parent.uid, childId: "figlio-1",
       }),
     )],
   ["genitore B vede solo le iscrizioni dei propri figli (controllo positivo)", "parentB", true, async (db, c) => {

@@ -1125,10 +1125,13 @@ describe("3. iscrizione del figlio (handleSubmit → upsertRegistration)", () =>
     assert.equal(await stored(registrationPath(activityId, registrationId)), undefined);
   });
 
-  test("osservazione: stato iniziale scelto dal client (la rule di creazione non lo vincola)", async (t) => {
+  test("stato iniziale scelto da un client modificato: «confirmed» e «active» sono negati", async () => {
     // Non è una chiamata del client: resolveRegistrationStatusOnSave impone
     // pending_parent_authorization quando c'è parentAuthorizationRequest.
-    // Qui si registra cosa accetterebbe la rule da un client modificato.
+    // La rule di creazione (validInitialRegistrationStatus) non accetta
+    // «confirmed», che lo scrive solo la firma del genitore, né «active» per
+    // un minore in un'attività con autorizzazione. La matrice completa sta in
+    // registrationInitialStatusRulesEmulator.test.mjs.
     for (const status of ["confirmed", "active"]) {
       const extra = await createChild(actor, parentUid(), childInput({ firstName: `Stato ${status}` }), newChildDraft(actor, parentUid()));
       const registrationId = childRegistrationId(parentUid(), extra.id);
@@ -1142,14 +1145,11 @@ describe("3. iscrizione del figlio (handleSubmit → upsertRegistration)", () =>
         ),
         registrationStatus: status,
       };
-      let outcome;
-      try {
-        await setDoc(registrationRef(actor, activityId, registrationId), payload);
-        outcome = "consentito";
-      } catch (error) {
-        outcome = `negato (${error?.code})`;
-      }
-      t.diagnostic(`creazione child_ con registrationStatus "${status}" senza firma: ${outcome}`);
+      await expectDenied(
+        () => setDoc(registrationRef(actor, activityId, registrationId), payload),
+        `creazione child_ con registrationStatus "${status}" senza firma`,
+      );
+      assert.equal(await stored(registrationPath(activityId, registrationId)), undefined, `${status}: nessun documento scritto`);
     }
   });
 });

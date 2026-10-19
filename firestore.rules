@@ -438,54 +438,99 @@ service cloud.firestore {
         && data.updatedAt is string;
     }
 
+    // Minorenne per l'autorizzazione del genitore. Il client conta l'età sulla
+    // data locale (isMinorBirthDate in src/utils/age.ts); qui 6573 giorni,
+    // uno o due meno di 18 anni (4 o 5 bisestili), così chi compie 18 anni
+    // oggi in Italia non viene rifiutato mentre in UTC è ancora ieri. Data
+    // vuota o non 'YYYY-MM-DD': maggiorenne, come per il client, che allora
+    // non chiede l'autorizzazione. Costo misurato nell'emulatore: circa 30
+    // espressioni con la lettura dell'attività; costruire la data limite come
+    // stringa ne costava circa 85 e la creazione sforava il limite.
+    function isMinorForParentAuthorization(birthDate) {
+      return birthDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && timestamp.date(int(birthDate[0:4]), int(birthDate[5:7]), int(birthDate[8:10]))
+          + duration.value(6573, 'd') > request.time;
+    }
+
+    function parentAuthorizationRequired(stakeId, activityId, data) {
+      return get(activityDocPath(stakeId, activityId)).data.get('requiresParentAuthorization', false) == true
+        && isMinorForParentAuthorization(data.birthDate);
+    }
+
+    // Stato di un'iscrizione nuova: 'confirmed' lo scrive solo la callable
+    // della firma, e un minore in un'attività con autorizzazione del genitore
+    // parte in attesa. Prima la rule accettava qualunque stato e un client
+    // modificato poteva saltare il consenso (emulatore, 2026-10-19). Il client
+    // decide lo stesso in resolveRegistrationStatusOnSave
+    // (src/utils/registrationStatus.ts).
+    function validInitialRegistrationStatus(stakeId, activityId, data) {
+      return data.registrationStatus == 'pending_parent_authorization'
+        || (
+          data.registrationStatus == 'active'
+          && !parentAuthorizationRequired(stakeId, activityId, data)
+        );
+    }
+
+    // Costo: con il documento massimo (figlio, ogni campo ammesso valorizzato)
+    // la versione con 21 accessi `request.resource.data.x == null` costava 950
+    // espressioni su 1000. Ora i dati passano da `let` e i campi che alla
+    // creazione devono restare vuoti si confrontano in un solo diff: costo 795,
+    // 837 con lo stato iniziale. changedKeys() guarda solo le chiavi presenti
+    // in entrambe le mappe: quelle lette senza `in` le rende obbligatorie
+    // validRegistrationPayload, quelle opzionali (parentAuthorization,
+    // assignedRoomName, assignedCommittees) possono mancare come prima.
+    // Test: functions/tests/registrationInitialStatusRulesEmulator.test.mjs.
     function validRegistrationCreate(stakeId, activityId, registrationId) {
-      return validRegistrationPayload(request.resource.data)
-        && registrationBelongsToCaller(request.resource.data)
-        && expectedRegistrationId(request.resource.data) == registrationId
+      let next = request.resource.data;
+      return validRegistrationPayload(next)
+        && registrationBelongsToCaller(next)
+        && expectedRegistrationId(next) == registrationId
         && activityAcceptsRegistrations(stakeId, activityId)
+        && validInitialRegistrationStatus(stakeId, activityId, next)
         && (
-          request.resource.data.userId == request.auth.uid
+          next.userId == request.auth.uid
           || (
-            request.resource.data.anonymousUid == request.auth.uid
+            next.anonymousUid == request.auth.uid
             && formAllowsGuestRegistration(stakeId, activityId)
           )
           || (
-            request.resource.data.parentUid == request.auth.uid
-            && exists(childDocPath(request.auth.uid, request.resource.data.childId))
+            next.parentUid == request.auth.uid
+            && exists(childDocPath(request.auth.uid, next.childId))
           )
         )
-        && request.resource.data.submittedByMode
+        && next.submittedByMode
           == (
-            request.resource.data.userId == request.auth.uid
+            next.userId == request.auth.uid
               ? 'authenticated'
               : (
-                ('parentUid' in request.resource.data && request.resource.data.parentUid == request.auth.uid)
+                ('parentUid' in next && next.parentUid == request.auth.uid)
                   ? 'parent'
                   : 'anonymous'
               )
           )
-        && request.resource.data.parentConsentDocumentName == null
-        && request.resource.data.parentConsentDocumentUrl == null
-        && request.resource.data.parentConsentDocumentPath == null
-        && request.resource.data.parentConsentUploadedAt == null
-        && request.resource.data.consentSignatureUrl == null
-        && request.resource.data.consentSignaturePath == null
-        && request.resource.data.consentSignatureSetAt == null
-        && request.resource.data.parentIdDocumentName == null
-        && request.resource.data.parentIdDocumentUrl == null
-        && request.resource.data.parentIdDocumentPath == null
-        && request.resource.data.parentIdUploadedAt == null
-        && (!('parentAuthorization' in request.resource.data) || request.resource.data.parentAuthorization == null)
-        && request.resource.data.assignedRoomId == null
-        && request.resource.data.get('assignedRoomName', null) == null
-        && request.resource.data.assignedTempleShiftId == null
-        && request.resource.data.assignedServiceTeamIds.size() == 0
-        && request.resource.data.assignedPatrolId == null
-        && request.resource.data.assignedPatrolName == null
-        && request.resource.data.assignedPatrolRole == null
-        && (!('assignedCommittees' in request.resource.data)
-          || request.resource.data.assignedCommittees.size() == 0)
-        && request.resource.data.linkedLaterToUserId == null;
+        && next.diff({
+          'parentConsentDocumentName': null,
+          'parentConsentDocumentUrl': null,
+          'parentConsentDocumentPath': null,
+          'parentConsentUploadedAt': null,
+          'consentSignatureUrl': null,
+          'consentSignaturePath': null,
+          'consentSignatureSetAt': null,
+          'parentIdDocumentName': null,
+          'parentIdDocumentUrl': null,
+          'parentIdDocumentPath': null,
+          'parentIdUploadedAt': null,
+          'parentAuthorization': null,
+          'assignedRoomId': null,
+          'assignedRoomName': null,
+          'assignedTempleShiftId': null,
+          'assignedServiceTeamIds': [],
+          'assignedPatrolId': null,
+          'assignedPatrolName': null,
+          'assignedPatrolRole': null,
+          'assignedCommittees': [],
+          'linkedLaterToUserId': null
+        }).changedKeys().size() == 0;
     }
 
     function manualConsentFieldsUnchanged(next, prev) {
@@ -600,7 +645,7 @@ service cloud.firestore {
     // parentUid uguale, implica isOwnRegistration(prev): non si ripete.
     // Test: functions/tests/parentCancelRulesEmulator.test.mjs e
     // functions/tests/registrationUpdateRules.py.
-    function validRegistrationUpdate() {
+    function validRegistrationUpdate(stakeId, activityId) {
       let next = request.resource.data;
       let prev = resource.data;
       let delta = next.diff(prev);
@@ -644,9 +689,23 @@ service cloud.firestore {
           // modulo. Senza questo ramo il salvataggio passava ma lo stato
           // restava 'cancelled' e l'iscrizione era invisibile agli admin.
           // 'confirmed' resta escluso: lo scrive solo il genitore che firma.
+          // Torna 'active' senza passare dal genitore solo se la firma c'era
+          // già o non serve, come in resolveRegistrationStatusOnSave: prima
+          // annullare e riattivare saltava il consenso (2026-10-19). Costo
+          // della riattivazione pesante: 794-796 (era 723-770).
           || (
             prev.registrationStatus == 'cancelled'
-            && next.registrationStatus in ['active', 'pending_parent_authorization']
+            && (
+              next.registrationStatus == 'pending_parent_authorization'
+              || (
+                next.registrationStatus == 'active'
+                && (
+                  (prev.get('parentAuthorization', null) is map
+                    && prev.parentAuthorization.get('status', null) == 'authorized')
+                  || !parentAuthorizationRequired(stakeId, activityId, next)
+                )
+              )
+            )
           )
         );
     }
@@ -1442,7 +1501,7 @@ service cloud.firestore {
           // ramo staff campo (attività, iscrizione adulta) prima del proprio.
           // validOwnerCancellation per primo: è il più economico (circa 12
           // espressioni contro le 600-800 di validRegistrationUpdate).
-          allow update: if validOwnerCancellation() || isStakeAdmin(stakeId) || validRegistrationUpdate() || validCampAssignmentUpdate(stakeId, activityId);
+          allow update: if validOwnerCancellation() || isStakeAdmin(stakeId) || validRegistrationUpdate(stakeId, activityId) || validCampAssignmentUpdate(stakeId, activityId);
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
 

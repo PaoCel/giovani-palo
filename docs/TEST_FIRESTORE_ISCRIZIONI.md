@@ -74,6 +74,57 @@ lunga che passa (ogni elemento vale un'espressione; con la sola condizione
 sull'iscrizione costa da 5 a 12 espressioni nel payload, più il suo confronto
 se è protetto.
 
+## Stato iniziale di un'iscrizione (2026-10-19)
+
+Prima la creazione accettava qualunque stato: un client modificato poteva
+creare un'iscrizione `confirmed` o `active` per un minore senza la firma del
+genitore, e annullare e riattivare a `active` saltava il consenso. Ora:
+
+- in creazione solo `pending_parent_authorization` o `active`; `confirmed` lo
+  scrive solo la callable della firma;
+- `active` no se l'attività ha `requiresParentAuthorization == true` e il
+  partecipante è minorenne (`isMinorForParentAuthorization`: `birthDate`
+  `YYYY-MM-DD` più 6573 giorni oltre `request.time`, un margine di uno o due
+  giorni sul diciottesimo compleanno; data vuota o malformata vale
+  maggiorenne, come in `src/utils/age.ts`);
+- da `cancelled` si torna a `active` solo con `parentAuthorization.status ==
+  'authorized'` o se l'autorizzazione non serve, come in
+  `resolveRegistrationStatusOnSave`.
+
+Prima di stringere, censimento in produzione in sola lettura: 348 iscrizioni,
+nessuna `confirmed` senza firma, nessuna creazione dal client in stati diversi
+da `active` e `pending_parent_authorization`; i 4 minori `active` senza firma
+del viaggio al tempio (2026-10-10) li ha creati uno script operatore con
+credenziali owner, che le rules non vedono. La data falsa resta un modo di
+passare: è visibile all'admin, che vede comunque "autorizzazione mancante".
+
+La creazione era già vicina al limite: 21 accessi `request.resource.data.x ==
+null` per i campi che alla creazione devono restare vuoti. Ora passano da `let
+next` e da un solo `next.diff({...}).changedKeys().size() == 0`
+(`changedKeys()` guarda solo le chiavi presenti in entrambe le mappe: quelle
+lette senza `in` le rende obbligatorie `validRegistrationPayload`). Costruire
+la data limite dell'età come stringa costava circa 85 espressioni; con
+`timestamp.date()` e i giorni circa 30, lettura dell'attività compresa.
+Misure, documento massimo (55 risposte, codici e ogni campo ammesso
+valorizzato; per l'update firma, consensi, stanza, turno, pattuglia,
+comitati):
+
+| Scrittura | Prima | Dopo |
+| --- | --- | --- |
+| crea figlio minore, in attesa | 950 | 806 |
+| crea account adulto, attiva | 845 | 774 |
+| crea ospite adulto, attiva | 906 | 829 |
+| crea figlio, attiva, attività senza autorizzazione | 950 | 837 |
+| riattiva figlio pesante firmato, attiva | 770 | 794 |
+| riattiva adulto pesante senza firma, attiva | 723 | 796 |
+| sintetico: codici, comitati e riattivazione, figlio firmato legacy | 948 | 972 |
+| sintetico: codici, comitati e riattivazione, adulto senza firma legacy | 901 | 974 |
+
+Le due righe sintetiche sono la sonda del caso peggiore (nessun client cambia
+codici e comitati insieme alla riattivazione): un campo nuovo sull'iscrizione
+va misurato lì prima di tutto. Test:
+`functions/tests/registrationInitialStatusRulesEmulator.test.mjs`.
+
 Per correggere un genitore registrato come partecipante, usare il profilo
 figlio e l'ID canonico `child_<parentUid>_<childId>`. L'account personale del
 figlio resta separato: l'iscrizione famiglia viene gestita dall'account genitore.

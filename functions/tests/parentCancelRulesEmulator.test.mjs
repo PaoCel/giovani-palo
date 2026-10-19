@@ -614,29 +614,65 @@ describe("modulo «Gestisci»: modifica di un'iscrizione figlio con parentAuthor
   }
 });
 
+// Riattivazione e consenso (2026-10-19): da `cancelled` si torna a
+// `pending_parent_authorization` sempre, a `active` solo se la firma del
+// genitore c'era già (`parentAuthorization.status == 'authorized'`) o se
+// l'autorizzazione non serve. Le attività di questo file la richiedono e il
+// figlio ha 14 anni: l'iscrizione non firmata (`pendingRegistration`) non
+// torna `active`, e il client infatti manda `pending_parent_authorization`
+// (resolveRegistrationStatusOnSave). Il resto della matrice (minore con
+// stato null, adulto, attività senza autorizzazione, bordi dell'età) sta in
+// registrationInitialStatusRulesEmulator.test.mjs.
 describe("reiscrizione dopo l'annullamento (risalvataggio del modulo)", () => {
   const CASES = [
-    ["in attesa della firma", pendingRegistration],
-    ["firmata", signedRegistration],
-    ["pesante, firmata", heavyRegistration],
+    ["in attesa della firma", pendingRegistration, false],
+    ["firmata", signedRegistration, true],
+    ["pesante, firmata", heavyRegistration, true],
   ];
-  for (const [label, build] of CASES) {
-    for (const target of ["pending_parent_authorization", "active"]) {
-      test(`${label}: cancelled -> ${target}`, async () => {
+  for (const [label, build, canReturnActive] of CASES) {
+    test(`${label}: cancelled -> pending_parent_authorization`, async () => {
+      const { path } = await seed(asCancelled(build));
+      const current = await stored(path);
+
+      await resave("genitore", path, current, "pending_parent_authorization");
+
+      const after = await stored(path);
+      assert.equal(after.registrationStatus, "pending_parent_authorization");
+      assert.deepEqual(after.parentAuthorization, current.parentAuthorization);
+    });
+
+    if (canReturnActive) {
+      test(`${label}: cancelled -> active (la firma c'era già)`, async () => {
         const { path } = await seed(asCancelled(build));
         const current = await stored(path);
 
-        await resave("genitore", path, current, target);
+        await resave("genitore", path, current, "active");
 
         const after = await stored(path);
-        assert.equal(after.registrationStatus, target);
+        assert.equal(after.registrationStatus, "active");
         assert.deepEqual(after.parentAuthorization, current.parentAuthorization);
+      });
+    } else {
+      test(`${label}: cancelled -> active è negato (il consenso del genitore non c'è)`, async () => {
+        const { path } = await seed(asCancelled(build));
+        const current = await stored(path);
+        await expectDenied(resave("genitore", path, current, "active"), path, current);
       });
     }
   }
 
-  test("cancelled -> active con soli stato e updatedAt: lo concede validRegistrationUpdate, come prima", async () => {
+  test("cancelled -> active con soli stato e updatedAt su un'iscrizione non firmata: negato", async () => {
     const { path } = await seed(asCancelled(pendingRegistration));
+    const current = await stored(path);
+    await expectDenied(
+      updateDoc(ref("genitore", path), { registrationStatus: "active", updatedAt: new Date().toISOString() }),
+      path,
+      current,
+    );
+  });
+
+  test("cancelled -> active con soli stato e updatedAt su un'iscrizione firmata: lo concede validRegistrationUpdate", async () => {
+    const { path } = await seed(asCancelled(signedRegistration));
     await updateDoc(ref("genitore", path), { registrationStatus: "active", updatedAt: new Date().toISOString() });
     assert.equal((await stored(path)).registrationStatus, "active");
   });
@@ -901,10 +937,13 @@ describe("validRegistrationUpdate: rami dettagliati e iscrizione massima", () =>
       await expectDenied(patch("genitore", path, { assignedCommittees: deleteField() }), path, before);
     });
 
-    for (const [label, build, status] of [
-      ["in attesa della firma", pendingRegistration, "pending_parent_authorization"],
-      ["firmata", signedRegistration, "confirmed"],
-      ["pesante, firmata", heavyRegistration, "confirmed"],
+    // `reactivated`: lo stato con cui il modulo riattiva l'iscrizione annullata,
+    // quello di resolveRegistrationStatusOnSave: senza firma si riparte dal
+    // genitore, con la firma già data si torna attivi.
+    for (const [label, build, status, reactivated] of [
+      ["in attesa della firma", pendingRegistration, "pending_parent_authorization", "pending_parent_authorization"],
+      ["firmata", signedRegistration, "confirmed", "active"],
+      ["pesante, firmata", heavyRegistration, "confirmed", "active"],
     ]) {
       test(`${label}: il modulo risalva e i due campi restano assenti`, async () => {
         const { path } = await seed(legacy(build));
@@ -924,10 +963,10 @@ describe("validRegistrationUpdate: rami dettagliati e iscrizione massima", () =>
         const { path } = await seed(asCancelled(legacy(build)));
         const before = await stored(path);
 
-        await resave("genitore", path, before, "active");
+        await resave("genitore", path, before, reactivated);
 
         const after = await stored(path);
-        assert.equal(after.registrationStatus, "active");
+        assert.equal(after.registrationStatus, reactivated);
         assert.ok(!("assignedCommittees" in after) && !("assignedRoomName" in after));
         assert.deepEqual(withoutKeys(after, CHANGED_BY_FORM), withoutKeys(before, CHANGED_BY_FORM));
       });
