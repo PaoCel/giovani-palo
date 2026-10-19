@@ -95,9 +95,13 @@ genitore convertito, compresi `deleteChild`, annullamento, «Autorizza ora» e
 `parentConsentUpdate` (`functions/tests/familyAnyAdultRulesEmulator.test.mjs`,
 `…CallablesEmulator.test.mjs`): ancora nessuna rule nuova.
 
-**PWA vecchie**: schema e rules non cambiano, quindi niente si rompe. Un figlio
-aggiunto a un account dirigente con la versione nuova non si vede da una PWA
-vecchia finché non si aggiorna (bump del service worker al rilascio).
+**PWA vecchie**: schema e rules non cambiano, quindi nessun dato si perde. Un
+figlio aggiunto a un account dirigente con la versione nuova non si vede da una
+PWA vecchia finché non si aggiorna (bump del service worker al rilascio). Un
+genitore con figli che diventa partecipante con la versione nuova, su un
+secondo telefono con la PWA vecchia, trova `/family` chiuso (la vecchia
+`ParentRoute` guarda il ruolo) finché quella non si aggiorna: i figli restano
+nell'account e la versione nuova li mostra.
 
 ## Navigazione
 
