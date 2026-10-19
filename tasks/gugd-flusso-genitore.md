@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fase 2 (annulla iscrizione in Famiglia, Riprendi da Autorizza ora, guardie del link) su main, non deployata; fase 1 in produzione"
-next: "deploy fase 2 con ok di Paolo: rules, poi functions di parentAuthorization per nome, poi hosting (service worker v22); poi fase 3"
-verified: "fase 2: unit 111 test, emulatore rules 39 + 3 todo, callable 25, registrationUpdateRules.py 5/5; browser contro emulatori a 320/390/430 (annulla, tieni, riprendi, link su annullata, altro genitore); review di un altro agente; non in produzione"
+stopped_at: "fasi 1 e 2 in produzione dal 2026-10-19 (rules, 6 functions di parentAuthorization, hosting con service worker v22)"
+next: "fase 3: B e C dentro l'iscrizione, account nuovo parent con per=figlio, via il window.confirm, «Chi sei?» fuori dall'attività"
+verified: "fase 2 in produzione: ruleset live uguale a git (03c3c01), 6 functions aggiornate e GetContext con canSignInApp live, bundle live index-DdMIgQ6d.js con sw v22, /login, /activities e /parent-confirm provati da non entrato senza errori; prima unit 356, emulatore rules 39 + 3 todo, callable 25, py 5/5, browser contro emulatori a 320/390/430, review di un altro agente"
 links: []
 done_at:
 ---
@@ -57,7 +57,8 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      solo per questa attività." (scritto il 2026-10-19 con l'ok di Paolo,
      letto prima e dopo).
    - ~~Fase 2: «Annulla l'iscrizione» del genitore in Famiglia e «Riprendi da
-     «Autorizza ora»»~~ (2026-10-19, su `main`, **non deployata**). Trovati e
+     «Autorizza ora»»~~ (in produzione dal 2026-10-19: rules, functions per nome,
+     hosting con service worker v22). Trovati e
      corretti: annullamento del figlio oltre il limite di 1000 espressioni
      (`validOwnerCancellation`), link valido che rimetteva in `confirmed` o
      `rejected_by_parent` un'iscrizione annullata (anche da `/me` e admin),
@@ -67,11 +68,24 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      pesante oltre il budget delle rules (3 `todo` in
      `functions/tests/parentCancelRulesEmulator.test.mjs`); il reinvio
      dell'admin e il cambio email lasciano due link validi e mandano due mail
-     (diagnostica in `parentAuthorizationCancelledEmulator.test.mjs`).
+     (diagnostica in `parentAuthorizationCancelledEmulator.test.mjs`). Tutti e
+     due in sessioni separate dal 2026-10-19.
 3. Illustrazioni: WebP 2× da `.claude/mockups/flusso-genitore/img/` nel repo
    quando si costruisce la prima schermata che le usa.
 
 ## Verificato
+
+2026-10-19, rilascio fase 2 con l'ok di Paolo, da una copia isolata di `main`
+(le sessioni parallele lavorano nella stessa cartella): ruleset live scaricato
+prima (uguale a git prima della fase 2) e dopo (uguale a `03c3c01`); 6
+functions per nome (`onRegistrationPendingParentAuth`,
+`parentAuthorizationGetContext`, `…Confirm`, `…Reject`, `…Resend`,
+`…IssueOwnToken`), `GetContext` risponde con `canSignInApp`; hosting da
+`6cd6ec8` (service worker v22), bundle live `index-DdMIgQ6d.js`; `/login`,
+`/activities` e `/parent-confirm/…` provati da non entrato, nessun errore in
+console né nei log recenti delle functions. Non provato in produzione con un
+account vero: l'annullamento di un genitore (provato nell'emulatore e nel
+browser contro gli emulatori).
 
 2026-10-18, fase 1: build e 327 test unitari verdi sul Mac mini
 (`npm ci && npm test && npm run build`), di cui 27 nuovi scritti da un altro

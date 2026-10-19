@@ -383,7 +383,7 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    nascosto su `/login`.
 2. "Annulla l'iscrizione" per il genitore in Famiglia (manca oggi) e messaggio
    "Riprendi da «Autorizza ora»".
-   **Fatta il 2026-10-19** (su `main`, non ancora in produzione). Tre cose
+   **In produzione dal 2026-10-19**. Tre cose
    trovate costruendola:
    - l'annullamento di un'iscrizione figlio superava il limite di 1000
      espressioni delle rules (permission-denied nell'emulatore): nuovo ramo
