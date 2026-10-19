@@ -84,6 +84,14 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      inviata» con «Autorizza ora»~~ (in produzione dal 2026-10-19: solo
      hosting, service worker v24). Dettaglio e cose trovate nella spec,
      sezione "Fasi".
+   - ~~Reiscrizione di un'annullata senza link valido~~ (corretto su `main` il
+     2026-10-19, opzione scelta da Paolo: il passaggio annullata → in attesa
+     manda sempre link e mail nuovi, anche dopo un rifiuto; banner
+     `nuovo_link`; 10 annullate su 22 in produzione sarebbero rimaste senza
+     link). Test `parentAuthorizationRestartEmulator.test.mjs` e
+     `tests/parentStepNotice.test.mjs`, di altri agenti. Da pubblicare con l'ok
+     di Paolo: `onRegistrationPendingParentAuth`, poi hosting (service worker
+     v26).
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,

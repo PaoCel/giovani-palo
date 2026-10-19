@@ -213,9 +213,18 @@ famiglia: chi sta usando l'account si legge prima di scegliere.
   a {email}." (o "Stiamo scrivendo…", o "La mail non è partita…") con "Se cambi
   l'indirizzo, gli mandiamo un nuovo link.", rifiutata "Il genitore ha
   rifiutato l'autorizzazione."; il testo della mail in arrivo solo quando la
-  mail parte davvero (nuova, o annullata prima che gli scrivessimo). Il
+  mail parte davvero (nuova, o annullata e non firmata: la reiscrizione manda
+  sempre un link nuovo, anche dopo un rifiuto, vedi sotto). Il
   suggerimento sotto "Email genitore" compare solo dove può ancora partire un
   link; lato genitore "Dopo l'invio ti mandiamo un link…" segue la stessa regola.
+- Reiscrizione di un'annullata non firmata (2026-10-19, scelta di Paolo): vale
+  come iscrizione nuova. Il trigger, sul passaggio annullata → in attesa,
+  manda una mail con un link nuovo da 14 giorni e invalida i vecchi, anche se
+  il link era ancora valido, scaduto, invalidato, di "Autorizza ora" o dopo un
+  rifiuto (il genitore riceve una richiesta nuova e può rifiutare di nuovo);
+  i tentativi d'invio ripartono da zero. Prima il trigger vedeva il link vecchio
+  e non scriveva: 10 annullate su 22 in produzione sarebbero rimaste in attesa
+  senza un link valido. Un'annullata già firmata torna attiva, senza mail.
 - Uscire con risposte non inviate (freccia dal primo passo, "Cambia", link
   fuori): foglio "Esci dall'iscrizione? Le risposte non inviate si perdono."
   con "Continua a compilare" (primo) ed "Esci".

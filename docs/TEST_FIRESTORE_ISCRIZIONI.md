@@ -32,7 +32,10 @@ Test con il client SDK e le chiamate esatte del client, compresi modifica e
 reiscrizione di un figlio con `parentAuthorization` valorizzato:
 `functions/tests/parentCancelRulesEmulator.test.mjs`; guardie delle callable
 del link su iscrizioni annullate:
-`functions/tests/parentAuthorizationCancelledEmulator.test.mjs` (comandi in
+`functions/tests/parentAuthorizationCancelledEmulator.test.mjs`; reiscrizione
+di un'annullata (link e mail nuovi anche con un link già partito, scaduto,
+invalidato o dopo un rifiuto; firma mai toccata):
+`functions/tests/parentAuthorizationRestartEmulator.test.mjs` (comandi in
 testa ai file).
 
 Costo di `validRegistrationUpdate` (2026-10-19): il risalvataggio dal modulo e
