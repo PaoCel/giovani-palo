@@ -16,9 +16,12 @@ import {
 } from "../src/utils/registerFlow.ts";
 
 // Passi dell'iscrizione a un'attività (docs/FLUSSO_GENITORE.md, "Navigazione",
-// B, C, "Account già esistente o sbagliato", "Utente che sbaglia"), con le
-// regole provvisorie della fase 3: le schede "serve-genitore" e "solo-figli"
-// stanno al posto di quello che arriverà con le fasi 5 e 6.
+// B, C, "Account già esistente o sbagliato", "Utente che sbaglia", fase 6),
+// con la famiglia su ogni account adulto (scelta G2 = a): chi ha un account
+// adulto, di qualunque ruolo, iscrive i figli da E; il genitore che sceglie
+// "Partecipo io" completa i suoi dati (D-io) e i figli restano; l'unica scheda
+// che resta è "serve-genitore", per l'account di un minore. La scheda
+// "solo-figli" non esiste più.
 //
 // I risultati attesi vengono dalla spec, non dal codice: `expectedFlow` qui
 // sotto è la tabella della spec scritta come funzione, e il test la confronta
@@ -34,7 +37,7 @@ const PASSO_VALUES = [null, "chi", "account", "dati", "figlio", "modulo"];
 const ACCOUNT_VALUES = ["none", "guest", "user"];
 const ROLE_VALUES = ["participant", "parent", "staff"];
 const BOOLEANS = [false, true];
-const SCREENS = ["chi", "account", "dati", "figlio", "modulo", "serve-genitore", "solo-figli"];
+const SCREENS = ["chi", "account", "dati", "figlio", "modulo", "serve-genitore"];
 
 const makeState = (overrides = {}) => ({
   per: null,
@@ -71,9 +74,13 @@ function* allStates() {
 
 const describeState = (state) => JSON.stringify(state);
 
+/** Account di un minore secondo la spec (B): vero, profilo completo, partecipante con meno di 18 anni. */
+const isMinorAccount = (state) =>
+  state.account === "user" && state.profileComplete && state.isMinor && state.role === "participant";
+
 /** Valori canonici per l'URL di ogni schermata (per resta quello passato). */
 function canonical(screen, per) {
-  if (screen === "serve-genitore" || screen === "solo-figli") {
+  if (screen === "serve-genitore") {
     return { screen, per, passo: null };
   }
 
@@ -130,17 +137,14 @@ function expectedFlow(state) {
   }
 
   if (per === "io") {
-    // Interim fase 3: il genitore completo che sceglie "Partecipo io" vede la
-    // scheda "solo-figli" (D-io arriva con la fase 5).
-    return state.role === "parent" ? canonical("solo-figli", per) : canonical("modulo", per);
+    // "Account già esistente", riga 2: il genitore che sceglie "Partecipo io"
+    // completa i suoi dati (D-io), con o senza figli; gli altri vanno a F.
+    return state.role === "parent" ? canonical("dati", per) : canonical("modulo", per);
   }
 
-  // per === "figlio": interim fase 3, solo l'account `parent` iscrive figli
-  // (G2 arriva con la fase 6).
-  if (state.role !== "parent") {
-    return canonical("serve-genitore", per);
-  }
-
+  // per === "figlio", G2 = a: ogni account adulto (partecipante, dirigente,
+  // genitore) arriva a E, o al modulo del figlio scelto. L'account di un
+  // minore si è fermato in cima.
   if (passo === "figlio") {
     return canonical("figlio", per);
   }
@@ -166,7 +170,8 @@ test("parseRegisterPasso: solo i cinque passi, scritti esatti", () => {
     assert.equal(parseRegisterPasso(passo), passo);
   }
 
-  // Le due schede sono schermate, non passi: non si aprono dall'URL.
+  // La scheda "serve-genitore" è una schermata, non un passo: non si apre
+  // dall'URL. "solo-figli" non esiste più (fase 6), quindi nemmeno come passo.
   for (const value of [
     null,
     undefined,
@@ -248,8 +253,13 @@ const CASES = [
   ["adulto partecipante, per=io → F", { account: "user", profileComplete: true, per: "io" }, { screen: "modulo", per: "io", passo: "modulo" }],
   ["adulto partecipante, per=io&passo=account → F", { account: "user", profileComplete: true, per: "io", passo: "account" }, { screen: "modulo", per: "io", passo: "modulo" }],
   ["dirigente, per=io → F", { account: "user", profileComplete: true, per: "io", role: "staff" }, { screen: "modulo", per: "io", passo: "modulo" }],
-  ["genitore, per=io → solo-figli", { account: "user", profileComplete: true, per: "io", role: "parent" }, { screen: "solo-figli", per: "io", passo: null }],
-  ["genitore, per=io&passo=modulo → solo-figli", { account: "user", profileComplete: true, per: "io", passo: "modulo", role: "parent" }, { screen: "solo-figli", per: "io", passo: null }],
+  // "Account già esistente", riga 2: il genitore che sceglie "Partecipo io"
+  // completa i suoi dati (D-io), qualunque passo ci sia nell'URL; "Cambia" → B.
+  ["genitore, per=io → D-io", { account: "user", profileComplete: true, per: "io", role: "parent" }, { screen: "dati", per: "io", passo: "dati" }],
+  ["genitore, per=io&passo=modulo → D-io", { account: "user", profileComplete: true, per: "io", passo: "modulo", role: "parent" }, { screen: "dati", per: "io", passo: "dati" }],
+  ["genitore, per=io&passo=account → D-io", { account: "user", profileComplete: true, per: "io", passo: "account", role: "parent" }, { screen: "dati", per: "io", passo: "dati" }],
+  ["genitore, per=io&passo=dati → D-io", { account: "user", profileComplete: true, per: "io", passo: "dati", role: "parent" }, { screen: "dati", per: "io", passo: "dati" }],
+  ["genitore, per=io&passo=figlio → D-io", { account: "user", profileComplete: true, per: "io", passo: "figlio", role: "parent", childSelected: true }, { screen: "dati", per: "io", passo: "dati" }],
   ["genitore, per=io&passo=chi → B", { account: "user", profileComplete: true, per: "io", passo: "chi", role: "parent" }, { screen: "chi", per: "io", passo: "chi" }],
 
   // Adulto completo, "Iscrivo mio figlio".
@@ -261,10 +271,27 @@ const CASES = [
   ["genitore con figlio scelto, per=figlio&passo=dati → F", { account: "user", profileComplete: true, per: "figlio", passo: "dati", role: "parent", childSelected: true }, { screen: "modulo", per: "figlio", passo: "modulo" }],
   ["genitore con figlio scelto, per=figlio&passo=figlio → E («Cambia» dal modulo)", { account: "user", profileComplete: true, per: "figlio", passo: "figlio", role: "parent", childSelected: true }, { screen: "figlio", per: "figlio", passo: "figlio" }],
   ["genitore con figlio scelto, per=figlio&passo=chi → B", { account: "user", profileComplete: true, per: "figlio", passo: "chi", role: "parent", childSelected: true }, { screen: "chi", per: "figlio", passo: "chi" }],
-  ["adulto partecipante, per=figlio → serve-genitore", { account: "user", profileComplete: true, per: "figlio" }, { screen: "serve-genitore", per: "figlio", passo: null }],
-  ["adulto partecipante con child in URL, per=figlio&passo=modulo → serve-genitore", { account: "user", profileComplete: true, per: "figlio", passo: "modulo", childSelected: true }, { screen: "serve-genitore", per: "figlio", passo: null }],
-  ["dirigente, per=figlio → serve-genitore", { account: "user", profileComplete: true, per: "figlio", role: "staff" }, { screen: "serve-genitore", per: "figlio", passo: null }],
-  ["dirigente, per=figlio&passo=figlio → serve-genitore", { account: "user", profileComplete: true, per: "figlio", passo: "figlio", role: "staff" }, { screen: "serve-genitore", per: "figlio", passo: null }],
+
+  // G2 = a, "Account già esistente" riga 1: «Adulto con qualunque ruolo» che
+  // sceglie "Iscrivo mio figlio" arriva a E ("Sei entrato come …"), o al
+  // modulo del figlio già scelto. Il ruolo non cambia il percorso.
+  ["adulto partecipante, per=figlio → E", { account: "user", profileComplete: true, per: "figlio" }, { screen: "figlio", per: "figlio", passo: "figlio" }],
+  ["adulto partecipante, per=figlio&passo=modulo senza figlio scelto → E", { account: "user", profileComplete: true, per: "figlio", passo: "modulo" }, { screen: "figlio", per: "figlio", passo: "figlio" }],
+  ["adulto partecipante, per=figlio&passo=account → E", { account: "user", profileComplete: true, per: "figlio", passo: "account" }, { screen: "figlio", per: "figlio", passo: "figlio" }],
+  ["adulto partecipante con figlio scelto, per=figlio&passo=modulo → F del figlio", { account: "user", profileComplete: true, per: "figlio", passo: "modulo", childSelected: true }, { screen: "modulo", per: "figlio", passo: "modulo" }],
+  ["adulto partecipante con figlio scelto, per=figlio senza passo → F del figlio", { account: "user", profileComplete: true, per: "figlio", childSelected: true }, { screen: "modulo", per: "figlio", passo: "modulo" }],
+  ["adulto partecipante con figlio scelto, per=figlio&passo=figlio → E («Cambia» dal modulo)", { account: "user", profileComplete: true, per: "figlio", passo: "figlio", childSelected: true }, { screen: "figlio", per: "figlio", passo: "figlio" }],
+  ["adulto partecipante, per=figlio&passo=chi → B", { account: "user", profileComplete: true, per: "figlio", passo: "chi" }, { screen: "chi", per: "figlio", passo: "chi" }],
+  ["dirigente, per=figlio → E", { account: "user", profileComplete: true, per: "figlio", role: "staff" }, { screen: "figlio", per: "figlio", passo: "figlio" }],
+  ["dirigente, per=figlio&passo=figlio → E", { account: "user", profileComplete: true, per: "figlio", passo: "figlio", role: "staff" }, { screen: "figlio", per: "figlio", passo: "figlio" }],
+  ["dirigente con figlio scelto, per=figlio&passo=modulo → F del figlio", { account: "user", profileComplete: true, per: "figlio", passo: "modulo", role: "staff", childSelected: true }, { screen: "modulo", per: "figlio", passo: "modulo" }],
+  ["dirigente, per=figlio&passo=chi → B", { account: "user", profileComplete: true, per: "figlio", passo: "chi", role: "staff" }, { screen: "chi", per: "figlio", passo: "chi" }],
+  // Un partecipante col profilo da completare che sceglie il figlio passa
+  // ancora da D-genitore (fase 6, in fondo): niente E prima di aver salvato.
+  // Vale per ogni account vero con il profilo da completare, anche un dirigente.
+  ["adulto partecipante col profilo da completare, per=figlio → D", { account: "user", per: "figlio" }, { screen: "dati", per: "figlio", passo: "dati" }],
+  ["adulto partecipante col profilo da completare, per=figlio&passo=figlio → D", { account: "user", per: "figlio", passo: "figlio", childSelected: true }, { screen: "dati", per: "figlio", passo: "dati" }],
+  ["dirigente col profilo da completare, per=figlio → D", { account: "user", per: "figlio", role: "staff" }, { screen: "dati", per: "figlio", passo: "dati" }],
   ["adulto completo, nessuna scelta → B", { account: "user", profileComplete: true, role: "staff" }, { screen: "chi", per: null, passo: null }],
 ];
 
@@ -361,11 +388,12 @@ test("resolveRegisterFlow: invarianti della spec su tutte le combinazioni", () =
       }
     }
 
-    // Un figlio si iscrive solo da un account `parent` col profilo completo.
+    // G2: un figlio si iscrive da un account vero col profilo completo, di
+    // qualunque ruolo adulto; mai da quello di un minore.
     if (screen === "figlio" || (screen === "modulo" && per === "figlio")) {
       assert.equal(state.account, "user", label);
       assert.equal(state.profileComplete, true, label);
-      assert.equal(state.role, "parent", label);
+      assert.equal(isMinorAccount(state), false, label);
     }
 
     // Il modulo di un figlio solo con un figlio scelto.
@@ -378,14 +406,28 @@ test("resolveRegisterFlow: invarianti della spec su tutte le combinazioni", () =
       assert.ok(screen !== "figlio" && screen !== "serve-genitore", label);
     }
 
-    // "Iscrivo mio figlio" non porta mai a "solo-figli".
-    if (per === "figlio") {
-      assert.notEqual(screen, "solo-figli", label);
+    // La scheda "serve-genitore" è solo dell'account di un minore che ha
+    // scelto il figlio: nessun altro account la vede (G2).
+    if (screen === "serve-genitore") {
+      assert.equal(isMinorAccount(state), true, label);
+      assert.equal(per, "figlio", label);
     }
 
     // L'account di un minore completo non vede mai B.
-    if (state.account === "user" && state.profileComplete && state.isMinor && state.role === "participant") {
+    if (isMinorAccount(state)) {
       assert.notEqual(screen, "chi", label);
+    }
+
+    // "Account già esistente", riga 2: il genitore completo che ha scelto
+    // "Partecipo io" (e non è tornato a B) completa i suoi dati.
+    if (state.account === "user" && state.profileComplete && state.role === "parent" && per === "io" && state.passo !== "chi") {
+      assert.equal(screen, "dati", label);
+    }
+
+    // Adulto completo (non minore) che ha scelto il figlio e non è tornato a B:
+    // E o il modulo del figlio, mai una scheda di rifiuto (G2).
+    if (state.account === "user" && state.profileComplete && !isMinorAccount(state) && per === "figlio" && state.passo !== "chi") {
+      assert.ok(screen === "figlio" || screen === "modulo", label);
     }
   }
 });
@@ -421,7 +463,6 @@ test("getRegisterBackTarget: dagli altri passi si torna a B con la scelta di pri
     ["figlio", "figlio"],
     ["modulo", "io"],
     ["serve-genitore", "figlio"],
-    ["solo-figli", "io"],
   ];
   for (const [screen, per] of cases) {
     assert.deepEqual(getRegisterBackTarget(screen, per, false), { kind: "step", per, passo: "chi" }, `${screen} per=${per}`);
@@ -443,7 +484,7 @@ test("getRegisterProgressIndex: segmento attivo del percorso", () => {
 });
 
 test("getRegisterProgressIndex: nessun percorso su B, modulo e schede", () => {
-  for (const screen of ["chi", "modulo", "serve-genitore", "solo-figli"]) {
+  for (const screen of ["chi", "modulo", "serve-genitore"]) {
     for (const per of PER_VALUES) {
       assert.equal(getRegisterProgressIndex(screen, per), null, `${screen} per=${per}`);
     }
@@ -678,15 +719,19 @@ function resolveFromUrl(state, hasOwnRegistration) {
   return resolveRegisterFlow({ ...state, per: choice.per, passo: choice.passo });
 }
 
-test("composizione: genitore completo, child nell'URL senza per → modulo del figlio, il figlio non si perde", () => {
-  for (const passo of PASSO_VALUES) {
-    for (const hasOwnRegistration of BOOLEANS) {
-      const state = makeState({ account: "user", profileComplete: true, role: "parent", childSelected: true, passo });
-      assert.deepEqual(
-        resolveFromUrl(state, hasOwnRegistration),
-        { screen: "modulo", per: "figlio", passo: "modulo" },
-        JSON.stringify({ passo, hasOwnRegistration }),
-      );
+test("composizione: adulto completo, child nell'URL senza per → modulo del figlio, il figlio non si perde", () => {
+  // «Gestisci» in Famiglia vale per ogni account adulto (G2), non solo per il
+  // genitore: lo stesso link porta al modulo del figlio per qualunque ruolo.
+  for (const role of ["parent", "participant", "staff"]) {
+    for (const passo of PASSO_VALUES) {
+      for (const hasOwnRegistration of BOOLEANS) {
+        const state = makeState({ account: "user", profileComplete: true, role, childSelected: true, passo });
+        assert.deepEqual(
+          resolveFromUrl(state, hasOwnRegistration),
+          { screen: "modulo", per: "figlio", passo: "modulo" },
+          JSON.stringify({ role, passo, hasOwnRegistration }),
+        );
+      }
     }
   }
 });
@@ -702,10 +747,19 @@ test("composizione: solo la propria iscrizione, per assente → il proprio modul
     resolveFromUrl(makeState({ account: "guest", guestAllowed: true }), true),
     { screen: "modulo", per: "io", passo: "modulo" },
   );
-  // Senza iscrizione né figlio: B.
+  // Senza iscrizione né figlio: B, per ogni ruolo adulto.
+  for (const role of ["parent", "participant", "staff"]) {
+    assert.deepEqual(
+      resolveFromUrl(makeState({ account: "user", profileComplete: true, role }), false),
+      { screen: "chi", per: null, passo: null },
+      role,
+    );
+  }
+  // Un genitore con la propria iscrizione (era partecipante, poi è passato
+  // ad account genitore) per «Partecipo io» completa i suoi dati: D-io.
   assert.deepEqual(
-    resolveFromUrl(makeState({ account: "user", profileComplete: true, role: "parent" }), false),
-    { screen: "chi", per: null, passo: null },
+    resolveFromUrl(makeState({ account: "user", profileComplete: true, role: "parent" }), true),
+    { screen: "dati", per: "io", passo: "dati" },
   );
 });
 

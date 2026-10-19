@@ -12,9 +12,10 @@ import {
 // Passo "inviata" dell'iscrizione: la schermata H "Iscrizione inviata"
 // (docs/FLUSSO_GENITORE.md, H e "Navigazione"). Vale solo per un account vero
 // con l'iscrizione già salvata (`submitted`) e con i prerequisiti del modulo:
-// genitore con il figlio scelto, partecipante completo, account di un minore.
-// Aprire o ricaricare `passo=inviata` senza quei prerequisiti porta al primo
-// passo valido, con il passo canonico nell'URL, mai a un errore.
+// un account adulto di qualunque ruolo con il figlio scelto (G2, fase 6),
+// partecipante o dirigente completo che si è iscritto lui, account di un
+// minore. Aprire o ricaricare `passo=inviata` senza quei prerequisiti porta al
+// primo passo valido, con il passo canonico nell'URL, mai a un errore.
 //
 // I casi di prima (passi chi…modulo) sono in tests/registerFlow.test.mjs; qui
 // si prova anche che `submitted` non cambia niente sugli altri passi.
@@ -27,7 +28,7 @@ const ACCOUNT_VALUES = ["none", "guest", "user"];
 const ROLE_VALUES = ["participant", "parent", "staff"];
 const BOOLEANS = [false, true];
 const SUBMITTED_VALUES = [undefined, false, true];
-const SCREENS = ["chi", "account", "dati", "figlio", "modulo", "inviata", "serve-genitore", "solo-figli"];
+const SCREENS = ["chi", "account", "dati", "figlio", "modulo", "inviata", "serve-genitore"];
 
 const makeState = (overrides = {}) => ({
   per: null,
@@ -82,13 +83,14 @@ function expectedInviataPer(state) {
   }
 
   if (state.per === "io") {
-    // Il genitore completo che sceglie "Partecipo io" vede "solo-figli".
+    // Il genitore completo che sceglie "Partecipo io" completa i suoi dati
+    // (D-io): H per sé vale per gli altri ruoli.
     return state.role === "parent" ? null : "io";
   }
 
   if (state.per === "figlio") {
-    // Solo l'account da genitore, e solo con il figlio scelto.
-    return state.role === "parent" && state.childSelected ? "figlio" : null;
+    // G2: ogni account adulto, e solo con il figlio scelto.
+    return state.childSelected ? "figlio" : null;
   }
 
   return null;
@@ -213,22 +215,52 @@ const CASES = [
     expected: { screen: "figlio", per: "figlio", passo: "figlio" },
   },
   {
-    title: "genitore completo con per=io → scheda solo-figli",
+    title: "genitore completo con per=io → I tuoi dati (D-io), i figli restano",
     state: { per: "io", role: "parent" },
-    expected: { screen: "solo-figli", per: "io", passo: null },
+    expected: { screen: "dati", per: "io", passo: "dati" },
   },
 
-  // Account che non iscrivono figli (fino alla fase 6).
+  // G2 = a: l'iscrizione di un figlio inviata da un account adulto di
+  // qualunque ruolo. Il ruolo non cambia, H è la stessa.
   {
-    title: "partecipante adulto con per=figlio → serve l'account di un genitore",
+    title: "partecipante adulto con il figlio scelto e l'iscrizione salvata → H",
     state: { per: "figlio", role: "participant", childSelected: true },
-    expected: { screen: "serve-genitore", per: "figlio", passo: null },
+    expected: { screen: "inviata", per: "figlio", passo: "inviata" },
   },
   {
-    title: "dirigente con per=figlio → serve l'account di un genitore",
+    title: "dirigente con il figlio scelto e l'iscrizione salvata → H",
     state: { per: "figlio", role: "staff", childSelected: true },
-    expected: { screen: "serve-genitore", per: "figlio", passo: null },
+    expected: { screen: "inviata", per: "figlio", passo: "inviata" },
   },
+  {
+    title: "partecipante adulto senza figlio scelto → Chi iscrivi?",
+    state: { per: "figlio", role: "participant", childSelected: false },
+    expected: { screen: "figlio", per: "figlio", passo: "figlio" },
+  },
+  {
+    title: "dirigente senza figlio scelto → Chi iscrivi?",
+    state: { per: "figlio", role: "staff", childSelected: false },
+    expected: { screen: "figlio", per: "figlio", passo: "figlio" },
+  },
+  {
+    title: "partecipante adulto con il figlio scelto senza submitted → modulo del figlio",
+    state: { per: "figlio", role: "participant", childSelected: true, submitted: false },
+    expected: { screen: "modulo", per: "figlio", passo: "modulo" },
+  },
+  {
+    title: "dirigente con il figlio scelto senza submitted → modulo del figlio",
+    state: { per: "figlio", role: "staff", childSelected: true, submitted: undefined },
+    expected: { screen: "modulo", per: "figlio", passo: "modulo" },
+  },
+
+  // Il dirigente che si è iscritto lui (tabella «Account già esistente», riga 3).
+  {
+    title: "dirigente iscritto lui, per=io → H per sé (poi «Iscrivi un figlio» → E)",
+    state: { per: "io", role: "staff", childSelected: false },
+    expected: { screen: "inviata", per: "io", passo: "inviata" },
+  },
+
+  // Account di un minore: la scheda resta.
   {
     title: "account di un minore con per=figlio → serve l'account di un genitore",
     state: { per: "figlio", isMinor: true, childSelected: true },
@@ -292,7 +324,7 @@ test("resolveRegisterFlow con passo=inviata: sempre una schermata nota, con per 
     const actual = resolveRegisterFlow(state);
     assert.ok(SCREENS.includes(actual.screen), `${describeState(state)} → ${actual.screen}`);
 
-    if (actual.screen === "serve-genitore" || actual.screen === "solo-figli") {
+    if (actual.screen === "serve-genitore") {
       assert.equal(actual.passo, null, describeState(state));
     } else if (actual.screen === "chi") {
       assert.equal(actual.passo, actual.per ? "chi" : null, describeState(state));

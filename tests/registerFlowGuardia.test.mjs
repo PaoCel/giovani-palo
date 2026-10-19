@@ -9,23 +9,25 @@ import {
   resolveRegisterFlow,
 } from "../src/utils/registerFlow.ts";
 
-// Fase 5 del flusso genitore (docs/FLUSSO_GENITORE.md, G, D, "Account già
-// esistente o sbagliato"): la guardia adulto in cima al modulo e le due
-// regole nuove di `resolveRegisterFlow`.
+// Fase 5 e 6 del flusso genitore (docs/FLUSSO_GENITORE.md, G, D, "Account già
+// esistente o sbagliato", scelta G2 = a): la guardia adulto in cima al modulo,
+// «I tuoi dati» riaperti dalla guardia e il genitore che sceglie "Partecipo io".
 //
 // - `adultGuard`: un partecipante già entrato (profilo completo, "Partecipo
 //   io") con almeno 19 anni il primo giorno vede la schermata `guardia` al
 //   posto del modulo. Il passo nell'URL resta `modulo`.
-// - `parentHasChildren`: un account `parent` che sceglie "Partecipo io" va a
-//   «I tuoi dati» se non ha figli (completa i dati e diventa partecipante), alla
-//   scheda `solo-figli` se ne ha (fino alla fase 6); non noto vale come «con
-//   figli».
 // - `editOwnData`: `passo=dati` per un profilo già completo vale solo se la
 //   guardia l'ha aperto ("Ho sbagliato la data", "Partecipo come dirigente"
 //   lo mettono nella cronologia, non nell'URL); digitato a mano non apre niente.
+// - Account `parent` che sceglie "Partecipo io": con la fase 6 va sempre a
+//   «I tuoi dati» (D-io), con o senza figli: al salvataggio diventa
+//   `participant` e i figli restano. Il flag provvisorio `parentHasChildren`
+//   della fase 5 e la scheda `solo-figli` non esistono più.
+// - Figlio scelto da un account adulto di qualunque ruolo: E, o il modulo del
+//   figlio scelto; "serve-genitore" resta solo per l'account di un minore.
 //
-// I casi di prima (senza questi tre campi) sono in tests/registerFlow.test.mjs
-// e tests/registerFlowInviata.test.mjs. Qui la tabella della spec è una
+// I casi di prima (senza questi campi) sono in tests/registerFlow.test.mjs e
+// tests/registerFlowInviata.test.mjs. Qui la tabella della spec è una
 // funzione (`expectedFlow`), confrontata con `resolveRegisterFlow` su tutte le
 // combinazioni; poi i casi uno per uno, con il perché.
 //
@@ -37,7 +39,7 @@ const ACCOUNT_VALUES = ["none", "guest", "user"];
 const ROLE_VALUES = ["participant", "parent", "staff"];
 const BOOLEANS = [false, true];
 const TRISTATE = [undefined, false, true];
-const SCREENS = ["chi", "account", "dati", "figlio", "modulo", "guardia", "serve-genitore", "solo-figli"];
+const SCREENS = ["chi", "account", "dati", "figlio", "modulo", "guardia", "serve-genitore"];
 
 // Un partecipante adulto entrato, col profilo completo, che ha scelto
 // "Partecipo io": con `adultGuard` è il caso della guardia in cima al modulo.
@@ -55,7 +57,7 @@ const makeState = (overrides = {}) => ({
 
 const describeState = (state) => JSON.stringify(state);
 
-/** Tutte le combinazioni di ingresso, comprese le tre novità. */
+/** Tutte le combinazioni di ingresso, comprese le due novità della fase 5. */
 function* allStates() {
   for (const per of PER_VALUES) {
     for (const passo of PASSO_VALUES) {
@@ -76,22 +78,19 @@ function* allStates() {
                       continue;
                     }
 
-                    for (const parentHasChildren of TRISTATE) {
-                      for (const editOwnData of TRISTATE) {
-                        yield {
-                          per,
-                          passo,
-                          account,
-                          profileComplete,
-                          role,
-                          isMinor,
-                          guestAllowed,
-                          childSelected,
-                          adultGuard,
-                          parentHasChildren,
-                          editOwnData,
-                        };
-                      }
+                    for (const editOwnData of TRISTATE) {
+                      yield {
+                        per,
+                        passo,
+                        account,
+                        profileComplete,
+                        role,
+                        isMinor,
+                        guestAllowed,
+                        childSelected,
+                        adultGuard,
+                        editOwnData,
+                      };
                     }
                   }
                 }
@@ -106,7 +105,7 @@ function* allStates() {
 
 /** Valori canonici per l'URL di ogni schermata (per resta quello passato). */
 function canonical(screen, per) {
-  if (screen === "serve-genitore" || screen === "solo-figli") {
+  if (screen === "serve-genitore") {
     return { screen, per, passo: null };
   }
 
@@ -157,11 +156,11 @@ function expectedFlow(state) {
   }
 
   if (per === "io") {
-    // "Account già esistente": il genitore che sceglie "Partecipo io" completa
-    // i suoi dati (D-io). Fino alla fase 6, solo senza figli; con figli (o
-    // non noto) resta la scheda «solo-figli».
+    // "Account già esistente", riga 2: il genitore che sceglie "Partecipo io"
+    // completa i suoi dati (D-io), con o senza figli: al salvataggio diventa
+    // `participant` e i figli restano.
     if (state.role === "parent") {
-      return state.parentHasChildren === false ? canonical("dati", per) : canonical("solo-figli", per);
+      return canonical("dati", per);
     }
 
     // D riaperta dalla guardia: «Ho sbagliato la data», «Partecipo come
@@ -173,11 +172,8 @@ function expectedFlow(state) {
     return state.adultGuard === true ? canonical("guardia", per) : canonical("modulo", per);
   }
 
-  // per === "figlio": come prima della fase 5 (fase 6 = G2).
-  if (state.role !== "parent") {
-    return canonical("serve-genitore", per);
-  }
-
+  // per === "figlio", G2 = a: ogni account adulto arriva a E, o al modulo del
+  // figlio scelto (l'account di un minore si è fermato in cima).
   if (passo === "figlio") {
     return canonical("figlio", per);
   }
@@ -266,17 +262,25 @@ test("guardia: senza una scelta (per assente) si parte da Chi partecipa?", () =>
 });
 
 test("guardia: per=figlio non la mostra, il flag non conta (si iscrive un figlio, non sé)", () => {
-  // Un partecipante adulto che sceglie "Iscrivo mio figlio": serve un genitore.
+  // Un partecipante adulto che sceglie "Iscrivo mio figlio" (G2): E, con
+  // «Sei entrato come …», l'account resta com'è. La guardia riguarda chi
+  // partecipa lui.
   assert.deepEqual(resolveRegisterFlow(makeState({ adultGuard: true, per: "figlio" })), {
-    screen: "serve-genitore",
+    screen: "figlio",
     per: "figlio",
-    passo: null,
+    passo: "figlio",
   });
+  // Senza un figlio scelto anche passo=modulo riporta a E.
   assert.deepEqual(resolveRegisterFlow(makeState({ adultGuard: true, per: "figlio", passo: "modulo" })), {
-    screen: "serve-genitore",
+    screen: "figlio",
     per: "figlio",
-    passo: null,
+    passo: "figlio",
   });
+  // Con il figlio scelto, il modulo del figlio: mai la guardia.
+  assert.deepEqual(
+    resolveRegisterFlow(makeState({ adultGuard: true, per: "figlio", passo: "modulo", childSelected: true })),
+    { screen: "modulo", per: "figlio", passo: "modulo" },
+  );
 });
 
 test("guardia: l'account di un minore la ignora e va dritto al modulo", () => {
@@ -389,103 +393,86 @@ test(
 );
 
 // ---------------------------------------------------------------------------
-// Account genitore che sceglie "Partecipo io" (parentHasChildren)
+// Account genitore che sceglie "Partecipo io" (D-io, fase 6)
 // ---------------------------------------------------------------------------
 
-test("genitore completo, per=io, senza figli → «I tuoi dati» (completa i dati e diventa partecipante)", () => {
-  for (const passo of [null, "modulo", "account", "dati"]) {
+test("genitore completo, per=io → «I tuoi dati» (completa i dati e diventa partecipante), i figli restano", () => {
+  // "Account già esistente", riga 2. Lo stato non dice se ha figli: non conta.
+  for (const passo of [null, "modulo", "account", "dati", "figlio"]) {
     assert.deepEqual(
-      resolveRegisterFlow(makeState({ role: "parent", parentHasChildren: false, passo })),
+      resolveRegisterFlow(makeState({ role: "parent", passo })),
       { screen: "dati", per: "io", passo: "dati" },
       `passo=${passo}`,
     );
   }
 });
 
-test("genitore completo, per=io, con figli → scheda solo-figli", () => {
-  for (const passo of [null, "modulo", "account", "dati"]) {
-    assert.deepEqual(
-      resolveRegisterFlow(makeState({ role: "parent", parentHasChildren: true, passo })),
-      { screen: "solo-figli", per: "io", passo: null },
-      `passo=${passo}`,
-    );
-  }
-});
-
-test("genitore completo, per=io, figli non noti (campo assente) → solo-figli, come con figli", () => {
-  assert.deepEqual(resolveRegisterFlow(makeState({ role: "parent", parentHasChildren: undefined })), {
-    screen: "solo-figli",
-    per: "io",
-    passo: null,
-  });
-  // Come prima della fase 5: senza il campo l'esito è quello di allora.
-  assert.deepEqual(resolveRegisterFlow(makeState({ role: "parent" })), {
-    screen: "solo-figli",
-    per: "io",
-    passo: null,
-  });
-});
-
-test("genitore: «Cambia» (passo=chi) porta a Chi partecipa? con o senza figli", () => {
-  for (const parentHasChildren of TRISTATE) {
-    assert.deepEqual(
-      resolveRegisterFlow(makeState({ role: "parent", parentHasChildren, passo: "chi" })),
-      { screen: "chi", per: "io", passo: "chi" },
-      `parentHasChildren=${parentHasChildren}`,
-    );
-  }
-});
-
-test("genitore: per=figlio non cambia con parentHasChildren (E o il modulo del figlio scelto)", () => {
-  for (const parentHasChildren of TRISTATE) {
-    assert.deepEqual(
-      resolveRegisterFlow(makeState({ role: "parent", per: "figlio", parentHasChildren })),
-      { screen: "figlio", per: "figlio", passo: "figlio" },
-      `parentHasChildren=${parentHasChildren}`,
-    );
-    assert.deepEqual(
-      resolveRegisterFlow(
-        makeState({ role: "parent", per: "figlio", passo: "modulo", childSelected: true, parentHasChildren }),
-      ),
-      { screen: "modulo", per: "figlio", passo: "modulo" },
-      `parentHasChildren=${parentHasChildren}`,
-    );
-  }
-});
-
-test("genitore con profilo da completare: «I tuoi dati» comunque, parentHasChildren non conta", () => {
-  for (const parentHasChildren of TRISTATE) {
-    assert.deepEqual(
-      resolveRegisterFlow(makeState({ role: "parent", profileComplete: false, parentHasChildren })),
-      { screen: "dati", per: "io", passo: "dati" },
-      `parentHasChildren=${parentHasChildren}`,
-    );
-  }
-});
-
-test("parentHasChildren non cambia nulla per chi non è un account da genitore", () => {
-  for (const role of ["participant", "staff"]) {
-    const results = TRISTATE.map((parentHasChildren) =>
-      resolveRegisterFlow(makeState({ role, parentHasChildren })),
-    );
-    for (const result of results) {
-      assert.deepEqual(result, { screen: "modulo", per: "io", passo: "modulo" }, role);
+test("genitore completo, per=io: editOwnData non cambia D-io", () => {
+  for (const editOwnData of TRISTATE) {
+    for (const passo of [null, "modulo", "dati"]) {
+      assert.deepEqual(
+        resolveRegisterFlow(makeState({ role: "parent", passo, editOwnData })),
+        { screen: "dati", per: "io", passo: "dati" },
+        `passo=${passo} editOwnData=${editOwnData}`,
+      );
     }
   }
 });
 
-test("genitore senza figli: dopo il salvataggio l'account è participant e si va al modulo (o alla guardia)", () => {
-  // Il salvataggio di D-io cambia il ruolo in participant (updateProfile con
-  // `role`): il passo dopo è quello di qualunque partecipante completo.
-  assert.deepEqual(resolveRegisterFlow(makeState({ role: "participant", parentHasChildren: false })), {
+test("genitore: «Cambia» (passo=chi) porta a Chi partecipa? e la scelta resta", () => {
+  assert.deepEqual(resolveRegisterFlow(makeState({ role: "parent", passo: "chi" })), {
+    screen: "chi",
+    per: "io",
+    passo: "chi",
+  });
+});
+
+test("genitore: per=figlio porta a E, o al modulo del figlio scelto", () => {
+  assert.deepEqual(resolveRegisterFlow(makeState({ role: "parent", per: "figlio" })), {
+    screen: "figlio",
+    per: "figlio",
+    passo: "figlio",
+  });
+  assert.deepEqual(
+    resolveRegisterFlow(makeState({ role: "parent", per: "figlio", passo: "modulo", childSelected: true })),
+    { screen: "modulo", per: "figlio", passo: "modulo" },
+  );
+});
+
+test("genitore con profilo da completare: «I tuoi dati» comunque", () => {
+  assert.deepEqual(resolveRegisterFlow(makeState({ role: "parent", profileComplete: false })), {
+    screen: "dati",
+    per: "io",
+    passo: "dati",
+  });
+});
+
+test("genitore: dopo il salvataggio l'account è participant e si va al modulo (o alla guardia)", () => {
+  // Il salvataggio di D-io cambia il ruolo in participant (i figli restano):
+  // il passo dopo è quello di qualunque partecipante completo.
+  assert.deepEqual(resolveRegisterFlow(makeState({ role: "participant" })), {
     screen: "modulo",
     per: "io",
     passo: "modulo",
   });
-  assert.deepEqual(
-    resolveRegisterFlow(makeState({ role: "participant", parentHasChildren: false, adultGuard: true })),
-    { screen: "guardia", per: "io", passo: "modulo" },
-  );
+  assert.deepEqual(resolveRegisterFlow(makeState({ role: "participant", adultGuard: true })), {
+    screen: "guardia",
+    per: "io",
+    passo: "modulo",
+  });
+});
+
+test("participant e staff con per=figlio: lo stesso E del genitore, il ruolo non conta (G2)", () => {
+  const expected = { screen: "figlio", per: "figlio", passo: "figlio" };
+  const expectedChild = { screen: "modulo", per: "figlio", passo: "modulo" };
+  for (const role of ["participant", "parent", "staff"]) {
+    assert.deepEqual(resolveRegisterFlow(makeState({ role, per: "figlio" })), expected, role);
+    assert.deepEqual(
+      resolveRegisterFlow(makeState({ role, per: "figlio", passo: "modulo", childSelected: true })),
+      expectedChild,
+      role,
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -546,12 +533,17 @@ test("dati: editOwnData vale solo per passo=dati, con altri passi si va al modul
 });
 
 test("dati: editOwnData con per=figlio non apre «I tuoi dati»", () => {
-  // Partecipante adulto che sceglie il figlio: serve un genitore.
+  // Partecipante adulto che sceglie il figlio (G2): E, non D.
   assert.deepEqual(resolveRegisterFlow(makeState({ per: "figlio", passo: "dati", editOwnData: true })), {
-    screen: "serve-genitore",
+    screen: "figlio",
     per: "figlio",
-    passo: null,
+    passo: "figlio",
   });
+  // Dirigente: lo stesso.
+  assert.deepEqual(
+    resolveRegisterFlow(makeState({ per: "figlio", passo: "dati", role: "staff", editOwnData: true })),
+    { screen: "figlio", per: "figlio", passo: "figlio" },
+  );
   // Genitore: E, non D (D si apre da profilo incompleto, non da qui).
   assert.deepEqual(
     resolveRegisterFlow(makeState({ per: "figlio", passo: "dati", role: "parent", editOwnData: true })),
@@ -619,13 +611,6 @@ test("dati: un dirigente (staff) può riaprire i suoi dati con editOwnData, senz
   });
 });
 
-test("dati: il genitore con figli non apre «I tuoi dati» nemmeno con editOwnData (solo-figli)", () => {
-  assert.deepEqual(
-    resolveRegisterFlow(makeState({ role: "parent", parentHasChildren: true, passo: "dati", editOwnData: true })),
-    { screen: "solo-figli", per: "io", passo: null },
-  );
-});
-
 test("dati: stabile, D riaperta da editOwnData riletta con i valori canonici resta D", () => {
   const state = makeState({ passo: "dati", editOwnData: true });
   const first = resolveRegisterFlow(state);
@@ -637,7 +622,7 @@ test("dati: stabile, D riaperta da editOwnData riletta con i valori canonici res
 // Tutte le combinazioni
 // ---------------------------------------------------------------------------
 
-test("resolveRegisterFlow: ogni combinazione dà la schermata della spec (con adultGuard, parentHasChildren, editOwnData)", () => {
+test("resolveRegisterFlow: ogni combinazione dà la schermata della spec (con adultGuard, editOwnData)", () => {
   const mismatches = [];
   let checked = 0;
 
@@ -653,7 +638,7 @@ test("resolveRegisterFlow: ogni combinazione dà la schermata della spec (con ad
     }
   }
 
-  assert.ok(checked > 20000, `combinazioni controllate: ${checked}`);
+  assert.ok(checked > 10000, `combinazioni controllate: ${checked}`);
   assert.deepEqual(mismatches.slice(0, 10), [], `${mismatches.length} combinazioni diverse dalla spec`);
 });
 
@@ -705,24 +690,35 @@ test("resolveRegisterFlow: con il flag acceso il solo cambio è modulo → guard
   }
 });
 
-test("resolveRegisterFlow: «I tuoi dati» per un profilo completo si apre solo con editOwnData o da genitore senza figli", () => {
+test("resolveRegisterFlow: «I tuoi dati» per un profilo completo si apre solo con editOwnData o da genitore", () => {
   for (const state of allStates()) {
     const result = resolveRegisterFlow(state);
     const completeUser = state.account === "user" && state.profileComplete && !state.isMinor;
     if (result.screen !== "dati" || !completeUser) continue;
 
-    const opensForParent = state.role === "parent" && state.parentHasChildren === false;
+    // Il genitore con "Partecipo io" (D-io, con o senza figli) o la guardia che
+    // riapre D per un partecipante o un dirigente.
+    const opensForParent = state.role === "parent" && state.per === "io";
     const opensForGuard = state.role !== "parent" && state.passo === "dati" && state.editOwnData === true;
     assert.ok(opensForParent || opensForGuard, describeState(state));
   }
 });
 
-test("resolveRegisterFlow: i tre campi nuovi assenti danno gli esiti di prima della fase 5", () => {
-  // Stesso ingresso senza adultGuard, parentHasChildren, editOwnData: il
-  // genitore completo con "Partecipo io" vede solo-figli, il partecipante il
-  // modulo, passo=dati per un profilo completo il modulo.
+test("resolveRegisterFlow: un parentHasChildren avanzato in ingresso non cambia nessun esito", () => {
   for (const state of allStates()) {
-    if (state.adultGuard !== undefined || state.parentHasChildren !== undefined || state.editOwnData !== undefined) {
+    const baseline = resolveRegisterFlow(state);
+    for (const parentHasChildren of [false, true]) {
+      assert.deepEqual(resolveRegisterFlow({ ...state, parentHasChildren }), baseline, describeState(state));
+    }
+  }
+});
+
+test("resolveRegisterFlow: senza adultGuard né editOwnData, con \"Partecipo io\" il genitore va a «I tuoi dati» e gli altri al modulo", () => {
+  // Stesso ingresso senza i due campi della fase 5: il genitore completo
+  // completa i dati (D-io), il partecipante e il dirigente vanno al modulo,
+  // passo=dati per un profilo completo porta al modulo.
+  for (const state of allStates()) {
+    if (state.adultGuard !== undefined || state.editOwnData !== undefined) {
       continue;
     }
 
@@ -733,7 +729,7 @@ test("resolveRegisterFlow: i tre campi nuovi assenti danno gli esiti di prima de
       assert.deepEqual(
         result,
         state.role === "parent"
-          ? { screen: "solo-figli", per: "io", passo: null }
+          ? { screen: "dati", per: "io", passo: "dati" }
           : { screen: "modulo", per: "io", passo: "modulo" },
         describeState(state),
       );
