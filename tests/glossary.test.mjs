@@ -716,6 +716,30 @@ test("Chi iscrivi? riusa i testi di Famiglia per la modifica e per la rete", () 
   assert.equal(CHI_ISCRIVI.erroreRete, FAMIGLIA.erroreRete);
 });
 
+test("errore di rete delle scritture: una frase sola in PAROLE, riusata per riferimento", () => {
+  // Offline la scrittura resta in coda e il pulsante si sblocca: la frase che lo
+  // dice è una, in PAROLE; Famiglia, Domande e Galleria la riusano e chi
+  // riusa Famiglia la eredita.
+  assert.ok(PAROLE.erroreRete.trim().length > 0);
+  assert.equal(FAMIGLIA.erroreRete, PAROLE.erroreRete);
+  assert.equal(DOMANDE.erroreRete, PAROLE.erroreRete);
+  assert.equal(GALLERIA.erroreRete, PAROLE.erroreRete);
+  assert.equal(CHI_ISCRIVI.erroreRete, PAROLE.erroreRete);
+  assert.equal(PROFILO.erroreRete, PAROLE.erroreRete);
+
+  // E non è riscritta a mano, da sola, da nessun'altra parte di src/ (una copia
+  // smetterebbe di cambiare insieme alle altre). Una frase più lunga che
+  // comincia allo stesso modo, come invioRete di Iscrizione, è un testo diverso.
+  const asLiteral = ['"', "'", "`"].map((quote) => `${quote}${PAROLE.erroreRete}${quote}`);
+  const writtenIn = listSourceFiles(SRC)
+    .filter((file) => {
+      const text = readFileSync(file, "utf8");
+      return asLiteral.some((literal) => text.includes(literal));
+    })
+    .map((file) => path.relative(ROOT, file).split(path.sep).join("/"));
+  assert.deepEqual(writtenIn, ["src/copy/parole.ts"]);
+});
+
 test("la guardia adulto riusa i testi di Chi partecipa? e dice sempre «figlio o figlia»", () => {
   // Titolo e prima opzione sono quelli di B, non riscritti (docs/FLUSSO_GENITORE.md, G).
   assert.equal(GUARDIA.chiPartecipa, CHI_PARTECIPA.titolo);

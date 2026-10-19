@@ -9,6 +9,7 @@ import {
   areRegistrationsOpen,
   getCancelErrorMessage,
   getCancelRegistrationCopy,
+  getOwnCancelRegistrationCopy,
   shouldShowResumeSigning,
   withCancelTimeout,
 } from "../src/utils/familyCancel.ts";
@@ -22,6 +23,10 @@ import { formatDateOnly } from "../src/utils/formatters.ts";
 //
 // La data di chiusura si confronta con `formatDateOnly` importata e non con una
 // stringa scritta a mano: dipende da Intl it-IT e dal fuso della macchina.
+//
+// Lo stesso foglio nella propria scheda (`/me/activities/:id`) passa da
+// `getOwnCancelRegistrationCopy`: titolo fisso, corpo che dice se si potrà
+// rifare l'iscrizione, con la stessa regola `areRegistrationsOpen` di Famiglia.
 //
 // Comando: node --test tests/familyCancel.test.mjs
 
@@ -379,4 +384,197 @@ test("getCancelErrorMessage: non lascia passare il testo inglese di Firebase", (
   const message = getCancelErrorMessage(withCode("permission-denied", "Missing or insufficient permissions."));
   assert.doesNotMatch(message, /permissions|Firebase/iu);
   assert.notEqual(ANNULLA.errore, ANNULLA.erroreRete);
+});
+
+// ---------------------------------------------------------------------------
+// getOwnCancelRegistrationCopy
+// ---------------------------------------------------------------------------
+
+// Le combinazioni di evento e orologio su cui la scelta aperte/chiuse deve
+// coincidere con `areRegistrationsOpen`, la regola del foglio di Famiglia.
+const OWN_SCENARIOS = [
+  ["dentro la finestra", makeEvent(), NOW_INSIDE],
+  ["apertura esatta", makeEvent(), ms(OPENS)],
+  ["chiusura esatta", makeEvent(), ms(CLOSES)],
+  ["un istante prima dell'apertura", makeEvent(), ms(OPENS) - 1],
+  ["un istante dopo la chiusura", makeEvent(), ms(CLOSES) + 1],
+  ["prima dell'apertura", makeEvent(), NOW_BEFORE],
+  ["dopo la chiusura", makeEvent(), NOW_AFTER],
+  ["stato chiuso", makeEvent({ status: "registrations_closed" }), NOW_INSIDE],
+  ["stato bozza", makeEvent({ status: "draft" }), NOW_INSIDE],
+  ["attività annullata", makeEvent({ status: "cancelled" }), NOW_INSIDE],
+  ["data di chiusura non valida", makeEvent({ registrationClose: "non una data" }), NOW_INSIDE],
+  ["data di apertura mancante", makeEvent({ registrationOpen: undefined }), NOW_INSIDE],
+];
+
+test("getOwnCancelRegistrationCopy: iscrizioni aperte, titolo dell'attività e data di chiusura", () => {
+  const { body } = getOwnCancelRegistrationCopy(makeEvent(), NOW_INSIDE);
+  const closing = formatDateOnly(CLOSES);
+
+  assert.equal(
+    body,
+    fillCopy(ANNULLA.corpoAperteTua, { attivita: "Campo estivo", data: closing }),
+  );
+  assert.ok(body.includes("«Campo estivo»"), body);
+  assert.ok(body.includes(closing), body);
+  assert.doesNotMatch(body, NO_PLACEHOLDER);
+});
+
+test("getOwnCancelRegistrationCopy: la data è quella di chiusura, non quella di apertura", () => {
+  const closing = formatDateOnly(CLOSES);
+  const opening = formatDateOnly(OPENS);
+  assert.notEqual(closing, opening, "il test ha bisogno di due date che si leggono diverse");
+
+  const { body } = getOwnCancelRegistrationCopy(makeEvent(), NOW_INSIDE);
+  assert.ok(body.includes(closing), body);
+  assert.ok(!body.includes(opening), `${body}: c'è la data di apertura`);
+
+  // Cambia la chiusura e cambia il testo: la data arriva davvero dall'evento.
+  const later = "2026-10-25T20:00:00.000Z";
+  assert.notEqual(formatDateOnly(later), closing);
+  const moved = getOwnCancelRegistrationCopy(makeEvent({ registrationClose: later }), NOW_INSIDE).body;
+  assert.ok(moved.includes(formatDateOnly(later)), moved);
+  assert.ok(!moved.includes(closing), moved);
+});
+
+test("getOwnCancelRegistrationCopy: iscrizioni chiuse, senza data e con la stessa attività", () => {
+  const closing = formatDateOnly(CLOSES);
+  const closed = [
+    ["dopo la chiusura", makeEvent(), NOW_AFTER],
+    ["prima dell'apertura", makeEvent(), NOW_BEFORE],
+    ["stato chiuso", makeEvent({ status: "registrations_closed" }), NOW_INSIDE],
+    ["attività annullata", makeEvent({ status: "cancelled" }), NOW_INSIDE],
+    ["date non valide", makeEvent({ registrationClose: "non una data" }), NOW_INSIDE],
+  ];
+  for (const [label, event, now] of closed) {
+    const { body } = getOwnCancelRegistrationCopy(event, now);
+    assert.equal(body, fillCopy(ANNULLA.corpoChiuseTua, { attivita: "Campo estivo" }), label);
+    assert.ok(body.includes("«Campo estivo»"), label);
+    assert.ok(!body.includes(closing), `${label}: la data di chiusura non serve`);
+    assert.doesNotMatch(body, NO_PLACEHOLDER, label);
+  }
+});
+
+test("getOwnCancelRegistrationCopy: aperte e chiuse hanno testi diversi", () => {
+  const open = getOwnCancelRegistrationCopy(makeEvent(), NOW_INSIDE).body;
+  const closed = getOwnCancelRegistrationCopy(makeEvent(), NOW_AFTER).body;
+  assert.notEqual(open, closed);
+  assert.notEqual(ANNULLA.corpoAperteTua, ANNULLA.corpoChiuseTua);
+});
+
+test("getOwnCancelRegistrationCopy: il titolo è sempre quello della propria iscrizione", () => {
+  for (const [label, event, now] of OWN_SCENARIOS) {
+    const { title } = getOwnCancelRegistrationCopy(event, now);
+    assert.equal(title, ANNULLA.titoloTua, label);
+    // Parla alla persona che si sta annullando: nessun nome da riempire.
+    assert.doesNotMatch(title, NO_PLACEHOLDER, label);
+  }
+  for (const title of ["", "   ", undefined]) {
+    assert.equal(getOwnCancelRegistrationCopy(makeEvent({ title }), NOW_INSIDE).title, ANNULLA.titoloTua);
+  }
+});
+
+test("getOwnCancelRegistrationCopy: sceglie aperte o chiuse come areRegistrationsOpen, il controllo del foglio di Famiglia", () => {
+  const closing = formatDateOnly(CLOSES);
+  for (const [label, event, now] of OWN_SCENARIOS) {
+    const { body } = getOwnCancelRegistrationCopy(event, now);
+    const expected = areRegistrationsOpen(event, now)
+      ? fillCopy(ANNULLA.corpoAperteTua, { attivita: "Campo estivo", data: closing })
+      : fillCopy(ANNULLA.corpoChiuseTua, { attivita: "Campo estivo" });
+    assert.equal(body, expected, label);
+    assert.doesNotMatch(body, NO_PLACEHOLDER, label);
+  }
+
+  // Le due schede dicono la stessa cosa sulla possibilità di rifare l'iscrizione.
+  for (const [label, event, now] of OWN_SCENARIOS) {
+    const own = getOwnCancelRegistrationCopy(event, now).body.includes(closing);
+    const family = getCancelRegistrationCopy("Marco", event, now).body.includes(closing);
+    assert.equal(own, family, label);
+  }
+});
+
+test("getOwnCancelRegistrationCopy: uno stato diverso da registrations_open vale come chiuso, anche dentro la finestra", () => {
+  const closing = formatDateOnly(CLOSES);
+  for (const status of ["draft", "planned", "confirmed", "registrations_closed", "completed", "cancelled"]) {
+    const { body } = getOwnCancelRegistrationCopy(makeEvent({ status }), NOW_INSIDE);
+    assert.equal(body, fillCopy(ANNULLA.corpoChiuseTua, { attivita: "Campo estivo" }), status);
+    assert.ok(!body.includes(closing), status);
+  }
+});
+
+test("getOwnCancelRegistrationCopy: evento senza titolo usa «Attività»", () => {
+  const generic = FAMIGLIA.attivitaGenerica;
+  assert.equal(generic, "Attività");
+
+  for (const title of ["", "   ", "\n", "\t ", undefined, null]) {
+    const label = JSON.stringify(title);
+
+    const open = getOwnCancelRegistrationCopy(makeEvent({ title }), NOW_INSIDE).body;
+    assert.equal(
+      open,
+      fillCopy(ANNULLA.corpoAperteTua, { attivita: generic, data: formatDateOnly(CLOSES) }),
+      label,
+    );
+    assert.ok(open.includes(`«${generic}»`), label);
+    assert.doesNotMatch(open, NO_PLACEHOLDER, label);
+
+    const closed = getOwnCancelRegistrationCopy(makeEvent({ title }), NOW_AFTER).body;
+    assert.equal(closed, fillCopy(ANNULLA.corpoChiuseTua, { attivita: generic }), label);
+    assert.ok(closed.includes(`«${generic}»`), label);
+    assert.doesNotMatch(closed, NO_PLACEHOLDER, label);
+  }
+});
+
+test("getOwnCancelRegistrationCopy: il titolo dell'attività è tagliato dagli spazi e non è interpretato", () => {
+  const spaced = getOwnCancelRegistrationCopy(makeEvent({ title: "  Campo estivo  " }), NOW_INSIDE).body;
+  assert.ok(spaced.includes("«Campo estivo»"), spaced);
+
+  // `$&` e simili nel titolo restano com'è: nessuna sostituzione speciale.
+  const special = getOwnCancelRegistrationCopy(makeEvent({ title: "Notte $& giorno" }), NOW_INSIDE).body;
+  assert.ok(special.includes("«Notte $& giorno»"), special);
+  const specialClosed = getOwnCancelRegistrationCopy(makeEvent({ title: "Notte $& giorno" }), NOW_AFTER).body;
+  assert.ok(specialClosed.includes("«Notte $& giorno»"), specialClosed);
+
+  // Un titolo che sembra un segnaposto non viene riempito una seconda volta.
+  const looksLikePlaceholder = getOwnCancelRegistrationCopy(makeEvent({ title: "{data}" }), NOW_INSIDE).body;
+  assert.ok(looksLikePlaceholder.includes("«{data}»"), looksLikePlaceholder);
+});
+
+test("getOwnCancelRegistrationCopy: senza `now` usa l'ora attuale", () => {
+  const day = 24 * 60 * 60 * 1000;
+  const iso = (offset) => new Date(Date.now() + offset).toISOString();
+
+  const open = getOwnCancelRegistrationCopy(
+    makeEvent({ registrationOpen: iso(-day), registrationClose: iso(day) }),
+  ).body;
+  assert.ok(open.includes(formatDateOnly(iso(day))), open);
+
+  const closed = getOwnCancelRegistrationCopy(
+    makeEvent({ registrationOpen: iso(-2 * day), registrationClose: iso(-day) }),
+  ).body;
+  assert.equal(closed, fillCopy(ANNULLA.corpoChiuseTua, { attivita: "Campo estivo" }));
+
+  const notYet = getOwnCancelRegistrationCopy(
+    makeEvent({ registrationOpen: iso(day), registrationClose: iso(2 * day) }),
+  ).body;
+  assert.equal(notYet, fillCopy(ANNULLA.corpoChiuseTua, { attivita: "Campo estivo" }));
+});
+
+test("getOwnCancelRegistrationCopy: non tocca l'evento che riceve", () => {
+  const event = makeEvent();
+  const snapshot = JSON.stringify(event);
+  getOwnCancelRegistrationCopy(event, NOW_INSIDE);
+  getOwnCancelRegistrationCopy(event, NOW_AFTER);
+  assert.equal(JSON.stringify(event), snapshot);
+});
+
+test("le frasi del foglio per la propria iscrizione sono scritte per intero", () => {
+  // La chiave di traduzione è la stringa italiana, punto finale compreso.
+  assert.match(ANNULLA.titoloTua, /\?$/u);
+  for (const text of [ANNULLA.corpoAperteTua, ANNULLA.corpoChiuseTua]) {
+    assert.match(text, /\.$/u, text);
+    assert.ok(text.includes("{attivita}"), text);
+  }
+  assert.ok(ANNULLA.corpoAperteTua.includes("{data}"));
+  assert.ok(!ANNULLA.corpoChiuseTua.includes("{data}"));
 });
