@@ -244,6 +244,10 @@ export function FamilyDashboardPage() {
   useEffect(() => {
     setRemoveTarget(null);
     setCancelTarget(null);
+    // Come la chiusura del foglio: una rilettura o un salvataggio ancora in
+    // corso per l'account di prima non lo riaprono.
+    consentDialogRef.current += 1;
+    setConsentReloading(false);
     setConsentTarget(null);
     setChildModalOpen(false);
   }, [parentUid]);
