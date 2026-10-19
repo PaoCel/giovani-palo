@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { SectionCard } from "@/components/SectionCard";
+import { DOMANDE } from "@/copy/domande";
 import { questionsService } from "@/services/firestore/questionsService";
 import type { AuthSession, Question, Registration } from "@/types";
 import { formatDateTime } from "@/utils/formatters";
@@ -30,6 +32,9 @@ export function QuestionsSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editAnonymous, setEditAnonymous] = useState(false);
+  // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isCancelled = registration.registrationStatus === "cancelled";
   const authorFullName =
@@ -39,6 +44,8 @@ export function QuestionsSection({
 
   useEffect(() => {
     let active = true;
+    // Altra iscrizione o altro account: il foglio di prima non vale più.
+    setDeleteTarget(null);
 
     async function load() {
       if (!session) {
@@ -187,18 +194,15 @@ export function QuestionsSection({
     }
   }
 
-  async function handleDelete(questionId: string) {
-    if (!session) {
-      return;
-    }
+  async function handleConfirmDelete() {
+    const questionId = deleteTarget;
 
-    const confirmed = window.confirm("Eliminare questa domanda?");
-
-    if (!confirmed) {
+    if (!session || !questionId || busy) {
       return;
     }
 
     setBusy(true);
+    setDeleteError(null);
     setError(null);
     setInfo(null);
 
@@ -210,9 +214,10 @@ export function QuestionsSection({
         cancelEdit();
       }
 
+      setDeleteTarget(null);
       setInfo("Domanda eliminata.");
     } catch (caughtError) {
-      setError(
+      setDeleteError(
         caughtError instanceof Error
           ? caughtError.message
           : "Impossibile eliminare la domanda.",
@@ -358,7 +363,10 @@ export function QuestionsSection({
                         <button
                           className="button button--ghost button--small"
                           disabled={busy}
-                          onClick={() => void handleDelete(question.id)}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteTarget(question.id);
+                          }}
                           type="button"
                         >
                           <AppIcon name="trash" />
@@ -373,6 +381,21 @@ export function QuestionsSection({
           </ul>
         )}
       </div>
+
+      {deleteTarget ? (
+        <ConfirmSheet
+          body={DOMANDE.eliminaCorpo}
+          busy={busy}
+          busyLabel={DOMANDE.eliminazione}
+          cancelLabel={DOMANDE.tieni}
+          confirmLabel={DOMANDE.conferma}
+          error={deleteError}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => void handleConfirmDelete()}
+          title={DOMANDE.eliminaTitolo}
+          tone="danger"
+        />
+      ) : null}
     </SectionCard>
   );
 }

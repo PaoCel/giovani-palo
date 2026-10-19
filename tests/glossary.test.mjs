@@ -11,6 +11,7 @@ import { ATTIVITA } from "../src/copy/attivita.ts";
 import { CHI_ISCRIVI } from "../src/copy/chiIscrivi.ts";
 import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
 import { CHI_SEI } from "../src/copy/chiSei.ts";
+import { DOMANDE } from "../src/copy/domande.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
 import { FIRMA } from "../src/copy/firma.ts";
 import { GUARDIA } from "../src/copy/guardia.ts";
@@ -523,6 +524,7 @@ const COPY = {
   CHI_ISCRIVI,
   CHI_PARTECIPA,
   CHI_SEI,
+  DOMANDE,
   FAMIGLIA,
   FIRMA,
   GUARDIA,
