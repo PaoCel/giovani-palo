@@ -397,7 +397,7 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
      azzera ogni nuova mail) fa comparire "Riprendi da «Autorizza ora»".
 3. B e C dentro l'iscrizione, account nuovo `parent` con `per=figlio`, via il
    `window.confirm`, "Chi sei?" fuori dall'attività.
-   **Su `main` dal 2026-10-19, non deployata.** Passi nell'URL
+   **In produzione dal 2026-10-19** (solo hosting, service worker v23). Passi nell'URL
    (`src/utils/registerFlow.ts`), D come "I tuoi dati" condiviso con Accedi,
    A con "Iscriviti" anche dove serve l'account e la riga "Sei un genitore?".
    Fino alle fasi 5 e 6 due schede dicono quale account serve, senza

@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fase 3 su main il 2026-10-19, non deployata (solo hosting); fasi 1 e 2 in produzione"
-next: "deploy hosting della fase 3 con l'ok di Paolo (service worker v23), poi fase 4: E con foglio «Aggiungi», modulo aperto senza figli, prefill del passo genitore, bozze per figlio, H"
-verified: "fase 3 su main, non in produzione: sul mini 511 test unitari, build, rules dei profili nell'emulatore 19 + 3 todo (altro agente), collaudo Playwright contro emulatori a 320/390/430 con 297 controlli verdi, review di un altro agente con correzioni riviste; non provati tastiera vera su iOS/Android e produzione. Fase 2 in produzione dal 2026-10-19"
+stopped_at: "fasi 1, 2 e 3 in produzione dal 2026-10-19 (fase 3: solo hosting da d38fe36, service worker v23)"
+next: "fase 4: E con foglio «Aggiungi» (oggi un genitore nuovo senza figli viene mandato in Famiglia), modulo aperto senza figli, prefill del passo genitore, bozze per figlio, H"
+verified: "fase 3 in produzione: bundle live index-BuVMsq2w.js uguale alla build di d38fe36 e sw v23 su gugditalia.it e web.app; /register di un'attività chiusa e /login?scheda=crea provati da non entrato, console pulita. Prima: sul mini 511 test, build, rules dei profili 19 + 3 todo, collaudo Playwright 297/297 a 320/390/430 contro emulatori, due review di un altro agente. Non provati in produzione: «Chi partecipa?» su un'attività aperta (oggi nessuna) e un account nuovo vero"
 links: []
 done_at:
 ---
@@ -79,15 +79,25 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      `onRegistrationPendingParentAuth`, `parentAuthorizationResend`,
      `…IssueOwnToken`, `…Confirm`, `…Reject`). Tutti e due in sessioni
      separate dal 2026-10-19.
-   - Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
+   - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
-     dialoghi del browser (su `main` dal 2026-10-19, **non deployata**:
-     solo hosting, nessuna rule né function). Dettaglio e scelte provvisorie
-     fino alle fasi 5-6 nella spec, sezione "Fasi".
+     dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
+     service worker v23). Dettaglio e scelte provvisorie fino alle fasi 5-6
+     nella spec, sezione "Fasi".
 3. ~~Illustrazioni: WebP 2× nel repo~~ (`src/assets/flusso-genitore/`: io,
    genitore, giovani, dirigente a 240 px; le altre due con le fasi 4-5).
 
 ## Verificato
+
+2026-10-19, rilascio fase 3 con l'ok di Paolo: hosting da una copia isolata di
+`d38fe36` (build sul Mac mini, `firebase deploy --only hosting`), service
+worker v23. Su gugditalia.it e giovani-palo.web.app il bundle servito è quello
+della build (`index-BuVMsq2w.js`) e `sw.js` è v23. Da non entrato: `/register`
+del viaggio al tempio (iscrizioni chiuse) mostra la scheda "Iscrizioni chiuse"
+con la freccia del percorso e senza quella del sito; `/login?scheda=crea` con
+le due schede; console senza errori. Oggi nessuna attività ha le iscrizioni
+aperte: «Chi partecipa?» e un account nuovo veri sono provati solo contro gli
+emulatori.
 
 2026-10-19, fase 3 su `main` (non deployata). Sul Mac mini: `npm ci && npm
 test && npm run build` verdi (511 test, di cui 155 nuovi scritti da un altro
