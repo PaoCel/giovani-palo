@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fasi 1, 2 e 3 in produzione dal 2026-10-19 (fase 3: solo hosting da d38fe36, service worker v23)"
-next: "fase 4: E con foglio «Aggiungi» (oggi un genitore nuovo senza figli viene mandato in Famiglia), modulo aperto senza figli, prefill del passo genitore, bozze per figlio, H"
-verified: "fase 3 in produzione: bundle live index-BuVMsq2w.js uguale alla build di d38fe36 e sw v23 su gugditalia.it e web.app; /register di un'attività chiusa e /login?scheda=crea provati da non entrato, console pulita. Prima: sul mini 511 test, build, rules dei profili 19 + 3 todo, collaudo Playwright 297/297 a 320/390/430 contro emulatori, due review di un altro agente. Non provati in produzione: «Chi partecipa?» su un'attività aperta (oggi nessuna) e un account nuovo vero"
+stopped_at: "fasi 1-3 in produzione dal 2026-10-19; fase 4 (Chi iscrivi?, foglio Aggiungi, bozze per figlio, prefill del genitore, Iscrizione inviata) su main, non deployata"
+next: "rilascio fase 4 con l'ok di Paolo (solo hosting, service worker v24, da copia isolata del commit); poi fase 5: guardia G e tabella «Account già esistente»"
+verified: "fase 4 su main (non deployata): sul mini 629 test unitari (118 nuovi di un altro agente), tsc e build verdi; rules nell'emulatore 46 nuovi + 105 di parentCancel verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori con functions 200/200 a 320/390/430; review di un altro agente BLOCKED → PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione"
 links: []
 done_at:
 ---
@@ -79,15 +79,50 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      `onRegistrationPendingParentAuth`, `parentAuthorizationResend`,
      `…IssueOwnToken`, `…Confirm`, `…Reject`). Tutti e due in sessioni
      separate dal 2026-10-19.
+   - Fase 4: «Chi iscrivi?» con foglio «Aggiungi» e modulo aperto senza
+     figli, bozze per figlio, passo genitore dai dati dell'account, «Iscrizione
+     inviata» con «Autorizza ora»: su `main` dal 2026-10-19, non deployata
+     (solo hosting). Dettaglio e cose trovate nella spec, sezione "Fasi".
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
      service worker v23). Dettaglio e scelte provvisorie fino alle fasi 5-6
      nella spec, sezione "Fasi".
 3. ~~Illustrazioni: WebP 2× nel repo~~ (`src/assets/flusso-genitore/`: io,
-   genitore, giovani, dirigente a 240 px; le altre due con le fasi 4-5).
+   genitore, giovani, dirigente, genitore-figlia e inviata a 240 px).
 
 ## Verificato
+
+2026-10-19, fase 4 su `main` (non deployata). Sul mini: `npm test` 629 verdi
+(118 nuovi scritti da un altro agente: `childChoice`, passo `inviata`,
+`writeTimeout`, glossario dei testi nuovi; uno ha trovato le date d'inizio
+impossibili), `tsc` e build verdi (bundle iniziale 387 kB). Nell'emulatore,
+da un altro agente, `functions/tests/parentChildFlowRulesEmulator.test.mjs` 46
+verdi (figli, "Salva" ripetuto con lo stesso id, `child_` mancante leggibile,
+iscrizione pesante e risalvataggio sotto le 1000 espressioni, ascolto dal vivo,
+lista di Famiglia, con `parent`, `participant` adulto e `unit_leader`) e
+`parentCancelRulesEmulator` 105 verdi: nessuna rule nuova. Collaudo Playwright
+sul mini contro emulatori auth, firestore e functions (`.claude/qa-fase4/`),
+200/200: genitore nuovo senza figli (C → D → E con il modulo aperto → F con
+i dati dell'account → H → "Autorizza ora" apre la firma con il link di 60
+minuti → indietro mostra "Riprendi da «Autorizza ora»" → E con "Già
+iscritto") a 320, 390 e 430; due figli, una già iscritta e uno sotto gli 11
+anni, matita con "Annulla" che non scrive, foglio con X e trascinamento che
+non salvano, doppio tocco su "Salva" e "Salva e continua" (un figlio solo),
+"Apri"; bozze separate per figlio, uscita e cambio di account che le
+cancellano, matita con la bozza aperta; attività solo per Giovani Donne;
+iscrizioni chiuse; un figlio solo con invio senza rete, doppio tocco su
+"Continua" che non invia, H senza autorizzazione e riapertura con "Già
+iscritto"; "Partecipo io" di un ragazzo con l'esito della mail (in invio,
+mandata, fallita → "Modifica") e di un adulto. Finitura misurata in ogni
+schermata (campi 16 px, target 44, testo ≥ 13 px, titoli 27-32 px, niente
+scroll orizzontale, foglio ≤ 90 dvh con pagina ferma e inerte), console pulita,
+nessun dialogo del browser. Confronti affiancati con i mockup in
+`.claude/qa-fase4/out/confronto-*.png`. Review del diff da un altro agente:
+BLOCKED (bozza vecchia dopo la matita, caricamento fallito senza uscita,
+"Autorizza ora" e "Cambia account" senza foglio d'uscita, banner del link in
+modifica), poi PASS dopo le correzioni. Non provati: tastiera vera su Safari
+iOS e Android, produzione.
 
 2026-10-19, rilascio fase 3 con l'ok di Paolo: hosting da una copia isolata di
 `d38fe36` (build sul Mac mini, `firebase deploy --only hosting`), service

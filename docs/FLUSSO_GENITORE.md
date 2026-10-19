@@ -83,7 +83,12 @@ mai nei dati. La guardia è solo lato client: un avviso, non un permesso.
 Da provare nell'emulatore prima del rilascio, con le query esatte del client e
 tre utenti normali (`parent`, `participant` adulto, `unit_leader`): creazione
 figlio, iscrizione `child_`, lista collection group, annullamento dal gestore.
-Provato nell'emulatore il 2026-10-19 per l'annullamento (`functions/tests/parentCancelRulesEmulator.test.mjs`); il resto della tabella è letto dal codice.
+Provato nell'emulatore il 2026-10-19: l'annullamento
+(`functions/tests/parentCancelRulesEmulator.test.mjs`) e, con la fase 4, figli
+(creazione, "Salva" ripetuto con lo stesso id, modifica, lista), lettura di
+`child_<genitore>_<figlio>` anche quando manca, iscrizione pesante del figlio e
+risalvataggio, ascolto dal vivo e lista di Famiglia, con i tre ruoli
+(`functions/tests/parentChildFlowRulesEmulator.test.mjs`). Nessuna rule nuova.
 
 **PWA vecchie**: schema e rules non cambiano, quindi niente si rompe. Un figlio
 aggiunto a un account dirigente con la versione nuova non si vede da una PWA
@@ -100,6 +105,9 @@ vecchia finché non si aggiorna (bump del service worker al rilascio).
   una promessa: dopo la chiusura della PWA si riparte dal primo passo valido.
 - Una volta creato l'account, il passo account non torna più: indietro da D
   riporta a B con "Sei entrato come …" ed "Esci".
+- H è `passo=inviata` (con `child` per un figlio): vale solo con l'iscrizione
+  salvata e non annullata, quindi si ritrova ricaricando; senza, si torna al
+  modulo. Dopo l'invio sostituisce la voce del modulo: indietro porta a E.
 
 ## Schermate, uscite e annullamenti
 
@@ -223,7 +231,7 @@ famiglia: chi sta usando l'account si legge prima di scegliere.
   "Autorizza ora" (→ `/parent-confirm/:token` di oggi, G5).
   "Cosa succede dopo": i dirigenti vedono già l'iscrizione; autorizzi tu, ora
   o dal link che ti abbiamo mandato (vale 14 giorni); gli aggiornamenti sono in
-  Famiglia. Poi "Iscrivi un altro figlio" (→ E) e "Vai alla famiglia".
+  Famiglia. Poi "Iscrivi un altro figlio o figlia" (→ E) e "Vai a Famiglia".
 - **Token**: "Autorizza ora" emette un link di 60 minuti e invalida quello della
   mail (`parentAuthorizationIssueOwnToken`). Se la firma resta a metà, la pagina
   di firma e Famiglia dicono "Riprendi da «Autorizza ora»": è l'unico link
@@ -284,7 +292,7 @@ dirigente in qualcos'altro.
 | Genitore sul telefono del ragazzo | tabella sopra: account del ragazzo mai convertito |
 | Chiude l'app dopo aver creato l'account | riaprendo l'attività: primo passo valido (B con "Sei entrato come …") |
 | Google con l'account sbagliato | B o E mostrano chi sei: "Esci" o "Cambia account" |
-| Due figli | dopo H, "Iscrivi un altro figlio" → E con il primo "Già iscritto"; bozze separate |
+| Due figli | dopo H, "Iscrivi un altro figlio o figlia" → E con il primo "Già iscritto"; bozze separate |
 | Doppio tocco su "Salva" o "Invia" | pulsante bloccato durante la scrittura |
 | 18 anni compiuti, ancora nei giovani | la guardia non scatta (soglia 19) |
 | Data di nascita mancante o assurda | il campo non accetta date future né prima del 1920; vuoto = "Continua" disattivo |
@@ -432,6 +440,50 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    le chiamate del client (`functions/tests/accountTypeRulesEmulator.test.mjs`).
 4. E con foglio "Aggiungi", modulo aperto senza figli, prefill del passo
    genitore, bozze per figlio, H.
+   **Su main dal 2026-10-19, non deployata** (solo hosting: nessuna rule né
+   function; al rilascio service worker v24). "Chi iscrivi?" legge per ogni
+   figlio l'iscrizione `child_<genitore>_<figlio>` (id fisso: un doppione non
+   può nascere); bozze in memoria per account, attività e persona
+   (`src/utils/childChoice.ts`); F con la scheda "Stai iscrivendo" e il modulo
+   nello stile del percorso (titolo del passo, segmenti, piede fisso); H segue
+   l'iscrizione dal vivo e dice l'esito vero della mail. Scelte e cose trovate
+   costruendola:
+   - dentro il percorso ("Cambia", freccia, un altro figlio) le risposte
+     restano in bozza e il foglio "Esci dall'iscrizione?" non compare: compare
+     solo quando le risposte si perderebbero davvero (uscita dalla pagina,
+     "Esci", "Cambia account"), anche da E o da H se c'è la bozza di un altro
+     figlio;
+   - un "Salva" ripetuto dopo un errore di rete creava un secondo figlio (id
+     nuovo a ogni prova): id e data di creazione si fissano all'apertura del
+     foglio, e la rule di update accetta la riscrittura;
+   - senza rete l'invio restava su "Salvataggio..." per sempre (con la cache
+     persistente la scrittura aspetta il server): ora errore in italiano
+     subito se il telefono è offline, altrimenti dopo 15 secondi; la
+     scrittura in coda parte da sola e E la mostra come "Già iscritto";
+   - all'invio gli errori di Firebase arrivavano in inglese: ora una frase
+     italiana con il codice;
+   - il trigger scrive `email_sent` prima di chiamare Brevo: H dice "mandato"
+     solo con `brevoMessageId`, "che ti mandiamo" mentre aspetta, "non è
+     partita" con `email_error`, e dopo "Autorizza ora" "Riprendi da
+     «Autorizza ora»";
+   - nel modulo le etichette dei passi erano a 11-12 px: nel percorso c'è
+     "Passo 2 di 3 · Titolo" a 13 px con i segmenti;
+   - una data d'inizio impossibile ("2027-02-30") spostava età e avvisi al
+     mese dopo (trovato dal test di un altro agente);
+   - dalla review (altro agente): una bozza ripresa dopo aver corretto il
+     figlio con la matita riportava nome e data vecchi, campi nascosti nel
+     modulo, e una data vecchia da maggiorenne avrebbe tolto la richiesta di
+     autorizzazione (ora la bozza riparte dal primo passo con i dati nuovi);
+     un errore di caricamento lasciava la pagina su "Prepariamo il modulo"
+     (ora "Caricamento non riuscito" con "Riprova"); "Autorizza ora" e
+     "Cambia account" delle schede provvisorie non chiedevano "Esci
+     dall'iscrizione?" con la bozza di un altro figlio; il banner del link
+     compariva anche modificando un'iscrizione già inviata; un doppio tocco
+     su "Continua" nel penultimo passo inviava (ora l'ultimo passo ignora un
+     tocco nei primi 600 ms); con le iscrizioni chiuse E offriva "Aggiungi"
+     e "Continua" verso un modulo chiuso.
+   Rispetto al mockup F il genitore ha ancora nome e cognome in due campi: la
+   firma e la mail li usano separati.
 5. Guardia G e tabella "Account già esistente".
 6. G2 = a: famiglia su ogni account adulto (rotte, home `/me` e `/unit`,
    ricerche), collaudo con un dirigente.
