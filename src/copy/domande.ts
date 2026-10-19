@@ -9,6 +9,7 @@ export const DOMANDE = {
   eliminaCorpo: "Sparisce anche per gli organizzatori e non si può recuperare.",
   tieni: "Tieni la domanda",
   conferma: "Sì, elimina la domanda",
-  eliminazione: "Eliminazione...",
+  eliminazione: PAROLE.eliminazione,
+  errore: "Impossibile eliminare la domanda.",
   erroreRete: PAROLE.erroreRete,
 } as const;

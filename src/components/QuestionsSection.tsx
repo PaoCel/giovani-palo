@@ -243,9 +243,7 @@ export function QuestionsSection({
       setDeleteError(
         isConnectionError(caughtError)
           ? DOMANDE.erroreRete
-          : caughtError instanceof Error
-            ? caughtError.message
-            : "Impossibile eliminare la domanda.",
+          : DOMANDE.errore,
       );
     } finally {
       setBusy(false);
