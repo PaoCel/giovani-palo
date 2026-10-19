@@ -50,8 +50,7 @@ export function QuestionsSection({
       setError(null);
 
       try {
-        const lookup = getRegistrationLookupFromSession(session, registration.childId);
-        const list = await questionsService.listOwn(stakeId, eventId, lookup);
+        const list = await questionsService.listOwn(stakeId, eventId, registration.id);
 
         if (active) {
           setQuestions(list);
@@ -76,7 +75,7 @@ export function QuestionsSection({
     return () => {
       active = false;
     };
-  }, [stakeId, eventId, session]);
+  }, [stakeId, eventId, session, registration.id]);
 
   async function handleCreate(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
@@ -101,6 +100,7 @@ export function QuestionsSection({
       const created = await questionsService.create(
         stakeId,
         eventId,
+        registration.id,
         lookup,
         authorFullName,
         { text, isAnonymous: draftAnonymous },
@@ -152,11 +152,10 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session, registration.childId);
       await questionsService.update(
         stakeId,
         eventId,
-        lookup,
+        registration.id,
         questionId,
         authorFullName,
         { text, isAnonymous: editAnonymous },
@@ -204,8 +203,7 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session, registration.childId);
-      await questionsService.remove(stakeId, eventId, lookup, questionId);
+      await questionsService.remove(stakeId, eventId, registration.id, questionId);
       setQuestions((current) => current.filter((question) => question.id !== questionId));
 
       if (editingId === questionId) {

@@ -894,6 +894,7 @@ export function ActivityRegisterPage() {
               await questionsService.create(
                 stakeId,
                 currentEvent.id,
+                savedRegistration.id,
                 lookup,
                 authorName,
                 { text: draft.text, isAnonymous: draft.isAnonymous },
