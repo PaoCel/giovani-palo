@@ -1,7 +1,6 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -12,6 +11,7 @@ import { Link } from "react-router-dom";
 
 import type { GuestActionOutcome } from "@/components/recordNight/hooks";
 import { MEASURE_ICONS, RecordNightIcon } from "@/components/recordNight/RecordNightIcon";
+import { useInertBackground } from "@/hooks/useModalLayer";
 import type {
   RecordNightGuestRequest,
   RecordNightGuestUnit,
@@ -140,18 +140,7 @@ export function GuestSheet({
   // né con uno screen reader (`inert`). Si toglie in fase di layout, nello stesso
   // commit che rimuove il foglio: gli avvisi che la pagina mostra subito dopo
   // (l'avviso di conferma) non nascono dentro una zona inerte.
-  useLayoutEffect(() => {
-    const layer = layerRef.current;
-    const changed: HTMLElement[] = [];
-    for (const element of Array.from(document.body.children)) {
-      if (element === layer || !(element instanceof HTMLElement) || element.inert) continue;
-      element.inert = true;
-      changed.push(element);
-    }
-    return () => {
-      for (const element of changed) element.inert = false;
-    };
-  }, []);
+  useInertBackground(layerRef);
 
   // Qualcosa di scritto o scelto: chiudere lo butterebbe via.
   const dirty =

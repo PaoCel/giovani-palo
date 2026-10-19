@@ -1,7 +1,6 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -11,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { useInertBackground } from "@/hooks/useModalLayer";
 
 import "@/styles/registerFlow.css";
 
@@ -59,19 +59,9 @@ export function BottomSheet({
     busyRef.current = busy;
   }, [busy]);
 
-  // La pagina sotto non si raggiunge con la tastiera né con uno screen reader.
-  useLayoutEffect(() => {
-    const layer = layerRef.current;
-    const changed: HTMLElement[] = [];
-    for (const element of Array.from(document.body.children)) {
-      if (element === layer || !(element instanceof HTMLElement) || element.inert) continue;
-      element.inert = true;
-      changed.push(element);
-    }
-    return () => {
-      for (const element of changed) element.inert = false;
-    };
-  }, []);
+  // La pagina sotto non si raggiunge con la tastiera né con uno screen reader
+  // (pila condivisa con AppModal: si chiudono anche fuori ordine).
+  useInertBackground(layerRef);
 
   // Pagina ferma sotto il foglio; focus sul titolo all'apertura e ritorno al
   // pulsante di partenza alla chiusura.

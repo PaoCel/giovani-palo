@@ -1,24 +1,42 @@
 import { useLayoutEffect, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 
+import { createLayerStack } from "@/utils/modalLayers";
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-// Foglio o modale aperto: la pagina sotto non si raggiunge con la tastiera né
-// con uno screen reader (`inert` sugli altri figli di <body>), come in
-// register/BottomSheet. Si toglie in fase di layout, prima che il focus torni
-// al pulsante di partenza; torna attivo solo ciò che questo strato ha reso
-// inerte, così due strati aperti uno sull'altro si chiudono in ordine.
+// Una pila sola per tutta l'app: AppModal, BottomSheet, GuestSheet e i fogli
+// della galleria si coordinano anche quando si chiudono fuori ordine.
+const layers =
+  typeof document === "undefined"
+    ? null
+    : createLayerStack<HTMLElement>({
+        children: () =>
+          Array.from(document.body.children).filter(
+            (element): element is HTMLElement => element instanceof HTMLElement,
+          ),
+      });
+let observer: MutationObserver | null = null;
+
+// Foglio o modale aperto: la pagina sotto (e ogni strato più basso) non si
+// raggiunge con la tastiera né con uno screen reader. Si toglie in fase di
+// layout, prima che il focus torni al pulsante di partenza. Un portale che
+// nasce dopo (dock dei caricamenti, avvisi) entra nel calcolo da solo.
 export function useInertBackground(layerRef: RefObject<HTMLElement | null>) {
   useLayoutEffect(() => {
     const layer = layerRef.current;
-    const changed: HTMLElement[] = [];
-    for (const element of Array.from(document.body.children)) {
-      if (element === layer || !(element instanceof HTMLElement) || element.inert) continue;
-      element.inert = true;
-      changed.push(element);
+    if (!layers || !layer) return undefined;
+    const close = layers.open(layer);
+    if (!observer && typeof MutationObserver !== "undefined") {
+      observer = new MutationObserver(() => layers.sync());
+      observer.observe(document.body, { childList: true });
     }
     return () => {
-      for (const element of changed) element.inert = false;
+      close();
+      if (layers.size() === 0) {
+        observer?.disconnect();
+        observer = null;
+      }
     };
   }, [layerRef]);
 }
