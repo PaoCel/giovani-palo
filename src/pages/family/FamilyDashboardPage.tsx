@@ -930,6 +930,13 @@ export function FamilyDashboardPage() {
               </select>
             </label>
 
+            {/* L'errore nel modale: la pagina sotto è coperta e inerte. */}
+            {actionError ? (
+              <p className="form-error" role="alert">
+                {actionError}
+              </p>
+            ) : null}
+
             <div className="inline-actions">
               <button className="button button--primary" disabled={busy} type="submit">
                 {busy ? "Salvataggio..." : editingChild ? "Salva modifiche" : "Aggiungi"}
