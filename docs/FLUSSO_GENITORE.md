@@ -206,6 +206,16 @@ famiglia: chi sta usando l'account si legge prima di scegliere.
 - Passo "Genitore e sicurezza" quando compila un account con figli: nome,
   email e telefono presi dal tuo account, modificabili, con "Abbiamo inserito i
   dati del tuo account: controllali."
+- Lo stesso passo, per chi si iscrive da sé, dice quello che farà il
+  salvataggio e non quello che succede a un'iscrizione nuova
+  (`src/utils/parentStepNotice.ts`, 2026-10-19): firmata "Il tuo genitore ha
+  autorizzato la partecipazione.", in attesa "Abbiamo scritto al tuo genitore
+  a {email}." (o "Stiamo scrivendo…", o "La mail non è partita…") con "Se cambi
+  l'indirizzo, gli mandiamo un nuovo link.", rifiutata "Il genitore ha
+  rifiutato l'autorizzazione."; il testo della mail in arrivo solo quando la
+  mail parte davvero (nuova, o annullata prima che gli scrivessimo). Il
+  suggerimento sotto "Email genitore" compare solo dove può ancora partire un
+  link; lato genitore "Dopo l'invio ti mandiamo un link…" segue la stessa regola.
 - Uscire con risposte non inviate (freccia dal primo passo, "Cambia", link
   fuori): foglio "Esci dall'iscrizione? Le risposte non inviate si perdono."
   con "Continua a compilare" (primo) ed "Esci".

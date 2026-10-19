@@ -57,6 +57,14 @@ export const ISCRIZIONE = {
   datiAccountInseriti: "Abbiamo inserito i dati del tuo account: controllali.",
   linkDopoInvio:
     "Dopo l'invio ti mandiamo un link per autorizzare la partecipazione di {nome}. Puoi farlo anche subito, alla fine.",
+  // Stesso passo, chi si iscrive da sé con l'iscrizione già inviata: l'avviso
+  // dice cosa farà il salvataggio (utils/parentStepNotice.ts). Le altre frasi
+  // sono quelle di "Iscrizione inviata" (./inviata.ts).
+  nuovoLinkSeCambi: "Se cambi l'indirizzo, gli mandiamo un nuovo link.",
+  // Stessa frase del server (functions/lib/parentAuthorization.js).
+  genitoreHaRifiutato: "Il genitore ha rifiutato l'autorizzazione.",
+  // Sotto "Email genitore", solo dove può ancora partire un link.
+  emailGenitoreSuggerimento: "Riceverà qui il link unico di autorizzazione. Verifica con cura l'indirizzo.",
   // Invio senza rete o senza risposta: le risposte restano nel modulo.
   invioRete: "Il server non risponde: controlla la connessione e riprova. Le risposte restano qui.",
   invioErrore: "Non siamo riusciti a inviare l'iscrizione: riprova.",

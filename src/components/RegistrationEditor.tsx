@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { RoomMateField } from "@/components/RoomMateField";
 import { italianMunicipalityOptions } from "@/config/cityOptions";
+import { INVIATA } from "@/copy/inviata";
 import { ISCRIZIONE } from "@/copy/iscrizione";
 import { fillCopy } from "@/copy/parole";
 import { PROFILO } from "@/copy/profilo";
@@ -26,7 +27,9 @@ import {
   visibleStandardFieldDefinitions,
 } from "@/utils/formFields";
 import { isMinorBirthDate } from "@/utils/age";
+import { getParentEmailAddress } from "@/utils/childChoice";
 import { getAllowedCategoriesForAudience } from "@/utils/events";
+import { getParentStepNotice, parentStepNoticeSendsLink } from "@/utils/parentStepNotice";
 import { getGenderRoleCategory, getYouthGroupLabel } from "@/utils/profile";
 import {
   getRoomPreferenceTextFromAnswers,
@@ -475,6 +478,10 @@ export function RegistrationEditor({
   const eventRequiresMedicalNotes = Boolean(event.requiresMedicalNotes);
   const showParentStep = eventRequiresParentAuthorization;
   const hasPrefilledParentContacts = hasFilledText(values.parentEmail);
+  // Cosa dice il passo genitore: quello che farà il salvataggio, letto
+  // dall'iscrizione già salvata (mai dal precompilato di un figlio).
+  const parentStepNotice = getParentStepNotice(existingRegistration);
+  const parentStepEmail = getParentEmailAddress(existingRegistration);
 
   // Foto/video consent per MAGGIORENNI: per i minori il consenso lo dà il
   // genitore via magic-link (parentAuthorization.photoConsent). Per gli
@@ -1603,21 +1610,47 @@ export function RegistrationEditor({
                     </p>
                   ) : null}
                 </>
-              ) : (
+              ) : parentStepNotice !== "nessuno" && parentStepNotice !== "autorizza_ora" ? (
+                // "Autorizza ora" vale solo per i figli di un account genitore.
                 <div className="form-info-banner">
                   <strong>
                     {hasPrefilledParentContacts
                       ? "Controlla i dati del genitore o tutore"
                       : "Dati genitore o tutore richiesti"}
                   </strong>
-                  <span>
-                    Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
-                    per autorizzare la partecipazione. L&apos;iscrizione sarà in stato
-                    <em> &quot;in attesa autorizzazione&quot; </em>
-                    finché il genitore non conferma. Il link scade dopo 14 giorni.
-                  </span>
+                  {parentStepNotice === "nuovo_link" ? (
+                    <span>
+                      Dopo l&apos;invio invieremo al genitore un&apos;email con un link unico
+                      per autorizzare la partecipazione. L&apos;iscrizione sarà in stato
+                      <em> &quot;in attesa autorizzazione&quot; </em>
+                      finché il genitore non conferma. Il link scade dopo 14 giorni.
+                    </span>
+                  ) : parentStepNotice === "autorizzata" ? (
+                    <span>{INVIATA.autorizzataIo}</span>
+                  ) : parentStepNotice === "rifiutata" ? (
+                    <span className="form-info-banner__warning">
+                      {ISCRIZIONE.genitoreHaRifiutato}
+                    </span>
+                  ) : parentStepNotice === "mail_fallita" ? (
+                    <>
+                      <span className="form-info-banner__warning">
+                        {INVIATA.genitoreMailFallita}
+                      </span>
+                      <span>{ISCRIZIONE.nuovoLinkSeCambi}</span>
+                    </>
+                  ) : (
+                    <span>
+                      {fillCopy(
+                        parentStepNotice === "scritto"
+                          ? INVIATA.genitoreScritto
+                          : INVIATA.genitoreInInvio,
+                        { email: parentStepEmail },
+                      )}{" "}
+                      {ISCRIZIONE.nuovoLinkSeCambi}
+                    </span>
+                  )}
                 </div>
-              )}
+              ) : null}
 
               <div className="surface-panel surface-panel--subtle form-subsection">
                 <h3>Contatti del genitore o tutore</h3>
@@ -1670,7 +1703,9 @@ export function RegistrationEditor({
                     />
                     {renderFieldHint(
                       "parentEmail",
-                      "Riceveremo qui il link unico di autorizzazione. Verifica con cura l'indirizzo.",
+                      parentStepNoticeSendsLink(parentStepNotice)
+                        ? ISCRIZIONE.emailGenitoreSuggerimento
+                        : undefined,
                     )}
                   </label>
 
@@ -1693,7 +1728,7 @@ export function RegistrationEditor({
                 </div>
               </div>
 
-              {parentAccount && !existingRegistration ? (
+              {parentAccount && parentStepNotice === "nuovo_link" ? (
                 <p className="flow-banner">
                   <AppIcon name="mail" />
                   <span>
