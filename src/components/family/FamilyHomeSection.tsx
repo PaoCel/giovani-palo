@@ -10,6 +10,9 @@ import type { ChildProfile, Registration } from "@/types";
 import { canManageFamily } from "@/utils/family";
 
 interface FamilyHomeData {
+  // Account per cui sono stati letti: al cambio di account, il primo render
+  // ha ancora i dati di quello di prima e non si mostrano.
+  uid: string;
   children: ChildProfile[];
   registrations: Registration[];
 }
@@ -51,13 +54,15 @@ export function FamilyHomeSection({ variant = "me" }: { variant?: "me" | "unit" 
         childrenService.listChildren(uid),
         registrationsService.listFamilyRegistrations(uid),
       ]);
-      return { children, registrations };
+      return { uid, children, registrations };
     },
     [uid],
     null,
   );
 
-  if (!uid || (!error && (!data || data.children.length === 0))) {
+  const current = data && data.uid === uid ? data : null;
+
+  if (!uid || (!error && (!current || current.children.length === 0))) {
     return null;
   }
 
@@ -78,7 +83,7 @@ export function FamilyHomeSection({ variant = "me" }: { variant?: "me" | "unit" 
         </div>
       )}
       <div className="dash-list">
-        {error || !data ? (
+        {error || !current ? (
           <article className="dash-list-row">
             <div className="dash-list-row__text">
               <strong>{FAMIGLIA.homeEyebrow}</strong>
@@ -89,11 +94,11 @@ export function FamilyHomeSection({ variant = "me" }: { variant?: "me" | "unit" 
             </Link>
           </article>
         ) : (
-          data.children.map((child) => (
+          current.children.map((child) => (
             <article className="dash-list-row" key={child.id}>
               <div className="dash-list-row__text">
                 <strong>{child.fullName || child.firstName}</strong>
-                <span className="subtle-text">{describeChild(child, data.registrations)}</span>
+                <span className="subtle-text">{describeChild(child, current.registrations)}</span>
               </div>
               <Link
                 aria-label={`${FAMIGLIA.homeApri}: ${child.fullName || child.firstName}`}

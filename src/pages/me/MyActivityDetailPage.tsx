@@ -145,14 +145,16 @@ export function MyActivityDetailPage() {
   // Figli dell'account (G2): "Iscrivi tuo figlio o tua figlia" segue la regola
   // di "Iscrizione inviata". Prima di ogni return: è un hook.
   const familyUid = session && canManageFamily(session) ? session.firebaseUser.uid : "";
-  const { data: childCount } = useAsyncData(
-    async () =>
-      familyUid
-        ? (await childrenService.listChildren(familyUid).catch(() => [])).length
-        : 0,
+  const { data: family } = useAsyncData(
+    async () => ({
+      uid: familyUid,
+      count: familyUid ? (await childrenService.listChildren(familyUid)).length : 0,
+    }),
     [familyUid],
-    0,
+    { uid: "", count: 0 },
   );
+  // Al cambio di account il primo render ha il conto di quello di prima.
+  const childCount = family.uid === familyUid ? family.count : 0;
 
   const { data, loading, error, setData } = useAsyncData(
     async () => {

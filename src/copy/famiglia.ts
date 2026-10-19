@@ -10,6 +10,11 @@ export const FAMIGLIA = {
   nessunFiglioDescrizione: "Aggiungi i tuoi figli per iscriverli alle attività e seguirne lo stato.",
   modificaProfilo: "Modifica il profilo di {nome}",
   rimuoviProfilo: "Rimuovere il profilo di {nome}?",
+  // Foglio di conferma di "Rimuovi" (mai un dialogo del browser).
+  rimuoviCorpo: "Il profilo sparisce dal tuo account. Puoi aggiungerlo di nuovo quando vuoi.",
+  tieniProfilo: "Tieni il profilo",
+  confermaRimuovi: "Sì, rimuovi il profilo",
+  rimozione: "Rimozione...",
   erroreSalvataggio: "Impossibile salvare il profilo.",
   // Offline la scrittura resta in coda: si sblocca il pulsante e lo si dice.
   erroreRete: "Il server non risponde: controlla la connessione e riprova.",

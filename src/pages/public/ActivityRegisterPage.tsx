@@ -95,7 +95,6 @@ import {
   canChooseAccountType,
   getAgeOn,
   isEmailDerivedName,
-  isMinorOn,
   isPlaceholderName,
   needsProfileCompletion,
 } from "@/utils/profileCompletion";
@@ -440,12 +439,16 @@ export function ActivityRegisterPage() {
   const profileComplete = Boolean(
     session && !session.isAnonymous && !needsProfileCompletion(session.profile),
   );
+  // Account di un minore: partecipante completo che non può avere figli
+  // (`canManageFamily`, meno di 18 anni). Vale anche per una data illeggibile:
+  // percorso, freccia e intestazione lo trattano tutti allo stesso modo, e
+  // nessuno finisce in "Chi iscrivi?" senza poter caricare i figli.
   const isMinorAccount = Boolean(
     session &&
       isUserAccount &&
       profileComplete &&
       session.profile.role === "participant" &&
-      isMinorOn(session.profile.birthDate, new Date()),
+      !familySession,
   );
   // Per attività rafforzate (overnight/trip/camp/multi_day) con account
   // obbligatorio: niente ospiti, anche se formConfig.allowGuestRegistration
@@ -515,15 +518,7 @@ export function ActivityRegisterPage() {
     account: resettingGuest || session?.isAnonymous ? "guest" : !session ? "none" : "user",
     profileComplete,
     role: getRegisterRole(session?.profile.role ?? ""),
-    // Per il percorso conta anche un partecipante completo che non può avere
-    // figli per una data illeggibile: come l'account di un minore, niente E
-    // (i suoi figli non si caricherebbero).
-    isMinor:
-      isMinorAccount ||
-      (isUserAccount &&
-        profileComplete &&
-        session?.profile.role === "participant" &&
-        !familySession),
+    isMinor: isMinorAccount,
     guestAllowed: allowGuestForThisActivity,
     childSelected: Boolean(selectedChild),
     submitted: isLiveRegistration(data.registration),

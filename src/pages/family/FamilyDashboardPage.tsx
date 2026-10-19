@@ -57,6 +57,9 @@ function getAvatarColor(seed: string) {
 }
 
 interface FamilyData {
+  // Account per cui sono stati letti: al cambio di account il primo render ha
+  // ancora i figli di quello di prima, e non si mostrano.
+  loadedFor: string;
   stakeId: string;
   children: ChildProfile[];
   registrations: Registration[];
@@ -65,6 +68,7 @@ interface FamilyData {
 }
 
 const initialData: FamilyData = {
+  loadedFor: "",
   stakeId: "",
   children: [],
   registrations: [],
@@ -140,6 +144,7 @@ export function FamilyDashboardPage() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ChildProfile | null>(null);
 
   // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
@@ -224,11 +229,12 @@ export function FamilyDashboardPage() {
         stakeId ? unitsService.listActiveUnits(stakeId) : Promise.resolve([]),
       ]);
 
-      return { stakeId, children, registrations, events, units };
+      return { loadedFor: parentUid, stakeId, children, registrations, events, units };
     },
     [parentUid, session?.profile.stakeId],
     initialData,
   );
+  const staleFamily = Boolean(parentUid) && data.loadedFor !== parentUid;
 
   const eventById = new Map(data.events.map((event) => [event.id, event]));
   const activeRegistrations = data.registrations.filter(
@@ -483,7 +489,8 @@ export function FamilyDashboardPage() {
     }
   }
 
-  async function handleDeleteChild(child: ChildProfile) {
+  // "Rimuovi": prima il foglio di conferma, mai un dialogo del browser.
+  function handleDeleteChild(child: ChildProfile) {
     if (!parentUid) {
       return;
     }
@@ -499,12 +506,14 @@ export function FamilyDashboardPage() {
       return;
     }
 
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        fillCopy(FAMIGLIA.rimuoviProfilo, { nome: child.fullName || child.firstName }),
-      )
-    ) {
+    setActionError(null);
+    setRemoveTarget(child);
+  }
+
+  async function handleConfirmRemove() {
+    const child = removeTarget;
+
+    if (!parentUid || !child || busy) {
       return;
     }
 
@@ -517,7 +526,9 @@ export function FamilyDashboardPage() {
         ...current,
         children: current.children.filter((item) => item.id !== child.id),
       }));
+      setRemoveTarget(null);
     } catch (caughtError) {
+      setRemoveTarget(null);
       setActionError(
         caughtError instanceof Error
           ? caughtError.message
@@ -577,7 +588,7 @@ export function FamilyDashboardPage() {
           </div>
         ) : null}
 
-        {loading ? (
+        {loading || staleFamily ? (
           <p className="subtle-text">Sto caricando i profili della famiglia...</p>
         ) : data.children.length === 0 ? (
           <EmptyState
@@ -723,7 +734,7 @@ export function FamilyDashboardPage() {
                     <button
                       className="button button--ghost button--small"
                       disabled={busy}
-                      onClick={() => void handleDeleteChild(child)}
+                      onClick={() => handleDeleteChild(child)}
                       type="button"
                     >
                       Rimuovi
@@ -742,6 +753,39 @@ export function FamilyDashboardPage() {
           </div>
         )}
       </section>
+
+      {removeTarget ? (
+        <AppModal
+          footer={
+            <div className="family-cancel-actions">
+              <button
+                className="button button--primary"
+                disabled={busy}
+                onClick={() => setRemoveTarget(null)}
+                type="button"
+              >
+                {FAMIGLIA.tieniProfilo}
+              </button>
+              <button
+                className="button button--danger"
+                disabled={busy}
+                onClick={() => void handleConfirmRemove()}
+                type="button"
+              >
+                {busy ? FAMIGLIA.rimozione : FAMIGLIA.confermaRimuovi}
+              </button>
+            </div>
+          }
+          onClose={() => {
+            if (!busy) setRemoveTarget(null);
+          }}
+          title={fillCopy(FAMIGLIA.rimuoviProfilo, {
+            nome: removeTarget.fullName || removeTarget.firstName,
+          })}
+        >
+          <p className="family-cancel-body">{FAMIGLIA.rimuoviCorpo}</p>
+        </AppModal>
+      ) : null}
 
       {cancelTarget ? (
         <CancelRegistrationSheet
