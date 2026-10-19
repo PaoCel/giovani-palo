@@ -12,7 +12,7 @@ import { resolveRegistrationStatusOnSave } from "./registrationStatus.ts";
 
 export type ParentStepNotice =
   // Il salvataggio fa partire la mail al genitore: iscrizione nuova, o
-  // annullata prima che gli scrivessimo.
+  // annullata senza firma (anche con un link già partito o dopo un rifiuto).
   | "nuovo_link"
   // In attesa con un link già emesso: nessuna mail nuova, salvo un indirizzo
   // diverso (shouldReissueParentAuthorization nelle functions).
@@ -44,6 +44,20 @@ export function getParentStepNotice(
 
   const state = existing.parentAuthorization ?? null;
 
+  // Il passo genitore c'è solo quando l'autorizzazione serve: il modulo chiede
+  // sempre "in attesa", e lo stato vero lo decide la stessa funzione del
+  // salvataggio.
+  const next = resolveRegistrationStatusOnSave(existing, "pending_parent_authorization", {
+    parentAuthorizationRequested: true,
+  });
+
+  // Annullata e senza firma: il salvataggio vale come iscrizione nuova e il
+  // trigger manda un link nuovo, anche dopo un rifiuto o con un link già
+  // partito (restartParentAuthorizationAfterCancellation nelle functions).
+  if (existing.registrationStatus === "cancelled" && next === "pending_parent_authorization") {
+    return "nuovo_link";
+  }
+
   // Rifiuto: nessuna mail, nemmeno con un indirizzo nuovo (il trigger non
   // rimette in gioco un'autorizzazione decisa).
   if (
@@ -52,13 +66,6 @@ export function getParentStepNotice(
   ) {
     return "rifiutata";
   }
-
-  // Il passo genitore c'è solo quando l'autorizzazione serve: il modulo chiede
-  // sempre "in attesa", e lo stato vero lo decide la stessa funzione del
-  // salvataggio.
-  const next = resolveRegistrationStatusOnSave(existing, "pending_parent_authorization", {
-    parentAuthorizationRequested: true,
-  });
   const outcome = getParentEmailOutcome({
     registrationStatus: next,
     parentAuthorization: state,
