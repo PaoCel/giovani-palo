@@ -92,20 +92,30 @@ export function MediaLightbox({
   >(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  // Ogni foglio aperto o chiuso ha il suo numero: l'esito di una richiesta
+  // partita da un foglio precedente non tocca quello di adesso.
+  const confirmRunRef = useRef(0);
   const sessionUid = session?.firebaseUser.uid ?? "";
   const confirmMediaId = confirm?.item.id ?? null;
 
+  function showConfirm(next: typeof confirm) {
+    confirmRunRef.current += 1;
+    setConfirmBusy(false);
+    setConfirmError(null);
+    setConfirm(next);
+  }
+
   // Il foglio vale per l'account e il contenuto con cui è stato aperto: se il
-  // contenuto sparisce dalla lista (eliminato o nascosto da un altro) o
-  // l'account cambia, si chiude senza agire.
+  // contenuto sparisce dalla lista (eliminato, anche da qui in attesa del
+  // server, o nascosto da un altro) o l'account cambia, si chiude.
   useEffect(() => {
     if (confirmMediaId && !media.some((item) => item.id === confirmMediaId)) {
-      setConfirm(null);
+      showConfirm(null);
     }
   }, [media, confirmMediaId]);
 
   useEffect(() => {
-    setConfirm(null);
+    showConfirm(null);
   }, [sessionUid]);
 
   const current = media[index];
@@ -219,19 +229,19 @@ export function MediaLightbox({
     if (!current) return;
     if (!session) return;
     if (comment.uid !== session.firebaseUser.uid && !session.isAdmin) return;
-    setConfirmError(null);
-    setConfirm({ kind: "comment", item: current, comment });
+    showConfirm({ kind: "comment", item: current, comment });
   }
 
   function handleDeleteMedia() {
     if (!current || !onDeleteMedia) return;
-    setConfirmError(null);
-    setConfirm({ kind: "media", item: current });
+    showConfirm({ kind: "media", item: current });
   }
 
   async function handleConfirmDelete() {
     if (!confirm || confirmBusy) return;
     const { item } = confirm;
+    const run = confirmRunRef.current;
+    const stillOpen = () => run === confirmRunRef.current;
     setConfirmBusy(true);
     setConfirmError(null);
 
@@ -245,11 +255,12 @@ export function MediaLightbox({
           ...prev,
           [item.id]: (prev[item.id] ?? []).filter((entry) => entry.id !== comment.id),
         }));
-        setConfirm(null);
+        if (stillOpen()) showConfirm(null);
       } catch (caughtError) {
-        setConfirmError(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
-      } finally {
-        setConfirmBusy(false);
+        if (stillOpen()) {
+          setConfirmBusy(false);
+          setConfirmError(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
+        }
       }
       return;
     }
@@ -262,8 +273,12 @@ export function MediaLightbox({
       onClose();
     } catch (caughtError) {
       setDeleting(false);
-      setConfirmBusy(false);
-      setConfirmError(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
+      // Se il foglio si è già chiuso (contenuto tolto dalla lista in attesa
+      // del server) l'errore lo mostra la galleria, che resta aperta.
+      if (stillOpen()) {
+        setConfirmBusy(false);
+        setConfirmError(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
+      }
     }
   }
 
@@ -491,7 +506,7 @@ export function MediaLightbox({
             : { ...getDeleteMediaCopy(confirm.item.type), body: GALLERIA.eliminaContenutoCorpo })}
           busy={confirmBusy}
           error={confirmError}
-          onCancel={() => setConfirm(null)}
+          onCancel={() => showConfirm(null)}
           onConfirm={() => void handleConfirmDelete()}
         />
       ) : null}

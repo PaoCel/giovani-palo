@@ -20,6 +20,7 @@ import { deleteMediaFolder } from "@/services/firebase/galleryUploadService";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, GalleryMedia, HiddenGalleryMedia } from "@/types";
+import { isConnectionError } from "@/utils/writeTimeout";
 
 interface ActivityGalleryProps {
   stakeId: string;
@@ -63,18 +64,28 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   const [deleteHiddenError, setDeleteHiddenError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const deletingHiddenId = deletingHidden?.id ?? null;
+  // Numero del foglio: l'esito di una richiesta partita da un foglio
+  // precedente non tocca quello di adesso.
+  const deleteHiddenRunRef = useRef(0);
+
+  function showDeleteHidden(item: GalleryMedia | null) {
+    deleteHiddenRunRef.current += 1;
+    setDeleteHiddenBusy(false);
+    setDeleteHiddenError(null);
+    setDeletingHidden(item);
+  }
 
   // Il foglio "Elimina" di un nascosto vale finché quel contenuto è fra i
   // nascosti (un altro responsabile può rimetterlo o eliminarlo) e per
   // l'account che l'ha aperto.
   useEffect(() => {
     if (deletingHiddenId && !hidden.some((item) => item.id === deletingHiddenId)) {
-      setDeletingHidden(null);
+      showDeleteHidden(null);
     }
   }, [hidden, deletingHiddenId]);
 
   useEffect(() => {
-    setDeletingHidden(null);
+    showDeleteHidden(null);
   }, [uid]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -182,7 +193,14 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
 
   const handleDeleteMedia = useCallback(
     async (item: GalleryMedia) => {
-      await galleriesService.deleteMedia(stakeId, item.galleryId, item.id);
+      try {
+        await galleriesService.deleteMedia(stakeId, item.galleryId, item.id);
+      } catch (caughtError) {
+        // Il lightbox si chiude appena il contenuto sparisce dalla lista (in
+        // attesa del server): se il server rifiuta, lo si dice qui.
+        setNotice(GALLERIA.erroreElimina);
+        throw caughtError;
+      }
       await deleteMediaFolder(stakeId, item.galleryId, item.id);
     },
     [stakeId],
@@ -204,16 +222,20 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   async function handleConfirmDeleteHidden() {
     const item = deletingHidden;
     if (!item || deleteHiddenBusy) return;
+    const run = deleteHiddenRunRef.current;
     setDeleteHiddenBusy(true);
     setDeleteHiddenError(null);
     try {
       await galleriesService.deleteHiddenMedia(stakeId, item.galleryId, item.id);
-      setDeletingHidden(null);
-      setLightboxId(null);
-    } catch {
-      setDeleteHiddenError(GALLERIA.erroreElimina);
-    } finally {
-      setDeleteHiddenBusy(false);
+      setLightboxId((current) => (current === item.id ? null : current));
+      if (run === deleteHiddenRunRef.current) showDeleteHidden(null);
+    } catch (caughtError) {
+      if (run === deleteHiddenRunRef.current) {
+        setDeleteHiddenBusy(false);
+        setDeleteHiddenError(
+          isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina,
+        );
+      }
     }
   }
 
@@ -422,8 +444,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
                         type="button"
                         className="media-lightbox__delete"
                         onClick={() => {
-                          setDeleteHiddenError(null);
-                          setDeletingHidden(item);
+                          showDeleteHidden(item);
                         }}
                       >
                         Elimina
@@ -453,7 +474,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
           body={GALLERIA.eliminaContenutoCorpo}
           busy={deleteHiddenBusy}
           error={deleteHiddenError}
-          onCancel={() => setDeletingHidden(null)}
+          onCancel={() => showDeleteHidden(null)}
           onConfirm={() => void handleConfirmDeleteHidden()}
         />
       ) : null}
