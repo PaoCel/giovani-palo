@@ -145,7 +145,7 @@ export function MyActivityDetailPage() {
   // Figli dell'account (G2): "Iscrivi tuo figlio o tua figlia" segue la regola
   // di "Iscrizione inviata". Prima di ogni return: è un hook.
   const familyUid = session && canManageFamily(session) ? session.firebaseUser.uid : "";
-  const { data: family } = useAsyncData(
+  const { data: family, error: familyError } = useAsyncData(
     async () => ({
       uid: familyUid,
       count: familyUid ? (await childrenService.listChildren(familyUid)).length : 0,
@@ -391,7 +391,8 @@ export function MyActivityDetailPage() {
         canManageFamily: Boolean(familyUid),
         role: session.profile.role,
         category: session.profile.genderRoleCategory,
-        hasChildren: childCount > 0,
+        // Lettura dei figli fallita: meglio un invito in più che uno perso.
+        hasChildren: childCount > 0 || Boolean(familyUid && familyError),
       }) &&
       getRegistrationAvailability(data.event, data.formConfig, session, { forChild: true }) ===
         "open",

@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -234,7 +234,19 @@ export function FamilyDashboardPage() {
     [parentUid, session?.profile.stakeId],
     initialData,
   );
-  const staleFamily = Boolean(parentUid) && data.loadedFor !== parentUid;
+  // Dati letti per questo account: al cambio di account (o se la lettura del
+  // nuovo fallisce) quelli di prima non si mostrano. Con un errore si vede
+  // l'avviso, non "Sto caricando".
+  const familyReady = !parentUid || data.loadedFor === parentUid;
+
+  // Cambio di account con la pagina aperta: i fogli dell'account di prima si
+  // chiudono (nome del figlio, iscrizione, scelte), nessuna scrittura parte.
+  useEffect(() => {
+    setRemoveTarget(null);
+    setCancelTarget(null);
+    setConsentTarget(null);
+    setChildModalOpen(false);
+  }, [parentUid]);
 
   const eventById = new Map(data.events.map((event) => [event.id, event]));
   const activeRegistrations = data.registrations.filter(
@@ -513,7 +525,22 @@ export function FamilyDashboardPage() {
   async function handleConfirmRemove() {
     const child = removeTarget;
 
-    if (!parentUid || !child || busy) {
+    // Solo un figlio dell'account di adesso, letto per lui.
+    if (
+      !parentUid ||
+      !child ||
+      busy ||
+      !familyReady ||
+      !data.children.some((item) => item.id === child.id)
+    ) {
+      return;
+    }
+
+    // Senza rete la cancellazione aspetterebbe il server per sempre, col
+    // foglio bloccato.
+    if (isOffline()) {
+      setRemoveTarget(null);
+      setActionError(FAMIGLIA.erroreRete);
       return;
     }
 
@@ -521,7 +548,7 @@ export function FamilyDashboardPage() {
     setActionError(null);
 
     try {
-      await childrenService.deleteChild(parentUid, child.id);
+      await withWriteTimeout(childrenService.deleteChild(parentUid, child.id));
       setData((current) => ({
         ...current,
         children: current.children.filter((item) => item.id !== child.id),
@@ -530,9 +557,11 @@ export function FamilyDashboardPage() {
     } catch (caughtError) {
       setRemoveTarget(null);
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile rimuovere il profilo.",
+        isConnectionError(caughtError)
+          ? FAMIGLIA.erroreRete
+          : caughtError instanceof Error
+            ? caughtError.message
+            : "Impossibile rimuovere il profilo.",
       );
     } finally {
       setBusy(false);
@@ -588,9 +617,9 @@ export function FamilyDashboardPage() {
           </div>
         ) : null}
 
-        {loading || staleFamily ? (
+        {(loading || !familyReady) && !error ? (
           <p className="subtle-text">Sto caricando i profili della famiglia...</p>
-        ) : data.children.length === 0 ? (
+        ) : !familyReady ? null : data.children.length === 0 ? (
           <EmptyState
             title="Nessun figlio collegato"
             description={FAMIGLIA.nessunFiglioDescrizione}
