@@ -16,7 +16,7 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fasi 1-4 in produzione dal 2026-10-19 (fase 4: solo hosting da 4809680, service worker v24)"
+stopped_at: "fasi 1-4 in produzione dal 2026-10-19; ultimo deploy: reiscrizione di un'annullata con link nuovo (function onRegistrationPendingParentAuth + hosting da 18982f7, service worker v26)"
 next: "fase 5: guardia G e tabella «Account già esistente»"
 verified: "fase 4 in produzione (servito sw v24 e bundle index-BUqffvZx.js uguale alla build su gugditalia.it e web.app, home senza errori; flusso loggato in prod non provato): sul mini 629 test unitari (118 nuovi di un altro agente), tsc e build verdi; rules nell'emulatore 46 nuovi + 105 di parentCancel verdi senza rule nuove (altro agente); collaudo Playwright contro emulatori con functions 200/200 a 320/390/430; review di un altro agente BLOCKED → PASS dopo le correzioni. Non provati: tastiera vera su iOS/Android, produzione"
 links: []
@@ -89,9 +89,12 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      manda sempre link e mail nuovi, anche dopo un rifiuto; banner
      `nuovo_link`; 10 annullate su 22 in produzione sarebbero rimaste senza
      link). Test `parentAuthorizationRestartEmulator.test.mjs` e
-     `tests/parentStepNotice.test.mjs`, di altri agenti. Da pubblicare con l'ok
-     di Paolo: `onRegistrationPendingParentAuth`, poi hosting (service worker
-     v26).
+     `tests/parentStepNotice.test.mjs`, di altri agenti. **In produzione dal
+     2026-10-19** con l'ok di Paolo, da una copia isolata di `18982f7`:
+     `onRegistrationPendingParentAuth` (sorgente scaricato uguale al commit),
+     poi hosting (service worker v26, bundle `index-BIs2B9SO.js` con sha
+     uguale alla build su gugditalia.it e web.app, home senza errori). Non
+     provata in produzione una reiscrizione vera.
    - ~~Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
      account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
      dialoghi del browser~~ (in produzione dal 2026-10-19: solo hosting,
