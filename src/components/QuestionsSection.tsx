@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
@@ -36,6 +36,15 @@ export function QuestionsSection({
   // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio
+  // precedente (altra iscrizione, altro account) non tocca quello di adesso.
+  const deleteRunRef = useRef(0);
+
+  function showDelete(questionId: string | null) {
+    deleteRunRef.current += 1;
+    setDeleteError(null);
+    setDeleteTarget(questionId);
+  }
 
   const isCancelled = registration.registrationStatus === "cancelled";
   const authorFullName =
@@ -46,7 +55,7 @@ export function QuestionsSection({
   useEffect(() => {
     let active = true;
     // Altra iscrizione o altro account: il foglio di prima non vale più.
-    setDeleteTarget(null);
+    showDelete(null);
 
     async function load() {
       if (!session) {
@@ -202,6 +211,7 @@ export function QuestionsSection({
       return;
     }
 
+    const run = deleteRunRef.current;
     setBusy(true);
     setDeleteError(null);
     setError(null);
@@ -215,13 +225,21 @@ export function QuestionsSection({
       );
       setQuestions((current) => current.filter((question) => question.id !== questionId));
 
+      if (run !== deleteRunRef.current) {
+        return;
+      }
+
       if (editingId === questionId) {
         cancelEdit();
       }
 
-      setDeleteTarget(null);
+      showDelete(null);
       setInfo("Domanda eliminata.");
     } catch (caughtError) {
+      if (run !== deleteRunRef.current) {
+        return;
+      }
+
       setDeleteError(
         isConnectionError(caughtError)
           ? DOMANDE.erroreRete
@@ -370,10 +388,7 @@ export function QuestionsSection({
                         <button
                           className="button button--ghost button--small"
                           disabled={busy}
-                          onClick={() => {
-                            setDeleteError(null);
-                            setDeleteTarget(question.id);
-                          }}
+                          onClick={() => showDelete(question.id)}
                           type="button"
                         >
                           <AppIcon name="trash" />
@@ -397,7 +412,7 @@ export function QuestionsSection({
           cancelLabel={DOMANDE.tieni}
           confirmLabel={DOMANDE.conferma}
           error={deleteError}
-          onCancel={() => setDeleteTarget(null)}
+          onCancel={() => showDelete(null)}
           onConfirm={() => void handleConfirmDelete()}
           title={DOMANDE.eliminaTitolo}
           tone="danger"

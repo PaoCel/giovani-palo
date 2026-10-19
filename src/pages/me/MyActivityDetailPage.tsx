@@ -323,8 +323,11 @@ export function MyActivityDetailPage() {
 
   // Cambio di account o di attività (Indietro/Avanti fra due schede) con il
   // foglio aperto: si chiude, nessun annullamento parte per l'altra.
-  const routeEventIdRef = useRef(eventId);
-  routeEventIdRef.current = eventId;
+  // Account e attività di adesso: l'esito di una richiesta partita con altri
+  // non tocca la pagina.
+  const contextKey = `${sessionKey}|${eventId ?? ""}`;
+  const contextKeyRef = useRef(contextKey);
+  contextKeyRef.current = contextKey;
   useEffect(() => {
     setCancelSheetOpen(false);
     setCancelError(null);
@@ -354,6 +357,7 @@ export function MyActivityDetailPage() {
       return;
     }
 
+    const startedFor = contextKey;
     setBusy("cancel");
     setCancelError(null);
 
@@ -372,9 +376,9 @@ export function MyActivityDetailPage() {
         );
       }
 
-      // Se nel frattempo la scheda è cambiata, quella nuova si rilegge da sola:
-      // niente esito né dati dell'altra attività.
-      if (routeEventIdRef.current !== eventId) {
+      // Se nel frattempo scheda o account sono cambiati, la pagina nuova si
+      // rilegge da sola: niente esito né dati dell'altra.
+      if (contextKeyRef.current !== startedFor) {
         return;
       }
 
@@ -389,7 +393,9 @@ export function MyActivityDetailPage() {
       setCancelSheetOpen(false);
       setFeedback(ANNULLA.annullata);
     } catch (caughtError) {
-      setCancelError(getCancelErrorMessage(caughtError));
+      if (contextKeyRef.current === startedFor) {
+        setCancelError(getCancelErrorMessage(caughtError));
+      }
     } finally {
       setBusy(null);
     }
