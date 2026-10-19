@@ -37,6 +37,7 @@ import {
   withCancelTimeout,
 } from "@/utils/familyCancel";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
+import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 const AVATAR_PALETTE = ["#235d90", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
 
@@ -106,6 +107,11 @@ export function FamilyDashboardPage() {
   const [childModalOpen, setChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<ChildProfile | null>(null);
   const [childForm, setChildForm] = useState<ChildFormState>(emptyChildForm);
+  // Id e data di creazione fissati all'apertura: un "Aggiungi" ripetuto dopo
+  // un errore di rete riscrive lo stesso figlio invece di crearne un altro.
+  const [childDraft, setChildDraft] = useState<{ childId: string; createdAt: string } | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [consentTarget, setConsentTarget] = useState<ConsentTarget | null>(null);
@@ -394,6 +400,7 @@ export function FamilyDashboardPage() {
   function openCreateChild() {
     setEditingChild(null);
     setChildForm(emptyChildForm);
+    setChildDraft(parentUid ? childrenService.newChildDraft(parentUid) : null);
     setActionError(null);
     setChildModalOpen(true);
   }
@@ -434,23 +441,42 @@ export function FamilyDashboardPage() {
       stakeId: data.stakeId,
     };
 
+    // Senza rete la scrittura aspetterebbe il server per sempre.
+    if (isOffline()) {
+      setActionError(FAMIGLIA.erroreRete);
+      return;
+    }
+
     setBusy(true);
     setActionError(null);
 
     try {
       if (editingChild) {
-        await childrenService.updateChild(parentUid, editingChild.id, input);
+        await withWriteTimeout(childrenService.updateChild(parentUid, editingChild.id, input));
       } else {
-        await childrenService.createChild(parentUid, input);
+        await withWriteTimeout(
+          childrenService.createChild(parentUid, input, childDraft ?? undefined),
+        );
       }
 
       setChildModalOpen(false);
       await reload();
     } catch (caughtError) {
+      // Senza rete la creazione resta in coda e la cache la conosce già: il
+      // figlio compare nella lista, così riaprire "Aggiungi" non ne crea un secondo.
+      if (!editingChild && isConnectionError(caughtError)) {
+        void childrenService
+          .listChildren(parentUid)
+          .then((children) => setData((current) => ({ ...current, children })))
+          .catch(() => undefined);
+      }
+
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : FAMIGLIA.erroreSalvataggio,
+        isConnectionError(caughtError)
+          ? FAMIGLIA.erroreRete
+          : caughtError instanceof Error && !("code" in caughtError)
+            ? caughtError.message
+            : FAMIGLIA.erroreSalvataggio,
       );
     } finally {
       setBusy(false);

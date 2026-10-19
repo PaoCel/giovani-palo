@@ -9,6 +9,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
 import type { AuthSession, GenderRoleCategory, OrganizationProfile } from "@/types";
 import { readPendingAccountProfile } from "@/utils/pendingAccountProfile";
+import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 import {
   BIRTH_DATE_MIN,
   canBecomeParent,
@@ -243,21 +244,27 @@ export function ProfileForm({
       return;
     }
 
+    // Senza rete la scrittura del profilo aspetterebbe il server per sempre.
+    if (isOffline()) {
+      setError(PROFILO.erroreRete);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     onSubmitStart?.();
 
     try {
-      const nextSession =
+      const nextSession = await withWriteTimeout(
         variant === "genitore"
-          ? await completeParentProfile({
+          ? completeParentProfile({
               firstName: values.firstName.trim(),
               lastName: values.lastName.trim(),
               unitName: values.unitName.trim(),
               city: values.city.trim(),
               stakeId: organization.stakeId,
             })
-          : await completeProfile({
+          : completeProfile({
               firstName: values.firstName.trim(),
               lastName: values.lastName.trim(),
               birthDate: values.birthDate,
@@ -266,10 +273,13 @@ export function ProfileForm({
               stakeId: organization.stakeId,
               // Account nato da genitore che partecipa lui: cambia nella stessa scrittura.
               ...(role === "parent" ? { role: "participant" as const } : {}),
-            });
+            }),
+      );
       onSaved?.(nextSession);
     } catch (caughtError) {
-      setError(toUserFacingAuthError(caughtError));
+      setError(
+        isConnectionError(caughtError) ? PROFILO.erroreRete : toUserFacingAuthError(caughtError),
+      );
     } finally {
       setBusy(false);
     }

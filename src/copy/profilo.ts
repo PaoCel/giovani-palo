@@ -2,6 +2,8 @@
 // l'iscrizione (docs/FLUSSO_GENITORE.md, D) e in Accedi dopo «Chi sei?».
 // Convenzioni in ./parole.ts.
 
+import { FAMIGLIA } from "./famiglia.ts";
+
 export const PROFILO = {
   // Dentro l'iscrizione, "Partecipo io": chi compila è chi partecipa.
   titoloIo: "Sei tu a partecipare",
@@ -46,4 +48,5 @@ export const PROFILO = {
   erroreUnita: "Indica il tuo rione o ramo.",
   erroreComune: "Indica il comune di riferimento.",
   erroreUnitaElenco: "Seleziona un'unità valida dall'elenco configurato.",
+  erroreRete: FAMIGLIA.erroreRete,
 } as const;
