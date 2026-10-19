@@ -16,8 +16,8 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "fasi 1 e 2 in produzione dal 2026-10-19 (rules, 6 functions di parentAuthorization, hosting con service worker v22)"
-next: "fase 3: B e C dentro l'iscrizione, account nuovo parent con per=figlio, via il window.confirm, «Chi sei?» fuori dall'attività"
+stopped_at: "fase 3 su main il 2026-10-19, non deployata (solo hosting); fasi 1 e 2 in produzione"
+next: "deploy hosting della fase 3 con l'ok di Paolo (service worker v23), poi fase 4: E con foglio «Aggiungi», modulo aperto senza figli, prefill del passo genitore, bozze per figlio, H"
 verified: "fase 2 in produzione: ruleset live uguale a git (03c3c01), 6 functions aggiornate e GetContext con canSignInApp live, bundle live index-DdMIgQ6d.js con sw v22, /login, /activities e /parent-confirm provati da non entrato senza errori; prima unit 356, emulatore rules 39 + 3 todo, callable 25, py 5/5, browser contro emulatori a 320/390/430, review di un altro agente"
 links: []
 done_at:
@@ -68,7 +68,8 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      pesante oltre il budget delle rules~~ (corretto su `main` il 2026-10-19:
      `validRegistrationUpdate` da oltre 1000 a 650-780 espressioni, permessi
      invariati, i 3 `todo` di `parentCancelRulesEmulator.test.mjs` ora verdi;
-     rules da pubblicare con l'ok di Paolo); ~~il reinvio
+     rules in produzione dal 2026-10-19 con l'ok di Paolo, ruleset live uguale
+     a `8d08f8c`); ~~il reinvio
      dell'admin e il cambio email lasciano due link validi e mandano due mail~~
      (corretto su `main` il 2026-10-19: ogni emissione è una transazione che
      invalida tutti i link pendenti, anche alla firma; il reinvio rifiuta
@@ -78,10 +79,33 @@ Fase 1 del piano autonomia (2026-10-18). Spec stati/uscite/annullamenti + mockup
      `onRegistrationPendingParentAuth`, `parentAuthorizationResend`,
      `…IssueOwnToken`, `…Confirm`, `…Reject`). Tutti e due in sessioni
      separate dal 2026-10-19.
-3. Illustrazioni: WebP 2× da `.claude/mockups/flusso-genitore/img/` nel repo
-   quando si costruisce la prima schermata che le usa.
+   - Fase 3: «Chi partecipa?» e «Il tuo account» dentro l'iscrizione,
+     account nuovo da genitore con `per=figlio`, «Chi sei?» in Accedi, via i
+     dialoghi del browser (su `main` dal 2026-10-19, **non deployata**:
+     solo hosting, nessuna rule né function). Dettaglio e scelte provvisorie
+     fino alle fasi 5-6 nella spec, sezione "Fasi".
+3. ~~Illustrazioni: WebP 2× nel repo~~ (`src/assets/flusso-genitore/`: io,
+   genitore, giovani, dirigente a 240 px; le altre due con le fasi 4-5).
 
 ## Verificato
+
+2026-10-19, fase 3 su `main` (non deployata). Sul Mac mini: `npm ci && npm
+test && npm run build` verdi (488 test, di cui 132 nuovi scritti da un altro
+agente: `registerFlow`, `profileCompletion`, `authErrors`); bundle iniziale
+da 495 a 385 kB («Chi sei?» e "I tuoi dati" caricati quando servono).
+Nell'emulatore, da un altro agente, `functions/tests/accountTypeRulesEmulator.test.mjs`
+17/17: le scritture del profilo della fase 3 (creazione, tipo di account,
+"I tuoi dati" da genitore e da partecipante) passano con le rules di oggi, un
+dirigente o un ragazzo non si danno ruoli. Collaudo con Playwright sul mini
+contro emulatori e vite, a 320, 390 e 430 px: 271 controlli verdi su non
+entrato (io e figlio), ragazzo che sceglie il figlio per sbaglio, adulto
+partecipante, genitore, ragazzo minorenne (anche col telefono usato dal
+genitore), ospite, dirigente, «Chi sei?» con uscita, iscrizioni chiuse,
+passo senza prerequisiti, Google chiuso, Google nuovo e Google di un account
+esistente (non convertito); nessun dialogo del browser, console pulita,
+niente scroll orizzontale, campi a 16 px, target da 44 px, titoli 27-32 px.
+Confronti affiancati con i mockup in `.claude/qa-fase3/out/confronto-*.png`.
+Non provati: tastiera aperta su Safari iOS e Android veri, produzione.
 
 2026-10-19, rilascio fase 2 con l'ok di Paolo, da una copia isolata di `main`
 (le sessioni parallele lavorano nella stessa cartella): ruleset live scaricato
