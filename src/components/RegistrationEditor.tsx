@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
@@ -45,6 +45,9 @@ interface RegistrationEditorProps {
   busy?: boolean;
   submitLabel: string;
   onSubmit: (input: RegistrationWriteInput) => Promise<void>;
+  // Risposte toccate dall'utente e non ancora inviate (foglio "Esci
+  // dall'iscrizione?"): conta solo l'input vero, non i riempimenti automatici.
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface RegistrationEditorValues {
@@ -295,6 +298,7 @@ export function RegistrationEditor({
   busy,
   submitLabel,
   onSubmit,
+  onDirtyChange,
 }: RegistrationEditorProps) {
   const cityOptionsListId = useId();
   // Un account genitore riceve anche una Registration sintetica che precompila
@@ -312,6 +316,8 @@ export function RegistrationEditor({
   const [values, setValues] = useState<RegistrationEditorValues>(
     getInitialValues(session, formConfig, initialRegistration, parentDetailsSource),
   );
+  // Un campo toccato dall'utente (non i riempimenti automatici).
+  const touchedRef = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const sessionNames = useMemo(
@@ -572,7 +578,18 @@ export function RegistrationEditor({
     setValues(getInitialValues(session, formConfig, initialRegistration, parentDetailsSource));
     setFieldErrors({});
     setCurrentStepIndex(0);
+    touchedRef.current = false;
+    onDirtyChange?.(false);
   }, [editorIdentityKey]);
+
+  // Avvisa la pagina dopo il render, mai dentro l'evento del campo: un
+  // aggiornamento del genitore durante l'input faceva perdere la prima
+  // lettera digitata.
+  useEffect(() => {
+    if (touchedRef.current) {
+      onDirtyChange?.(true);
+    }
+  }, [values, onDirtyChange]);
 
   useEffect(() => {
     setCurrentStepIndex((current) => Math.min(current, registrationSteps.length - 1));
@@ -1174,7 +1191,22 @@ export function RegistrationEditor({
   }
 
   return (
-    <form className="form-stack" onSubmit={handleSubmit}>
+    <form
+      className="form-stack"
+      onChangeCapture={() => {
+        touchedRef.current = true;
+      }}
+      onInputCapture={() => {
+        touchedRef.current = true;
+      }}
+      // La firma sul canvas non genera input: conta il tocco.
+      onPointerDownCapture={(eventInput) => {
+        if ((eventInput.target as HTMLElement).tagName === "CANVAS") {
+          touchedRef.current = true;
+        }
+      }}
+      onSubmit={handleSubmit}
+    >
       <div className="form-stepper form-stepper--registration">
         <div className="form-stepper__progress">
           <div className="form-stepper__progress-meta">

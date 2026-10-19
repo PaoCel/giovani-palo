@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { alertsService } from "@/services/firestore/alertsService";
 import type { Alert } from "@/types";
 import { getLoginPath } from "@/utils/activityLinks";
+import { needsProfileCompletion } from "@/utils/profileCompletion";
 import { getRoleLabel } from "@/utils/roles";
 
 export interface LayoutLink {
@@ -69,7 +70,18 @@ export function ShellLayout({
   const scrollFrameRef = useRef<number | null>(null);
   const showTopNav = area === "admin" && links.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
-  const showPublicBack = area === "public" && location.pathname !== "/";
+  // L'iscrizione ha la sua freccia, che torna al passo prima; «Chi sei?» e
+  // "I tuoi dati" dopo un account nuovo non ne hanno (FLUSSO_GENITORE.md, I).
+  const showPublicBack =
+    area === "public" &&
+    location.pathname !== "/" &&
+    !/^\/activities\/[^/]+\/register\/?$/u.test(location.pathname) &&
+    !(
+      location.pathname === "/login" &&
+      session &&
+      !session.isAnonymous &&
+      needsProfileCompletion(session.profile)
+    );
   // "Accedi" per chi non è entrato (anche da ospite), con ritorno alla pagina
   // corrente. Non su /login, dove azzererebbe il redirect già in corso.
   const showAuthLink = location.pathname !== "/login";

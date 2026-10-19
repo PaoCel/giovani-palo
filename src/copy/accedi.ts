@@ -50,4 +50,25 @@ export const ACCEDI = {
 
   // Completa il profilo, ultimo passo.
   salvaEContinua: "Salva e continua",
+
+  // Controlli del modulo prima di chiamare Firebase.
+  erroreEmail: "Inserisci un indirizzo email valido.",
+  errorePassword: "La password deve avere almeno 6 caratteri.",
+  errorePasswordDiverse: "Le password non coincidono.",
+  erroreCampi: "Completa i campi richiesti per continuare.",
+  erroreEmailPerReset: "Inserisci prima la tua email per ricevere il link di reset.",
+  resetInviato: "Ti abbiamo inviato il link per reimpostare la password.",
+
+  // Errori di Firebase Auth per codice (src/utils/authErrors.ts). La finestra
+  // di Google chiusa non ha messaggio: si resta dove si era.
+  erroreCredenziali: "Email o password non corretti.",
+  erroreEmailGiaUsata: `Esiste già un account con questa email: scegli «${PAROLE.accedi}».`,
+  erroreAltroAccesso: `Esiste già un account con questo accesso: scegli «${PAROLE.accedi}».`,
+  erroreTroppiTentativi: "Troppi tentativi: riprova tra qualche minuto.",
+  erroreRete: "Connessione assente: controlla la rete e riprova.",
+  errorePopupBloccato:
+    "Il browser ha bloccato la finestra di Google: consenti le finestre pop-up e riprova.",
+  erroreAccountDisattivato: "Questo account è disattivato: scrivi ai dirigenti del palo.",
+  erroreCreazioneChiusa: "Qui non si possono creare account nuovi.",
+  erroreGenerico: "Non ci siamo riusciti: riprova tra poco.",
 } as const;

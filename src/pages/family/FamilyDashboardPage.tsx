@@ -24,7 +24,11 @@ import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
 import type { ChildProfile, Event, PhotoConsentDecision, Registration, Unit } from "@/types";
 import { isConsentStaleError } from "@/utils/callableError";
-import { getActivitiesPath, getActivityRegistrationPath } from "@/utils/activityLinks";
+import {
+  getActivitiesPath,
+  getActivityRegistrationPath,
+  withRegisterFor,
+} from "@/utils/activityLinks";
 import { formatDateOnly, formatEventWindow } from "@/utils/formatters";
 import {
   getCancelErrorMessage,
@@ -637,7 +641,7 @@ export function FamilyDashboardPage() {
                               ) : null}
                               <Link
                                 className="button button--ghost button--small"
-                                to={`${getActivityRegistrationPath(registration.eventId, registration.stakeId)}${getActivityRegistrationPath(registration.eventId, registration.stakeId).includes("?") ? "&" : "?"}child=${child.id}`}
+                                to={`${withRegisterFor(getActivityRegistrationPath(registration.eventId, registration.stakeId), "figlio")}&passo=modulo&child=${encodeURIComponent(child.id)}`}
                               >
                                 Gestisci
                               </Link>

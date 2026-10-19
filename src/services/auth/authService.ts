@@ -3,6 +3,7 @@ import {
   EmailAuthProvider,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  getAdditionalUserInfo,
   linkWithCredential,
   linkWithPopup,
   onAuthStateChanged,
@@ -14,6 +15,7 @@ import {
   signOut,
   updatePassword,
   type User,
+  type UserCredential,
 } from "firebase/auth";
 
 import { auth, googleProvider } from "@/services/firebase/app";
@@ -127,6 +129,15 @@ export const authService = {
     }
   },
 
+  // Account creato da questo accesso (Google nuovo, o ospite collegato a un
+  // Google mai usato): solo a lui si applica il tipo scelto nell'iscrizione.
+  isNewAccount(credential: UserCredential) {
+    return (
+      getAdditionalUserInfo(credential)?.isNewUser === true ||
+      credential.operationType === "link"
+    );
+  },
+
   async signInAnonymously() {
     try {
       return await signInAnonymously(auth);
@@ -145,6 +156,7 @@ export const authService = {
       genderRoleCategory: GenderRoleCategory;
       unitName: string;
       stakeId: string;
+      role?: "participant";
     },
   ) {
     if (session.firebaseUser.isAnonymous) {

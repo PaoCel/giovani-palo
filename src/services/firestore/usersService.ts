@@ -210,10 +210,16 @@ export const usersService = {
       return mapUserProfile(user.uid, payload);
     }
 
-    const profile = mapUserProfile(user.uid, snapshot.data());
+    const storedData = snapshot.data();
+    const profile = mapUserProfile(user.uid, storedData);
     const fullName = profile.fullName || buildDisplayName(user);
     const names = splitFullName(fullName);
 
+    // Ruolo e cambio password si scrivono solo se mancano (documenti vecchi):
+    // riscriverli con il valore letto qui cancellava un cambio appena fatto
+    // da un'altra scrittura. All'accesso partono due letture (l'accesso e
+    // l'osservatore della sessione) e la seconda rimetteva `participant` sopra
+    // il `parent` scelto con "Iscrivo mio figlio" (2026-10-19).
     await setDoc(
       reference,
       {
@@ -222,7 +228,7 @@ export const usersService = {
         fullName,
         email: user.email ?? profile.email,
         phone: profile.phone,
-        role: profile.role,
+        ...(typeof storedData.role === "string" ? {} : { role: profile.role }),
         city: profile.city,
         birthDate: profile.birthDate,
         genderRoleCategory: profile.genderRoleCategory,
@@ -231,7 +237,9 @@ export const usersService = {
         stakeId: profile.stakeId,
         stakeSlug: profile.stakeSlug,
         stakeName: profile.stakeName,
-        mustChangePassword: profile.mustChangePassword,
+        ...(typeof storedData.mustChangePassword === "boolean"
+          ? {}
+          : { mustChangePassword: profile.mustChangePassword }),
         createdAt: profile.createdAt,
         updatedAt: lastLoginAt,
         lastLoginAt,
@@ -402,6 +410,9 @@ export const usersService = {
       unitName: string;
       birthDate: string;
       genderRoleCategory: GenderRoleCategory;
+      // Account nuovo nato da genitore che partecipa lui ("Hai meno di 18
+      // anni? Sei tu a partecipare"): il ruolo cambia nella stessa scrittura.
+      role?: "participant";
     },
   ) {
     const reference = doc(db, "users", uid);
@@ -441,6 +452,7 @@ export const usersService = {
       genderRoleCategory: input.genderRoleCategory,
       stakeId: input.stakeId,
       stakeSlug: stake?.slug ?? "",
+      ...(input.role && currentProfile.role === "parent" ? { role: input.role } : {}),
       updatedAt: nowIso(),
       lastLoginAt: nowIso(),
     });

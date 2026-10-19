@@ -12,7 +12,8 @@
   --surface-border-strong: rgba(17, 35, 58, 0.14);
   --text: #233247;
   --heading: #101c30;
-  --muted: #66758a;
+  /* AA anche sullo sfondo della pagina (4,7:1 su --bg; prima 4,2:1). */
+  --muted: #5e6c81;
   --primary: #235d90;
   --primary-strong: #1b3f67;
   --primary-soft: rgba(35, 93, 144, 0.12);
@@ -993,6 +994,32 @@ button {
   display: none;
 }
 
+/* "Sei un genitore? Iscrivi tuo figlio o tua figlia da qui." (FLUSSO_GENITORE, A). */
+.activity-hero__parent {
+  margin: 0.75rem 0 0;
+  color: rgba(246, 251, 255, 0.92);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.activity-hero__parent a,
+.activity-cta-bar__parent a {
+  display: inline-block;
+  margin: -0.8rem 0;
+  padding: 0.8rem 0;
+  font-weight: 800;
+}
+
+.activity-hero__parent a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.activity-cta-bar__parent {
+  display: none;
+}
+
 @media (max-width: 719px) {
   .activity-hero__actions {
     display: none;
@@ -1036,6 +1063,29 @@ button {
 
   .page--activity-detail {
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
+  .activity-hero__parent {
+    display: none;
+  }
+
+  .activity-cta-bar__parent {
+    display: block;
+    width: min(1100px, 100%);
+    margin: 0.55rem auto 0;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .activity-cta-bar__parent a {
+    color: var(--primary);
+  }
+
+  .page--activity-detail-parent {
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
   }
 }
 

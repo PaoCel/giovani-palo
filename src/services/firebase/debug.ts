@@ -1,6 +1,8 @@
 import type { FirebaseApp, FirebaseOptions } from "firebase/app";
 import type { Auth, GoogleAuthProvider } from "firebase/auth";
 
+import { getAuthErrorMessage } from "@/utils/authErrors";
+
 const requiredConfigKeys = [
   "apiKey",
   "authDomain",
@@ -107,6 +109,8 @@ export function logAuthFailure(
   console.groupEnd();
 }
 
+// Il testo per l'utente, o null quando non va mostrato niente (finestra di
+// Google chiusa): src/utils/authErrors.ts.
 export function toUserFacingAuthError(error: unknown) {
   const code = getErrorCode(error);
 
@@ -114,5 +118,5 @@ export function toUserFacingAuthError(error: unknown) {
     return "Il frontend sta puntando al progetto Firebase corretto, ma Firebase Authentication non risulta inizializzata o abilitata lato backend per questo progetto.";
   }
 
-  return getErrorMessage(error);
+  return getAuthErrorMessage(error);
 }

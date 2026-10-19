@@ -9,6 +9,7 @@ import { authService } from "@/services/auth/authService";
 import { usersService } from "@/services/firestore/usersService";
 import { adminPushService } from "@/services/push/adminPushService";
 import type { AuthContextValue, AuthSession, GenderRoleCategory } from "@/types";
+import { shouldApplyAccountType } from "@/utils/profileCompletion";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -71,12 +72,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return nextSession;
   }
 
-  async function applyAccountType(nextSession: AuthSession, accountType?: "participant" | "parent") {
-    if (!accountType || nextSession.profile.role === accountType) {
-      return nextSession;
-    }
-
-    if (nextSession.profile.role !== "participant" && nextSession.profile.role !== "parent") {
+  // Il tipo scelto ("per chi" dell'iscrizione) vale solo per un account appena
+  // creato e col profilo ancora da completare: entrare con Google in un
+  // account esistente non lo trasforma mai (l'account di un ragazzo non
+  // diventa da genitore); per quelli il tipo si decide salvando "I tuoi dati".
+  // Dirigenti e admin restano quello che sono.
+  async function applyAccountType(
+    nextSession: AuthSession,
+    accountType: "participant" | "parent" | undefined,
+    isNewAccount: boolean,
+  ) {
+    if (
+      !accountType ||
+      !shouldApplyAccountType({ accountType, isNewAccount, profile: nextSession.profile })
+    ) {
       return nextSession;
     }
 
@@ -100,7 +109,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const credential = await authService.signInWithGoogle();
     const nextSession = await authService.createSessionFromFirebaseUser(credential.user);
     setSession(nextSession);
-    return applyAccountType(nextSession, accountType);
+    return applyAccountType(nextSession, accountType, authService.isNewAccount(credential));
   }
 
   async function signUpWithEmail(
@@ -111,7 +120,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const credential = await authService.signUpWithEmail(email, password);
     const nextSession = await authService.createSessionFromFirebaseUser(credential.user);
     setSession(nextSession);
-    return applyAccountType(nextSession, accountType);
+    // "Crea un account" crea sempre un account nuovo (o collega l'ospite).
+    return applyAccountType(nextSession, accountType, true);
   }
 
   async function handlePasswordReset(email: string) {
@@ -132,6 +142,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     genderRoleCategory: GenderRoleCategory;
     unitName: string;
     stakeId: string;
+    role?: "participant";
   }) {
     if (!session) {
       throw new Error("Sessione non disponibile.");
@@ -170,14 +181,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return nextSession;
   }
 
-  async function switchToParentAccount() {
-    if (!session) {
-      throw new Error("Sessione non disponibile.");
-    }
-
-    return applyAccountType(session, "parent");
-  }
-
   async function handleChangePassword(nextPassword: string) {
     await authService.changePassword(nextPassword);
 
@@ -209,7 +212,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
         signInAnonymously,
         completeProfile,
         completeParentProfile,
-        switchToParentAccount,
         changePassword: handleChangePassword,
         signOut: handleSignOut,
       }}

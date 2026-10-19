@@ -1,0 +1,663 @@
+/* Passi dell'iscrizione e «Chi sei?» (docs/FLUSSO_GENITORE.md, B-D e I).
+   Finitura: testo di lettura e campi a 16 px, secondario mai sotto 13 px,
+   target da 44 px, nessuno scroll orizzontale da 320 px, un solo contenitore
+   di scorrimento (la pagina), piede fisso con la safe-area (auth-foot). */
+
+.page--flow {
+  min-height: calc(100dvh - 5.3rem);
+  align-content: start;
+}
+
+.page--flow > .flow-header,
+.page--flow > .flow-step,
+.page--flow > .auth-screen,
+.page--flow > .notice {
+  width: min(28rem, 100%);
+  margin-inline: auto;
+}
+
+/* Modulo e scelta del figlio: il contenuto resta largo, l'intestazione no. */
+.page--flow-wide > .flow-header,
+.page--flow-wide > .notice {
+  width: min(44rem, 100%);
+  margin-inline: 0 auto;
+}
+
+.flow-header {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.flow-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+
+.flow-topbar__back {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+  color: var(--heading);
+}
+
+.flow-topbar__back svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.flow-topbar__eyebrow {
+  min-width: 0;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.flow-topbar__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.35rem;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.flow-topbar__link svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.flow-topbar__spacer {
+  width: 2.75rem;
+  flex: none;
+}
+
+.flow-topbar__back:focus-visible,
+.flow-topbar__link:focus-visible,
+.flow-context__change:focus-visible,
+.flow-signed-in__switch:focus-visible,
+.flow-aside__link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* "Sei entrato come … · Cambia account". */
+.flow-signed-in {
+  display: grid;
+  gap: 0.15rem;
+  text-align: center;
+}
+
+.flow-signed-in p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.flow-signed-in strong {
+  color: var(--heading);
+}
+
+/* Link nel testo con il bersaglio da 44 px, senza allargare la riga. */
+.flow-signed-in__switch,
+.flow-aside__link {
+  display: inline;
+  margin: -0.8rem 0;
+  padding: 0.8rem 0.15rem;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 800;
+}
+
+.flow-signed-in p.flow-signed-in__note,
+.flow-header__note {
+  font-size: 0.8125rem;
+}
+
+.flow-header__note {
+  margin: -0.35rem 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Attività e "Per: … · Cambia". */
+.flow-context {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.45rem 0.45rem 0.45rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.flow-context__mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #3d7bb0, var(--primary-strong) 70%);
+  color: #fff;
+}
+
+.flow-context__mark svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.flow-context__text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: 1.3;
+}
+
+.flow-context__text strong {
+  overflow: hidden;
+  color: var(--heading);
+  font-size: 0.875rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Per: un figlio o una figlia" va a capo invece di essere troncato. */
+.flow-context__text span {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.flow-context__change {
+  flex: none;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+/* Percorso in tre tappe. */
+.flow-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-progress__item {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.flow-progress__bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-border-strong);
+}
+
+.flow-progress__item--current .flow-progress__bar {
+  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+}
+
+.flow-progress__item--done .flow-progress__bar {
+  background: var(--primary);
+  opacity: 0.45;
+}
+
+.flow-progress__label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.flow-progress__item--current .flow-progress__label {
+  color: var(--heading);
+  font-weight: 800;
+}
+
+/* Passo: titolo, scelte, avvisi. */
+.flow-step {
+  display: grid;
+  align-content: start;
+  gap: 1.25rem;
+  padding-top: 0.5rem;
+}
+
+.flow-step-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.auth-screen__title:focus {
+  outline: none;
+}
+
+.flow-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border-radius: 1.125rem;
+  background: var(--primary-soft);
+  color: #1d3e5f;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.flow-note svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--primary);
+}
+
+/* Schede illustrate: la scheda è il pulsante. */
+.choice-list {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.choice-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8rem;
+  align-items: end;
+  width: 100%;
+  min-height: 11.375rem;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 1.625rem;
+  border: 1px solid var(--surface-border);
+  background: linear-gradient(160deg, #ffffff 0%, #fbf8f3 100%);
+  box-shadow: var(--shadow-soft);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.choice-card:hover {
+  transform: translateY(-1px);
+}
+
+.choice-card:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.choice-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.choice-card:disabled {
+  cursor: default;
+  opacity: 0.7;
+  transform: none;
+}
+
+.choice-card--selected {
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 4px var(--primary-soft),
+    var(--shadow-soft);
+}
+
+.choice-card__text {
+  align-self: stretch;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 0.25rem 1.125rem 1.25rem;
+}
+
+.choice-card__title {
+  color: var(--heading);
+  font-family: "Fraunces", serif;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.choice-card__detail {
+  margin: 0.45rem 0 0.875rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.42;
+}
+
+.choice-card__go {
+  width: 2.375rem;
+  height: 2.375rem;
+  margin-top: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.choice-card__go svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.choice-card__image {
+  width: 7.25rem;
+  height: auto;
+  justify-self: end;
+  margin: 0 0.75rem -2px 0;
+  filter: drop-shadow(0 10px 14px rgba(16, 28, 48, 0.22));
+}
+
+.choice-card--compact {
+  min-height: 9.375rem;
+  grid-template-columns: minmax(0, 1fr) 6.5rem;
+}
+
+.choice-card--compact .choice-card__text {
+  padding: 1rem 0.25rem 0.875rem 1.125rem;
+}
+
+.choice-card--compact .choice-card__title {
+  font-size: 1.22rem;
+}
+
+.choice-card--compact .choice-card__image {
+  width: 5.875rem;
+}
+
+@media (max-width: 359px) {
+  .choice-card {
+    grid-template-columns: minmax(0, 1fr) 6.75rem;
+  }
+
+  .choice-card__image {
+    width: 6.25rem;
+    margin-right: 0.5rem;
+  }
+
+  .choice-card__title {
+    font-size: 1.25rem;
+  }
+
+  .choice-card--compact {
+    grid-template-columns: minmax(0, 1fr) 5.5rem;
+  }
+
+  .choice-card--compact .choice-card__image {
+    width: 5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice-card {
+    transition: none;
+  }
+
+  .choice-card:hover,
+  .choice-card:active {
+    transform: none;
+  }
+}
+
+/* "I tuoi dati". */
+.flow-name-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.flow-pills {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.flow-pills legend {
+  margin-bottom: 0.55rem;
+  padding: 0;
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.flow-pills__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.flow-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border-strong);
+  background: #fff;
+  color: var(--heading);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.flow-pill input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.flow-pill svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.flow-pill--selected {
+  border-color: var(--primary-strong);
+  background: var(--primary-strong);
+  color: #fff;
+}
+
+.flow-pill:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.flow-aside {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.25rem 0.9rem;
+  min-height: 2.75rem;
+  border-radius: 1rem;
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.flow-aside svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--primary);
+}
+
+.flow-foot-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.flow-foot-actions--two {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.flow-guest {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.flow-guest .button {
+  width: 100%;
+  min-height: 3.375rem;
+  border-radius: 999px;
+}
+
+/* Scheda "Serve l'account di un genitore" e simili. */
+.account-needed {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.account-needed__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.account-needed__who {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.account-needed__label {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-needed__who strong {
+  color: var(--heading);
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+
+.account-needed__who > span:last-child:not(.account-needed__label) {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.account-needed__actions {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.account-needed__actions .button {
+  width: 100%;
+  min-height: 3.375rem;
+  border-radius: 999px;
+}
+
+/* Cambio di passo: breve dissolvenza, niente con il movimento ridotto. Solo
+   opacity: un transform romperebbe i figli in position: fixed. */
+@media (prefers-reduced-motion: no-preference) {
+  .page--flow > .flow-step,
+  .page--flow > .auth-screen {
+    animation: flow-step-in 0.18s ease-out;
+  }
+}
+
+@keyframes flow-step-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 719px) {
+  .page--flow {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-bottom: 0;
+  }
+
+  .page--flow-wide {
+    padding-bottom: 3rem;
+  }
+
+  /* 16 px dal bordo, come la pagina Accedi: la pagina comune ne lascia 10. */
+  .page--flow > .flow-header,
+  .page--flow > .flow-step {
+    padding-inline: 6px;
+  }
+
+  .page--flow > .auth-screen,
+  .page--flow > .account-needed {
+    flex: 1 0 auto;
+  }
+
+  .page--flow > .flow-step:last-child {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+
+  .account-needed__actions {
+    margin-top: auto;
+  }
+}

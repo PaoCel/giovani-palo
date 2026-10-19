@@ -32,4 +32,31 @@ export const ISCRIZIONE = {
   noteMedicheIntro:
     "Tutto facoltativo. Dichiara solo ciò che ritieni utile per la sicurezza di chi partecipa. Le informazioni sono visibili solo agli admin.",
   farmaciPlaceholder: "Nome e dosaggio dei farmaci da assumere durante l'attività.",
+
+  // "Il tuo account" dentro l'iscrizione (docs/FLUSSO_GENITORE.md, C).
+  accountTitoloGenitore: "Il tuo account da genitore",
+  accountLeadGenitore: "Iscrivi i tuoi figli e segui le loro iscrizioni da qui: a loro non serve un account.",
+  accountPiedeGenitore: "Poi aggiungi tuo figlio o tua figlia.",
+  accountTitoloIo: "Il tuo account",
+  accountLeadIo: "Ti serve per seguire l'iscrizione e ritrovarla la prossima volta.",
+  continuaSenzaAccount: "Continua senza account",
+  // Ospite che apre una nuova sessione per un'altra persona (foglio di conferma).
+  altraPersonaTitolo: "Iscrivere un'altra persona?",
+  altraPersonaConferma:
+    "Conferma di aver già salvato il codice di recupero o il PDF dell'iscrizione precedente: senza quelli non potrai più modificarla. Le richieste ai record fatte da questo telefono non si vedranno più.",
+  altraPersonaResta: "Resta su questa iscrizione",
+  altraPersonaVai: "Iscrivi un'altra persona",
+  altraPersonaInCorso: "Apertura sessione...",
+  // Uscita dal modulo con risposte non inviate (FLUSSO_GENITORE.md, F).
+  esciTitolo: "Esci dall'iscrizione?",
+  esciTesto: "Le risposte non inviate si perdono.",
+  continuaACompilare: "Continua a compilare",
+  esci: PAROLE.esci,
+  // Account da genitore senza figli salvati (fino alla fase 4: si aggiungono in Famiglia).
+  nessunFiglioTitolo: "Nessun figlio collegato",
+  nessunFiglioTesto:
+    "Aggiungi i tuoi figli in Famiglia: servono nome, data di nascita e unità. Poi torna su questa attività e scegli «Iscrivi tuo figlio o tua figlia».",
+  vaiAFamiglia: "Vai a Famiglia",
+  supporto: "Per supporto rapido puoi contattare: {contatto}.",
+  apriSessione: "Apertura sessione...",
 } as const;

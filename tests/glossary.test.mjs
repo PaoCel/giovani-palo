@@ -7,11 +7,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ACCEDI } from "../src/copy/accedi.ts";
 import { ADMIN } from "../src/copy/admin.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
+import { ATTIVITA } from "../src/copy/attivita.ts";
+import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
+import { CHI_SEI } from "../src/copy/chiSei.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
 import { FIRMA } from "../src/copy/firma.ts";
 import { HOME } from "../src/copy/home.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
 import { PAROLE, fillCopy } from "../src/copy/parole.ts";
+import { PERCORSO } from "../src/copy/percorso.ts";
+import { PROFILO } from "../src/copy/profilo.ts";
+import { TIPO_ACCOUNT } from "../src/copy/tipoAccount.ts";
 import { EXISTING_ACCOUNT_RETRY_MESSAGE } from "../src/utils/anonymousAccountSwitch.ts";
 
 // Glossario delle schermate (docs/FLUSSO_GENITORE.md, sezione "Parole"):
@@ -505,7 +511,22 @@ test("in src/ non compare nessuna forma vietata dal glossario", () => {
 
 // --- Testi in src/copy/ -----------------------------------------------------
 
-const COPY = { PAROLE, ACCEDI, ADMIN, ANNULLA, FAMIGLIA, FIRMA, HOME, ISCRIZIONE };
+const COPY = {
+  PAROLE,
+  ACCEDI,
+  ADMIN,
+  ANNULLA,
+  ATTIVITA,
+  CHI_PARTECIPA,
+  CHI_SEI,
+  FAMIGLIA,
+  FIRMA,
+  HOME,
+  ISCRIZIONE,
+  PERCORSO,
+  PROFILO,
+  TIPO_ACCOUNT,
+};
 
 test("ogni testo di src/copy/ è una stringa non vuota", () => {
   for (const [name, copy] of Object.entries(COPY)) {

@@ -18,6 +18,7 @@ import {
   getVisibleStandardFieldDefinitions,
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
+import { ATTIVITA } from "@/copy/attivita";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
   getAudienceRestrictionMessage,
@@ -32,6 +33,7 @@ import {
   getAbsoluteUrl,
   getActivityPath,
   getActivityRegistrationPath,
+  withRegisterFor,
   getMyActivityPath,
 } from "@/utils/activityLinks";
 
@@ -215,23 +217,23 @@ export function ActivityDetailPage() {
       );
     }
 
-    if (availability === "open" || availability === "guest-allowed") {
-      return (
-        <Link className={primaryClass} to={registrationPath}>
-          <AppIcon name="ticket" />
-          <span>Iscriviti</span>
-        </Link>
-      );
-    }
+    // Chi non è entrato si iscrive da qui anche quando serve un account: il
+    // passo account è dentro l'iscrizione (docs/FLUSSO_GENITORE.md, A e C).
+    if (
+      availability === "open" ||
+      availability === "guest-allowed" ||
+      availability === "login-required"
+    ) {
+      const forChild = Boolean(session?.isParent);
 
-    if (availability === "login-required") {
       return (
         <Link
           className={primaryClass}
-          to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
+          state={{ fromActivity: true }}
+          to={forChild ? withRegisterFor(registrationPath, "figlio") : registrationPath}
         >
-          <AppIcon name="user" />
-          <span>Accedi</span>
+          <AppIcon name="ticket" />
+          <span>{forChild ? ATTIVITA.iscriviFiglio : ATTIVITA.iscriviti}</span>
         </Link>
       );
     }
@@ -251,8 +253,45 @@ export function ActivityDetailPage() {
     );
   }
 
+  // Sotto "Iscriviti", per chi non è entrato (anche da ospite): la stessa
+  // iscrizione con la scelta del figlio già fatta.
+  function renderParentLine(className: string) {
+    if (
+      !event ||
+      !formConfig ||
+      data.registration ||
+      (session?.isAuthenticated && !session.isAnonymous) ||
+      (availability !== "guest-allowed" && availability !== "login-required")
+    ) {
+      return null;
+    }
+
+    const [before, after = ""] = ATTIVITA.rigaGenitore.split("{link}");
+
+    return (
+      <p className={className}>
+        {before}
+        <Link
+          state={{ fromActivity: true }}
+          to={withRegisterFor(getActivityRegistrationPath(event.id, data.stakeId), "figlio")}
+        >
+          {ATTIVITA.iscriviFiglio}
+        </Link>
+        {after}
+      </p>
+    );
+  }
+
+  const parentLineBar = renderParentLine("activity-cta-bar__parent");
+
   return (
-    <div className="page page--activity-detail">
+    <div
+      className={
+        parentLineBar
+          ? "page page--activity-detail page--activity-detail-parent"
+          : "page page--activity-detail"
+      }
+    >
       <section className="activity-hero">
         {event?.heroImageUrl ? (
           <div
@@ -306,6 +345,7 @@ export function ActivityDetailPage() {
               />
             </div>
           ) : null}
+          {renderParentLine("activity-hero__parent")}
         </div>
       </section>
 
@@ -479,6 +519,7 @@ export function ActivityDetailPage() {
               url={shareUrl}
             />
           </div>
+          {parentLineBar}
         </div>
       ) : null}
     </div>

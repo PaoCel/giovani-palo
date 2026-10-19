@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { SectionCard } from "@/components/SectionCard";
+import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
 import { usersService } from "@/services/firestore/usersService";
 import { getRoleLabel } from "@/utils/roles";
@@ -14,6 +16,8 @@ export function FamilyProfilePage() {
   const [busy, setBusy] = useState<null | "save" | "switch">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Conferma nel foglio, mai con un dialogo del browser.
+  const [participantSheetOpen, setParticipantSheetOpen] = useState(false);
 
   if (!session) {
     return null;
@@ -50,15 +54,6 @@ export function FamilyProfilePage() {
       return;
     }
 
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Tornare a un account partecipante? I profili dei figli e le loro iscrizioni restano salvati.",
-      )
-    ) {
-      return;
-    }
-
     setBusy("switch");
     setError(null);
 
@@ -67,6 +62,7 @@ export function FamilyProfilePage() {
       // Il listener sul profilo aggiorna la sessione; il guard reindirizza.
       navigate("/me", { replace: true });
     } catch (caughtError) {
+      setParticipantSheetOpen(false);
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -134,10 +130,10 @@ export function FamilyProfilePage() {
           <button
             className="button button--soft"
             disabled={busy !== null}
-            onClick={() => void handleSwitchToParticipant()}
+            onClick={() => setParticipantSheetOpen(true)}
             type="button"
           >
-            {busy === "switch" ? "Cambio in corso..." : "Passa ad account partecipante"}
+            {TIPO_ACCOUNT.passaPartecipante}
           </button>
           <button
             className="button button--ghost"
@@ -148,6 +144,19 @@ export function FamilyProfilePage() {
           </button>
         </div>
       </SectionCard>
+
+      {participantSheetOpen ? (
+        <ConfirmSheet
+          body={TIPO_ACCOUNT.passaPartecipanteTesto}
+          busy={busy === "switch"}
+          busyLabel={TIPO_ACCOUNT.passaPartecipanteInCorso}
+          cancelLabel={TIPO_ACCOUNT.restaComeSei}
+          confirmLabel={TIPO_ACCOUNT.passaPartecipante}
+          onCancel={() => setParticipantSheetOpen(false)}
+          onConfirm={() => void handleSwitchToParticipant()}
+          title={TIPO_ACCOUNT.passaPartecipanteTitolo}
+        />
+      ) : null}
     </div>
   );
 }
