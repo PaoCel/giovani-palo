@@ -6,9 +6,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { ADMIN } from "../src/copy/admin.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
+import { CHI_ISCRIVI } from "../src/copy/chiIscrivi.ts";
 import { DOMANDE } from "../src/copy/domande.ts";
 import { GALLERIA } from "../src/copy/galleria.ts";
 import { PAROLE, fillCopy } from "../src/copy/parole.ts";
+import { PROFILO } from "../src/copy/profilo.ts";
 import { FORBIDDEN_FORMS } from "./support/glossaryForms.mjs";
 
 // I testi dei fogli di conferma dell'admin (`src/copy/admin.ts`), che hanno
@@ -358,6 +360,8 @@ const REUSED = [
   ["erroreEliminaDomanda", DOMANDE.errore],
   ["eliminazione", PAROLE.eliminazione],
   ["erroreRete", PAROLE.erroreRete],
+  ["erroreReteInCoda", PAROLE.erroreReteInCoda],
+  ["salvataggio", PAROLE.salvataggio],
 ];
 
 test("riferimenti: le frasi già scritte altrove sono identiche all'originale", () => {
@@ -371,6 +375,8 @@ test("riferimenti: le frasi già scritte altrove sono identiche all'originale", 
   assert.equal(ADMIN.erroreEliminaDomanda, DOMANDE.errore);
   assert.equal(ADMIN.eliminazione, PAROLE.eliminazione);
   assert.equal(ADMIN.erroreRete, PAROLE.erroreRete);
+  assert.equal(ADMIN.erroreReteInCoda, PAROLE.erroreReteInCoda);
+  assert.equal(ADMIN.salvataggio, PAROLE.salvataggio);
 });
 
 test("riferimenti: «Eliminazione...» è una sola in PAROLE, ADMIN, DOMANDE e GALLERIA", () => {
@@ -384,6 +390,50 @@ test("riferimenti: l'errore di rete è quello di PAROLE, come in DOMANDE e GALLE
   assert.equal(ADMIN.erroreRete, PAROLE.erroreRete);
   assert.equal(DOMANDE.erroreRete, PAROLE.erroreRete);
   assert.equal(GALLERIA.erroreRete, PAROLE.erroreRete);
+});
+
+test("riferimenti: «Salvataggio...» è una sola in PAROLE, ADMIN, PROFILO e CHI_ISCRIVI", () => {
+  assert.equal(PAROLE.salvataggio, "Salvataggio...");
+  assert.equal(ADMIN.salvataggio, PAROLE.salvataggio);
+  assert.equal(PROFILO.salvataggio, PAROLE.salvataggio);
+  assert.equal(CHI_ISCRIVI.salvataggio, PAROLE.salvataggio);
+});
+
+// ---------------------------------------------------------------------------
+// Errori di rete, in coda e di esportazione
+// ---------------------------------------------------------------------------
+
+test("rete: la frase della richiesta in coda dice che parte da sola e non invita a riprovare", () => {
+  const text = ADMIN.erroreReteInCoda;
+  assert.notEqual(text, ADMIN.erroreRete);
+  assert.match(text, /^Il server non risponde: controlla la connessione/u);
+  assert.match(text, /in coda/u);
+  assert.match(text, /parte da sola/u);
+  assert.match(text, /\.$/u);
+  // «Tieni» non ferma la richiesta: ripetere l'azione la farebbe partire due volte.
+  assert.doesNotMatch(text, /riprova/iu);
+});
+
+test("rete: la frase dell'errore di rete invita a riprovare e non parla di coda", () => {
+  assert.match(ADMIN.erroreRete, /^Il server non risponde: controlla la connessione/u);
+  assert.match(ADMIN.erroreRete, /riprova/u);
+  assert.doesNotMatch(ADMIN.erroreRete, /in coda/u);
+});
+
+test("esportazione: il modulo che non si carica più si risolve ricaricando la pagina", () => {
+  assert.match(ADMIN.erroreExcel, /^Impossibile esportare l'Excel\./u);
+  assert.match(ADMIN.erroreExcel, /Ricarica la pagina e riprova\.$/u);
+  assert.deepEqual(placeholdersOf(ADMIN.erroreExcel), []);
+});
+
+test("errori d'azione: ogni frase comincia con «Impossibile » e finisce con il punto", () => {
+  // Sono la base di «<frase> (codice: …)» di getAdminActionError: devono reggersi da sole.
+  const actions = keysMatching(/^errore/u).filter(([key]) => !["erroreRete", "erroreReteInCoda"].includes(key));
+  assert.ok(actions.length >= 15, `trovate solo ${actions.length} frasi d'azione`);
+  for (const [key, value] of actions) {
+    assert.match(value, /^Impossibile /u, `ADMIN.${key}: «${value}»`);
+    assert.match(value, /\.$/u, `ADMIN.${key}: «${value}»`);
+  }
 });
 
 test("riferimenti: annullare l'iscrizione ha le stesse parole dell'admin e del genitore (ANNULLA)", () => {

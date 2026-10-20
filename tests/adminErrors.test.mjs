@@ -5,19 +5,32 @@ import { FirebaseError } from "firebase/app";
 import { ADMIN } from "../src/copy/admin.ts";
 import { PAROLE } from "../src/copy/parole.ts";
 import { getAdminActionError } from "../src/utils/adminErrors.ts";
-import { WRITE_TIMEOUT_CODE, isConnectionError, withWriteTimeout } from "../src/utils/writeTimeout.ts";
+import {
+  WRITE_TIMEOUT_CODE,
+  isConnectionError,
+  isOffline,
+  withWriteTimeout,
+} from "../src/utils/writeTimeout.ts";
 
 // Messaggio per un'azione dell'admin non riuscita (`src/utils/adminErrors.ts`),
 // mostrato dentro il foglio o il modale aperto. In ordine:
-//  1. errore di rete o tempo scaduto -> «Il server non risponde…» (PAROLE);
-//  2. codice `functions/*` con un messaggio (tranne internal e unknown, e tranne
+//  1. codice `write-timeout` (scrittura Firestore scaduta, che resta in coda e
+//     parte al ritorno della rete) -> «Il server non risponde… La richiesta
+//     resta in coda…» (PAROLE.erroreReteInCoda): «Tieni» non la ferma;
+//  2. altri errori di rete o tempo scaduto, oppure `navigator.onLine === false`
+//     (con qualunque errore: offline una callable risponde `functions/internal`)
+//     -> «Il server non risponde: controlla la connessione e riprova.»
+//     (PAROLE.erroreRete);
+//  3. un `TypeError` (errori del browser: «Failed to fetch», «Failed to fetch
+//     dynamically imported module») -> la frase dell'azione, mai il suo messaggio;
+//  4. codice `functions/*` con un messaggio (tranne internal e unknown, e tranne
 //     il messaggio di default dell'SDK: il nome del codice, «not-found», o lo
 //     stato, «PERMISSION_DENIED») -> il messaggio, che le callable del progetto
 //     scrivono già in italiano;
-//  3. qualunque altro codice (Firestore: «permission-denied», in inglese e senza
+//  5. qualunque altro codice (Firestore: «permission-denied», in inglese e senza
 //     prefisso) -> la frase dell'azione con il codice, così chi chiede aiuto sa
 //     cosa riferire: «Impossibile eliminare il file. (codice: permission-denied)»;
-//  4. nessun codice -> il messaggio dell'Error, se c'è; altrimenti la frase
+//  6. nessun codice -> il messaggio dell'Error, se c'è; altrimenti la frase
 //     dell'azione.
 //
 // Gli errori sono costruiti come li lancia l'SDK: un Error con `code` e il
@@ -31,14 +44,66 @@ const withCode = (code, message) => Object.assign(new Error(message), { code });
 const actionError = (error) => getAdminActionError(error, FALLBACK);
 const withCodeText = (code) => `${FALLBACK} (codice: ${code})`;
 
+// `navigator` in Node è un getter su globalThis: qui si ridefinisce e, a prova
+// finita, si rimette com'era. Le prove sono sincrone, una alla volta.
+function withNavigator(value, run) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value, configurable: true, writable: true });
+  try {
+    return run();
+  } finally {
+    if (original) Object.defineProperty(globalThis, "navigator", original);
+    else delete globalThis.navigator;
+  }
+}
+const offline = (run) =>
+  withNavigator({ onLine: false }, () => {
+    assert.equal(isOffline(), true, "navigator.onLine === false non basta a dire offline: la prova non vale");
+    return run();
+  });
+
 // ---------------------------------------------------------------------------
-// 1. Rete e tempo scaduto
+// 1. Scrittura scaduta, che resta in coda
 // ---------------------------------------------------------------------------
 
-// Gli stessi codici di `isConnectionError`; se la funzione ne impara uno nuovo,
+test("in coda: write-timeout dice che la richiesta resta in coda e parte da sola", () => {
+  assert.equal(actionError(withCode(WRITE_TIMEOUT_CODE, "write-timeout")), PAROLE.erroreReteInCoda);
+  assert.equal(actionError(withCode("write-timeout", "")), ADMIN.erroreReteInCoda);
+  assert.equal(actionError({ code: WRITE_TIMEOUT_CODE }), PAROLE.erroreReteInCoda);
+});
+
+test("in coda: la frase non è quella dell'errore di rete e non porta il codice né la frase dell'azione", () => {
+  const message = actionError(withCode(WRITE_TIMEOUT_CODE, "write-timeout"));
+  assert.notEqual(message, PAROLE.erroreRete);
+  assert.match(message, /in coda/u);
+  assert.ok(!message.includes("codice"), message);
+  assert.ok(!message.includes(FALLBACK), message);
+});
+
+test("in coda: il tempo scaduto di withWriteTimeout dà la frase della richiesta in coda", async () => {
+  // Una scrittura offline resta in sospeso per sempre: dopo il tempo limite
+  // l'errore che esce è proprio quello che il foglio deve spiegare.
+  const never = new Promise(() => {});
+  const error = await withWriteTimeout(never, 1).then(
+    () => assert.fail("la promessa non doveva chiudersi"),
+    (caught) => caught,
+  );
+  assert.equal(actionError(error), PAROLE.erroreReteInCoda);
+});
+
+test("in coda: il messaggio dell'errore non conta, qualunque sia", () => {
+  for (const message of ["", "   ", "Tempo scaduto.", "write-timeout", "The write timed out."]) {
+    assert.equal(actionError(withCode(WRITE_TIMEOUT_CODE, message)), PAROLE.erroreReteInCoda, `«${message}»`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 2. Rete assente
+// ---------------------------------------------------------------------------
+
+// Gli altri codici di `isConnectionError`; se la funzione ne impara uno nuovo,
 // il test sotto lo ricorda.
 const CONNECTION_CODES = [
-  "write-timeout",
   "unavailable",
   "deadline-exceeded",
   "firestore/unavailable",
@@ -52,6 +117,8 @@ test("errore di rete: ogni codice di connessione dà la frase del server che non
     assert.equal(isConnectionError({ code }), true, `${code} non è più un errore di connessione`);
     assert.equal(actionError(withCode(code, "Qualcosa in inglese")), PAROLE.erroreRete, code);
   }
+  // Anche write-timeout è un errore di connessione, ma ha la sua frase.
+  assert.equal(isConnectionError({ code: WRITE_TIMEOUT_CODE }), true);
 });
 
 test("errore di rete: vale qualunque sia il messaggio, anche italiano o vuoto", () => {
@@ -77,24 +144,146 @@ test("errore di rete: functions/deadline-exceeded con un messaggio non mostra il
 
 test("errore di rete: un oggetto con il solo codice vale come un Error", () => {
   assert.equal(actionError({ code: "unavailable" }), PAROLE.erroreRete);
-  assert.equal(actionError({ code: WRITE_TIMEOUT_CODE }), PAROLE.erroreRete);
-});
-
-test("errore di rete: il tempo scaduto di withWriteTimeout dà la frase del server che non risponde", async () => {
-  // Una scrittura offline resta in sospeso per sempre: dopo il tempo limite
-  // l'errore che esce è proprio quello che il foglio deve spiegare.
-  const never = new Promise(() => {});
-  const error = await withWriteTimeout(never, 1).then(
-    () => assert.fail("la promessa non doveva chiudersi"),
-    (caught) => caught,
-  );
-  assert.equal(actionError(error), PAROLE.erroreRete);
+  assert.equal(actionError({ code: "deadline-exceeded" }), PAROLE.erroreRete);
 });
 
 test("errore di rete: l'errore di rete non porta il codice né la frase dell'azione", () => {
   const message = actionError(withCode("unavailable", "x"));
   assert.ok(!message.includes("codice"), message);
   assert.ok(!message.includes(FALLBACK), message);
+});
+
+test("errore di rete: la frase di rete e quella in coda sono due frasi diverse", () => {
+  assert.notEqual(PAROLE.erroreRete, PAROLE.erroreReteInCoda);
+  assert.equal(ADMIN.erroreRete, PAROLE.erroreRete);
+  assert.equal(ADMIN.erroreReteInCoda, PAROLE.erroreReteInCoda);
+});
+
+// ---------------------------------------------------------------------------
+// 2b. navigator.onLine === false: qualunque errore è un errore di rete
+// ---------------------------------------------------------------------------
+
+test("senza rete: una callable che risponde functions/internal dà la frase del server che non risponde", () => {
+  offline(() => {
+    assert.equal(actionError(withCode("functions/internal", "internal")), PAROLE.erroreRete);
+    assert.equal(actionError(new FirebaseError("functions/internal", "internal")), PAROLE.erroreRete);
+  });
+});
+
+test("senza rete: qualunque errore dà la frase del server che non risponde", () => {
+  offline(() => {
+    for (const error of [
+      new Error("Scegli almeno un file."),
+      new Error(""),
+      withCode("permission-denied", "Missing or insufficient permissions."),
+      withCode("functions/failed-precondition", "Il modulo non è ancora pubblicato."),
+      withCode("functions/unknown", "unknown"),
+      withCode("unavailable", "x"),
+      new TypeError("Failed to fetch"),
+      { code: "not-found" },
+      "stringa",
+      null,
+      undefined,
+    ]) {
+      assert.equal(actionError(error), PAROLE.erroreRete, String(error));
+    }
+  });
+});
+
+test("senza rete: una scrittura scaduta dice ancora che resta in coda", () => {
+  offline(() => {
+    assert.equal(actionError(withCode(WRITE_TIMEOUT_CODE, "write-timeout")), PAROLE.erroreReteInCoda);
+    assert.equal(actionError({ code: WRITE_TIMEOUT_CODE }), PAROLE.erroreReteInCoda);
+  });
+});
+
+test("senza rete: la frase non porta il codice né la frase dell'azione", () => {
+  offline(() => {
+    const message = actionError(withCode("permission-denied", "Missing or insufficient permissions."));
+    assert.ok(!message.includes("codice"), message);
+    assert.ok(!message.includes(FALLBACK), message);
+  });
+});
+
+test("con la rete, o senza saperlo, gli errori restano quelli di sempre", () => {
+  const error = withCode("permission-denied", "Missing or insufficient permissions.");
+  const internal = withCode("functions/internal", "internal");
+  for (const value of [{ onLine: true }, {}, { onLine: undefined }, undefined]) {
+    withNavigator(value, () => {
+      assert.equal(isOffline(), false, JSON.stringify(value));
+      assert.equal(actionError(error), withCodeText("permission-denied"), JSON.stringify(value));
+      assert.equal(actionError(internal), withCodeText("functions/internal"), JSON.stringify(value));
+      assert.equal(actionError(new Error("Messaggio.")), "Messaggio.", JSON.stringify(value));
+    });
+  }
+});
+
+test("senza rete: la prova ha rimesso navigator com'era", () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  offline(() => {});
+  const after = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  assert.deepEqual(after, before);
+  assert.equal(isOffline(), false);
+});
+
+// ---------------------------------------------------------------------------
+// 3. Errori del browser (TypeError)
+// ---------------------------------------------------------------------------
+
+test("TypeError: gli errori del browser danno la frase dell'azione e mai il loro messaggio", () => {
+  for (const message of [
+    "Failed to fetch",
+    "Load failed",
+    "NetworkError when attempting to fetch resource.",
+    "Failed to fetch dynamically imported module: https://example.test/assets/xlsx-abc123.js",
+    "Importing a module script failed.",
+    "Cannot read properties of undefined (reading 'id')",
+  ]) {
+    assert.equal(actionError(new TypeError(message)), FALLBACK, message);
+  }
+});
+
+test("TypeError: nemmeno con un messaggio italiano", () => {
+  assert.equal(actionError(new TypeError("Titolo mancante.")), FALLBACK);
+  assert.equal(actionError(new TypeError("")), FALLBACK);
+});
+
+test("TypeError: la frase dell'azione è senza codice, anche se l'errore ne ha uno", () => {
+  for (const code of ["permission-denied", "functions/failed-precondition", "functions/internal", "unknown"]) {
+    const message = actionError(Object.assign(new TypeError("Failed to fetch"), { code }));
+    assert.equal(message, FALLBACK, code);
+    assert.ok(!message.includes("codice"), message);
+  }
+});
+
+test("TypeError: un modulo che non si carica più dopo un aggiornamento dice di ricaricare", () => {
+  const error = new TypeError("Failed to fetch dynamically imported module: https://example.test/assets/xlsx-abc123.js");
+  const message = getAdminActionError(error, ADMIN.erroreExcel);
+  assert.equal(message, ADMIN.erroreExcel);
+  assert.match(message, /Ricarica la pagina/u);
+});
+
+test("TypeError: una fetch fallita offline resta un errore di rete", () => {
+  offline(() => assert.equal(actionError(new TypeError("Failed to fetch")), PAROLE.erroreRete));
+});
+
+test("TypeError: la rete e la scrittura in coda vengono prima del TypeError", () => {
+  assert.equal(
+    actionError(Object.assign(new TypeError("x"), { code: "unavailable" })),
+    PAROLE.erroreRete,
+  );
+  assert.equal(
+    actionError(Object.assign(new TypeError("x"), { code: WRITE_TIMEOUT_CODE })),
+    PAROLE.erroreReteInCoda,
+  );
+});
+
+test("TypeError: gli altri Error con un messaggio italiano restano come sono", () => {
+  assert.equal(actionError(new Error("Scegli almeno un file.")), "Scegli almeno un file.");
+  assert.equal(actionError(new RangeError("Fuori intervallo.")), "Fuori intervallo.");
+  assert.equal(actionError(new SyntaxError("Formato non valido.")), "Formato non valido.");
+  // E anche uno con il messaggio del browser, se non è un TypeError, non si tocca.
+  assert.equal(actionError(new Error("Failed to fetch")), "Failed to fetch");
 });
 
 // ---------------------------------------------------------------------------
@@ -231,7 +420,6 @@ test("altri codici: la frase dell'azione è quella passata, ogni azione la sua",
 test("senza codice: un Error mostra il proprio messaggio, senza gli spazi ai bordi", () => {
   assert.equal(actionError(new Error("Scegli almeno un file.")), "Scegli almeno un file.");
   assert.equal(actionError(new Error("  Scegli almeno un file.  ")), "Scegli almeno un file.");
-  assert.equal(actionError(new TypeError("Titolo mancante.")), "Titolo mancante.");
 });
 
 test("senza codice: un messaggio vuoto o di soli spazi dà la frase dell'azione", () => {
@@ -324,7 +512,8 @@ test("ogni frase d'azione di ADMIN (errore*) arriva intera, con il codice, a sch
 
   const error = withCode("permission-denied", "Missing or insufficient permissions.");
   for (const [key, fallback] of actions) {
-    if (key === "erroreRete") continue; // è l'esito della rete, non una frase d'azione
+    // Sono l'esito della rete (anche in coda), non frasi d'azione.
+    if (key === "erroreRete" || key === "erroreReteInCoda") continue;
     assert.equal(getAdminActionError(error, fallback), `${fallback} (codice: permission-denied)`, key);
   }
 });
