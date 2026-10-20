@@ -11,7 +11,10 @@ import { findElements, mountHooks } from "./support/reactHooks.mjs";
 //  - `useInertBackground`: la pagina sotto diventa `inert` attraverso la pila
 //    degli strati (la logica della pila è in tests/layerStack.test.mjs); qui il
 //    collegamento: lo strato, l'osservatore dei figli di <body>, l'effetto di layout;
-//  - `AppModal` li usa tutti e due: collegamento provato in fondo.
+//  - `isTopLayer`: vero solo per lo strato in cima alla pila (o se non c'è pila);
+//    è ciò che fa chiudere con Esc un solo modale alla volta;
+//  - `AppModal` li usa tutti e tre: collegamento provato in fondo, con due
+//    modali impilati.
 //
 // Non c'è un DOM: un contenitore finto con i suoi controlli e un `document`
 // finto (`tests/support/fakeDom.mjs`); gli hook girano nell'esecutore di
@@ -25,7 +28,7 @@ register("./support/aliasLoader.mjs", import.meta.url);
 register("./support/reactHooksLoader.mjs", import.meta.url);
 
 // La pila degli strati nasce solo se c'è un `document` quando il modulo si carica.
-const { keepTabInside, useInertBackground } = await importWithFakeDom(
+const { isTopLayer, keepTabInside, useInertBackground } = await importWithFakeDom(
   () => import("../src/hooks/useModalLayer.ts"),
 );
 const { AppModal } = await importWithFakeDom(() => import("../src/components/AppModal.tsx"));
@@ -450,4 +453,269 @@ test("AppModal: il titolo dà il nome al dialogo con il proprio id", (t) => {
   const heading = findElements(tree, (el) => el.type === "h2")[0];
   assert.ok(heading.props.id);
   assert.equal(dialog.props["aria-labelledby"], heading.props.id);
+});
+
+// ---------------------------------------------------------------------------
+// isTopLayer
+// ---------------------------------------------------------------------------
+
+test("isTopLayer: senza strati aperti è vero per chiunque, anche senza elemento", (t) => {
+  const env = createLayerEnv(t, "app", "strato");
+  assert.equal(isTopLayer(env.strato), true);
+  assert.equal(isTopLayer(env.app), true);
+  assert.equal(isTopLayer(null), true);
+});
+
+test("isTopLayer: con un solo strato aperto lo è lui", (t) => {
+  const env = createLayerEnv(t, "app", "strato");
+  env.open(env.strato);
+  assert.equal(isTopLayer(env.strato), true);
+});
+
+test("isTopLayer: con due strati lo è solo quello in cima", (t) => {
+  const env = createLayerEnv(t, "app", "primo", "secondo");
+  env.dom.document.body.children = [env.app, env.primo];
+  env.open(env.primo);
+  env.dom.document.body.children = [env.app, env.primo, env.secondo];
+  env.open(env.secondo);
+
+  assert.equal(isTopLayer(env.secondo), true);
+  assert.equal(isTopLayer(env.primo), false, "il primo sta sotto il secondo");
+});
+
+test("isTopLayer: chiuso quello in cima, torna in cima quello sotto", (t) => {
+  const env = createLayerEnv(t, "app", "primo", "secondo");
+  env.dom.document.body.children = [env.app, env.primo];
+  env.open(env.primo);
+  env.dom.document.body.children = [env.app, env.primo, env.secondo];
+  const secondHooks = env.open(env.secondo);
+
+  env.dom.document.body.children = [env.app, env.primo];
+  secondHooks.unmount();
+  assert.equal(isTopLayer(env.primo), true);
+  assert.equal(isTopLayer(env.secondo), false, "uno strato chiuso non è in cima mentre ne resta uno aperto");
+});
+
+test("isTopLayer: il foglio sotto si chiude per primo e quello sopra resta in cima", (t) => {
+  const env = createLayerEnv(t, "app", "sotto", "sopra");
+  env.dom.document.body.children = [env.app, env.sotto];
+  const belowHooks = env.open(env.sotto);
+  env.dom.document.body.children = [env.app, env.sotto, env.sopra];
+  env.open(env.sopra);
+
+  env.dom.document.body.children = [env.app, env.sopra];
+  belowHooks.unmount();
+  assert.equal(isTopLayer(env.sopra), true);
+  assert.equal(isTopLayer(env.sotto), false);
+});
+
+test("isTopLayer: chiusi tutti gli strati torna vero per chiunque", (t) => {
+  const env = createLayerEnv(t, "app", "primo", "secondo");
+  const firstHooks = env.open(env.primo);
+  const secondHooks = env.open(env.secondo);
+  assert.equal(isTopLayer(env.primo), false);
+
+  secondHooks.unmount();
+  firstHooks.unmount();
+  assert.equal(isTopLayer(env.primo), true);
+  assert.equal(isTopLayer(env.secondo), true);
+});
+
+test("isTopLayer: un elemento non ancora agganciato (ref vuoto) non blocca Esc", (t) => {
+  const env = createLayerEnv(t, "app", "primo", "secondo");
+  env.open(env.primo);
+  env.open(env.secondo);
+  assert.equal(isTopLayer(null), true);
+});
+
+test("isTopLayer: un elemento che non è mai stato uno strato non è in cima mentre ce n'è uno aperto", (t) => {
+  const env = createLayerEnv(t, "app", "strato");
+  env.open(env.strato);
+  assert.equal(isTopLayer(env.app), false);
+});
+
+test("isTopLayer: senza un browser, cioè senza pila, è sempre vero", async () => {
+  // La pila nasce solo se c'è un `document` quando il modulo si carica: un'altra
+  // istanza del modulo, caricata senza DOM, non ce l'ha.
+  assert.equal(typeof document, "undefined");
+  const withoutDom = await import("../src/hooks/useModalLayer.ts?senza-dom");
+  assert.notEqual(withoutDom.isTopLayer, isTopLayer, "è la stessa istanza del modulo: la prova non vale");
+  assert.equal(withoutDom.isTopLayer({}), true);
+  assert.equal(withoutDom.isTopLayer(null), true);
+});
+
+// ---------------------------------------------------------------------------
+// AppModal: Esc chiude solo il modale in cima
+// ---------------------------------------------------------------------------
+
+// Una pagina e un numero qualsiasi di AppModal che si aprono uno sopra l'altro,
+// ciascuno con i propri nodi finti e il proprio `onClose` che conta le chiamate.
+function createModalsEnv(t) {
+  const dom = installFakeDom();
+  const page = dom.element("pagina");
+  dom.document.body.children = [page];
+  dom.document.activeElement = dom.element("apri");
+  const opened = [];
+  t.after(() => {
+    for (const hooks of opened.reverse()) hooks.unmount();
+    dom.restore();
+  });
+
+  function open(name) {
+    const backdrop = dom.element(`sfondo-${name}`);
+    const dialog = dom.element(`dialogo-${name}`);
+    dom.document.body.children = [...dom.document.body.children, backdrop];
+    const attach = (element) =>
+      element.props.role === "dialog"
+        ? dialog
+        : String(element.props.className).includes("app-modal-backdrop")
+          ? backdrop
+          : null;
+    const hooks = mountHooks(AppModal, { attach });
+    opened.push(hooks);
+
+    const modal = {
+      name,
+      hooks,
+      backdrop,
+      closed: 0,
+      // Il genitore che ridisegna con un `onClose` nuovo (una freccia in linea).
+      render() {
+        hooks.render({ title: name, onClose: () => (modal.closed += 1), children: "Testo" });
+      },
+      // Il genitore toglie il modale dalla pagina.
+      remove() {
+        dom.document.body.children = dom.document.body.children.filter((child) => child !== backdrop);
+        hooks.unmount();
+      },
+    };
+    modal.render();
+    return modal;
+  }
+
+  return { dom, page, open, press: (key) => dom.window.press(key) };
+}
+
+test("AppModal: da solo, Esc lo chiude", (t) => {
+  const env = createModalsEnv(t);
+  const modal = env.open("unico");
+
+  env.press("Escape");
+  assert.equal(modal.closed, 1);
+});
+
+test("AppModal: due modali aperti insieme, un Esc chiude solo quello in cima", (t) => {
+  const env = createModalsEnv(t);
+  const below = env.open("sotto");
+  const above = env.open("sopra");
+
+  env.press("Escape");
+  assert.equal(above.closed, 1);
+  assert.equal(below.closed, 0, "Esc ha chiuso anche il modale sotto");
+});
+
+test("AppModal: chiuso quello in cima, il prossimo Esc chiude l'altro", (t) => {
+  const env = createModalsEnv(t);
+  const below = env.open("sotto");
+  const above = env.open("sopra");
+
+  env.press("Escape");
+  above.remove();
+  assert.deepEqual([below.closed, above.closed], [0, 1]);
+
+  env.press("Escape");
+  assert.deepEqual([below.closed, above.closed], [1, 1], "il modale sotto è tornato in cima");
+});
+
+test("AppModal: Esc ripetuto senza che quello in cima si chiuda non tocca mai quello sotto", (t) => {
+  const env = createModalsEnv(t);
+  const below = env.open("sotto");
+  const above = env.open("sopra");
+
+  env.press("Escape");
+  env.press("Escape");
+  env.press("Escape");
+  assert.equal(above.closed, 3);
+  assert.equal(below.closed, 0);
+});
+
+test("AppModal: l'ordine dei listener non conta, anche se quello sotto si è registrato per ultimo", (t) => {
+  const env = createModalsEnv(t);
+  const below = env.open("sotto");
+  const above = env.open("sopra");
+
+  // Il genitore ridisegna il modale sotto con un `onClose` nuovo: il suo
+  // listener esce e rientra, ora dopo quello del modale sopra.
+  below.render();
+  assert.equal(env.dom.window.listeners.length, 2);
+
+  env.press("Escape");
+  assert.equal(above.closed, 1);
+  assert.equal(below.closed, 0);
+});
+
+test("AppModal: tre modali impilati, Esc chiude solo l'ultimo e poi uno alla volta", (t) => {
+  const env = createModalsEnv(t);
+  const modals = [env.open("uno"), env.open("due"), env.open("tre")];
+  const counts = () => modals.map((modal) => modal.closed);
+
+  env.press("Escape");
+  assert.deepEqual(counts(), [0, 0, 1]);
+
+  modals[2].remove();
+  env.press("Escape");
+  assert.deepEqual(counts(), [0, 1, 1]);
+
+  modals[1].remove();
+  env.press("Escape");
+  assert.deepEqual(counts(), [1, 1, 1]);
+});
+
+test("AppModal: il modale sotto si chiude da solo e quello sopra resta chiudibile con Esc", (t) => {
+  const env = createModalsEnv(t);
+  const below = env.open("sotto");
+  const above = env.open("sopra");
+
+  below.remove();
+  env.press("Escape");
+  assert.equal(above.closed, 1);
+  assert.equal(below.closed, 0);
+});
+
+test("AppModal: uno strato aperto sopra (un foglio che non è un AppModal) prende lui l'Esc", (t) => {
+  const env = createModalsEnv(t);
+  const modal = env.open("modale");
+
+  const sheet = env.dom.element("foglio");
+  env.dom.document.body.children = [...env.dom.document.body.children, sheet];
+  const sheetHooks = openLayer(sheet);
+
+  env.press("Escape");
+  assert.equal(modal.closed, 0, "Esc ha chiuso il modale sotto il foglio");
+
+  sheetHooks.unmount();
+  env.press("Escape");
+  assert.equal(modal.closed, 1);
+});
+
+test("AppModal: gli altri tasti non chiudono nessun modale", (t) => {
+  const env = createModalsEnv(t);
+  const below = env.open("sotto");
+  const above = env.open("sopra");
+
+  for (const key of ["Enter", " ", "Tab", "ArrowDown", "a", "escape", "Esc"]) {
+    env.press(key);
+  }
+  assert.deepEqual([below.closed, above.closed], [0, 0]);
+});
+
+test("AppModal: chiuso, non ascolta più la tastiera", (t) => {
+  const env = createModalsEnv(t);
+  const modal = env.open("unico");
+  assert.equal(env.dom.window.listeners.length, 1);
+
+  modal.remove();
+  assert.equal(env.dom.window.listeners.length, 0);
+  env.press("Escape");
+  assert.equal(modal.closed, 0);
 });

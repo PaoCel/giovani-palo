@@ -24,6 +24,7 @@ import { PERCORSO } from "../src/copy/percorso.ts";
 import { PROFILO } from "../src/copy/profilo.ts";
 import { TIPO_ACCOUNT } from "../src/copy/tipoAccount.ts";
 import { EXISTING_ACCOUNT_RETRY_MESSAGE } from "../src/utils/anonymousAccountSwitch.ts";
+import { FORBIDDEN_FORMS } from "./support/glossaryForms.mjs";
 
 // Glossario delle schermate (docs/FLUSSO_GENITORE.md, sezione "Parole"):
 // una parola sola per ogni concetto, riusata per riferimento da `src/copy/`.
@@ -108,37 +109,20 @@ test("fillCopy: riempie i testi veri delle schermate", () => {
 
 // Due famiglie di controlli.
 //
-// 1. Frasi vietate (FORBIDDEN_FORMS): valgono su tutto il testo del file,
-//    commenti compresi. Ogni forma ha l'etichetta che compare nel rapporto e
-//    un'espressione che la riconosce anche spezzata su più righe (JSX) o con
-//    l'apostrofo scritto come entità HTML o preceduto da una barra (stringa con
-//    apice escapato). Il confronto non distingue maiuscole e minuscole, tranne
-//    per "Crea account", che vale solo identico: "Crea un account" è la forma
-//    giusta. "un secondo figlio" è vietato solo se non continua con "o figlia".
-//    "Annulla iscrizione" è vietato: la frase è "Annulla l'iscrizione".
+// 1. Frasi vietate (FORBIDDEN_FORMS, in ./support/glossaryForms.mjs): valgono
+//    su tutto il testo del file, commenti compresi. Ogni forma ha l'etichetta
+//    che compare nel rapporto e un'espressione che la riconosce anche spezzata
+//    su più righe (JSX) o con l'apostrofo scritto come entità HTML o preceduto
+//    da una barra (stringa con apice escapato). Il confronto non distingue
+//    maiuscole e minuscole, tranne per "Crea account", che vale solo
+//    identico: "Crea un account" è la forma giusta. "un secondo figlio" è
+//    vietato solo se non continua con "o figlia". "Annulla iscrizione" è
+//    vietato: la frase è "Annulla l'iscrizione".
 //
 // 2. La parola "login" come testo per l'utente (findLoginText): conta solo
 //    dentro le stringhe e nel testo JSX, mai nei commenti, nei percorsi
 //    (/login), nei valori di codice ("login" da solo, "login-required") e nei
 //    nomi di classe o di id (rn-g-login, tab-login).
-const APOSTROPHE = "\\\\?(?:'|&apos;|&#39;|’)";
-
-const FORBIDDEN_FORMS = [
-  ["Login o crea", /Login\s+o\s+crea/giu],
-  ["Fai login", /Fai\s+login/giu],
-  ["Vai al login", /Vai\s+al\s+login/giu],
-  ["Login / Account", /Login\s*\/\s*Account/giu],
-  ["Entra nell'app", new RegExp(`Entra\\s+nell${APOSTROPHE}app`, "giu")],
-  ["Registrati con Google", /Registrati\s+con\s+Google/giu],
-  ["Accedi con Google", /Accedi\s+con\s+Google/giu],
-  ["figlio/a", /figlio\/a\b/giu],
-  ["figli/e", /figli\/e\b/giu],
-  ["ragazzo/a", /ragazzo\/a\b/giu],
-  ["un secondo figlio", /\bun\s+secondo\s+figlio\b(?!\s+o\s+figlia)/giu],
-  // Una frase sola per il concetto: "Annulla l'iscrizione", sempre con l'articolo.
-  ["Annulla iscrizione", /\bAnnulla\s+iscrizione\b/giu],
-  ["Crea account", /\bCrea\s+account\b/gu],
-];
 
 const lineAt = (text, index) => text.slice(0, index).split("\n").length;
 

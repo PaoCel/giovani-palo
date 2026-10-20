@@ -405,3 +405,159 @@ test("sync ripetuta senza cambiamenti non muta niente", () => {
   body.stack.sync();
   assert.deepEqual(writes, [], "ogni sync non deve riscrivere ciò che è già a posto");
 });
+
+// ---------------------------------------------------------------------------
+// top(): lo strato più alto
+// ---------------------------------------------------------------------------
+
+// `top()` dice a ogni modale se è lui quello in cima: Esc chiude solo quello
+// (src/hooks/useModalLayer.ts, `isTopLayer`).
+
+test("top: senza strati aperti non c'è niente in cima", () => {
+  const body = createBody(node("pagina"));
+  assert.equal(body.stack.top(), null);
+});
+
+test("top: un solo strato è in cima, e chiuso non resta in cima", () => {
+  const page = node("pagina");
+  const sheet = node("foglio");
+  const body = createBody(page, sheet);
+
+  const close = body.stack.open(sheet);
+  assert.equal(body.stack.top(), sheet);
+
+  close();
+  assert.equal(body.stack.top(), null);
+});
+
+test("top: con due strati è l'ultimo aperto, chiuso lui torna in cima il primo", () => {
+  const page = node("pagina");
+  const first = node("primo");
+  const second = node("secondo");
+  const body = createBody(page, first);
+
+  const closeFirst = body.stack.open(first);
+  assert.equal(body.stack.top(), first);
+
+  body.add(second);
+  const closeSecond = body.stack.open(second);
+  assert.equal(body.stack.top(), second);
+  assert.equal(body.stack.size(), 2);
+
+  body.remove(second);
+  closeSecond();
+  assert.equal(body.stack.top(), first);
+
+  body.remove(first);
+  closeFirst();
+  assert.equal(body.stack.top(), null);
+});
+
+test("top: se il foglio sotto si chiude per primo resta in cima quello sopra", () => {
+  const page = node("pagina");
+  const below = node("sotto");
+  const above = node("sopra");
+  const body = createBody(page, below);
+
+  const closeBelow = body.stack.open(below);
+  body.add(above);
+  const closeAbove = body.stack.open(above);
+
+  body.remove(below);
+  closeBelow();
+  assert.equal(body.stack.top(), above, "il foglio sotto che se ne va non toglie la cima a quello sopra");
+  assert.equal(body.stack.size(), 1);
+
+  body.remove(above);
+  closeAbove();
+  assert.equal(body.stack.top(), null);
+});
+
+test("top: con tre strati, chiuso quello in mezzo la cima non cambia; chiusa la cima sale il primo", () => {
+  const page = node("pagina");
+  const first = node("primo");
+  const middle = node("mezzo");
+  const last = node("ultimo");
+  const body = createBody(page, first, middle, last);
+
+  const closeFirst = body.stack.open(first);
+  const closeMiddle = body.stack.open(middle);
+  const closeLast = body.stack.open(last);
+  assert.equal(body.stack.top(), last);
+
+  closeMiddle();
+  assert.equal(body.stack.top(), last);
+
+  closeLast();
+  assert.equal(body.stack.top(), first, "il foglio in mezzo non c'è più: sale il primo");
+
+  closeFirst();
+  assert.equal(body.stack.top(), null);
+});
+
+test("top: chiudere due volte lo stesso strato non sposta la cima", () => {
+  const first = node("primo");
+  const second = node("secondo");
+  const body = createBody(first, second);
+
+  const closeFirst = body.stack.open(first);
+  body.stack.open(second);
+
+  closeFirst();
+  closeFirst();
+  assert.equal(body.stack.top(), second);
+  assert.equal(body.stack.size(), 1);
+});
+
+test("top: due strati aperti nello stesso istante, con i nodi già in body: è l'ultimo aperto", () => {
+  const page = node("pagina");
+  const first = node("primo");
+  const second = node("secondo");
+  const body = createBody(page, first, second);
+
+  const closeFirst = body.stack.open(first);
+  assert.equal(body.stack.top(), first);
+  const closeSecond = body.stack.open(second);
+  assert.equal(body.stack.top(), second);
+
+  // Chiusi nello stesso istante, nell'ordine di apertura: la cima passa al primo, poi a nessuno.
+  closeFirst();
+  assert.equal(body.stack.top(), second);
+  closeSecond();
+  assert.equal(body.stack.top(), null);
+});
+
+test("top: non è un effetto, leggerla non rende inerte né attivo niente", () => {
+  const page = node("pagina");
+  const sheet = node("foglio");
+  const body = createBody(page, sheet);
+  body.stack.open(sheet);
+
+  const writes = [];
+  Object.defineProperty(page, "inert", {
+    get: () => true,
+    set: (value) => writes.push(value),
+    configurable: true,
+  });
+  body.stack.top();
+  body.stack.top();
+  assert.deepEqual(writes, []);
+});
+
+test("top: ChildSheet sotto e conferma «Esci» sopra, due aperture e chiusure di fila", () => {
+  const page = node("pagina");
+  const childSheet = node("ChildSheet");
+  const exitConfirm = node("conferma-esci");
+  const body = createBody(page, childSheet, exitConfirm);
+
+  for (let i = 0; i < 2; i += 1) {
+    const closeChildSheet = body.stack.open(childSheet);
+    const closeExitConfirm = body.stack.open(exitConfirm);
+    assert.equal(body.stack.top(), exitConfirm, `giro ${i}`);
+
+    closeExitConfirm();
+    assert.equal(body.stack.top(), childSheet, `giro ${i}: la conferma chiusa, Esc torna al foglio`);
+    closeChildSheet();
+    assert.equal(body.stack.top(), null, `giro ${i}`);
+  }
+});
