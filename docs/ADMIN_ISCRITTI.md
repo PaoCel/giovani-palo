@@ -146,6 +146,15 @@ Come si torna indietro:
   ancora (in attesa, o meno di 18 anni in un'attività che la chiede); ogni
   ingresso in attesa da un altro stato riparte come una reiscrizione (link
   e mail nuovi), così un ritorno rapido in attesa non resta col link vecchio.
+- **Dal secondo giro di review (2026-10-20):** firma e rifiuto si fermano
+  anche se l'autorizzazione non serve più (non in attesa, e 18 anni o più o
+  attività senza autorizzazione); la riattivazione diretta da annullata ad
+  attiva invalida i link rimasti; la copia firmata e il link delle scelte
+  partono dopo la transazione della firma (prima un rifiuto lasciava al
+  genitore un "firmato" falso). Lato titolare: un'iscrizione attiva senza
+  firma il cui modulo ora chiede il genitore (data corretta) passa in
+  attesa, l'avviso del passo genitore lo dice e le rules ammettono il
+  passaggio da attiva ad attesa.
 - **Avviso "nuovo iscritto" agli admin.** Oggi scatta a ogni creazione con
   "{nome} si è iscritto a {attività}": per una `manual_` niente push (l'ha
   fatta un admin), o il testo "aggiunta a mano da {admin}" (scelta I8).
