@@ -1193,6 +1193,47 @@ async function restartParentAuthorizationAfterCancellation({
   }
 }
 
+// Uscita da "in attesa" senza firma (un admin corregge la data di nascita e
+// la persona risulta adulta, o il modulo non chiede più l'autorizzazione):
+// i link pendenti smettono di valere. Prima la firma controllava solo che il
+// link fosse valido e l'iscrizione non annullata, e scriveva 'confirmed': il
+// genitore avrebbe firmato per un adulto; e al ritorno in attesa il trigger
+// vedeva il tokenId vecchio e non mandava nessun link nuovo
+// (docs/ADMIN_ISCRITTI.md, 2026-10-20). In transazione sul documento attuale:
+// una firma o un ritorno in attesa arrivati nel frattempo non si toccano.
+// Azzerare tokenId fa ripartire il trigger, che esce subito (non è in attesa).
+async function invalidateLinksAfterLeavingPending({ db, stakeId, activityId, registrationId }) {
+  const registrationRef = db.doc(
+    `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
+  );
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(registrationRef);
+    if (!snapshot.exists) return { skipped: true, reason: "missing" };
+    const registration = snapshot.data();
+    if (isAwaitingParentAuthorization(registration) || isCancelledRegistration(registration)) {
+      return { skipped: true, reason: "state" };
+    }
+    const state = registration.parentAuthorization;
+    if (state && typeof state === "object" && DECIDED_PARENT_AUTH_STATUSES.includes(state.status)) {
+      return { skipped: true, reason: "decided" };
+    }
+    const tokenId = annotatedTokenId(state);
+    const tokens = await readPendingTokens(tx, db, { stakeId, activityId, registrationId, tokenId });
+    if (tokens.length === 0 && !tokenId) return { skipped: true, reason: "no_tokens" };
+
+    await invalidateTokens(tx, db, tokens, { stakeId, activityId, registrationId, actorUserId: null });
+    if (tokenId) {
+      const timestamp = nowIso();
+      tx.update(registrationRef, {
+        "parentAuthorization.tokenId": null,
+        "parentAuthorization.updatedAt": timestamp,
+        updatedAt: timestamp,
+      });
+    }
+    return { skipped: false, invalidated: tokens.length };
+  });
+}
+
 // Un invio fallito lascia status email_error, e ogni scrittura successiva
 // sul documento fa ripartire il trigger: senza tetto, un disservizio del
 // provider lo mette in rincorsa su se stesso (visto in emulatore il
@@ -1226,13 +1267,40 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
       return;
     }
 
+    const before = event.data?.before?.data();
+
     if (after.registrationStatus !== "pending_parent_authorization") {
+      if (before && isAwaitingParentAuthorization(before) && !isCancelledRegistration(after)) {
+        const { stakeId, activityId, registrationId } = event.params;
+        try {
+          const result = await invalidateLinksAfterLeavingPending({
+            db: getFirestore(),
+            stakeId,
+            activityId,
+            registrationId,
+          });
+          if (!result.skipped) {
+            logger.info("Link del genitore invalidati: iscrizione non più in attesa.", {
+              stakeId,
+              activityId,
+              registrationId,
+              invalidati: result.invalidated,
+            });
+          }
+        } catch (error) {
+          logger.error("Invalidazione dei link dopo l'uscita dall'attesa fallita.", {
+            stakeId,
+            activityId,
+            registrationId,
+            detail: error.message,
+          });
+        }
+      }
       return;
     }
 
     // Prima del tetto dei riprovi: la reiscrizione è un gesto della persona,
     // non un riprovo automatico, e riparte da zero tentativi.
-    const before = event.data?.before?.data();
     if (before && isCancelledRegistration(before)) {
       await restartParentAuthorizationAfterCancellation({
         db: getFirestore(),

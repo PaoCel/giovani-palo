@@ -166,7 +166,7 @@ async function writeAdminAlert({
       participantName: fullName,
       submittedByMode,
       title: "Nuovo iscritto",
-      message: `${fullName} si e iscritto a ${eventTitle}.`,
+      message: `${fullName} si è iscritto a ${eventTitle}.`,
       severity: "info",
       active: true,
       readBy: [],
@@ -424,6 +424,18 @@ exports.sendAdminPushForNewRegistration = onDocumentCreated(
 
     const { stakeId, activityId, registrationId } = event.params;
     const registration = getRegistrationPayload(snapshot);
+
+    // Iscrizione aggiunta a mano da un admin (docs/ADMIN_ISCRITTI.md, scelta
+    // I8): nessun avviso, l'ha appena fatta un admin e "si è iscritto"
+    // sarebbe falso.
+    if (registrationId.startsWith("manual_")) {
+      logger.info("Skipping push for manual registration added by an admin.", {
+        stakeId,
+        activityId,
+        registrationId,
+      });
+      return;
+    }
 
     if (registration.linkedLaterToUserId) {
       logger.info("Skipping push for guest registration linked later to an account.", {
