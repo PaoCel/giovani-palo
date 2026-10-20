@@ -4102,6 +4102,96 @@ button {
   font-weight: 800;
 }
 
+/* Aggiungi a mano e Modifica dati (AdminPersonFields, docs/ADMIN_ISCRITTI.md). */
+.admin-person-fields {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-parent-fields {
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(16, 28, 48, 0.08);
+}
+
+.admin-parent-fields legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.2rem;
+  padding: 0;
+  color: var(--heading);
+  font-weight: 800;
+}
+
+.admin-person-fields__optional {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.admin-person-fields .admin-person-fields__changed {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.admin-person-fields__before,
+.admin-person-fields__note {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+p.admin-person-fields__note {
+  margin: 0;
+}
+
+.admin-outcome {
+  margin: 0;
+  padding: 0.8rem 0.95rem;
+  border-radius: 1rem;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.admin-outcome--warning {
+  background: var(--warning-soft);
+  color: #6f4b12;
+}
+
+.admin-outcome h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-outcome ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-outcome .button {
+  margin-top: 0.6rem;
+}
+
+.admin-outcome__actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.admin-outcome__actions .button {
+  margin-top: 0;
+}
+
 /* Esito di un'azione partita da un modale admin: dentro il modale, anche nel
    piede accanto ai tasti (va a capo sopra di loro). */
 .modal-feedback {

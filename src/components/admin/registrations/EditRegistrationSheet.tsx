@@ -1,0 +1,200 @@
+import { useEffect, useRef, useState } from "react";
+
+import { AppModal } from "@/components/AppModal";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
+import {
+  AdminParentFields,
+  AdminPersonFields,
+} from "@/components/admin/registrations/AdminPersonFields";
+import { ModalFeedback } from "@/components/admin/ModalFeedback";
+import { ISCRITTI } from "@/copy/iscritti";
+import { fillCopy } from "@/copy/parole";
+import { useAsyncData } from "@/hooks/useAsyncData";
+import { registrationsService } from "@/services/firestore/registrationsService";
+import { unitsService } from "@/services/firestore/unitsService";
+import type { Registration, Unit } from "@/types";
+import {
+  EMPTY_PARENT_DRAFT,
+  buildAdminEditPatch,
+  personDraftFromRegistration,
+  planAdminEdit,
+  validateAdminEdit,
+  type AdminParentDraft,
+  type AdminPersonDraft,
+} from "@/utils/adminRegistration";
+import { getAdminActionError } from "@/utils/adminErrors";
+import { withWriteTimeout } from "@/utils/writeTimeout";
+
+interface EditRegistrationSheetProps {
+  stakeId: string;
+  eventId: string;
+  requiresParentAuthorization: boolean;
+  registration: Registration;
+  onClose: () => void;
+  onSaved: (info: string) => void;
+}
+
+// Foglio "Modifica dati" sopra la scheda dell'iscrizione (docs/ADMIN_ISCRITTI.md,
+// D). "Salvando" elenca ogni effetto prima del tasto, calcolato da
+// planAdminEdit con le regole del salvataggio; il tasto dice se parte una mail.
+export function EditRegistrationSheet({
+  stakeId,
+  eventId,
+  requiresParentAuthorization,
+  registration,
+  onClose,
+  onSaved,
+}: EditRegistrationSheetProps) {
+  const [initial] = useState(() => personDraftFromRegistration(registration));
+  const [person, setPerson] = useState<AdminPersonDraft>(initial);
+  const [parent, setParent] = useState<AdminParentDraft>(EMPTY_PARENT_DRAFT);
+  const [showProblems, setShowProblems] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+
+  const { data: units } = useAsyncData<Unit[]>(
+    () => unitsService.listUnits(stakeId),
+    [stakeId],
+    [],
+  );
+
+  const plan = planAdminEdit(registration, person, parent, {
+    requiresParentAuthorization,
+    previousUnitName: initial.unitName,
+  });
+  const problems = validateAdminEdit(person, parent, plan);
+  const dirty =
+    JSON.stringify(person) !== JSON.stringify(initial) ||
+    JSON.stringify(parent) !== JSON.stringify(EMPTY_PARENT_DRAFT);
+
+  function requestClose() {
+    if (busy) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  }
+
+  async function handleSave() {
+    if (busy || !dirty) return;
+    setShowProblems(true);
+    setError(null);
+    if (problems.length > 0) return;
+
+    setBusy(true);
+    try {
+      const patch = buildAdminEditPatch({
+        registration,
+        person,
+        parent,
+        plan,
+        timestamp: new Date().toISOString(),
+      });
+      await withWriteTimeout(
+        registrationsService.adminUpdateRegistration(stakeId, eventId, registration.id, patch),
+      );
+      const name = `${person.firstName.trim()} ${person.lastName.trim()}`.trim();
+      onSaved(
+        [fillCopy(ISCRITTI.modificaOk, { nome: name }), plan.sendsMail ? ISCRITTI.mailInPartenza : ""]
+          .filter(Boolean)
+          .join(" "),
+      );
+    } catch (caughtError) {
+      if (mountedRef.current) setError(getAdminActionError(caughtError, ISCRITTI.erroreModifica));
+    } finally {
+      if (mountedRef.current) setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <AppModal
+        footer={
+          <>
+            <ModalFeedback error={error} />
+            <button
+              className="button button--ghost"
+              disabled={busy}
+              onClick={requestClose}
+              type="button"
+            >
+              {ISCRITTI.annulla}
+            </button>
+            <button
+              className="button button--primary"
+              disabled={busy || !dirty}
+              onClick={() => void handleSave()}
+              type="button"
+            >
+              {busy ? ISCRITTI.salvataggio : plan.sendsMail ? ISCRITTI.salvaEMail : ISCRITTI.salva}
+            </button>
+          </>
+        }
+        onClose={requestClose}
+        subtitle={`${registration.lastName} ${registration.firstName}`.trim()}
+        title={ISCRITTI.modificaDati}
+      >
+        <div className="admin-modal-stack">
+          <AdminPersonFields
+            disabled={busy}
+            onChange={(patch) => {
+              setPerson((current) => ({ ...current, ...patch }));
+              setError(null);
+            }}
+            person={person}
+            previous={initial}
+            problems={showProblems ? problems : []}
+            units={units}
+          />
+
+          {plan.needsParentFields ? (
+            <AdminParentFields
+              disabled={busy}
+              onChange={(patch) => {
+                setParent((current) => ({ ...current, ...patch }));
+                setError(null);
+              }}
+              parent={parent}
+              problems={showProblems ? problems : []}
+              subtitle={fillCopy(ISCRITTI.genitoreSotto, {
+                nome: person.firstName.trim() || "—",
+              })}
+            />
+          ) : null}
+
+          {dirty && plan.effects.length > 0 ? (
+            <div className="admin-outcome admin-outcome--warning" role="status">
+              <h4>{ISCRITTI.salvando}</h4>
+              <ul>
+                {plan.effects.map((effect) => (
+                  <li key={effect}>{effect}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </AppModal>
+
+      {confirmDiscard ? (
+        <ConfirmSheet
+          body={ISCRITTI.esciSenzaSalvareCorpo}
+          cancelLabel={ISCRITTI.continuaACompilare}
+          confirmLabel={ISCRITTI.esciSenzaSalvare}
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={onClose}
+          title={ISCRITTI.esciSenzaSalvareTitolo}
+          tone="danger"
+        />
+      ) : null}
+    </>
+  );
+}
