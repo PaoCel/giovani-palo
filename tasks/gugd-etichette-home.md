@@ -46,6 +46,8 @@ quindi prima la scelta di Paolo.
 ## Da fare
 
 - CSS mirato per pagina; collaudo.
+- La home `/me` verrà rifatta da `gugd-home-social` (dopo S2): se questo task
+  parte prima, conviene limitarsi a scheda e firma.
 
 ## Verificato
 
