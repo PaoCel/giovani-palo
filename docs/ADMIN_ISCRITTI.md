@@ -123,8 +123,9 @@ Come si torna indietro:
   genitore aveva rifiutato, la mail nuova riapre il rifiuto: in quel caso, e
   solo quando parte una mail, "Riattiva" chiede conferma in un foglio
   ("Il genitore aveva rifiutato: riceverà una nuova mail per autorizzare").
-  Su un documento con il vecchio campo `status: "cancelled"` Riattiva lo
-  riallinea, altrimenti il trigger lo considera ancora annullato.
+  Il vecchio campo `status: "cancelled"` non va riallineato: il censimento in
+  sola lettura del 2026-10-20 ne ha trovati 0 su 348 (3 con `status:
+  "active"`).
 
 ## Functions (nuovo, dal secondo parere)
 
@@ -138,6 +139,13 @@ Come si torna indietro:
   `tokenId` nella stessa transazione; il ritorno in attesa riparte come una
   reiscrizione (link e mail nuovi). Test nell'emulatore che conta link vivi e
   mail partite.
+- **Dalla review del codice (Codex, 2026-10-20):** la firma rilegge il link
+  nella transazione finale e si ferma se nel frattempo è stato invalidato;
+  "Autorizza ora" emette un link solo per un'iscrizione in attesa (come
+  mostra Famiglia); il reinvio dell'admin solo se l'autorizzazione serve
+  ancora (in attesa, o meno di 18 anni in un'attività che la chiede); ogni
+  ingresso in attesa da un altro stato riparte come una reiscrizione (link
+  e mail nuovi), così un ritorno rapido in attesa non resta col link vecchio.
 - **Avviso "nuovo iscritto" agli admin.** Oggi scatta a ogni creazione con
   "{nome} si è iscritto a {attività}": per una `manual_` niente push (l'ha
   fatta un admin), o il testo "aggiunta a mano da {admin}" (scelta I8).
@@ -172,11 +180,15 @@ firmati e stato `confirmed` compresi. Proposta (scelta R):
   `youthGroup`, `unitName`), `parentAuthorization` (solo `parentEmail`,
   `emailLastError`, `updatedAt`), `roomPreferenceMatches`, nome e cognome,
   `birthDate`, `genderRoleCategory`, `unitId`, `unitNameSnapshot`, `email`,
-  `phone`, `status` (solo per riallineare il vecchio campo). Lo stato si
+  `phone`. Lo stato si
   controlla come transizione: invariato sempre ammesso (correggere i dati di
   una confermata o rifiutata); verso `confirmed` o `rejected_by_parent` mai;
   verso `active` per un minorenne in un'attività con autorizzazione solo se
-  già firmata.
+  già firmata; e una data di nascita cambiata che fa risultare meno di 18
+  anni non lascia attiva un'iscrizione senza firma (anche nel ramo del
+  titolare). Alla creazione le risposte ammettono solo i dati della persona
+  e la richiesta al genitore: un `parentConfirmed` scritto a mano varrebbe
+  come consenso per il recupero delle approvazioni del vecchio metodo.
 - `createdBy` entra nella lista dei campi ammessi e nel gruppo "invariati"
   del titolare, misurando il budget delle 1000 espressioni.
 - Prima di stringere: le scritture admin delle build in giro sono
