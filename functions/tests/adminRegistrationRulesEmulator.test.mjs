@@ -34,7 +34,7 @@ import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { collection, deleteDoc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, deleteField, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 
 import {
   buildAdminEditPatch,
@@ -107,7 +107,7 @@ function editPatch(current, id, personChanges, { parent = { firstName: "", lastN
     requiresParentAuthorization: requires,
     previousUnitName: current.unitNameSnapshot,
   });
-  const patch = buildAdminEditPatch({ registration, person, parent, plan, timestamp: nowIso() });
+  const patch = buildAdminEditPatch({ registration, person, parent, plan, timestamp: nowIso(), deleteValue: deleteField() });
   return { patch, plan };
 }
 
@@ -736,6 +736,40 @@ describe("6. admin cambia stato (Riattiva e transizioni)", () => {
     }
   });
 
+  test("in attesa non si torna da una decisione del genitore (rejected_by_parent, confirmed); da attiva, annullata e altri stati sì (8a294f2)", async () => {
+    for (const [from, allowed] of [
+      ["rejected_by_parent", false],
+      ["confirmed", false],
+      ["active", true],
+      ["cancelled", true],
+      ["submitted", true],
+      ["waitlist", true],
+      ["draft", true],
+    ]) {
+      const ctx = await F.seedRegistration({ ...manualDoc({ person: minorDraft(), parent: parentDraft() }), registrationStatus: from }, manualId());
+      if (allowed) {
+        await clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "pending_parent_authorization");
+        assert.equal((await stored(ctx.path)).registrationStatus, "pending_parent_authorization", from);
+      } else {
+        await expectDeniedUnchanged(ctx.path, () => clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "pending_parent_authorization"), `${from} → in attesa`);
+      }
+    }
+  });
+
+  test("una decisione del genitore si riapre annullando e riattivando: rifiutata → annullata → in attesa", async () => {
+    const base = F.childRegistration(uid("genitore"), childIdOf("genitore"), "pending");
+    const ctx = await F.seedRegistration(
+      { ...base, registrationStatus: "rejected_by_parent", parentAuthorization: { ...base.parentAuthorization, status: "rejected_by_parent" } },
+      childIdOf("genitore"),
+    );
+    await expectDeniedUnchanged(ctx.path, () => clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "pending_parent_authorization"), "diretta");
+    await clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "cancelled");
+    const plan = planAdminReactivate(await stored(ctx.path), true);
+    assert.equal(plan.status, "pending_parent_authorization");
+    assert.equal(plan.reopensRejection, true);
+    await clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, plan.status);
+  });
+
   test("da in attesa ad active: adulto sì, minorenne senza firma no, minorenne con la firma sì", async () => {
     const adult = await F.seedRegistration({ ...manualDoc({ person: personDraft() }), registrationStatus: "pending_parent_authorization" }, manualId());
     await clientOps.setStatus("admin", adult.activityId, adult.registrationId, "active");
@@ -1145,6 +1179,139 @@ describe("8. update admin: campi vietati", () => {
     const [data, id] = BUILDERS[1][1]();
     const ctx = await F.seedRegistration(data, id);
     await withPatch(ctx.activityId, id, { assignedRoomId: ctx.current.assignedRoomId, "parentAuthorization.photoConsent": ctx.current.parentAuthorization.photoConsent, updatedAt: nowIso() });
+  });
+});
+
+// ===========================================================================
+// 8b. Spunte foto date da adulto: l'admin le toglie, non le scrive (8a294f2)
+// ===========================================================================
+
+describe("8b. spunte foto nelle risposte", () => {
+  const PHOTO_KEYS = ["photoInternalConsent", "photoPublicConsent", "photoReleaseAccepted"];
+  /** Iscrizione a mano di un adulto con le spunte date da adulto nelle risposte. */
+  async function seedWithPhotos(keys = PHOTO_KEYS, { requires = true } = {}) {
+    const data = manualDoc({ person: personDraft(), requires });
+    data.answers = { ...data.answers, ...Object.fromEntries(keys.map((key) => [key, true])) };
+    return F.seedRegistration(data, manualId(), { requires });
+  }
+
+  test("toglierle tutte (deleteField) passa; il resto delle risposte resta", async () => {
+    const ctx = await seedWithPhotos();
+    await withPatch(ctx.activityId, ctx.registrationId, {
+      ...Object.fromEntries(PHOTO_KEYS.map((key) => [`answers.${key}`, deleteField()])),
+      updatedAt: nowIso(),
+    });
+    const after = await stored(ctx.path);
+    for (const key of PHOTO_KEYS) assert.ok(!(key in after.answers), key);
+    assert.equal(after.answers.birthDate, ctx.current.answers.birthDate);
+  });
+
+  test("scriverle a true o a false è negato, ognuna; anche se c'erano già", async () => {
+    const ctx = await seedWithPhotos(["photoInternalConsent"]);
+    for (const key of PHOTO_KEYS) {
+      for (const value of [true, false]) {
+        // Riscrivere il valore che c'è già non è una modifica.
+        if (JSON.stringify(ctx.current.answers[key]) === JSON.stringify(value)) continue;
+        await expectDeniedUnchanged(ctx.path, () => withPatch(ctx.activityId, ctx.registrationId, { [`answers.${key}`]: value, updatedAt: nowIso() }), `${key}=${value}`);
+      }
+    }
+    const empty = await F.seedRegistration(manualDoc({ person: personDraft() }), manualId());
+    for (const key of PHOTO_KEYS) {
+      await expectDeniedUnchanged(empty.path, () => withPatch(empty.activityId, empty.registrationId, { [`answers.${key}`]: true, updatedAt: nowIso() }), `${key} nuova`);
+    }
+  });
+
+  test("toglierne una sola quando ce n'è più d'una resta negato: o si tolgono tutte o nessuna", async () => {
+    const ctx = await seedWithPhotos(["photoInternalConsent", "photoPublicConsent"]);
+    await expectDeniedUnchanged(
+      ctx.path,
+      () => withPatch(ctx.activityId, ctx.registrationId, { "answers.photoInternalConsent": deleteField(), updatedAt: nowIso() }),
+      "una su due",
+    );
+    await withPatch(ctx.activityId, ctx.registrationId, {
+      "answers.photoInternalConsent": deleteField(),
+      "answers.photoPublicConsent": deleteField(),
+      updatedAt: nowIso(),
+    });
+  });
+
+  test("togliere una spunta che non c'è non cambia nulla: passa", async () => {
+    const ctx = await F.seedRegistration(manualDoc({ person: personDraft() }), manualId());
+    await withPatch(ctx.activityId, ctx.registrationId, { "answers.photoInternalConsent": deleteField(), updatedAt: nowIso() });
+  });
+
+  test("toglierle insieme a un'altra chiave non permessa è negato", async () => {
+    const ctx = await seedWithPhotos();
+    await expectDeniedUnchanged(
+      ctx.path,
+      () =>
+        withPatch(ctx.activityId, ctx.registrationId, {
+          ...Object.fromEntries(PHOTO_KEYS.map((key) => [`answers.${key}`, deleteField()])),
+          "answers.allergies": "nessuna",
+          updatedAt: nowIso(),
+        }),
+      "spunte tolte + allergies",
+    );
+  });
+
+  test("planAdminEdit + buildAdminEditPatch con deleteField: adulto → minorenne toglie le spunte, in attesa; il payload passa", async () => {
+    for (const requires of [true, false]) {
+      const ctx = await seedWithPhotos(PHOTO_KEYS, { requires });
+      const { patch, plan } = editPatch(ctx.current, ctx.registrationId, { birthDate: MINOR }, { parent: parentDraft(), requires });
+      assert.deepEqual([...plan.clearAnswerKeys].sort(), [...PHOTO_KEYS].sort(), `requires ${requires}`);
+      for (const key of PHOTO_KEYS) assert.ok(`answers.${key}` in patch, `answers.${key} nel patch`);
+      await withPatch(ctx.activityId, ctx.registrationId, patch);
+      const after = await stored(ctx.path);
+      for (const key of PHOTO_KEYS) assert.ok(!(key in after.answers), `${key} tolta (requires ${requires})`);
+      assert.equal(after.registrationStatus, requires ? "pending_parent_authorization" : "active");
+      assert.equal(after.birthDate, MINOR);
+    }
+  });
+
+  test("senza deleteField il payload di planAdminEdit non passa (undefined non si scrive)", async () => {
+    const ctx = await seedWithPhotos();
+    const registration = asRegistration(ctx.registrationId, ctx.current);
+    const person = { ...personDraftFromRegistration(registration), birthDate: MINOR };
+    const plan = planAdminEdit(registration, person, parentDraft(), { requiresParentAuthorization: true, previousUnitName: ctx.current.unitNameSnapshot });
+    const patch = buildAdminEditPatch({ registration, person, parent: parentDraft(), plan, timestamp: nowIso() });
+    assert.equal(patch["answers.photoInternalConsent"], undefined);
+    await assert.rejects(async () => withPatch(ctx.activityId, ctx.registrationId, patch), /undefined/u);
+  });
+
+  test("correzione di un adulto che resta adulto, o di un minorenne: nessuna spunta tolta", async () => {
+    const adult = await seedWithPhotos();
+    const { plan } = editPatch(adult.current, adult.registrationId, { birthDate: `${new Date().getFullYear() - 41}-01-02` });
+    assert.deepEqual(plan.clearAnswerKeys, []);
+    const minorDoc = manualDoc({ person: minorDraft(), parent: parentDraft() });
+    minorDoc.answers = { ...minorDoc.answers, photoInternalConsent: true };
+    const minor = await F.seedRegistration(minorDoc, manualId());
+    const { plan: minorPlan } = editPatch(minor.current, minor.registrationId, { birthDate: `${new Date().getFullYear() - 15}-01-02` });
+    assert.deepEqual(minorPlan.clearAnswerKeys, []);
+  });
+
+  test("adminUpdateParentAuthorizationEmail su un'iscrizione con le spunte nelle risposte passa ancora (answers intero, spunte invariate)", async () => {
+    const ctx = await F.seedRegistration(
+      (() => {
+        const base = F.childRegistration(uid("genitore"), childIdOf("genitore"), "pending");
+        return { ...base, answers: { ...base.answers, photoInternalConsent: true, photoPublicConsent: true, photoReleaseAccepted: true } };
+      })(),
+      childIdOf("genitore"),
+    );
+    await clientOps.updateParentEmail("admin", ctx.activityId, ctx.registrationId, "nuovo@esempio.invalid");
+    const after = await stored(ctx.path);
+    assert.equal(after.parentAuthorization.parentEmail, "nuovo@esempio.invalid");
+    assert.equal(after.answers.photoInternalConsent, true);
+    // Anche il figlio massimo (heavyAnswers ha photoInternalConsent).
+    const heavy = await F.seedRegistration(F.childRegistration(uid("genitore"), childIdOf("genitore"), "maximal"), childIdOf("genitore"));
+    assert.equal(heavy.current.answers.photoInternalConsent, true);
+    await clientOps.updateParentEmail("admin", heavy.activityId, heavy.registrationId, "altro@esempio.invalid");
+  });
+
+  test("il titolare scrive le sue spunte come prima (il vincolo è dell'admin)", async () => {
+    const payload = F.accountRegistration(uid("utente"), "light");
+    const ctx = await F.seedRegistration(payload, `user_${uid("utente")}`);
+    await clientOps.update("utente", ctx.activityId, ctx.registrationId, { "answers.photoInternalConsent": true, updatedAt: nowIso() });
+    assert.equal((await stored(ctx.path)).answers.photoInternalConsent, true);
   });
 });
 

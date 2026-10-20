@@ -14,6 +14,11 @@
 //     NOT_NEEDED_MESSAGE se l'autorizzazione non serve più (18 anni o più, o
 //     attività che non la chiede), consentiti per un minorenne attivo in
 //     un'attività che la chiede (reinvio dell'admin).
+//   - parentAuthorizationGetContext (c1f96a6): link valido o invalidato di
+//     un'iscrizione non annullata, non in attesa, per cui l'autorizzazione non
+//     serve più → { status: "invalidated", reason: "not_needed" }; annullata →
+//     "registration_cancelled"; in attesa o minorenne attiva in un'attività che
+//     la chiede → "valid".
 // Callable vere (SDK client → Functions emulator) con utenti dell'Auth emulator;
 // le correzioni dell'admin passano dalle rules con le chiamate del client.
 //
@@ -30,6 +35,7 @@ import { createRequire } from "node:module";
 
 import { deleteApp, initializeApp } from "firebase/app";
 import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth } from "firebase/auth";
+import { deleteField } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 
 import { buildAdminEditPatch, personDraftFromRegistration, planAdminEdit } from "../../src/utils/adminRegistration.ts";
@@ -67,6 +73,7 @@ const NOT_AWAITING_MESSAGE = "L'iscrizione non è in attesa dell'autorizzazione 
 const NOT_NEEDED_MESSAGE =
   "Per questa iscrizione l'autorizzazione del genitore non serve: ha 18 anni o più, o l'attività non la chiede.";
 const ALREADY_AUTHORIZED_MESSAGE = "L'autorizzazione è già stata firmata.";
+const ALREADY_REJECTED_MESSAGE = "Il genitore ha rifiutato l'autorizzazione.";
 
 const hashToken = (raw) => createHash("sha256").update(raw, "utf8").digest("hex");
 const pausa = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -220,6 +227,18 @@ describe("1. 'Autorizza ora' solo per un'iscrizione in attesa", () => {
     await expectCallError(issue(ctx), "failed-precondition", NOT_AWAITING_MESSAGE);
   });
 
+  test("rifiutata dal genitore: ALREADY_REJECTED, anche se l'admin ha rimesso l'iscrizione in attesa (72f2b5f)", async () => {
+    const base = F.childRegistration(who.genitore.uid, `child_${who.genitore.uid}_${CHILD_ID}`, "pending");
+    const rejected = { ...base.parentAuthorization, status: "rejected_by_parent", rejectedAt: nowIso() };
+    // In attesa con l'autorizzazione rifiutata (la rules non lo permette più all'admin, ma documenti così esistono).
+    const pending = await seedChild({ overrides: { registrationStatus: "pending_parent_authorization", parentAuthorization: rejected }, token: "used" });
+    await expectCallError(issue(pending), "failed-precondition", ALREADY_REJECTED_MESSAGE);
+    // E rifiutata anche nello stato.
+    const rejectedStatus = await seedChild({ overrides: { registrationStatus: "rejected_by_parent", parentAuthorization: rejected }, token: "used" });
+    await expectCallError(issue(rejectedStatus), "failed-precondition", ALREADY_REJECTED_MESSAGE);
+    assert.equal((await tokensOf(pending.activityId, pending.registrationId)).filter((token) => token.status === "pending").length, 0, "nessun link nuovo");
+  });
+
   test("già firmata (confirmed): resta il messaggio della firma, non quello dell'attesa", async () => {
     const base = F.childRegistration(who.genitore.uid, `child_${who.genitore.uid}_${CHILD_ID}`, "signed");
     const ctx = await seedChild({ overrides: { ...base, parentAuthorization: { ...base.parentAuthorization } }, token: "used" });
@@ -303,6 +322,34 @@ describe("2. reinvio dell'admin solo se l'autorizzazione serve ancora", () => {
     await expectCallError(resend(ctx), "failed-precondition", ALREADY_AUTHORIZED_MESSAGE);
   });
 
+  test("correzione ad adulto in corsa con il reinvio (72f2b5f): se il reinvio perde, NOT_NEEDED; in ogni caso nessun link vivo a regime", async () => {
+    for (let round = 1; round <= 4; round += 1) {
+      const ctx = await seedChild();
+      const correction = (async () => {
+        const current = await stored(regPath(ctx.activityId, ctx.registrationId));
+        const registration = { id: ctx.registrationId, ...current };
+        const person = { ...personDraftFromRegistration(registration), birthDate: ADULT };
+        const none = { firstName: "", lastName: "", email: "", phone: "" };
+        const plan = planAdminEdit(registration, person, none, { requiresParentAuthorization: true, previousUnitName: current.unitNameSnapshot });
+        await clientOps.update("admin", ctx.activityId, ctx.registrationId, buildAdminEditPatch({ registration, person, parent: none, plan, timestamp: nowIso(), deleteValue: deleteField() }));
+      })();
+      const outcome = await Promise.allSettled([resend(ctx), correction]);
+      assert.equal(outcome[1].status, "fulfilled", `giro ${round}: la correzione passa (${outcome[1].reason?.message})`);
+      if (outcome[0].status === "rejected") {
+        assert.equal(outcome[0].reason?.code, "functions/failed-precondition", `giro ${round}: ${outcome[0].reason?.message}`);
+        assert.equal(outcome[0].reason?.message, NOT_NEEDED_MESSAGE, `giro ${round}`);
+      }
+      // A regime l'iscrizione è attiva e adulta: il trigger ha invalidato ogni link.
+      await waitFor(
+        async () => (await live(ctx)).length,
+        (count) => count === 0,
+        `giro ${round}: nessun link vivo`,
+        30_000,
+      );
+      assert.equal((await stored(regPath(ctx.activityId, ctx.registrationId))).registrationStatus, "active", `giro ${round}`);
+    }
+  });
+
   test("chi non è admin né dirigente della stessa unità non reinvia", async () => {
     const ctx = await seedChild();
     await expectCallError(
@@ -338,6 +385,7 @@ describe("3. link del genitore dopo una correzione minorenne → adulto", () => 
     );
     const context = await who.anonimo.call("parentAuthorizationGetContext", { token: ctx.rawToken });
     assert.equal(context.status, "invalidated");
+    assert.equal(context.reason, "not_needed", "la pagina dice che non serve, non che c'è un link nuovo");
     await expectCallError(who.anonimo.call("parentAuthorizationReject", { token: ctx.rawToken, reason: "prova" }), "failed-precondition");
     const registration = await stored(regPath(ctx.activityId, ctx.registrationId));
     assert.equal(registration.registrationStatus, "active");
@@ -426,5 +474,115 @@ describe("3. link del genitore dopo una correzione minorenne → adulto", () => 
     const ctx = await seedChild();
     assert.deepEqual(await who.anonimo.call("parentAuthorizationReject", { token: ctx.rawToken, reason: "prova" }), { ok: true });
     assert.equal((await stored(regPath(ctx.activityId, ctx.registrationId))).registrationStatus, "rejected_by_parent");
+  });
+});
+
+// ===========================================================================
+// 4. Contesto del link (parentAuthorizationGetContext)
+// ===========================================================================
+
+describe("4. contesto del link dopo una correzione dei dati", () => {
+  const context = (ctx, client = who.anonimo) => client.call("parentAuthorizationGetContext", { token: ctx.rawToken });
+
+  test("in attesa: valid, con i dati della pagina di firma", async () => {
+    const ctx = await seedChild();
+    const result = await context(ctx);
+    assert.equal(result.status, "valid");
+    assert.equal(result.reason, undefined);
+    assert.equal(result.participantName, "Figlio Test");
+    assert.equal(result.parentEmail, "genitore@example.invalid");
+    assert.equal(result.canSignInApp, false, "la pagina pubblica non è il titolare");
+    assert.ok(result.legalVersions);
+  });
+
+  test("in attesa con la data di un adulto (prima che il trigger giri): valid, è ancora in attesa", async () => {
+    const ctx = await seedChild({ overrides: { birthDate: ADULT } });
+    assert.equal((await context(ctx)).status, "valid");
+  });
+
+  test("corretta ad adulto e attiva, link ancora valido: invalidated con motivo not_needed, senza dati della scheda", async () => {
+    const ctx = await seedChild({ overrides: ADULT_FIELDS });
+    const result = await context(ctx);
+    assert.deepEqual(result, {
+      status: "invalidated",
+      reason: "not_needed",
+      activityTitle: "Attività di prova",
+      participantName: "Figlio Test",
+      canSignInApp: false,
+    });
+  });
+
+  test("corretta ad adulto e attiva, link già invalidato dal trigger: invalidated con motivo not_needed", async () => {
+    const ctx = await seedChild({ overrides: ADULT_FIELDS, token: "invalidated" });
+    const result = await context(ctx);
+    assert.equal(result.status, "invalidated");
+    assert.equal(result.reason, "not_needed");
+  });
+
+  test("attività che non chiede l'autorizzazione, minorenne attiva: invalidated con motivo not_needed", async () => {
+    const ctx = await seedChild({ requires: false, overrides: { registrationStatus: "active" }, token: "pending" });
+    assert.equal((await context(ctx)).reason, "not_needed");
+  });
+
+  test("il titolare con l'account vede lo stesso motivo e può entrare nell'app (canSignInApp)", async () => {
+    const ctx = await seedChild({ overrides: ADULT_FIELDS });
+    const result = await context(ctx, who.genitore);
+    assert.equal(result.reason, "not_needed");
+    assert.equal(result.canSignInApp, true);
+  });
+
+  test("annullata, link valido: registration_cancelled (non not_needed, anche se adulta)", async () => {
+    for (const overrides of [{ registrationStatus: "cancelled" }, { registrationStatus: "cancelled", birthDate: ADULT }]) {
+      const ctx = await seedChild({ overrides });
+      const result = await context(ctx);
+      assert.equal(result.status, "invalidated");
+      assert.equal(result.reason, "registration_cancelled", JSON.stringify(overrides));
+    }
+  });
+
+  test("annullata, link già invalidato: invalidated senza motivo (né registration_cancelled né not_needed)", async () => {
+    const ctx = await seedChild({ overrides: { registrationStatus: "cancelled", birthDate: ADULT }, token: "invalidated" });
+    const result = await context(ctx);
+    assert.equal(result.status, "invalidated");
+    assert.equal(result.reason, undefined);
+  });
+
+  test("minorenne attiva in un'attività che chiede l'autorizzazione (reinvio dell'admin): valid", async () => {
+    const ctx = await seedChild({ overrides: { registrationStatus: "active" } });
+    const result = await context(ctx);
+    assert.equal(result.status, "valid");
+    assert.equal(result.reason, undefined);
+  });
+
+  test("link invalidato di una minorenne attiva in un'attività che chiede l'autorizzazione: invalidated senza motivo (serve ancora, ne esiste uno nuovo)", async () => {
+    const ctx = await seedChild({ overrides: { registrationStatus: "active" }, token: "invalidated" });
+    const result = await context(ctx);
+    assert.equal(result.status, "invalidated");
+    assert.equal(result.reason, undefined);
+  });
+
+  test("link usato o scaduto di un'iscrizione che non serve più: restano used e expired", async () => {
+    const used = await seedChild({ overrides: ADULT_FIELDS, token: "used" });
+    assert.equal((await context(used)).status, "used");
+    const expired = await seedChild({ overrides: ADULT_FIELDS });
+    await adminDb.doc(`parentAuthorizationTokens/${expired.hash}`).update({ expiresAt: "2026-01-01T00:00:00.000Z" });
+    const result = await context(expired);
+    assert.equal(result.status, "expired");
+    assert.equal(result.reason, undefined);
+  });
+
+  test("firmata (confirmed) con il link usato: resta used", async () => {
+    const base = F.childRegistration(who.genitore.uid, `child_${who.genitore.uid}_${CHILD_ID}`, "signed");
+    const ctx = await seedChild({ overrides: { ...base }, token: "used" });
+    assert.equal((await context(ctx)).status, "used");
+  });
+
+  test("iscrizione cancellata (documento assente), link valido: registration_cancelled", async () => {
+    const activityId = await F.seedActivity({ requires: true });
+    const registrationId = `child_${who.genitore.uid}_${CHILD_ID}`;
+    const { rawToken } = await seedToken(activityId, registrationId, "pending");
+    const result = await who.anonimo.call("parentAuthorizationGetContext", { token: rawToken });
+    assert.equal(result.status, "invalidated");
+    assert.equal(result.reason, "registration_cancelled");
   });
 });
