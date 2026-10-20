@@ -532,6 +532,9 @@ altro palo) con `action` e `by`, e aggiunge una riga a
 | `reactivate` | A | `removed` → stato, motivi e ruolo di `previous` (senza `previous` attivo: `active` con `staffRole: null`) | il ruolo torna solo se `users.stakeId` è ancora questo palo |
 | `undo` | A; D solo per le proprie azioni | ripristina `previous` se `version` è quella passata e l'ultima azione è dello staff | ruolo, elenchi e appartenenze spostate tornano come prima, ciascuno solo se nel frattempo non è cambiato; dopo, `previous: null` |
 
+`request` di chi ha già un ruolo staff del palo segue la regola 1 del trigger
+(sotto): l'appartenenza diventa subito `active` con `staffRole`.
+
 Uscita dello staff (`leave`, `remove`, `block`, e `decline`/`markUnknown` se
 la persona ha un ruolo staff): `users.role` → `participant` e `staffRole:
 null`; un `super_admin` tiene il ruolo (non è un ruolo del palo). L'ultimo
