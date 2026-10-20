@@ -765,6 +765,30 @@ async function recordEmailOutcome(db, registrationRef, tokenId, fields) {
   }
 }
 
+// Esito della copia firmata, scritto dopo la conferma: solo se l'iscrizione
+// porta ancora quella firma (stesso link, autorizzata). Un errore si registra
+// nei log: la firma è già valida e non si ripete.
+async function recordSignedCopyOutcome(db, registrationRef, tokenId, fields) {
+  try {
+    await db.runTransaction(async (tx) => {
+      const snapshot = await tx.get(registrationRef);
+      const state = snapshot.exists ? snapshot.data().parentAuthorization : null;
+      if (annotatedTokenId(state) !== tokenId || state.status !== "authorized") return;
+      const update = {};
+      for (const [key, value] of Object.entries(fields)) {
+        update[`parentAuthorization.${key}`] = value;
+      }
+      tx.update(registrationRef, update);
+    });
+  } catch (error) {
+    logger.error("Esito della copia firmata non registrato.", {
+      registrationPath: registrationRef.path,
+      tokenId,
+      detail: error.message,
+    });
+  }
+}
+
 // Emette il link e manda la mail. L'emissione è una transazione
 // sull'iscrizione: invalida tutti i link pendenti, crea il nuovo e lo annota.
 // Prima reinvio e trigger scrivevano `tokenId: null` e poi spedivano: quella
@@ -1095,7 +1119,7 @@ function assertParentAuthorizationOpen(status) {
 // stessa transazione il link usato diventa "used" e ogni altro link pendente
 // dell'iscrizione si invalida: un reinvio partito durante la firma lasciava
 // valido il link nuovo, e la sua mail chiedeva una seconda firma.
-async function writeIfRegistrationActive(db, registrationRef, data, { token, usedAt }) {
+async function writeIfRegistrationActive(db, registrationRef, data, { token, usedAt, activity }) {
   await db.runTransaction(async (tx) => {
     const current = await tx.get(registrationRef);
     if (!current.exists) {
@@ -1111,6 +1135,12 @@ async function writeIfRegistrationActive(db, registrationRef, data, { token, use
     const tokenStatus = deriveTokenStatus(tokenSnapshot.exists ? tokenSnapshot.data() : null);
     if (tokenStatus !== "valid") {
       throw new HttpsError("failed-precondition", `Token non utilizzabile (stato: ${tokenStatus}).`);
+    }
+    // E l'autorizzazione deve servire ancora: un'iscrizione diventata adulta
+    // (data corretta dall'admin, poi riattivata) non si firma, anche con un
+    // link rimasto valido.
+    if (!parentAuthorizationStillNeeded(current.data(), activity)) {
+      throw new HttpsError("failed-precondition", NOT_NEEDED_MESSAGE);
     }
     const pendenti = await readPendingTokens(tx, db, {
       stakeId: token.stakeId,
@@ -1298,7 +1328,13 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
     const before = event.data?.before?.data();
 
     if (after.registrationStatus !== "pending_parent_authorization") {
-      if (before && isAwaitingParentAuthorization(before) && !isCancelledRegistration(after)) {
+      // Uscita dall'attesa, o riattivazione diretta da annullata (i link di
+      // prima dell'annullamento restavano pendenti): senza firma, via i link.
+      if (
+        before &&
+        (isAwaitingParentAuthorization(before) || isCancelledRegistration(before)) &&
+        !isCancelledRegistration(after)
+      ) {
         const { stakeId, activityId, registrationId } = event.params;
         try {
           const result = await invalidateLinksAfterLeavingPending({
@@ -2035,6 +2071,61 @@ const parentAuthorizationConfirm = onCall(
       // Non blocchiamo la conferma se PDF fallisce: l'audit log resta.
     }
 
+    // Aggiorna registration: status confirmed + sub-object completo
+    const registrationRef = db.doc(
+      `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
+    );
+
+    const newState = {
+      ...existingState,
+      status: "authorized",
+      tokenId: tokenHash,
+      authorizedAt: confirmedAt,
+      legalVersions: LEGAL_DOC_VERSIONS,
+      consents,
+      photoConsent,
+      socialPublicationConsent,
+      consentTextVersion: CONSENT_TEXT_VERSION,
+      consentUpdatedAt: confirmedAt,
+      signaturePath,
+      signatureUrl,
+      pdfPath,
+      pdfUrl,
+      conductPdfPath,
+      auditPdfPath,
+      signatureSource,
+      // Esito della copia per mail: dopo la transazione (sotto).
+      signedCopyEmailSentAt: null,
+      signedCopyEmailMessageId: null,
+      signedCopyEmailLastError: null,
+      ipAddress,
+      userAgent,
+      updatedAt: confirmedAt,
+    };
+
+    await writeIfRegistrationActive(
+      db,
+      registrationRef,
+      {
+        parentAuthorization: newState,
+        parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
+        parentConsentDocumentPath: pdfPath,
+        parentConsentDocumentUrl: null,
+        parentConsentUploadedAt: pdfPath ? confirmedAt : null,
+        consentSignaturePath: signaturePath,
+        consentSignatureUrl: null,
+        consentSignatureSetAt: confirmedAt,
+        registrationStatus: "confirmed",
+        updatedAt: confirmedAt,
+      },
+      { token, usedAt: confirmedAt, activity },
+    );
+
+    // Copia firmata e link per cambiare le scelte DOPO la transazione: se la
+    // firma viene rifiutata (link invalidato, iscrizione annullata o non più
+    // in attesa nei secondi della firma) il genitore non deve ricevere un
+    // "firmato" che non lo è. Il caso peggiore diventa "confermata senza
+    // copia", con signedCopyEmailSentAt null come traccia.
     // Link per cambiare le scelte su foto e social senza account: sta nella
     // copia firmata. Se non si riesce a crearlo la firma resta valida.
     let consentUrl = null;
@@ -2091,54 +2182,11 @@ const parentAuthorizationConfirm = onCall(
       }
     }
 
-    // Aggiorna registration: status confirmed + sub-object completo
-    const registrationRef = db.doc(
-      `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
-    );
-
-    const newState = {
-      ...existingState,
-      status: "authorized",
-      tokenId: tokenHash,
-      authorizedAt: confirmedAt,
-      legalVersions: LEGAL_DOC_VERSIONS,
-      consents,
-      photoConsent,
-      socialPublicationConsent,
-      consentTextVersion: CONSENT_TEXT_VERSION,
-      consentUpdatedAt: confirmedAt,
-      signaturePath,
-      signatureUrl,
-      pdfPath,
-      pdfUrl,
-      conductPdfPath,
-      auditPdfPath,
-      signatureSource,
+    await recordSignedCopyOutcome(db, registrationRef, tokenHash, {
       signedCopyEmailSentAt: copyEmailSentAt,
       signedCopyEmailMessageId: copyEmailMessageId,
       signedCopyEmailLastError: copyEmailError,
-      ipAddress,
-      userAgent,
-      updatedAt: confirmedAt,
-    };
-
-    await writeIfRegistrationActive(
-      db,
-      registrationRef,
-      {
-        parentAuthorization: newState,
-        parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
-        parentConsentDocumentPath: pdfPath,
-        parentConsentDocumentUrl: null,
-        parentConsentUploadedAt: pdfPath ? confirmedAt : null,
-        consentSignaturePath: signaturePath,
-        consentSignatureUrl: null,
-        consentSignatureSetAt: confirmedAt,
-        registrationStatus: "confirmed",
-        updatedAt: confirmedAt,
-      },
-      { token, usedAt: confirmedAt },
-    );
+    });
 
     await writeAuditLog(db, stakeId, activityId, registrationId, {
       tokenId: tokenHash,
@@ -2213,6 +2261,11 @@ const parentAuthorizationReject = onCall(
       throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
     }
 
+    const activity = await loadActivity(db, stakeId, activityId);
+    if (!activity) {
+      throw new HttpsError("not-found", "Attività non trovata.");
+    }
+
     const rejectedAt = nowIso();
 
     const ipAddress = (
@@ -2246,7 +2299,7 @@ const parentAuthorizationReject = onCall(
         },
         updatedAt: rejectedAt,
       },
-      { token, usedAt: rejectedAt },
+      { token, usedAt: rejectedAt, activity },
     );
 
     await writeAuditLog(db, stakeId, activityId, registrationId, {
