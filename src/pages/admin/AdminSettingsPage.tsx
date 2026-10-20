@@ -872,7 +872,9 @@ export function AdminSettingsPage() {
     setBusy(true);
 
     try {
-      await organizationService.saveProfile(stakeId, input);
+      // Senza rete la scrittura aspetterebbe il server per sempre, con il
+      // pulsante su "Salvataggio...": dopo il timeout l'errore va nel modale.
+      await withWriteTimeout(organizationService.saveProfile(stakeId, input));
       setRefreshKey((current) => current + 1);
     } finally {
       setBusy(false);
