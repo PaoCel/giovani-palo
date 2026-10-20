@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-admin-iscritti
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
 session: 3b5e6431-ed1b-420c-83ed-ae790b460974
-stopped_at: "Codice, rules e functions fatti; review Codex corretta; test di rules e trigger e collaudo nel browser in corso"
-next: "Esiti dei test nell'emulatore e del collaudo, secondo giro di review, poi merge e deploy rules → functions → hosting con conferma di Paolo"
-verified: ""
+stopped_at: "Codice, rules e functions pronti e mergiati in main; non deployati"
+next: "Conferma di Paolo, poi deploy da main in ordine: firestore:rules, functions per nome (onRegistrationPendingParentAuth, parentAuthorizationConfirm, parentAuthorizationReject, parentAuthorizationResend, parentAuthorizationIssueOwnToken, parentAuthorizationGetContext, sendAdminPushForNewRegistration), hosting con service worker v30; poi verifica del ruleset live e delle functions. Prima del merge di S2: rimisurare il budget"
+verified: "Test unitari 1290 sul mini (1280 verdi, 9 skipped, accenti verdi in locale) scritti da altri agenti; emulatore: 4 file adminRegistration* (rules 145+2, budget 48, trigger 16, callable 39), più parentAuthorization Restart/Cancelled, multiStakeIsolation, parentConsent, registrationInitialStatus, parentCancel, campStaff, roomManagement, SelfSign, registrationUpdateRules.py: verdi. Budget massimo reale 914 (pattuglie admin titolare), admin che corregge la propria iscrizione 447. Review: Codex 4 giri (BLOCKED, BLOCKED, BLOCKED, BLOCKED su punti poi corretti; ultimo: P2 lettura scaduta e answers assente, corretti) e 2 giri di un altro modello. Collaudo da admin nel browser contro emulatori con functions: 0 FAIL nel giro finale (154 controlli brevi dopo 180+361 dei giri completi), confronti col mockup in side-session-notes/local_0456cb35…/qa-admin-iscritti/out/. Non provati: dirigente di unità dopo il cambio unità, mail vera, Safari iOS."
 links: [docs/ADMIN_ISCRITTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
