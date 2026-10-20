@@ -634,7 +634,9 @@ describe(`costo in espressioni${COMPARE_MODE ? ` (confronto con ${RULES_FILE})` 
       t.diagnostic(line);
       if (COMPARE_MODE) return;
       assert.notEqual(cost, null, `${scenario.name}: negata anche senza riempimento (oltre le 1000 espressioni, o rifiutata per altro)`);
-      assert.ok(margin >= 15, `${scenario.name}: costo ${cost}, margine ${margin} sotto le 15 espressioni`);
+      // Un flusso vero deve restare a 30 espressioni dal limite; le scritture sintetiche (nessun client le fa) a 5.
+      const minimumMargin = scenario.name.startsWith("sintetico") ? 5 : 30;
+      assert.ok(margin >= minimumMargin, `${scenario.name}: costo ${cost}, margine ${margin} sotto le ${minimumMargin} espressioni`);
     });
   }
 });

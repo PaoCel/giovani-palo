@@ -217,7 +217,7 @@ l'emulatore lo scrive nel log: "maximum of 1000 expressions to evaluate has
 been reached".
 
 Costo delle scritture dell'admin, documento massimo (ogni campo ammesso
-valorizzato; rules a `2dc3e80`, margine = 1000 meno il costo):
+valorizzato; rules a `bb42d8e`, margine = 1000 meno il costo):
 
 | Scrittura | Costo |
 | --- | --- |
@@ -225,28 +225,32 @@ valorizzato; rules a `2dc3e80`, margine = 1000 meno il costo):
 | admin crea a mano: adulto attivo, attività con autorizzazione | 739 |
 | admin crea a mano: documento massimo (adulto / minorenne) | 744 / 681 |
 | secondo `setDoc` identico (retry) | 291 |
-| admin su iscrizione di un altro: annulla, riattiva, corregge, email del genitore, abbinamenti stanza, pattuglie | 298-405 |
+| admin su iscrizione di un altro: annulla, riattiva, corregge, email del genitore, abbinamenti stanza, pattuglie | 298-417 |
 | admin titolare del figlio: salva dal modulo / riattiva dal modulo | 728 / 774 |
 | admin titolare: annulla | 73 |
-| admin titolare: corregge i dati del figlio massimo, unità cambiata (ramo del titolare, poi admin) | 949 |
-| admin titolare: corregge i propri dati di account massimo, unità cambiata | 902 |
+| admin titolare: corregge i dati del figlio massimo, unità cambiata (ramo del titolare, poi admin) | 961 |
+| admin titolare: corregge i propri dati di account massimo, unità cambiata | 914 |
 | admin titolare: email del genitore del figlio massimo | 922 |
 | admin titolare: pattuglie in un campeggio sul figlio massimo, pattuglia cambiata | 914 |
 | admin titolare: pattuglie sulla propria iscrizione di account massima | 867 |
-| sintetico: tutte le chiavi lecite insieme sul figlio massimo annullato, admin titolare | 982 |
+| sintetico: tutte le chiavi lecite insieme sul figlio massimo annullato, admin titolare | 993 |
 
 L'ordine del `allow update` (titolare, camp staff, admin per ultimo) fa pagare
 all'admin che è anche titolare il ramo del titolare prima del proprio: prima
 `isStakeAdmin` passava subito. I casi sopra i 900 sono tutti dell'admin che
 corregge o amministra la **sua** iscrizione pesante; con un campo nuovo
-sull'iscrizione sono i primi a sforare, e vanno rimisurati lì.
+sull'iscrizione sono i primi a sforare, e vanno rimisurati lì. Il controllo del
+formato di `birthDate` nell'update admin (`6c44deb`) vale 12 espressioni in quel
+ramo: il flusso vero più vicino al limite è la correzione dell'unità del
+figlio massimo (961, margine 39), il sintetico a 993 (margine 7). Il test chiede
+30 di margine ai flussi veri e 5 ai sintetici.
 
 Scritture del titolare, stesso metodo, rules di prima del task (`2eb3e05`)
-contro `2dc3e80`. Le due righe documentate sopra (972 e 974) con questo
+contro `bb42d8e` (la scrittura del titolare è quella di `2dc3e80`: `6c44deb` tocca solo l'admin). Le due righe documentate sopra (972 e 974) con questo
 metodo e i documenti dei test danno 937 e 914 sulle rules di prima: il
 confronto vale fra righe misurate insieme, non con quei due numeri.
 
-| Scrittura del titolare | `2eb3e05` | `2dc3e80` |
+| Scrittura del titolare | `2eb3e05` | `bb42d8e` |
 | --- | --- | --- |
 | sonda: codici, comitati e riattivazione, figlio firmato legacy | 937 | 907 |
 | sonda: codici, comitati e riattivazione, adulto senza firma legacy | 914 | 884 |

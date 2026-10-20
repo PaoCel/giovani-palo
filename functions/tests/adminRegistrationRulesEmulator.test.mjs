@@ -979,13 +979,11 @@ describe("7. admin corregge i dati (buildAdminEditPatch)", () => {
     }
   });
 
-  test("osservazione: l'update non ricontrolla unità, data di nascita e nome come la creazione", async (t) => {
+  test("osservazione: l'update non ricontrolla unità e nome come la creazione", async (t) => {
     const outcomes = [];
     for (const [label, patch] of [
       ["unitId inesistente", { unitId: "unita-fantasma" }],
       ["unitId di un altro palo", { unitId: "unita-altro-palo" }],
-      ["birthDate vuota", { birthDate: "" }],
-      ["birthDate malformata", { birthDate: "9 maggio" }],
       ["firstName vuoto", { firstName: "" }],
     ]) {
       const ctx = await F.seedRegistration(manualDoc({ person: personDraft() }), manualId());
@@ -997,6 +995,42 @@ describe("7. admin corregge i dati (buildAdminEditPatch)", () => {
       }
     }
     t.diagnostic(outcomes.join("; "));
+  });
+
+  test("data di nascita nell'update: vuota o YYYY-MM-DD passa, ogni altra forma è negata (6c44deb)", async () => {
+    const ctx = await F.seedRegistration(manualDoc({ person: personDraft() }), manualId());
+    for (const birthDate of ["9 maggio 2012", "2012-5-9", "2012/05/09", "09-05-2012", "2012-05-09T00:00:00Z", " 2012-05-09", "2012-05-09 ", "20120509", "abc"]) {
+      await expectDeniedUnchanged(
+        ctx.path,
+        () => withPatch(ctx.activityId, ctx.registrationId, { birthDate, "answers.birthDate": birthDate, updatedAt: nowIso() }),
+        `birthDate ${JSON.stringify(birthDate)}`,
+      );
+    }
+    // Vuota (come le a mano di ottobre senza data) e nella forma giusta passano.
+    await withPatch(ctx.activityId, ctx.registrationId, { birthDate: "", "answers.birthDate": "", updatedAt: nowIso() });
+    await withPatch(ctx.activityId, ctx.registrationId, { birthDate: ADULT, "answers.birthDate": ADULT, updatedAt: nowIso() });
+    assert.equal((await stored(ctx.path)).birthDate, ADULT);
+  });
+
+  test("la forma della data si controlla solo quando cambiano i dati della persona", async () => {
+    // Annullare, cambiare l'email del genitore o gli abbinamenti stanza non toccano i dati
+    // della persona: un documento vecchio con una data in un'altra forma si annulla lo stesso.
+    const ctx = await F.seedRegistration({ ...manualDoc({ person: personDraft() }), birthDate: "9/5/2012" }, manualId());
+    await clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "cancelled");
+    await clientOps.normalizeRoomMatches("admin", [{ activityId: ctx.activityId, registrationId: ctx.registrationId }]);
+    assert.equal((await stored(ctx.path)).birthDate, "9/5/2012");
+  });
+
+  test("osservazione: un documento con una data in un'altra forma e una correzione di sola email o telefono", async (t) => {
+    const ctx = await F.seedRegistration({ ...manualDoc({ person: personDraft() }), birthDate: "9/5/2012" }, manualId());
+    let outcome;
+    try {
+      await withPatch(ctx.activityId, ctx.registrationId, { phone: "3471112222", updatedAt: nowIso() });
+      outcome = "consentita";
+    } catch (error) {
+      outcome = `negata (${error?.code})`;
+    }
+    t.diagnostic(`correzione del solo telefono su un documento con birthDate "9/5/2012" (il client scrive sempre anche la data): ${outcome}`);
   });
 
   test("chi non è admin del palo non corregge i dati di un altro", async () => {
