@@ -1292,6 +1292,20 @@ async function invalidateLinksAfterLeavingPending({ db, stakeId, activityId, reg
   });
 }
 
+// Ingresso in attesa che vale come richiesta nuova: da annullata, o da uno
+// stato che non è né l'attesa né un rifiuto del genitore (attiva dopo una
+// correzione della data di nascita). Dal rifiuto si esce solo annullando e
+// riattivando, con il foglio che lo dice all'admin: un rifiuto è una
+// decisione del genitore e non si riapre in silenzio.
+function entersPendingAsNewRequest(before) {
+  if (!before) return false;
+  if (isCancelledRegistration(before)) return true;
+  return (
+    !isAwaitingParentAuthorization(before) &&
+    before.registrationStatus !== "rejected_by_parent"
+  );
+}
+
 // Un invio fallito lascia status email_error, e ogni scrittura successiva
 // sul documento fa ripartire il trigger: senza tetto, un disservizio del
 // provider lo mette in rincorsa su se stesso (visto in emulatore il
@@ -1369,7 +1383,7 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
     // una correzione della data di nascita): un ritorno rapido in attesa,
     // prima che l'uscita abbia invalidato i link, troverebbe il tokenId
     // vecchio, magari scaduto, e non manderebbe niente.
-    if (before && (isCancelledRegistration(before) || !isAwaitingParentAuthorization(before))) {
+    if (entersPendingAsNewRequest(before)) {
       await restartParentAuthorizationAfterCancellation({
         db: getFirestore(),
         stakeId: event.params.stakeId,
