@@ -18,6 +18,7 @@ import { GALLERIA } from "../src/copy/galleria.ts";
 import { GUARDIA } from "../src/copy/guardia.ts";
 import { HOME } from "../src/copy/home.ts";
 import { INVIATA } from "../src/copy/inviata.ts";
+import { ISCRITTI } from "../src/copy/iscritti.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
 import { PAROLE, fillCopy } from "../src/copy/parole.ts";
 import { PERCORSO } from "../src/copy/percorso.ts";
@@ -516,6 +517,7 @@ const COPY = {
   GUARDIA,
   HOME,
   INVIATA,
+  ISCRITTI,
   ISCRIZIONE,
   PERCORSO,
   PROFILO,

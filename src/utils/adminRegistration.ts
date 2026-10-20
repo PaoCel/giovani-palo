@@ -13,7 +13,7 @@ import type {
   Registration,
   RegistrationStatus,
 } from "@/types";
-import { ADMIN } from "../copy/admin.ts";
+import { ISCRITTI } from "../copy/iscritti.ts";
 import { fillCopy } from "../copy/parole.ts";
 import { isMinorBirthDate } from "./age.ts";
 import { getYouthGroupLabel } from "./profile.ts";
@@ -366,7 +366,7 @@ export function planAdminEdit(
 
   if (birthChanged && !cancelled) {
     if (decided) {
-      effects.push(ADMIN.effettoFirmaResta);
+      effects.push(ISCRITTI.effettoFirmaResta);
     } else if (context.requiresParentAuthorization && isMinor && !wasMinor) {
       nextStatus = "pending_parent_authorization";
       needsParentFields = !requestEmail;
@@ -374,8 +374,8 @@ export function planAdminEdit(
       sendsMail = Boolean(email);
       effects.push(
         email
-          ? fillCopy(ADMIN.effettoDiventaMinoreMail, { email })
-          : ADMIN.effettoDiventaMinoreSenzaEmail,
+          ? fillCopy(ISCRITTI.effettoMenoDi18Mail, { email })
+          : ISCRITTI.effettoMenoDi18SenzaEmail,
       );
     } else if (
       context.requiresParentAuthorization &&
@@ -384,20 +384,20 @@ export function planAdminEdit(
       registration.registrationStatus === "pending_parent_authorization"
     ) {
       nextStatus = "active";
-      effects.push(ADMIN.effettoDiventaAdulto);
+      effects.push(ISCRITTI.effettoDa18);
     } else if (isMinor !== wasMinor) {
-      effects.push(isMinor ? ADMIN.effettoFotoGenitore : ADMIN.effettoFotoPersona);
+      effects.push(isMinor ? ISCRITTI.effettoFotoGenitore : ISCRITTI.effettoFotoPersona);
     }
   }
 
   if (person.unitId !== registration.unitId && person.unitId) {
     effects.push(
       context.previousUnitName && registration.unitId
-        ? fillCopy(ADMIN.effettoUnita, {
+        ? fillCopy(ISCRITTI.effettoUnita, {
             nuova: person.unitName,
             vecchia: context.previousUnitName,
           })
-        : fillCopy(ADMIN.effettoUnitaNuova, { nuova: person.unitName }),
+        : fillCopy(ISCRITTI.effettoUnitaNuova, { nuova: person.unitName }),
     );
   }
 
@@ -405,7 +405,7 @@ export function planAdminEdit(
     person.firstName.trim() !== registration.firstName.trim() ||
     person.lastName.trim() !== registration.lastName.trim();
   if (nameChanged && isParentAuthorizationSigned(registration)) {
-    effects.push(ADMIN.effettoNomeFirmato);
+    effects.push(ISCRITTI.effettoNomeFirmato);
   }
 
   if (
@@ -413,7 +413,7 @@ export function planAdminEdit(
     person.genderRoleCategory &&
     isYouth(person.genderRoleCategory) !== isYouth(registration.genderRoleCategory)
   ) {
-    effects.push(fillCopy(ADMIN.effettoStanza, { stanza: registration.assignedRoomName }));
+    effects.push(fillCopy(ISCRITTI.effettoStanza, { stanza: registration.assignedRoomName }));
   }
 
   const hasAccount = Boolean(registration.userId || registration.parentUid);
@@ -425,7 +425,7 @@ export function planAdminEdit(
     person.email.trim() !== registration.email.trim() ||
     person.phone.trim() !== registration.phone.trim();
   if (hasAccount && anyChange) {
-    effects.push(ADMIN.effettoProfilo);
+    effects.push(ISCRITTI.effettoProfilo);
   }
 
   return { nextStatus, needsParentFields, sendsMail, effects };
