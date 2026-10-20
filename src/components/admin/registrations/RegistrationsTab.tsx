@@ -20,6 +20,22 @@ import { formatDateTime } from "@/utils/formatters";
 import { needsPhotoConsentQuestion } from "@/utils/parentAuthorization";
 import { getRegistrationDisplayName } from "@/utils/roomPreferences";
 
+// Filtri dell'elenco: stanno nella pagina, così passare a Consensi o Stanze e
+// tornare non li perde (la tab si smonta).
+export interface RegistrationFilters {
+  categories: RegistrationCategoryFilter[];
+  unit: string;
+  onlyPhotoToAsk: boolean;
+  search: string;
+}
+
+export const DEFAULT_REGISTRATION_FILTERS: RegistrationFilters = {
+  categories: ["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"],
+  unit: "all",
+  onlyPhotoToAsk: false,
+  search: "",
+};
+
 interface RegistrationsTabProps {
   stakeId: string;
   eventId: string;
@@ -27,6 +43,8 @@ interface RegistrationsTabProps {
   // Tutte le iscrizioni dell'attività, ordinate per cognome e nome.
   sortedRegistrations: Registration[];
   currentCount: number;
+  filters: RegistrationFilters;
+  onFiltersChange: (update: (current: RegistrationFilters) => RegistrationFilters) => void;
   // Compiti sui consensi e azioni dell'admin: solo per gli admin del palo.
   canReadConsentTasks: boolean;
   sessionUid: string | null;
@@ -51,6 +69,8 @@ export function RegistrationsTab({
   activityType,
   sortedRegistrations,
   currentCount,
+  filters,
+  onFiltersChange,
   canReadConsentTasks,
   sessionUid,
   loading,
@@ -61,12 +81,16 @@ export function RegistrationsTab({
   onOpenExcelExport,
   onAddManual,
 }: RegistrationsTabProps) {
-  const [activeRegistrationFilters, setActiveRegistrationFilters] = useState<
-    RegistrationCategoryFilter[]
-  >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
-  const [selectedUnitFilter, setSelectedUnitFilter] = useState("all");
-  const [onlyPhotoToAsk, setOnlyPhotoToAsk] = useState(false);
-  const [nameSearch, setNameSearch] = useState("");
+  const activeRegistrationFilters = filters.categories;
+  const selectedUnitFilter = filters.unit;
+  const onlyPhotoToAsk = filters.onlyPhotoToAsk;
+  const nameSearch = filters.search;
+  const setSelectedUnitFilter = (unit: string) =>
+    onFiltersChange((current) => ({ ...current, unit }));
+  const setNameSearch = (search: string) =>
+    onFiltersChange((current) => ({ ...current, search }));
+  const toggleOnlyPhotoToAsk = () =>
+    onFiltersChange((current) => ({ ...current, onlyPhotoToAsk: !current.onlyPhotoToAsk }));
   const [consentTasksRefreshKey, setConsentTasksRefreshKey] = useState(0);
   const [consentTasksError, setConsentTasksError] = useState<string | null>(null);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
@@ -181,11 +205,12 @@ export function RegistrationsTab({
   );
 
   function toggleRegistrationFilter(filter: RegistrationCategoryFilter) {
-    setActiveRegistrationFilters((current) =>
-      current.includes(filter)
-        ? current.filter((item) => item !== filter)
-        : [...current, filter],
-    );
+    onFiltersChange((current) => ({
+      ...current,
+      categories: current.categories.includes(filter)
+        ? current.categories.filter((item) => item !== filter)
+        : [...current.categories, filter],
+    }));
   }
 
   async function handleSetConsentTaskDone(task: ConsentTask, done: boolean) {
@@ -393,7 +418,7 @@ export function RegistrationsTab({
                   ? "admin-filter-toggle admin-filter-toggle--active"
                   : "admin-filter-toggle"
               }
-              onClick={() => setOnlyPhotoToAsk((current) => !current)}
+              onClick={toggleOnlyPhotoToAsk}
               type="button"
             >
               <span

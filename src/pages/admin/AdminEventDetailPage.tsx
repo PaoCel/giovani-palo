@@ -20,7 +20,11 @@ import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
 import { CampStaffSection } from "@/components/admin/CampStaffSection";
 import { AddManualRegistrationSheet } from "@/components/admin/registrations/AddManualRegistrationSheet";
 import { EditRegistrationSheet } from "@/components/admin/registrations/EditRegistrationSheet";
-import { RegistrationsTab } from "@/components/admin/registrations/RegistrationsTab";
+import {
+  DEFAULT_REGISTRATION_FILTERS,
+  RegistrationsTab,
+  type RegistrationFilters,
+} from "@/components/admin/registrations/RegistrationsTab";
 import { RequestAuthorizationSheet } from "@/components/admin/registrations/RequestAuthorizationSheet";
 import {
   getCategoryShortLabel,
@@ -453,6 +457,9 @@ export function AdminEventDetailPage() {
   // Fogli degli iscritti (docs/ADMIN_ISCRITTI.md): aggiunta a mano dalla tab,
   // modifica e richiesta di autorizzazione sopra la scheda dell'iscrizione.
   const [addManualOpen, setAddManualOpen] = useState(false);
+  const [registrationFilters, setRegistrationFilters] = useState<RegistrationFilters>(
+    DEFAULT_REGISTRATION_FILTERS,
+  );
   const [editRegistrationId, setEditRegistrationId] = useState<string | null>(null);
   const [requestAuthorizationId, setRequestAuthorizationId] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -2812,6 +2819,8 @@ export function AdminEventDetailPage() {
           canReadConsentTasks={session?.isAdmin === true}
           currentCount={currentCount}
           downloadingExcel={downloadingExcel}
+          filters={registrationFilters}
+          onFiltersChange={setRegistrationFilters}
           eventId={resolvedEventId}
           loading={loading}
           onAddManual={session?.isAdmin ? openAddManualSheet : undefined}

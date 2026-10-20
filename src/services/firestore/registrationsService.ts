@@ -2,6 +2,7 @@ import {
   collectionGroup,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromServer,
   setDoc,
@@ -721,6 +722,14 @@ export const registrationsService = {
     document: Record<string, unknown>,
   ) {
     await setDoc(getRegistrationReference(stakeId, eventId, registrationId), document);
+  },
+
+  // Dopo un primo tentativo scaduto: se il documento c'è già (la scrittura è
+  // arrivata, e il trigger può averci già scritto l'autorizzazione) non si
+  // riscrive, perché le rules rifiuterebbero di cancellare quei campi.
+  async adminManualRegistrationExists(stakeId: string, eventId: string, registrationId: string) {
+    const snapshot = await getDocFromServer(getRegistrationReference(stakeId, eventId, registrationId));
+    return snapshot.exists();
   },
 
   // Correzione dei dati e richiesta di autorizzazione dall'admin: chiavi di

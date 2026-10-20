@@ -364,25 +364,35 @@ export function planAdminEdit(
   let needsParentFields = false;
   let sendsMail = false;
 
-  if (birthChanged && !cancelled) {
+  // Una data vuota o non valida non promette niente: il salvataggio è fermo
+  // finché non si corregge (validateAdminEdit).
+  if (birthChanged && !cancelled && isValidBirthDate(person.birthDate)) {
+    const pending = registration.registrationStatus === "pending_parent_authorization";
+    const neededNow = context.requiresParentAuthorization && isMinor;
+    const typedEmail = isValidEmail(parent.email) ? parent.email.trim().toLowerCase() : "";
     if (decided) {
       effects.push(ISCRITTI.effettoFirmaResta);
-    } else if (context.requiresParentAuthorization && isMinor && !wasMinor) {
+    } else if (neededNow && !pending) {
       nextStatus = "pending_parent_authorization";
       needsParentFields = !requestEmail;
-      const email = requestEmail || (isValidEmail(parent.email) ? parent.email.trim().toLowerCase() : "");
+      const email = requestEmail || typedEmail;
       sendsMail = Boolean(email);
       effects.push(
         email
           ? fillCopy(ISCRITTI.effettoMenoDi18Mail, { email })
           : ISCRITTI.effettoMenoDi18SenzaEmail,
       );
-    } else if (
-      context.requiresParentAuthorization &&
-      !isMinor &&
-      wasMinor &&
-      registration.registrationStatus === "pending_parent_authorization"
-    ) {
+    } else if (neededNow && pending && !requestEmail) {
+      // Già in attesa senza richiesta (le aggiunte a mano di ottobre, senza
+      // data): con la data servono i dati del genitore, e la mail parte.
+      needsParentFields = true;
+      sendsMail = Boolean(typedEmail);
+      if (typedEmail) {
+        effects.push(fillCopy(ISCRITTI.effettoParteMail, { email: typedEmail }));
+      }
+    } else if (!isMinor && pending) {
+      // 18 anni o più: l'attesa non ha più motivo, anche se la data prima
+      // mancava (in attesa senza data, nessuna altra uscita).
       nextStatus = "active";
       effects.push(ISCRITTI.effettoDa18);
     } else if (isMinor !== wasMinor) {
@@ -390,7 +400,9 @@ export function planAdminEdit(
     }
   }
 
-  if (person.unitId !== registration.unitId && person.unitId) {
+  // Su un'annullata cambiano solo i dati: nessun dirigente la vede fra gli
+  // iscritti, l'avviso sull'unità sarebbe falso.
+  if (!cancelled && person.unitId !== registration.unitId && person.unitId) {
     effects.push(
       context.previousUnitName && registration.unitId
         ? fillCopy(ISCRITTI.effettoUnita, {
@@ -414,6 +426,19 @@ export function planAdminEdit(
     isYouth(person.genderRoleCategory) !== isYouth(registration.genderRoleCategory)
   ) {
     effects.push(fillCopy(ISCRITTI.effettoStanza, { stanza: registration.assignedRoomName }));
+  }
+
+  // Una mail non partita (email_error, sotto il tetto dei riprovi del
+  // trigger, MAX_EMAIL_RETRIES = 3): ogni scrittura la fa riprovare.
+  const authorization = registration.parentAuthorization;
+  if (
+    !cancelled &&
+    !sendsMail &&
+    nextStatus === "pending_parent_authorization" &&
+    authorization?.status === "email_error" &&
+    Number(authorization.emailRetryCount ?? 0) < 3
+  ) {
+    effects.push(ISCRITTI.effettoRiprovaMail);
   }
 
   const hasAccount = Boolean(registration.userId || registration.parentUid);

@@ -14,7 +14,7 @@ import {
   type AdminParentDraft,
 } from "@/utils/adminRegistration";
 import { getAdminActionError } from "@/utils/adminErrors";
-import { withWriteTimeout } from "@/utils/writeTimeout";
+import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface RequestAuthorizationSheetProps {
   stakeId: string;
@@ -53,6 +53,10 @@ export function RequestAuthorizationSheet({
     setShowProblems(true);
     setError(null);
     if (!emailValid) return;
+    if (isOffline()) {
+      setError(ISCRITTI.erroreRete);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -64,6 +68,7 @@ export function RequestAuthorizationSheet({
           buildRequestAuthorizationPatch(registration, parent, new Date().toISOString()),
         ),
       );
+      if (!mountedRef.current) return;
       onSent(ISCRITTI.mailInPartenza);
     } catch (caughtError) {
       if (mountedRef.current) setError(getAdminActionError(caughtError, ISCRITTI.erroreChiedi));

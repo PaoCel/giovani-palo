@@ -23,7 +23,7 @@ import {
   type AdminPersonDraft,
 } from "@/utils/adminRegistration";
 import { getAdminActionError } from "@/utils/adminErrors";
-import { withWriteTimeout } from "@/utils/writeTimeout";
+import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface EditRegistrationSheetProps {
   stakeId: string;
@@ -89,6 +89,12 @@ export function EditRegistrationSheet({
     setShowProblems(true);
     setError(null);
     if (problems.length > 0) return;
+    // Senza rete la scrittura resterebbe in coda e potrebbe partire dopo
+    // "Esci senza salvare", mail compresa: si dice subito.
+    if (isOffline()) {
+      setError(ISCRITTI.erroreRete);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -102,6 +108,7 @@ export function EditRegistrationSheet({
       await withWriteTimeout(
         registrationsService.adminUpdateRegistration(stakeId, eventId, registration.id, patch),
       );
+      if (!mountedRef.current) return;
       const name = `${person.firstName.trim()} ${person.lastName.trim()}`.trim();
       onSaved(
         [fillCopy(ISCRITTI.modificaOk, { nome: name }), plan.sendsMail ? ISCRITTI.mailInPartenza : ""]

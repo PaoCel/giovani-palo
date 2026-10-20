@@ -28,7 +28,7 @@ import {
 import { getAdminActionError } from "@/utils/adminErrors";
 import { getAgeFromBirthDate } from "@/utils/age";
 import { getRegistrationDisplayName } from "@/utils/roomPreferences";
-import { withWriteTimeout } from "@/utils/writeTimeout";
+import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 const EMPTY_PERSON: AdminPersonDraft = {
   firstName: "",
@@ -79,6 +79,9 @@ export function AddManualRegistrationSheet({
   const [serverDuplicates, setServerDuplicates] = useState<Registration[] | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const mountedRef = useRef(true);
+  // Un tentativo è già partito: il secondo controlla prima se il documento
+  // c'è (id fissato all'apertura).
+  const attemptedRef = useRef(false);
   useEffect(
     () => () => {
       mountedRef.current = false;
@@ -131,9 +134,26 @@ export function AddManualRegistrationSheet({
     setShowProblems(true);
     setError(null);
     if (problems.length > 0) return;
+    // Senza rete la scrittura resterebbe in coda e potrebbe partire dopo
+    // "Esci senza salvare": si dice subito, nessuna scrittura.
+    if (isOffline()) {
+      setError(ISCRITTI.erroreRete);
+      return;
+    }
 
     setBusy(true);
     try {
+      if (attemptedRef.current) {
+        const exists = await withWriteTimeout(
+          registrationsService.adminManualRegistrationExists(stakeId, eventId, registrationId),
+        );
+        if (exists) {
+          if (mountedRef.current) {
+            onCreated(registrationId, fillCopy(ISCRITTI.aggiuntaOk, { nome: fullName }));
+          }
+          return;
+        }
+      }
       // Doppioni sulla lista fresca del server: quella della pagina può
       // essere vecchia (cache) o non avere chi si è iscritto un minuto fa.
       if (!duplicateAccepted) {
@@ -148,6 +168,9 @@ export function AddManualRegistrationSheet({
           return;
         }
       }
+      // Foglio chiuso durante la lettura (altra attività, altro account):
+      // niente scrittura per un contesto che l'admin ha lasciato.
+      if (!mountedRef.current) return;
 
       const document = buildManualRegistrationDoc({
         person,
@@ -156,9 +179,11 @@ export function AddManualRegistrationSheet({
         createdBy: sessionUid,
         timestamp,
       });
+      attemptedRef.current = true;
       await withWriteTimeout(
         registrationsService.adminCreateManualRegistration(stakeId, eventId, registrationId, document),
       );
+      if (!mountedRef.current) return;
       const info = [
         fillCopy(ISCRITTI.aggiuntaOk, { nome: document.fullName }),
         outcome.sendsMail ? ISCRITTI.mailInPartenza : "",
