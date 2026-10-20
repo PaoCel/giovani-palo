@@ -493,6 +493,118 @@ conferma di Paolo. S2 è efficace solo quando rules Firestore, rules Storage e
 le due callable leggono tutte `members`: finché una legge ancora il profilo,
 quella strada resta aperta a chi ha solo scelto il palo.
 
+### Callable e trigger: interfaccia (fase 2, 2026-10-20)
+
+Scritta prima del codice, come il contratto: i test della fase 2 la provano
+nell'emulatore Functions con utenti veri dell'Auth emulator e l'SDK client
+(`functions/tests/stakeMembership*Emulator.test.mjs`, config
+`firebase.membership-functions-test.json`).
+
+**`stakeMembership`** (callable gen2, `europe-west1`). Richiesta
+`{ action, stakeId, uid?, version? }`: `uid` è la persona su cui agisce lo
+staff, assente nelle azioni per sé. Ogni azione è una transazione che rilegge
+`members/{uid}` del palo, il profilo `users/{uid}` della persona e quello di
+chi chiama, e ricalcola tutto da lì: due chiamate insieme o ripetute non
+cambiano l'esito. Risposta `{ ok: true, action, status, version, changed }`;
+`changed: false` quando lo stato era già quello (nessuna scrittura, `version`
+invariata). Ogni scrittura incrementa `version`, mette in `previous` lo stato
+di prima (`status`, `sources`, `staffRole`, `reviewNeeded`, `claimedUnitId`,
+`claimedUnitName`, `declineCount`, `decidedAt`, `decidedBy`, più `role` se
+l'azione ha cambiato `users.role`, `staffLists` se ha tolto l'uid dagli
+elenchi dello staff, `moved` se ha portato a `withdrawn` l'appartenenza in un
+altro palo) con `action` e `by`, e aggiunge una riga a
+`members/{uid}/history/{id}` (`action`, `by`, `at`, `fromStatus`,
+`toStatus`, `version`; solo server, nessuna rule la apre).
+
+| action | Chi | Da → a | Effetti nella stessa transazione |
+| --- | --- | --- | --- |
+| `request` | sé, non anonimo, `stakeId == users.stakeId`, profilo completo | nessun documento, `withdrawn`, `declined` (7 giorni dopo il rifiuto e `declineCount < 3`) → `pending`; `pending` e `active` → nessun cambio | `requestedAt`, unità, nome, anno e `registrationHints` dal profilo; `reviewNeeded: false`; ogni `pending` dello stesso uid in un altro palo → `withdrawn` |
+| `withdraw` | sé | `pending` → `withdrawn` | |
+| `leave` | sé | `active` → `withdrawn` | uscita dello staff (sotto) |
+| `approve` | D della unità dichiarata, A | `pending` → `active` | motivo `staff_approval` (`ref` = uid di chi approva), `reviewNeeded: false`; ogni `active` dello stesso uid in un altro palo → `withdrawn` con `movedToStakeId` |
+| `decline` | D della unità dichiarata, A | `pending` → `declined` | `declineCount + 1` |
+| `notMyUnit` | D della unità dichiarata | `pending` → `pending` con `claimedUnitId: ""` (la vedono gli admin) | `claimedUnitName` resta |
+| `confirmKnown` ("Lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `reviewNeeded: false` | |
+| `markUnknown` ("Non lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `pending`, `reviewNeeded: false` | |
+| `remove` | A | `active` → `removed` | uscita dello staff, elenchi dello staff |
+| `block` | A | ogni stato tranne `blocked` → `blocked` | uscita dello staff, elenchi dello staff |
+| `unblock` | A | `blocked` → `pending` | |
+| `reactivate` | A | `removed` → stato, motivi e ruolo di `previous` (senza `previous` attivo: `active` con `staffRole: null`) | il ruolo torna solo se `users.stakeId` è ancora questo palo |
+| `undo` | A; D solo per le proprie azioni | ripristina `previous` se `version` è quella passata e l'ultima azione è dello staff | ruolo, elenchi e appartenenze spostate tornano come prima, ciascuno solo se nel frattempo non è cambiato; dopo, `previous: null` |
+
+Uscita dello staff (`leave`, `remove`, `block`, e `decline`/`markUnknown` se
+la persona ha un ruolo staff): `users.role` → `participant` e `staffRole:
+null`; un `super_admin` tiene il ruolo (non è un ruolo del palo). L'ultimo
+admin del palo (nessun altro profilo con `role: admin` e lo stesso `stakeId`)
+non può fare `leave` né subire `remove` o `block`. Elenchi dello staff:
+`remove` e `block` tolgono l'uid da `management/campStaff` e
+`management/recordNight` di ogni attività del palo.
+
+Mai su sé stesso le azioni dello staff; un dirigente non agisce su chi ha un
+ruolo staff; un admin del palo non agisce su un `super_admin`.
+
+| Caso | Errore | `details.reason` |
+| --- | --- | --- |
+| senza login | `unauthenticated` | |
+| sessione anonima, ruolo che non basta, unità diversa, azione su sé stesso, dirigente su staff, admin su super admin | `permission-denied` | |
+| palo inesistente; `members` della persona inesistente (azioni dello staff) | `not-found` | |
+| `action`, `stakeId`, `uid` o `version` non validi | `invalid-argument` | |
+| stato di partenza che non ammette l'azione | `failed-precondition` | `invalid_state` |
+| `request` prima di 7 giorni dal rifiuto | `failed-precondition` | `cooldown` (con `retryAt` ISO) |
+| `request` dopo 3 rifiuti | `failed-precondition` | `too_many_declines` |
+| `request` su un palo diverso da `users.stakeId` / profilo incompleto | `failed-precondition` | `stake_not_chosen` / `profile_incomplete` |
+| ultimo admin | `failed-precondition` | `last_admin` |
+| `undo` con `version` cambiata / senza nulla da annullare | `failed-precondition` | `version_conflict` / `nothing_to_undo` |
+
+"Profilo completo" è `needsProfileCompletion` del client
+(`src/utils/profileCompletion.ts`): nome vero, unità, palo e, per chi non è
+genitore, data di nascita e gruppo; per il genitore il comune.
+
+**Trigger `onUserStakeMembership`** (`onDocumentWritten` su `users/{uid}`,
+`europe-west1`). Non usa i dati dell'evento: rilegge in una transazione il
+profilo attuale, l'utente Auth e i `members` del uid in ogni palo, così un
+evento doppio o fuori ordine dà lo stesso risultato. Sessioni anonime e
+profili cancellati: niente. Con `S = users.stakeId` (palo esistente):
+
+1. ruolo `admin`, `unit_leader` o `super_admin`: `members` di S assente →
+   `active` con `staffRole` e motivo `staff_approval` (`ref: "role"`);
+   `pending` o `active` → `active` con `staffRole`, `reviewNeeded: false`;
+   negli altri stati non scrive (le rules non assegnano il ruolo lì: un caso
+   così nasce solo dalla console);
+2. ruolo senza poteri: `staffRole: null` dove c'era, l'appartenenza resta;
+3. profilo completo senza `members` in S → `pending` come `request`
+   (non tocca mai un documento esistente, quindi non scavalca i tetti);
+4. nei pali diversi da S: `staffRole: null` dove c'era, e `pending` →
+   `withdrawn` (una richiesta aperta alla volta, quella del palo scelto);
+   gli `active` degli altri pali restano finché quello nuovo non è approvato.
+
+**`activityGallery`**: staff = profilo (`super_admin`, o `admin` /
+`unit_leader` con `stakeId` del palo, mai anonimo); membro = `members/{uid}`
+del palo `active`; altrimenti `permission-denied`. `ensure` e `report` a staff
+e membri, `restore` e `delete` allo staff.
+
+**`recordNightParticipant`**: `propose` e `challenge` vogliono, oltre
+all'iscrizione attiva, che chi chiama sia staff (stesso ramo del profilo) o
+membro attivo, altrimenti `permission-denied`; `context`, `edit`, `withdraw`,
+`restore` come prima.
+
+**Script S2-1** `functions/scripts/cleanupGalleryCodes.js`: dry-run di
+default, stampa solo conteggi in una riga JSON (`codeGalleries`,
+`gallerySecrets`, `galleryMembers`, `unlockedGalleries`, `deletes`). Con
+`--apply` porta ogni galleria `accessMode: "code_required"` a `"open"` e
+cancella `stakes/*/gallerySecrets/*`, `stakes/*/galleries/*/members/*` e
+`users/*/unlockedGalleries/*`; fuori dall'emulatore vuole `--expect-galleries
+<n> --expect-deletes <m>` uguali al dry-run, altrimenti esce con 2 senza
+scrivere. Non tocca mai `stakes/*/members` (l'appartenenza di S2): per questo
+scorre le gallerie, non `collectionGroup('members')`. Idempotente.
+
+Decisioni tecniche della fase 2 (dentro la spec, da rivedere se Paolo le vede
+diverse): `request` solo per il palo scelto nel profilo (cambiare palo è
+salvare il profilo, poi ci pensa il trigger); `block` anche da `pending`,
+`declined`, `withdrawn` (ferma chi ripete le richieste); il trigger non
+riallinea unità e nome di una richiesta già aperta (il dirigente sbagliato usa
+"Non è della mia unità").
+
 ## Parte C. Primo passo: accesso e registrazione (esce con S3)
 
 Una sola schermata d'ingresso, raggiunta da "Accedi", da "Iscriviti" su
