@@ -87,6 +87,8 @@ export const ISCRITTI = {
   caricamentoUnita: "Sto caricando le unità...",
   effettoFirmaResta:
     "L'autorizzazione del genitore resta com'è: il modulo firmato riporta i dati di prima.",
+  effettoFotoAdultoCancellate:
+    "Le scelte su foto e social date da adulto si cancellano: con meno di 18 anni decide il genitore.",
   effettoFotoGenitore: "Foto e social: ora decide il genitore.",
   effettoFotoPersona: "Foto e social: ora decide la persona, non più il genitore.",
   effettoUnita: "La vedranno i dirigenti di {nuova}, non più quelli di {vecchia}.",

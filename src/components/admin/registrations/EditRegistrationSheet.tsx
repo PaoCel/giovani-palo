@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { deleteField } from "firebase/firestore";
 
 import { AppModal } from "@/components/AppModal";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
@@ -23,7 +24,7 @@ import {
   type AdminPersonDraft,
 } from "@/utils/adminRegistration";
 import { getAdminActionError } from "@/utils/adminErrors";
-import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+import { WRITE_TIMEOUT_CODE, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface EditRegistrationSheetProps {
   stakeId: string;
@@ -51,6 +52,10 @@ export function EditRegistrationSheet({
   const [showProblems, setShowProblems] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Scrittura scaduta col timeout: è in coda e parte al ritorno della rete.
+  // Da qui i dati non si cambiano più (partirebbero quelli di prima) e
+  // chiudere non li perde: niente "Esci senza salvare".
+  const [queued, setQueued] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const mountedRef = useRef(true);
   // Rimesso a vero a ogni montaggio: con StrictMode (sviluppo) l'effetto
@@ -79,7 +84,7 @@ export function EditRegistrationSheet({
 
   function requestClose() {
     if (busy) return;
-    if (dirty) {
+    if (dirty && !queued) {
       setConfirmDiscard(true);
       return;
     }
@@ -106,6 +111,7 @@ export function EditRegistrationSheet({
         parent,
         plan,
         timestamp: new Date().toISOString(),
+        deleteValue: deleteField(),
       });
       await withWriteTimeout(
         registrationsService.adminUpdateRegistration(stakeId, eventId, registration.id, patch),
@@ -118,6 +124,12 @@ export function EditRegistrationSheet({
           .join(" "),
       );
     } catch (caughtError) {
+      if (
+        mountedRef.current &&
+        (caughtError as { code?: unknown } | null)?.code === WRITE_TIMEOUT_CODE
+      ) {
+        setQueued(true);
+      }
       if (mountedRef.current) setError(getAdminActionError(caughtError, ISCRITTI.erroreModifica));
     } finally {
       if (mountedRef.current) setBusy(false);
@@ -166,7 +178,7 @@ export function EditRegistrationSheet({
       >
         <div className="admin-modal-stack">
           <AdminPersonFields
-            disabled={busy}
+            disabled={busy || queued}
             onChange={(patch) => {
               setPerson((current) => ({ ...current, ...patch }));
               setError(null);
@@ -180,7 +192,7 @@ export function EditRegistrationSheet({
 
           {plan.needsParentFields ? (
             <AdminParentFields
-              disabled={busy}
+              disabled={busy || queued}
               onChange={(patch) => {
                 setParent((current) => ({ ...current, ...patch }));
                 setError(null);

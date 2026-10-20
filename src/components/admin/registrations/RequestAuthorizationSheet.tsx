@@ -14,7 +14,7 @@ import {
   type AdminParentDraft,
 } from "@/utils/adminRegistration";
 import { getAdminActionError } from "@/utils/adminErrors";
-import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+import { WRITE_TIMEOUT_CODE, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface RequestAuthorizationSheetProps {
   stakeId: string;
@@ -38,6 +38,10 @@ export function RequestAuthorizationSheet({
   const [showProblems, setShowProblems] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Scrittura scaduta col timeout: è in coda e parte al ritorno della rete.
+  // Da qui i dati non si cambiano più (partirebbero quelli di prima) e
+  // chiudere non li perde: niente "Esci senza salvare".
+  const [queued, setQueued] = useState(false);
   const mountedRef = useRef(true);
   // Rimesso a vero a ogni montaggio: con StrictMode (sviluppo) l'effetto
   // gira due volte e la pulizia del primo giro lo lascerebbe falso.
@@ -73,6 +77,12 @@ export function RequestAuthorizationSheet({
       if (!mountedRef.current) return;
       onSent(ISCRITTI.mailInPartenza);
     } catch (caughtError) {
+      if (
+        mountedRef.current &&
+        (caughtError as { code?: unknown } | null)?.code === WRITE_TIMEOUT_CODE
+      ) {
+        setQueued(true);
+      }
       if (mountedRef.current) setError(getAdminActionError(caughtError, ISCRITTI.erroreChiedi));
     } finally {
       if (mountedRef.current) setBusy(false);
@@ -111,7 +121,7 @@ export function RequestAuthorizationSheet({
     >
       <div className="admin-modal-stack">
         <AdminParentFields
-          disabled={busy}
+          disabled={busy || queued}
           emailRequired
           onChange={(patch) => {
             setParent((current) => ({ ...current, ...patch }));

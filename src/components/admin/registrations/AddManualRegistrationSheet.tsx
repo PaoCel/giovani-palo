@@ -28,7 +28,7 @@ import {
 import { getAdminActionError } from "@/utils/adminErrors";
 import { getAgeFromBirthDate } from "@/utils/age";
 import { getRegistrationDisplayName } from "@/utils/roomPreferences";
-import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+import { WRITE_TIMEOUT_CODE, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 const EMPTY_PERSON: AdminPersonDraft = {
   firstName: "",
@@ -74,6 +74,10 @@ export function AddManualRegistrationSheet({
   const [showProblems, setShowProblems] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Scrittura scaduta col timeout: è in coda e parte al ritorno della rete.
+  // Da qui i dati non si cambiano più (partirebbero quelli di prima) e
+  // chiudere non li perde: niente "Esci senza salvare".
+  const [queued, setQueued] = useState(false);
   // Doppione visto e accettato con "Aggiungi lo stesso".
   const [duplicateAccepted, setDuplicateAccepted] = useState(false);
   const [serverDuplicates, setServerDuplicates] = useState<Registration[] | null>(null);
@@ -124,7 +128,7 @@ export function AddManualRegistrationSheet({
 
   function requestClose() {
     if (busy) return;
-    if (dirty) {
+    if (dirty && !queued) {
       setConfirmDiscard(true);
       return;
     }
@@ -194,6 +198,12 @@ export function AddManualRegistrationSheet({
         .join(" ");
       onCreated(registrationId, info);
     } catch (caughtError) {
+      if (
+        mountedRef.current &&
+        (caughtError as { code?: unknown } | null)?.code === WRITE_TIMEOUT_CODE
+      ) {
+        setQueued(true);
+      }
       if (mountedRef.current) setError(getAdminActionError(caughtError, ISCRITTI.erroreAggiungi));
     } finally {
       if (mountedRef.current) setBusy(false);
@@ -283,7 +293,7 @@ export function AddManualRegistrationSheet({
                 ? fillCopy(ISCRITTI.anniConAutorizzazione, { anni: String(age) })
                 : null
             }
-            disabled={busy}
+            disabled={busy || queued}
             onChange={updatePerson}
             person={person}
             problems={showProblems ? problems : []}
@@ -296,7 +306,7 @@ export function AddManualRegistrationSheet({
 
           {outcome.needsParent ? (
             <AdminParentFields
-              disabled={busy}
+              disabled={busy || queued}
               onChange={(patch) => {
                 setParent((current) => ({ ...current, ...patch }));
                 setError(null);

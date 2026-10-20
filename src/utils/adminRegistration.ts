@@ -333,6 +333,14 @@ export interface AdminEditContext {
   previousUnitName: string;
 }
 
+// Spunte foto e social che la persona dà da adulta nel modulo (e la vecchia
+// liberatoria): per chi ha meno di 18 anni non valgono, decide il genitore.
+export const ADULT_PHOTO_ANSWER_KEYS = [
+  "photoInternalConsent",
+  "photoPublicConsent",
+  "photoReleaseAccepted",
+] as const;
+
 export interface AdminEditPlan {
   // Prossimo stato: uguale a prima se la modifica non lo tocca.
   nextStatus: RegistrationStatus;
@@ -340,6 +348,9 @@ export interface AdminEditPlan {
   // richiesta: servono i dati del genitore.
   needsParentFields: boolean;
   sendsMail: boolean;
+  // Risposte da togliere: le spunte da adulto quando la data corretta dice
+  // meno di 18 anni (le rules ammettono solo di toglierle).
+  clearAnswerKeys: string[];
   effects: string[];
 }
 
@@ -363,6 +374,11 @@ export function planAdminEdit(
   let nextStatus = registration.registrationStatus;
   let needsParentFields = false;
   let sendsMail = false;
+  const answers = registration.answers as Record<string, unknown>;
+  const clearAnswerKeys =
+    birthChanged && isValidBirthDate(person.birthDate) && isMinor && !wasMinor && !decided
+      ? ADULT_PHOTO_ANSWER_KEYS.filter((key) => key in answers)
+      : [];
 
   // Una data vuota o non valida non promette niente: il salvataggio è fermo
   // finché non si corregge (validateAdminEdit).
@@ -399,9 +415,12 @@ export function planAdminEdit(
       effects.push(
         registration.parentAuthorization?.tokenId ? ISCRITTI.effettoDa18 : ISCRITTI.effettoDa18SenzaLink,
       );
-    } else if (isMinor !== wasMinor) {
+    } else if (isMinor !== wasMinor && clearAnswerKeys.length === 0) {
       effects.push(isMinor ? ISCRITTI.effettoFotoGenitore : ISCRITTI.effettoFotoPersona);
     }
+  }
+  if (clearAnswerKeys.length > 0) {
+    effects.push(ISCRITTI.effettoFotoAdultoCancellate);
   }
 
   // Su un'annullata cambiano solo i dati: nessun dirigente la vede fra gli
@@ -457,7 +476,7 @@ export function planAdminEdit(
     effects.push(ISCRITTI.effettoProfilo);
   }
 
-  return { nextStatus, needsParentFields, sendsMail, effects };
+  return { nextStatus, needsParentFields, sendsMail, clearAnswerKeys, effects };
 }
 
 export function validateAdminEdit(
@@ -488,6 +507,9 @@ export function buildAdminEditPatch(input: {
   parent: AdminParentDraft;
   plan: AdminEditPlan;
   timestamp: string;
+  // Il valore che cancella un campo (deleteField() di Firestore): passato da
+  // chi scrive, così questo file resta senza SDK.
+  deleteValue?: unknown;
 }): Record<string, unknown> {
   const { person, parent, plan, timestamp, registration } = input;
   const firstName = person.firstName.trim();
@@ -515,6 +537,9 @@ export function buildAdminEditPatch(input: {
   }
   if (plan.needsParentFields && isValidEmail(parent.email)) {
     Object.assign(patch, parentRequestPatch(parent, timestamp));
+  }
+  for (const key of plan.clearAnswerKeys ?? []) {
+    patch[`answers.${key}`] = input.deleteValue;
   }
   return patch;
 }

@@ -148,10 +148,15 @@ const ADMIN = {
     /next\.parentAuthorization\.diff\(prev\.parentAuthorization\)\.affectedKeys\(\)\s*\.hasOnly\(\[([^\]]*)\]\)/u,
     "le chiavi ammesse di parentAuthorization",
   ),
-  statiSempreAmmessi: elencoDa(
+  // Annullata sempre; in attesa sempre tranne che da una decisione del
+  // genitore (rifiuto o firma), che si riapre solo annullando e riattivando.
+  statiSempreAmmessi: /next\.registrationStatus == 'cancelled'/u.test(AGGIORNAMENTO_ADMIN)
+    ? ["cancelled"]
+    : [],
+  attesaNonDa: elencoDa(
     AGGIORNAMENTO_ADMIN,
-    /next\.registrationStatus in \[([^\]]*)\]/u,
-    "gli stati sempre ammessi",
+    /next\.registrationStatus == 'pending_parent_authorization'\s*&&\s*!\(prev\.registrationStatus in \[([^\]]*)\]\)/u,
+    "gli stati da cui non si torna in attesa",
   ),
 };
 
@@ -184,6 +189,7 @@ function minorePerLeRules(dataNascita) {
 function regoleAmmettonoStato({ prima, firmaPrima, dopo, nascitaDopo, richiedeAutorizzazione }) {
   if (dopo === prima) return true;
   if (ADMIN.statiSempreAmmessi.includes(dopo)) return true;
+  if (dopo === ATTESA) return !ADMIN.attesaNonDa.includes(prima);
   if (dopo === "active") {
     return firmaPrima === "authorized" || !(richiedeAutorizzazione && minorePerLeRules(nascitaDopo));
   }
@@ -316,7 +322,8 @@ test("rules: gli elenchi letti da firestore.rules sono quelli che servono ai con
   }
   assert.ok(ADMIN.risposte.includes("parentAuthorizationRequest"));
   assert.ok(!ADMIN.risposte.includes("parentAuthorizationConsents"));
-  assert.deepEqual([...ADMIN.statiSempreAmmessi].sort(), ["cancelled", ATTESA].sort());
+  assert.deepEqual(ADMIN.statiSempreAmmessi, ["cancelled"]);
+  assert.deepEqual([...ADMIN.attesaNonDa].sort(), ["confirmed", "rejected_by_parent"]);
   assert.ok(Number.isFinite(GIORNI_LIMITE) && GIORNI_LIMITE >= 6570 && GIORNI_LIMITE <= 6575, `limite ${GIORNI_LIMITE}`);
   assert.ok(FORMATO_ID_MANUALE.test("manual_abcdef"));
   assert.ok(FORMATO_ID_MANUALE.test(`manual_${"a".repeat(80)}`));
@@ -1153,6 +1160,7 @@ test("modifica: nessun dato cambiato, nessun effetto", () => {
       nextStatus: stato,
       needsParentFields: false,
       sendsMail: false,
+      clearAnswerKeys: [],
       effects: [],
     });
   }
@@ -1309,11 +1317,11 @@ test("modifica riga 3: una persona attiva (non in attesa) che diventa adulta non
 test("modifica: cambiare data restando adulto o restando con meno di 18 anni non cambia stato né avvisa", () => {
   const adulto = iscrizione();
   const pianoAdulto = planAdminEdit(adulto, bozza(adulto, { birthDate: nascita(45) }), GENITORE_VUOTO, contesto(adulto));
-  assert.deepEqual(pianoAdulto, { nextStatus: "active", needsParentFields: false, sendsMail: false, effects: [] });
+  assert.deepEqual(pianoAdulto, { nextStatus: "active", needsParentFields: false, sendsMail: false, clearAnswerKeys: [], effects: [] });
 
   const minore = conRichiesta(MAIL_GENITORE, { birthDate: MINORE, registrationStatus: ATTESA });
   const pianoMinore = planAdminEdit(minore, bozza(minore, { birthDate: nascita(14) }), GENITORE_VUOTO, contesto(minore));
-  assert.deepEqual(pianoMinore, { nextStatus: ATTESA, needsParentFields: false, sendsMail: false, effects: [] });
+  assert.deepEqual(pianoMinore, { nextStatus: ATTESA, needsParentFields: false, sendsMail: false, clearAnswerKeys: [], effects: [] });
 });
 
 test("modifica riga 4: con la firma o il rifiuto del genitore la data cambia ma stato e consensi restano", () => {
@@ -1746,7 +1754,7 @@ test("patch di modifica: lo stato si scrive solo quando cambia", () => {
 });
 
 test("patch di modifica: lo stato scritto passa la clausola sulle transizioni delle rules", () => {
-  assert.ok(ADMIN.statiSempreAmmessi.includes("cancelled") && ADMIN.statiSempreAmmessi.includes(ATTESA));
+  assert.ok(ADMIN.statiSempreAmmessi.includes("cancelled") && !ADMIN.attesaNonDa.includes("active"));
   const date = ["", ADULTO, MINORE, nascita(17), nascita(18)];
   for (const stato of ["active", ATTESA, "cancelled", "confirmed", "rejected_by_parent"]) {
     const autorizzazione = stato === "confirmed" ? firma("authorized") : stato === "rejected_by_parent" ? firma("rejected_by_parent") : null;
