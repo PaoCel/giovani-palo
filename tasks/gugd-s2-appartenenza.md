@@ -16,8 +16,8 @@ blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/epic-northcutt-1a7fb6
 session: 5fe59c7c-e31b-461e-858e-ea93b1ccc3e6
-stopped_at: ""
-next: "Rileggere i numeri di produzione (quelli di A3 sono del 15/10), poi scrivere il contratto ruolo × stato × dato con un test nell'emulatore per cella, prima del codice applicativo"
+stopped_at: "Contratto nella spec, rules Firestore di members e isStakeMember da members, logica e script migrazione A3 (79f5cb0); test dell'emulatore e review Codex in corso"
+next: "Leggere esito test (functions/tests/stakeMembershipContractEmulator.test.mjs) e review Codex, correggere, poi members del primo admin in create-stake e demoData"
 verified: ""
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
