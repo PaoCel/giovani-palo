@@ -831,10 +831,23 @@ service cloud.firestore {
         ])
         && (
           !changed.hasAny(['answers'])
-          || next.answers.diff(prev.answers).affectedKeys().hasOnly([
-            'parentAuthorizationRequest', 'birthDate', 'genderRoleCategory',
-            'youthGroup', 'unitName'
-          ])
+          || (
+            next.answers.diff(prev.answers).affectedKeys().hasOnly([
+              'parentAuthorizationRequest', 'birthDate', 'genderRoleCategory',
+              'youthGroup', 'unitName', 'photoInternalConsent',
+              'photoPublicConsent', 'photoReleaseAccepted'
+            ])
+            // Le spunte foto date da adulto si possono solo togliere (data
+            // corretta a meno di 18 anni): mai scriverle al posto della persona.
+            && (
+              !next.answers.diff(prev.answers).affectedKeys().hasAny([
+                'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
+              ])
+              || !next.answers.keys().hasAny([
+                'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
+              ])
+            )
+          )
         )
         && (
           !changed.hasAny(['parentAuthorization'])
@@ -866,7 +879,11 @@ service cloud.firestore {
         )
         && (
           next.registrationStatus == prev.registrationStatus
-          || next.registrationStatus in ['cancelled', 'pending_parent_authorization']
+          || next.registrationStatus == 'cancelled'
+          // In attesa sì, ma non da una decisione del genitore: un rifiuto o
+          // una firma si riaprono solo annullando e riattivando.
+          || (next.registrationStatus == 'pending_parent_authorization'
+            && !(prev.registrationStatus in ['rejected_by_parent', 'confirmed']))
           || (
             next.registrationStatus == 'active'
             && (
