@@ -15,6 +15,7 @@ const {
   MAX_REGISTRATION_HINTS,
   MEMBER_STATUSES,
   SOURCE_KINDS,
+  LIVE_REGISTRATION_STATUSES,
   STAFF_ROLES,
   birthYearOf,
   buildMigratedMember,
@@ -112,11 +113,16 @@ describe("registrationOwnerUids / isLiveRegistration", () => {
     assert.deepEqual(registrationOwnerUids(null), []);
     assert.deepEqual(registrationOwnerUids(undefined), []);
   });
-  test("solo 'cancelled' toglie l'iscrizione; lo stato mancante conta come viva", () => {
-    assert.equal(isLiveRegistration({ registrationStatus: "cancelled" }), false);
-    assert.equal(isLiveRegistration({ registrationStatus: "confirmed" }), true);
-    assert.equal(isLiveRegistration({ registrationStatus: "pending_parent_authorization" }), true);
-    assert.equal(isLiveRegistration({}), true);
+  test("contano le iscrizioni inviate e non chiuse: submitted, waitlist, active, pending_parent_authorization, confirmed", () => {
+    for (const status of ["submitted", "waitlist", "active", "pending_parent_authorization", "confirmed"]) {
+      assert.equal(isLiveRegistration({ registrationStatus: status }), true, status);
+    }
+    assert.deepEqual([...LIVE_REGISTRATION_STATUSES].sort(), ["active", "confirmed", "pending_parent_authorization", "submitted", "waitlist"]);
+  });
+  test("non contano la bozza, l'annullata e la rifiutata dal genitore", () => {
+    for (const status of ["draft", "cancelled", "rejected_by_parent"]) {
+      assert.equal(isLiveRegistration({ registrationStatus: status }), false, status);
+    }
     assert.equal(isLiveRegistration(null), false);
     assert.equal(isLiveRegistration(undefined), false);
   });
@@ -236,6 +242,81 @@ describe("planStakeMemberMigration: gruppi della spec", () => {
     });
     assert.equal(docOf(result, youth.uid).status, "active");
     assert.deepEqual(docOf(result, youth.uid).registrationHints.map((hint) => hint.activityId), ["campo"]);
+  });
+
+  // Iscrizione inviata e non chiusa (spec A3): non contano bozza, annullata, rifiutata dal genitore.
+  for (const status of ["draft", "rejected_by_parent", "cancelled"]) {
+    test(`solo un'iscrizione ${status}: pending, nessun suggerimento`, () => {
+      const youth = user();
+      const result = plan({ users: [youth], registrations: [registration({ userId: youth.uid, registrationStatus: status })] });
+      const doc = docOf(result, youth.uid);
+      assert.equal(doc.status, "pending");
+      assert.equal(doc.reviewNeeded, false);
+      assert.deepEqual(doc.registrationHints, []);
+      assert.equal(result.counts.queued, 1);
+    });
+  }
+
+  for (const status of ["submitted", "waitlist", "active", "pending_parent_authorization", "confirmed"]) {
+    test(`un'iscrizione ${status}: active con reviewNeeded`, () => {
+      const youth = user();
+      const result = plan({ users: [youth], registrations: [registration({ userId: youth.uid, registrationStatus: status })] });
+      assert.equal(docOf(result, youth.uid).status, "active");
+      assert.equal(docOf(result, youth.uid).reviewNeeded, true);
+      assert.equal(result.counts.registered, 1);
+    });
+  }
+
+  test("mix: una bozza e una confermata -> active; il suggerimento è solo quello dell'iscrizione viva", () => {
+    const youth = user();
+    const result = plan({
+      users: [youth],
+      registrations: [
+        registration({ userId: youth.uid, activityId: "bozza", registrationStatus: "draft" }),
+        registration({ userId: youth.uid, activityId: "viaggio", registrationStatus: "confirmed" }),
+      ],
+      activityTitles: new Map([["bozza", "Solo bozza"], ["viaggio", "Viaggio al tempio"]]),
+    });
+    assert.equal(docOf(result, youth.uid).status, "active");
+    assert.equal(docOf(result, youth.uid).reviewNeeded, true);
+    assert.deepEqual(docOf(result, youth.uid).registrationHints, [{ activityId: "viaggio", title: "Viaggio al tempio" }]);
+  });
+
+  test("bozza, rifiutata dal genitore e annullata insieme: pending", () => {
+    const youth = user();
+    const result = plan({
+      users: [youth],
+      registrations: [
+        registration({ userId: youth.uid, activityId: "a1", registrationStatus: "draft" }),
+        registration({ userId: youth.uid, activityId: "a2", registrationStatus: "rejected_by_parent" }),
+        registration({ userId: youth.uid, activityId: "a3", registrationStatus: "cancelled" }),
+      ],
+    });
+    assert.equal(docOf(result, youth.uid).status, "pending");
+  });
+
+  test("il genitore con solo la bozza di un figlio resta in coda; con un figlio inviato è active", () => {
+    const parentDraft = user({ role: "parent" });
+    const parentSent = user({ role: "parent" });
+    const result = plan({
+      users: [parentDraft, parentSent],
+      registrations: [
+        registration({ userId: undefined, parentUid: parentDraft.uid, registrationStatus: "draft" }),
+        registration({ userId: undefined, parentUid: parentSent.uid, registrationStatus: "submitted" }),
+      ],
+    });
+    assert.equal(docOf(result, parentDraft.uid).status, "pending");
+    assert.equal(docOf(result, parentSent.uid).status, "active");
+  });
+
+  test("lo staff resta active anche con sole bozze (conta il ruolo)", () => {
+    const leader = user({ role: "unit_leader" });
+    const result = plan({
+      users: [leader],
+      registrations: [registration({ userId: leader.uid, registrationStatus: "draft" })],
+    });
+    assert.equal(docOf(result, leader.uid).status, "active");
+    assert.equal(docOf(result, leader.uid).reviewNeeded, false);
   });
 
   test("i uid con iscrizioni ma senza profilo (sessioni ospite) non diventano membri", () => {

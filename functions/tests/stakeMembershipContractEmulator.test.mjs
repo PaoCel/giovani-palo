@@ -436,6 +436,7 @@ function firstSnapshot(p, path) {
 
 // Fixture condivise ------------------------------------------------------------
 let MAIN; // galleria aperta usata dalle righe di sola lettura
+let PUBLISHED; // galleria con published true (galleriesService.listPublishedGalleries)
 const MAIN_MEDIA = "m-main";
 const MAIN_COMMENT = "c-main";
 const FEED_MAIN = "post-main";
@@ -453,6 +454,8 @@ before(async () => {
 
   // Profili, members, note dello staff, codici galleria vecchi.
   MAIN = await newGallery();
+  PUBLISHED = await newGallery();
+  await adminDb.doc(galleryPath(PUBLISHED)).update({ published: true, publishedAt: iso() });
   await Promise.all(made.filter((p) => p.uid).map(async (p) => {
     if (p.role) {
       await adminDb.doc(`users/${p.uid}`).set(profileData(p.role, p.profileStake, p.unit, p.key));
@@ -653,6 +656,12 @@ row({
   allow: "MDA",
   run: (p) => readDocs(p, `stakes/${STAKE_A}/galleries`, where("activityId", "==", MAIN.activityId)),
   check: (_p, _ctx, snap) => assert.deepEqual(snap.docs.map((item) => item.id), [MAIN.galleryId]),
+});
+row({
+  name: "galleries where published == true",
+  allow: "MDA",
+  run: (p) => readDocs(p, `stakes/${STAKE_A}/galleries`, where("published", "==", true)),
+  check: (_p, _ctx, snap) => assert.ok(snap.docs.some((item) => item.id === PUBLISHED.galleryId), "la galleria pubblicata c'è"),
 });
 row({
   name: "galleries get",
@@ -1152,14 +1161,25 @@ extra({
 // Assegnazione del ruolo da client: un admin del palo riscrive `users/{uid}`
 // cambiando solo `role` e `updatedAt`. Un ruolo staff dà anche l'appartenenza,
 // quindi non si assegna a chi è uscito, rifiutato, rimosso o bloccato.
-const roleRow = ({ name, current = "participant", next, status, allow }) =>
+// `stakeless`: il profilo bersaglio non ha un palo (`stakeId: ''`): i poteri staff
+// valgono per un palo, quindi nessun ruolo staff, nemmeno dal super admin.
+const stakelessProfile = (role, label) =>
+  buildUserDocument({
+    firstName: "Prova",
+    lastName: label,
+    email: `${label}@example.invalid`,
+    role,
+    stake: { id: "", slug: "", name: "" },
+    unit: null,
+    now: iso(),
+  });
+const roleRow = ({ name, current = "participant", next, status, allow, stakeless = false }) =>
   extra({
     name,
     allow,
-    applies: (def) => !def.anonStaff,
     setup: async () => {
       const uid = nextId("target-ruolo-");
-      await adminDb.doc(`users/${uid}`).set(profileData(current, STAKE_A, UNIT1, uid));
+      await adminDb.doc(`users/${uid}`).set(stakeless ? stakelessProfile(current, uid) : profileData(current, STAKE_A, UNIT1, uid));
       if (status) await adminDb.doc(`${MEMBERS}/${uid}`).set(memberData({ status, staffRole: current === "participant" ? null : current }));
       return { uid };
     },
@@ -1177,6 +1197,9 @@ for (const status of ["declined", "withdrawn", "removed", "blocked"]) {
 roleRow({ name: "assegna admin a un utente con members blocked", next: "admin", status: "blocked", allow: "" });
 roleRow({ name: "retrocede a participant un unit_leader con members blocked", current: "unit_leader", next: "participant", status: "blocked", allow: "A" });
 roleRow({ name: "retrocede a participant un admin con members removed", current: "admin", next: "participant", status: "removed", allow: "A" });
+// Profilo senza palo: nessun ruolo staff per nessuno, super admin compreso.
+roleRow({ name: "assegna unit_leader a un profilo senza palo (stakeId vuoto)", next: "unit_leader", stakeless: true, allow: "" });
+roleRow({ name: "assegna admin a un profilo senza palo (stakeId vuoto)", next: "admin", stakeless: true, allow: "" });
 
 // ---------------------------------------------------------------------------
 // Generazione dei test: una cella = una riga x una persona

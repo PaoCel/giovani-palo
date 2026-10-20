@@ -90,7 +90,7 @@ const profile = (name, over = {}) => ({
 //   staff nuovi: admin, leader                         -> active + staffRole
 //   con iscrizione viva: youthOwn (userId), parentChild (parentUid), guestLinked (anonymousUid)
 //                                                        -> active + reviewNeeded
-//   senza iscrizione viva: youthCancelled, youthNone     -> pending
+//   senza iscrizione viva (annullata, rifiutata dal genitore, bozza): youthCancelled, youthNone -> pending
 //   già con members (da non toccare): decided (declined, decisione dello staff), staffRemoved (removed)
 const EXPECTED = {
   admin: { status: "active", staffRole: "admin", reviewNeeded: false },
@@ -124,9 +124,12 @@ async function seedStake(stake, { withRegistrations = true } = {}) {
   await Promise.all([
     reg("viaggio", `user_${uid(`${stake}-youthOwn`)}`, { userId: uid(`${stake}-youthOwn`) }),
     reg("campo", `user_${uid(`${stake}-youthOwn`)}`, { userId: uid(`${stake}-youthOwn`) }),
-    reg("viaggio", `child_${uid(`${stake}-parentChild`)}_k1`, { parentUid: uid(`${stake}-parentChild`) }),
-    reg("viaggio", `guest_${uid(`${stake}-guestLinked`)}`, { anonymousUid: uid(`${stake}-guestLinked`) }),
+    reg("viaggio", `child_${uid(`${stake}-parentChild`)}_k1`, { parentUid: uid(`${stake}-parentChild`), registrationStatus: "submitted" }),
+    reg("viaggio", `guest_${uid(`${stake}-guestLinked`)}`, { anonymousUid: uid(`${stake}-guestLinked`), registrationStatus: "waitlist" }),
     reg("viaggio", `user_${uid(`${stake}-youthCancelled`)}`, { userId: uid(`${stake}-youthCancelled`), registrationStatus: "cancelled" }),
+    // Bozza mai inviata e iscrizione rifiutata dal genitore non contano: restano in coda.
+    reg("campo", `user_${uid(`${stake}-youthCancelled`)}`, { userId: uid(`${stake}-youthCancelled`), registrationStatus: "rejected_by_parent" }),
+    reg("viaggio", `user_${uid(`${stake}-youthNone`)}`, { userId: uid(`${stake}-youthNone`), registrationStatus: "draft" }),
     reg("viaggio", `guest_ospite-senza-profilo`, { anonymousUid: `ospite-senza-profilo-${runId}` }),
     reg("viaggio", `manual_${runId}`, { fullName: "Iscritto a mano" }),
     reg("viaggio", `user_${uid(`${stake}-decided`)}`, { userId: uid(`${stake}-decided`) }),
