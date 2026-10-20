@@ -21,6 +21,10 @@ export const FIRMA = {
   iscrizioneAnnullataTitolo: "Iscrizione annullata",
   iscrizioneAnnullataCorpo:
     "L'iscrizione è stata annullata, quindi non serve più autorizzarla. Se è un errore, rifai l'iscrizione dalla pagina dell'attività o contatta il dirigente della tua unità.",
+  // Iscrizione corretta dall'admin (18 anni o più): l'autorizzazione non serve.
+  nonServeTitolo: "Autorizzazione non necessaria",
+  nonServeCorpo:
+    "Per questa iscrizione l'autorizzazione del genitore non serve più: non devi fare niente.",
   // Firma disegnata che non si riesce a esportare: nel passo, mai un alert.
   firmaIlleggibile: "Non sono riuscito a leggere la firma disegnata. Ridisegna la firma e riprova.",
 } as const;

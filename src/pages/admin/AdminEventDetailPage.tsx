@@ -1,11 +1,15 @@
 import { RoomManagementPanel } from "@/components/admin/RoomManagementPanel";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { ANNULLA } from "@/copy/annulla";
+import { ADMIN } from "@/copy/admin";
+import { ISCRITTI } from "@/copy/iscritti";
+import { fillCopy } from "@/copy/parole";
 import { AppModal } from "@/components/AppModal";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { PhotoConsentPills } from "@/components/PhotoConsentPills";
 import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExportModal";
@@ -14,6 +18,19 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
 import { CampStaffSection } from "@/components/admin/CampStaffSection";
+import { AddManualRegistrationSheet } from "@/components/admin/registrations/AddManualRegistrationSheet";
+import { EditRegistrationSheet } from "@/components/admin/registrations/EditRegistrationSheet";
+import {
+  DEFAULT_REGISTRATION_FILTERS,
+  RegistrationsTab,
+  type RegistrationFilters,
+} from "@/components/admin/registrations/RegistrationsTab";
+import { RequestAuthorizationSheet } from "@/components/admin/registrations/RequestAuthorizationSheet";
+import {
+  getCategoryShortLabel,
+  getUnitLabel,
+} from "@/components/admin/registrations/registrationLabels";
+import { ModalFeedback } from "@/components/admin/ModalFeedback";
 import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
 import { RecordNightAdminTab } from "@/components/admin/recordNight/RecordNightAdminTab";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -21,11 +38,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
 import { campManagementService } from "@/services/firestore/campManagementService";
-import { consentTasksService } from "@/services/firestore/consentTasksService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { questionsService } from "@/services/firestore/questionsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
+import { usersService } from "@/services/firestore/usersService";
 import {
   parentAuthorizationService,
   type ConsentCompletionCandidate,
@@ -36,12 +53,18 @@ import type {
   CampManagementPlan,
   CampPatrolPlan,
   CampPatrolRole,
-  ConsentTask,
   Question,
   Registration,
 } from "@/types";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
-import { formatDateRange, formatDateTime } from "@/utils/formatters";
+import { getAdminActionError } from "@/utils/adminErrors";
+import {
+  isManualRegistration,
+  isMissingParentEmail,
+  planAdminReactivate,
+} from "@/utils/adminRegistration";
+import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+import { formatDateOnly, formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
   downloadCampManagementExcel,
   downloadRegistrationsExcel,
@@ -59,10 +82,7 @@ import {
   getEventStatusTone,
   isCampEvent,
 } from "@/utils/events";
-import {
-  getPhotoConsentBadges,
-  needsPhotoConsentQuestion,
-} from "@/utils/parentAuthorization";
+import { getPhotoConsentBadges } from "@/utils/parentAuthorization";
 import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
   getRegistrationAnswerEntries,
@@ -84,8 +104,6 @@ type AdminEventTab =
   | "gallery"
   | "stats";
 type RegistrationModalMode = "registration" | "overnight";
-type RegistrationCategoryFilter =
-  "giovane_uomo" | "giovane_donna" | "dirigente" | "accompagnatore";
 
 interface DistributionItem {
   label: string;
@@ -106,16 +124,6 @@ const roomRegistrationEntryKeys = new Set([
   "roomNotes",
 ]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const registrationCategoryFilterOptions: Array<{
-  value: RegistrationCategoryFilter;
-  label: string;
-}> = [
-  { value: "giovane_uomo", label: "GU" },
-  { value: "giovane_donna", label: "GD" },
-  { value: "dirigente", label: "Dirigenti" },
-  { value: "accompagnatore", label: "Accompagnatori" },
-];
 
 function getPatrolRoleLabel(role: CampPatrolRole | null) {
   switch (role) {
@@ -213,43 +221,9 @@ function getCategoryLabel(registration: Registration) {
   );
 }
 
-function getCategoryShortLabel(registration: Registration) {
-  switch (registration.genderRoleCategory) {
-    case "giovane_uomo":
-      return "GU";
-    case "giovane_donna":
-      return "GD";
-    case "dirigente":
-      return "DIR";
-    default:
-      return "--";
-  }
-}
-
 function isMinorRegistration(registration: Registration) {
   const age = getAgeFromBirthDate(registration.birthDate);
   return age !== null && age < 18;
-}
-
-function isRegistrationCategoryFilter(
-  value: Registration["genderRoleCategory"],
-): value is RegistrationCategoryFilter {
-  return (
-    value === "giovane_uomo" ||
-    value === "giovane_donna" ||
-    value === "dirigente" ||
-    value === "accompagnatore"
-  );
-}
-
-function getUnitLabel(registration: Registration) {
-  return (
-    registration.unitNameSnapshot ||
-    (typeof registration.answers.unitName === "string"
-      ? registration.answers.unitName
-      : "") ||
-    "Unità non indicata"
-  );
 }
 
 function getParentAuthorizationRequest(registration: Registration) {
@@ -393,6 +367,19 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
   }
 }
 
+// Foglio di conferma aperto (mai un dialogo del browser). Ognuno si lega
+// all'oggetto con cui è stato aperto: se sparisce, o se cambiano account o
+// rotta, il foglio si chiude e nessuna azione parte per l'oggetto sbagliato.
+type AdminConfirm =
+  | { kind: "removePatrol"; patrolId: string }
+  | { kind: "deleteQuestion"; questionId: string }
+  | { kind: "deleteActivity" }
+  | { kind: "legacyApprovals" }
+  | { kind: "consentCompletion"; digest: string; total: number }
+  | { kind: "cancelRegistration"; registrationId: string }
+  | { kind: "deleteRegistration"; registrationId: string }
+  | { kind: "reactivateRegistration"; registrationId: string };
+
 export function AdminEventDetailPage() {
   const { eventId } = useParams();
   const location = useLocation();
@@ -416,7 +403,7 @@ export function AdminEventDetailPage() {
     | "backfillLegacyApprovals"
     | "consentCompletionCheck"
     | "consentCompletionSend"
-    | "consentTask"
+    | "deleteQuestion"
     | "deleteRegistration"
     | "cancelRegistration"
     | "reactivateRegistration"
@@ -448,11 +435,6 @@ export function AdminEventDetailPage() {
   const [excelExportModalOpen, setExcelExportModalOpen] = useState(false);
   const [normalizingRoomPreferences, setNormalizingRoomPreferences] =
     useState(false);
-  const [activeRegistrationFilters, setActiveRegistrationFilters] = useState<
-    RegistrationCategoryFilter[]
-  >(["giovane_uomo", "giovane_donna", "dirigente", "accompagnatore"]);
-  const [selectedUnitFilter, setSelectedUnitFilter] = useState("all");
-  const [onlyPhotoToAsk, setOnlyPhotoToAsk] = useState(false);
   const [consentCompletion, setConsentCompletion] = useState<Extract<
     ConsentCompletionResult,
     { dryRun: true }
@@ -461,10 +443,6 @@ export function AdminEventDetailPage() {
     ConsentCompletionResult,
     { dryRun: false }
   > | null>(null);
-  const [consentTasksRefreshKey, setConsentTasksRefreshKey] = useState(0);
-  const [consentTasksError, setConsentTasksError] = useState<string | null>(null);
-  const [busyConsentTaskId, setBusyConsentTaskId] = useState<string | null>(null);
-  const [nameSearch, setNameSearch] = useState("");
   const [campDraft, setCampDraft] = useState<CampManagementPlan>(
     campManagementService.getDefaultCampManagement(),
   );
@@ -475,6 +453,49 @@ export function AdminEventDetailPage() {
   const [selectedCampPatrolId, setSelectedCampPatrolId] = useState<
     string | null
   >(null);
+  const [confirmSheet, setConfirmSheet] = useState<AdminConfirm | null>(null);
+  // Fogli degli iscritti (docs/ADMIN_ISCRITTI.md): aggiunta a mano dalla tab,
+  // modifica e richiesta di autorizzazione sopra la scheda dell'iscrizione.
+  const [addManualOpen, setAddManualOpen] = useState(false);
+  const [registrationFilters, setRegistrationFilters] = useState<RegistrationFilters>(
+    DEFAULT_REGISTRATION_FILTERS,
+  );
+  const [editRegistrationId, setEditRegistrationId] = useState<string | null>(null);
+  const [requestAuthorizationId, setRequestAuthorizationId] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio chiuso
+  // nel frattempo non tocca quello aperto dopo.
+  const confirmRunRef = useRef(0);
+
+  function showConfirm(next: AdminConfirm | null) {
+    confirmRunRef.current += 1;
+    setConfirmError(null);
+    setConfirmSheet(next);
+    if (next) {
+      setActionError(null);
+    }
+  }
+
+  // Cambio di account o di rotta (altra attività, altra tab, Indietro) con il
+  // foglio aperto: si chiude.
+  const confirmContextKey = `${session?.firebaseUser.uid ?? ""}|${location.pathname}|${location.search}`;
+  useEffect(() => {
+    showConfirm(null);
+    setAddManualOpen(false);
+    setEditRegistrationId(null);
+    setRequestAuthorizationId(null);
+  }, [confirmContextKey]);
+  // Account e attività di adesso (vuoto dopo l'uscita dalla pagina): l'esito
+  // di una richiesta partita su un'altra attività, o prima di Indietro, non
+  // tocca bozza, modali né navigazione.
+  const eventContextKey = `${session?.firebaseUser.uid ?? ""}|${stakeId}|${eventId ?? ""}`;
+  const eventContextRef = useRef(eventContextKey);
+  useEffect(() => {
+    eventContextRef.current = eventContextKey;
+    return () => {
+      eventContextRef.current = "";
+    };
+  }, [eventContextKey]);
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -559,24 +580,22 @@ export function AdminEventDetailPage() {
     [],
   );
 
-  const canReadConsentTasks = session?.isAdmin === true;
-  const { data: consentTasks, error: consentTasksLoadError } = useAsyncData<
-    ConsentTask[]
-  >(
-    async () => {
-      if (!eventId || !canReadConsentTasks) {
-        return [];
-      }
-
-      return consentTasksService.listTasks(stakeId, eventId);
-    },
-    [eventId, stakeId, canReadConsentTasks, consentTasksRefreshKey],
-    [],
-  );
-
   const event = data?.workspace.event ?? null;
   const formConfig = data?.workspace.formConfig ?? null;
   const registrations = data?.workspace.registrations ?? [];
+  // Chi ha aggiunto a mano l'iscrizione aperta nella scheda.
+  const modalCreatedBy =
+    registrations.find((registration) => registration.id === registrationModalId)
+      ?.createdBy ?? null;
+  const { data: modalCreatorName } = useAsyncData<string | null>(
+    async () => {
+      if (!modalCreatedBy) return null;
+      const profile = await usersService.getProfile(modalCreatedBy).catch(() => null);
+      return profile?.fullName || null;
+    },
+    [modalCreatedBy],
+    null,
+  );
   const campManagement = useMemo(
     () =>
       data?.campManagement ?? campManagementService.getDefaultCampManagement(),
@@ -749,92 +768,6 @@ export function AdminEventDetailPage() {
       ),
     [activeRegistrations],
   );
-  const registrationFilterCounts = useMemo(
-    () =>
-      registrationCategoryFilterOptions.reduce<
-        Record<RegistrationCategoryFilter, number>
-      >(
-        (accumulator, option) => {
-          accumulator[option.value] = sortedRegistrations.filter(
-            (registration) =>
-              registration.genderRoleCategory === option.value &&
-              (selectedUnitFilter === "all" ||
-                getUnitLabel(registration) === selectedUnitFilter),
-          ).length;
-          return accumulator;
-        },
-        {
-          giovane_uomo: 0,
-          giovane_donna: 0,
-          dirigente: 0,
-          accompagnatore: 0,
-        },
-      ),
-    [selectedUnitFilter, sortedRegistrations],
-  );
-  const registrationUnitOptions = useMemo(() => {
-    const seen = new Set<string>();
-
-    return sortedRegistrations.reduce<string[]>((accumulator, registration) => {
-      const unitLabel = getUnitLabel(registration).trim();
-      const normalizedLabel = unitLabel.toLocaleLowerCase("it-IT");
-
-      if (!unitLabel || seen.has(normalizedLabel)) {
-        return accumulator;
-      }
-
-      seen.add(normalizedLabel);
-      accumulator.push(unitLabel);
-      return accumulator;
-    }, []);
-  }, [sortedRegistrations]);
-  const filteredRegistrations = useMemo(() => {
-    const needle = nameSearch.trim().toLocaleLowerCase("it-IT");
-    return sortedRegistrations.filter((registration) => {
-      if (!isRegistrationCategoryFilter(registration.genderRoleCategory))
-        return false;
-      if (!activeRegistrationFilters.includes(registration.genderRoleCategory))
-        return false;
-      if (onlyPhotoToAsk && !needsPhotoConsentQuestion(registration))
-        return false;
-      if (
-        selectedUnitFilter !== "all" &&
-        getUnitLabel(registration) !== selectedUnitFilter
-      ) {
-        return false;
-      }
-      if (needle) {
-        const haystack = [
-          registration.fullName,
-          registration.firstName,
-          registration.lastName,
-          registration.email,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLocaleLowerCase("it-IT");
-        if (!haystack.includes(needle)) return false;
-      }
-      return true;
-    });
-  }, [
-    activeRegistrationFilters,
-    nameSearch,
-    onlyPhotoToAsk,
-    selectedUnitFilter,
-    sortedRegistrations,
-  ]);
-  const photoToAskCount = useMemo(
-    () =>
-      sortedRegistrations.filter(
-        (registration) =>
-          registration.registrationStatus !== "cancelled" &&
-          needsPhotoConsentQuestion(registration) &&
-          (selectedUnitFilter === "all" ||
-            getUnitLabel(registration) === selectedUnitFilter),
-      ).length,
-    [selectedUnitFilter, sortedRegistrations],
-  );
   const registrationLookupById = useMemo(() => {
     const map = new Map<string, Registration>();
     for (const registration of registrations) {
@@ -895,12 +828,6 @@ export function AdminEventDetailPage() {
   const anonymousCount = activeRegistrations.filter(
     (registration) => registration.submittedByMode === "anonymous",
   ).length;
-  const waitlistCount = sortedRegistrations.filter(
-    (registration) => registration.registrationStatus === "waitlist",
-  ).length;
-  const cancelledCount = sortedRegistrations.filter(
-    (registration) => registration.registrationStatus === "cancelled",
-  ).length;
   const minorRegistrations = activeRegistrations.filter((registration) =>
     isMinorRegistration(registration),
   );
@@ -929,8 +856,6 @@ export function AdminEventDetailPage() {
       );
     },
   ).length;
-  const consentTasksTodo = consentTasks.filter((task) => task.status === "todo");
-  const consentTasksDone = consentTasks.filter((task) => task.status === "done");
   const assignedPatrolCount = patrolAssignmentByRegistrationId.size;
   const assignedCommitteeCount = committeeAssignmentByRegistrationId.size;
   const averageAge = getAverageAge(activeRegistrations);
@@ -988,6 +913,20 @@ export function AdminEventDetailPage() {
           (registration) => registration.id === registrationModalId,
         ) ?? null)
       : null;
+  // I fogli sopra la scheda valgono per l'iscrizione con cui sono stati
+  // aperti, finché c'è (riletta dal server, cancellata altrove: si chiudono).
+  const editRegistration =
+    editRegistrationId !== null
+      ? (sortedRegistrations.find((registration) => registration.id === editRegistrationId) ??
+        null)
+      : null;
+  const requestAuthorizationRegistration =
+    requestAuthorizationId !== null
+      ? (sortedRegistrations.find(
+          (registration) =>
+            registration.id === requestAuthorizationId && isMissingParentEmail(registration),
+        ) ?? null)
+      : null;
   const registrationModalHighlights = registrationModal
     ? getRegistrationHighlights(registrationModal)
     : [];
@@ -1028,6 +967,15 @@ export function AdminEventDetailPage() {
           (patrol) => patrol.id === selectedCampPatrolId,
         ) ?? null)
       : null;
+  // Con un modale aperto gli esiti delle azioni stanno dentro il modale: la
+  // pagina sotto è coperta e inerte.
+  const pageModalOpen = Boolean(
+    registrationModal ||
+      selectedCampCommittee ||
+      selectedCampPatrol ||
+      excelExportModalOpen ||
+      addManualOpen,
+  );
 
   function getRegistrationName(registrationId: string) {
     const registration = activeRegistrationById.get(registrationId);
@@ -1315,20 +1263,27 @@ export function AdminEventDetailPage() {
     });
   }
 
+  // Ritorna se il salvataggio è riuscito. L'errore va a `onError` (il foglio
+  // di conferma aperto) o, senza, all'avviso della pagina o del modale aperto.
   async function handleSaveCampManagement(options?: {
     closeModal?: boolean;
     draftOverride?: CampManagementPlan;
+    onError?: (message: string) => void;
   }) {
     setBusy("saveCampManagement");
     setActionError(null);
     setActionInfo(null);
+    const startedFor = eventContextRef.current;
 
     try {
-      const saved = await campManagementService.saveCampManagement(
-        stakeId,
-        resolvedEventId,
-        options?.draftOverride ?? campDraft,
+      const saved = await withWriteTimeout(
+        campManagementService.saveCampManagement(
+          stakeId,
+          resolvedEventId,
+          options?.draftOverride ?? campDraft,
+        ),
       );
+      if (eventContextRef.current !== startedFor) return false;
       setCampDraft(saved);
       setCampDraftDirty(false);
       setActionInfo("Comitati e pattuglie salvati.");
@@ -1337,28 +1292,39 @@ export function AdminEventDetailPage() {
         setSelectedCampPatrolId(null);
       }
       setRefreshKey((current) => current + 1);
+      return true;
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile salvare comitati e pattuglie.",
-      );
+      if (eventContextRef.current !== startedFor) return false;
+      const message = getAdminActionError(caughtError, ADMIN.erroreSalvaCampo);
+      if (options?.onError) {
+        options.onError(message);
+      } else {
+        setActionError(message);
+      }
+      return false;
     } finally {
       setBusy(null);
     }
   }
 
+  // "Elimina e salva": la bozza cambia solo se il salvataggio riesce, così
+  // "Tieni la pattuglia" dopo un errore ritrova tutto com'era.
   async function handleRemovePatrolAndSave(patrolId: string) {
-    const confirmed = window.confirm("Rimuovere questa pattuglia e salvare?");
-    if (!confirmed) return;
-
+    const run = confirmRunRef.current;
     const nextDraft = {
       ...campDraft,
       patrols: campDraft.patrols.filter((patrol) => patrol.id !== patrolId),
     };
-    setCampDraftDirty(true);
-    setCampDraft(nextDraft);
-    await handleSaveCampManagement({ closeModal: true, draftOverride: nextDraft });
+    const saved = await handleSaveCampManagement({
+      closeModal: true,
+      draftOverride: nextDraft,
+      onError: (message) => {
+        if (run === confirmRunRef.current) setConfirmError(message);
+      },
+    });
+    if (saved && run === confirmRunRef.current) {
+      showConfirm(null);
+    }
   }
 
   async function handleDownloadCampManagementExcel() {
@@ -1374,11 +1340,7 @@ export function AdminEventDetailPage() {
       );
       setActionInfo("Excel comitati e pattuglie generato.");
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile esportare l'Excel.",
-      );
+      setActionError(getAdminActionError(caughtError, ADMIN.erroreExcel));
     } finally {
       setDownloadingExcel(false);
     }
@@ -1427,53 +1389,66 @@ export function AdminEventDetailPage() {
   }
 
   async function handleDeleteQuestion(question: Question) {
-    const confirmed = window.confirm(
-      "Eliminare definitivamente questa domanda?",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setActionError(null);
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
+    setBusy("deleteQuestion");
+    setConfirmError(null);
     setActionInfo(null);
 
     try {
-      await questionsService.adminDelete(
-        stakeId,
-        resolvedEventId,
-        question.registrationId,
-        question.id,
+      await withWriteTimeout(
+        questionsService.adminDelete(
+          stakeId,
+          resolvedEventId,
+          question.registrationId,
+          question.id,
+        ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setQuestionsRefreshKey((current) => current + 1);
       setActionInfo("Domanda eliminata.");
+      if (run === confirmRunRef.current) showConfirm(null);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare la domanda.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaDomanda));
+      }
+    } finally {
+      setBusy(null);
     }
-  }
-
-  function toggleRegistrationFilter(filter: RegistrationCategoryFilter) {
-    setActiveRegistrationFilters((current) =>
-      current.includes(filter)
-        ? current.filter((item) => item !== filter)
-        : [...current, filter],
-    );
   }
 
   function openRegistrationModal(
     registrationId: string,
     mode: RegistrationModalMode,
   ) {
+    setActionError(null);
+    setActionInfo(null);
     setRegistrationModalMode(mode);
     setRegistrationModalId(registrationId);
   }
 
   function closeRegistrationModal() {
+    setActionError(null);
     setRegistrationModalId(null);
+  }
+
+  function openCampCommittee(committeeId: CampCommitteeId) {
+    setActionError(null);
+    setActionInfo(null);
+    setSelectedCampCommitteeId(committeeId);
+  }
+
+  function openCampPatrol(patrolId: string) {
+    setActionError(null);
+    setActionInfo(null);
+    setSelectedCampPatrolId(patrolId);
+  }
+
+  // Un errore visto nel modale non resta nella pagina dopo la chiusura.
+  function closeCampModal() {
+    setActionError(null);
+    setSelectedCampCommitteeId(null);
+    setSelectedCampPatrolId(null);
   }
 
   async function handlePublish() {
@@ -1503,33 +1478,36 @@ export function AdminEventDetailPage() {
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm(
-      "Vuoi davvero eliminare questa attività? L'azione rimuove anche modulo e registrazioni.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("delete");
-    setActionError(null);
+    setConfirmError(null);
     setActionInfo(null);
 
-    try {
-      if (resolvedEvent.heroImagePath) {
-        await storageService
-          .deleteFile(resolvedEvent.heroImagePath)
-          .catch(() => undefined);
-      }
+    // Prima i documenti, poi l'immagine: se la cancellazione si ferma,
+    // l'attività resta con la sua immagine e si può riprovare. L'immagine si
+    // toglie quando i documenti sono andati, anche dopo il timeout del foglio.
+    const deletion = eventsService.deleteEvent(stakeId, resolvedEventId);
+    const heroImagePath = resolvedEvent.heroImagePath;
+    if (heroImagePath) {
+      deletion
+        .then(() => storageService.deleteFile(heroImagePath))
+        .catch(() => undefined);
+    }
 
-      await eventsService.deleteEvent(stakeId, resolvedEventId);
-      navigate("/admin/events", { replace: true });
+    try {
+      // Molti documenti in più lotti: un minuto prima di dire "nessuna risposta".
+      await withWriteTimeout(deletion, 60000);
+
+      if (run === confirmRunRef.current) showConfirm(null);
+      // Indietro o un'altra attività nel frattempo: la pagina resta dov'è.
+      if (eventContextRef.current === startedFor) {
+        navigate("/admin/events", { replace: true });
+      }
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare l'attività.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaAttivita));
+      }
     } finally {
       setBusy(null);
     }
@@ -1673,13 +1651,10 @@ export function AdminEventDetailPage() {
   }
 
   async function handleBackfillLegacyApprovals() {
-    const confirmed = window.confirm(
-      "Generare il modulo ufficiale per le autorizzazioni già approvate col vecchio metodo e inviare una copia ai genitori?\n\n" +
-        "Verranno saltati automaticamente gli iscritti che hanno già un modulo firmato.",
-    );
-    if (!confirmed) return;
-
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("backfillLegacyApprovals");
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
 
@@ -1688,6 +1663,7 @@ export function AdminEventDetailPage() {
         stakeId,
         activityId: resolvedEventId,
       });
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(
         `Fallback completato: ${result.processed} moduli generati, ${result.emailed} email inviate` +
           (result.skipped ? `, ${result.skipped} saltati` : "") +
@@ -1695,12 +1671,13 @@ export function AdminEventDetailPage() {
           ".",
       );
       setRefreshKey((current) => current + 1);
+      if (run === confirmRunRef.current) showConfirm(null);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile generare i fallback legacy.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(
+          getAdminActionError(caughtError, ADMIN.erroreModuliVecchioMetodo),
+        );
+      }
     } finally {
       setBusy(null);
     }
@@ -1738,15 +1715,11 @@ export function AdminEventDetailPage() {
   async function handleSendConsentCompletion() {
     if (!consentCompletion || consentCompletion.total === 0) return;
 
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     const total = consentCompletion.total;
-    const confirmed = window.confirm(
-      `Inviare ${total} email ai genitori?\n\n` +
-        "È un invio a persone reali e non si può annullare. " +
-        "Ogni genitore riceve un link per completare le scelte su foto e social.",
-    );
-    if (!confirmed) return;
-
     setBusy("consentCompletionSend");
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
 
@@ -1759,7 +1732,9 @@ export function AdminEventDetailPage() {
         expectedDigest: consentCompletion.digest,
       });
 
+      if (eventContextRef.current !== startedFor) return;
       if (!result.dryRun) {
+        if (run === confirmRunRef.current) showConfirm(null);
         setConsentCompletionOutcome(result);
         setConsentCompletion(null);
         setActionInfo(
@@ -1779,74 +1754,47 @@ export function AdminEventDetailPage() {
         "code" in caughtError &&
         (caughtError as { code?: unknown }).code ===
           "functions/failed-precondition";
+      // L'elenco è cambiato: il foglio non vale più (si chiude da solo) e lo
+      // si dice nella pagina, dove si rifà il controllo.
+      if (eventContextRef.current !== startedFor) return;
       if (isStaleList) {
         setConsentCompletion(null);
+        if (run === confirmRunRef.current) showConfirm(null);
+        setActionError(ADMIN.completamentoElencoCambiato);
+      } else if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreCompletamento));
       }
-      setActionError(
-        isStaleList
-          ? "L'elenco dei destinatari è cambiato dopo il controllo. Nessuna email è stata inviata: rifai il controllo e verifica l'elenco."
-          : caughtError instanceof Error
-            ? caughtError.message
-            : "Impossibile inviare le email ai genitori.",
-      );
     } finally {
       setBusy(null);
-    }
-  }
-
-  async function handleSetConsentTaskDone(task: ConsentTask, done: boolean) {
-    const adminUid = session?.firebaseUser.uid;
-    if (!adminUid) return;
-
-    setBusy("consentTask");
-    setBusyConsentTaskId(task.id);
-    setConsentTasksError(null);
-
-    try {
-      await consentTasksService.setTaskDone(
-        stakeId,
-        resolvedEventId,
-        task.id,
-        done,
-        adminUid,
-      );
-      setConsentTasksRefreshKey((current) => current + 1);
-    } catch (caughtError) {
-      console.error("Aggiornamento compito consenso non riuscito", caughtError);
-      setConsentTasksError("Non sono riuscito ad aggiornare il compito. Riprova tra poco.");
-    } finally {
-      setBusy(null);
-      setBusyConsentTaskId(null);
     }
   }
 
   async function handleAdminDeleteRegistration(registration: Registration) {
-    const confirmed = window.confirm(
-      `Eliminare definitivamente l'iscrizione di ${registration.fullName}?\n\n` +
-        "L'iscrizione verrà rimossa dal database. Eventuali firme/PDF/documenti " +
-        "associati su Storage NON vengono eliminati automaticamente (vanno rimossi a mano se serve).\n\n" +
-        "Azione irreversibile.",
-    );
-    if (!confirmed) return;
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("deleteRegistration");
     setBusyRegistrationId(registration.id);
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
     try {
-      await registrationsService.adminDeleteRegistration(
-        stakeId,
-        resolvedEventId,
-        registration.id,
+      await withWriteTimeout(
+        registrationsService.adminDeleteRegistration(
+          stakeId,
+          resolvedEventId,
+          registration.id,
+        ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(`Iscrizione di ${registration.fullName} eliminata.`);
-      closeRegistrationModal();
+      if (run === confirmRunRef.current) showConfirm(null);
+      // Il modale di quell'iscrizione, se è ancora aperto, non ha più niente da mostrare.
+      setRegistrationModalId((current) => (current === registration.id ? null : current));
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare l'iscrizione.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaIscrizione));
+      }
     } finally {
       setBusy(null);
       setBusyRegistrationId(null);
@@ -1854,61 +1802,108 @@ export function AdminEventDetailPage() {
   }
 
   async function handleAdminCancelRegistration(registration: Registration) {
-    const confirmed = window.confirm(
-      `Annullare l'iscrizione di ${registration.fullName}?\n\n` +
-        "L'iscrizione resta nel database con stato 'cancelled'. Puoi riattivarla " +
-        "in qualsiasi momento dalla stessa scheda.",
-    );
-    if (!confirmed) return;
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("cancelRegistration");
     setBusyRegistrationId(registration.id);
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
     try {
-      await registrationsService.adminSetRegistrationStatus(
-        stakeId,
-        resolvedEventId,
-        registration.id,
-        "cancelled",
+      await withWriteTimeout(
+        registrationsService.adminSetRegistrationStatus(
+          stakeId,
+          resolvedEventId,
+          registration.id,
+          "cancelled",
+        ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(`Iscrizione di ${registration.fullName} annullata.`);
+      if (run === confirmRunRef.current) showConfirm(null);
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile annullare l'iscrizione.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreAnnulla));
+      }
     } finally {
       setBusy(null);
       setBusyRegistrationId(null);
     }
   }
 
+  // Riattiva con la regola del titolare (planAdminReactivate): chi ha meno di
+  // 18 anni in un'attività con autorizzazione torna in attesa del genitore.
+  // Se parte una mail (o si riapre un rifiuto) prima un foglio di conferma.
+  function requestReactivateRegistration(registration: Registration) {
+    // Senza rete la riattivazione resterebbe in coda e potrebbe partire più
+    // tardi con la mail al genitore: si dice subito, come nei fogli.
+    if (isOffline()) {
+      setActionInfo(null);
+      setActionError(ISCRITTI.erroreRete);
+      return;
+    }
+    const plan = planAdminReactivate(registration, resolvedEvent.requiresParentAuthorization === true);
+    if (plan.sendsMail) {
+      showConfirm({ kind: "reactivateRegistration", registrationId: registration.id });
+      return;
+    }
+    void handleAdminReactivateRegistration(registration);
+  }
+
   async function handleAdminReactivateRegistration(registration: Registration) {
+    const run = confirmRunRef.current;
+    if (isOffline()) {
+      setConfirmError(ISCRITTI.erroreRete);
+      return;
+    }
+    const startedFor = eventContextRef.current;
+    const plan = planAdminReactivate(registration, resolvedEvent.requiresParentAuthorization === true);
     setBusy("reactivateRegistration");
     setBusyRegistrationId(registration.id);
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
     try {
-      await registrationsService.adminSetRegistrationStatus(
-        stakeId,
-        resolvedEventId,
-        registration.id,
-        "active",
+      await withWriteTimeout(
+        registrationsService.adminSetRegistrationStatus(
+          stakeId,
+          resolvedEventId,
+          registration.id,
+          plan.status,
+        ),
       );
-      setActionInfo(`Iscrizione di ${registration.fullName} riattivata.`);
+      if (eventContextRef.current !== startedFor) return;
+      setActionInfo(
+        plan.status === "active"
+          ? `Iscrizione di ${registration.fullName} riattivata.`
+          : [
+              fillCopy(ISCRITTI.riattivataInAttesa, { nome: registration.fullName }),
+              plan.sendsMail ? ISCRITTI.mailInPartenza : "",
+            ]
+              .filter(Boolean)
+              .join(" "),
+      );
+      if (run === confirmRunRef.current) showConfirm(null);
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile riattivare l'iscrizione.",
-      );
+      if (eventContextRef.current !== startedFor) return;
+      const message = getAdminActionError(caughtError, ISCRITTI.erroreRiattiva);
+      if (plan.sendsMail && run === confirmRunRef.current) {
+        setConfirmError(message);
+      } else {
+        setActionError(message);
+      }
     } finally {
       setBusy(null);
       setBusyRegistrationId(null);
     }
+  }
+
+  function openAddManualSheet() {
+    setActionError(null);
+    setActionInfo(null);
+    setAddManualOpen(true);
   }
 
   function openExcelExportModal() {
@@ -1937,9 +1932,7 @@ export function AdminEventDetailPage() {
       setExcelExportModalOpen(false);
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile esportare l'Excel.",
+        getAdminActionError(caughtError, ADMIN.erroreExcel),
       );
     } finally {
       setDownloadingExcel(false);
@@ -1965,11 +1958,7 @@ export function AdminEventDetailPage() {
         `Elenco GU/GD esportato con ${youthRegistrations.length} iscritti attivi.`,
       );
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile esportare l'Excel.",
-      );
+      setActionError(getAdminActionError(caughtError, ADMIN.erroreExcel));
     } finally {
       setDownloadingExcel(false);
     }
@@ -2008,6 +1997,170 @@ export function AdminEventDetailPage() {
     }
   }
 
+  // Il foglio di conferma aperto, con l'oggetto ancora presente: se è
+  // sparito (riletto dal server, cancellato altrove) il foglio non compare.
+  const confirmView = ((): null | {
+    title: string;
+    body: string;
+    cancelLabel: string;
+    confirmLabel: string;
+    busyLabel: string;
+    busy: boolean;
+    onConfirm: () => void;
+  } => {
+    if (!confirmSheet) return null;
+    // Un'altra azione in corso: il foglio aspetta, non ne parte una seconda.
+    const guard = (action: () => Promise<void>) => () => {
+      if (busy === null) void action();
+    };
+
+    switch (confirmSheet.kind) {
+      case "removePatrol": {
+        const patrol = campDraft.patrols.find(
+          (entry) => entry.id === confirmSheet.patrolId,
+        );
+        if (!patrol) return null;
+        return {
+          title: fillCopy(ADMIN.eliminaPattugliaTitolo, { nome: patrol.name }),
+          body: campDraftDirty
+            ? ADMIN.eliminaPattugliaCorpoBozza
+            : ADMIN.eliminaPattugliaCorpo,
+          cancelLabel: ADMIN.tieniPattuglia,
+          confirmLabel: ADMIN.confermaEliminaPattuglia,
+          busyLabel: ADMIN.salvataggio,
+          busy: busy === "saveCampManagement",
+          onConfirm: guard(() => handleRemovePatrolAndSave(patrol.id)),
+        };
+      }
+      case "deleteQuestion": {
+        const question = sortedQuestions.find(
+          (entry) => entry.id === confirmSheet.questionId,
+        );
+        if (!question) return null;
+        return {
+          title: ADMIN.eliminaDomandaTitolo,
+          body: ADMIN.eliminaDomandaCorpo,
+          cancelLabel: ADMIN.tieniDomanda,
+          confirmLabel: ADMIN.confermaEliminaDomanda,
+          busyLabel: ADMIN.eliminazione,
+          busy: busy === "deleteQuestion",
+          onConfirm: guard(() => handleDeleteQuestion(question)),
+        };
+      }
+      case "deleteActivity":
+        return {
+          title: fillCopy(ADMIN.eliminaAttivitaTitolo, {
+            attivita: resolvedEvent.title,
+          }),
+          body: ADMIN.eliminaAttivitaCorpo,
+          cancelLabel: ADMIN.tieniAttivita,
+          confirmLabel: ADMIN.confermaEliminaAttivita,
+          busyLabel: ADMIN.eliminazione,
+          busy: busy === "delete",
+          onConfirm: guard(handleDelete),
+        };
+      case "legacyApprovals":
+        return {
+          title: ADMIN.moduliVecchioMetodoTitolo,
+          body: ADMIN.moduliVecchioMetodoCorpo,
+          cancelLabel: ADMIN.nonOra,
+          confirmLabel: ADMIN.confermaModuliVecchioMetodo,
+          busyLabel: ADMIN.generazione,
+          busy: busy === "backfillLegacyApprovals",
+          onConfirm: guard(handleBackfillLegacyApprovals),
+        };
+      case "consentCompletion": {
+        // Il foglio vale per l'elenco controllato: rifatto il controllo, si chiude.
+        if (
+          !consentCompletion ||
+          consentCompletion.digest !== confirmSheet.digest ||
+          consentCompletion.total !== confirmSheet.total
+        ) {
+          return null;
+        }
+        const total = confirmSheet.total;
+        const n = String(total);
+        return {
+          title:
+            total === 1
+              ? ADMIN.completamentoTitoloUno
+              : fillCopy(ADMIN.completamentoTitoloPiu, { n }),
+          body: ADMIN.completamentoCorpo,
+          cancelLabel: ADMIN.nonInviare,
+          confirmLabel:
+            total === 1
+              ? ADMIN.confermaCompletamentoUno
+              : fillCopy(ADMIN.confermaCompletamentoPiu, { n }),
+          busyLabel: ADMIN.invio,
+          busy: busy === "consentCompletionSend",
+          onConfirm: guard(handleSendConsentCompletion),
+        };
+      }
+      case "cancelRegistration": {
+        const registration = sortedRegistrations.find(
+          (entry) => entry.id === confirmSheet.registrationId,
+        );
+        if (!registration || registration.registrationStatus === "cancelled") {
+          return null;
+        }
+        return {
+          title: fillCopy(ADMIN.annullaIscrizioneTitolo, {
+            nome: getRegistrationDisplayName(registration),
+          }),
+          body: fillCopy(ADMIN.annullaIscrizioneCorpo, {
+            attivita: resolvedEvent.title,
+          }),
+          cancelLabel: ADMIN.tieniIscrizione,
+          confirmLabel: ADMIN.confermaAnnulla,
+          busyLabel: ADMIN.annullamento,
+          busy:
+            busy === "cancelRegistration" &&
+            busyRegistrationId === registration.id,
+          onConfirm: guard(() => handleAdminCancelRegistration(registration)),
+        };
+      }
+      case "reactivateRegistration": {
+        const registration = sortedRegistrations.find(
+          (entry) => entry.id === confirmSheet.registrationId,
+        );
+        if (!registration || registration.registrationStatus !== "cancelled") return null;
+        const plan = planAdminReactivate(registration, resolvedEvent.requiresParentAuthorization === true);
+        return {
+          title: fillCopy(ISCRITTI.riattivaTitolo, {
+            nome: getRegistrationDisplayName(registration),
+          }),
+          body: plan.reopensRejection ? ISCRITTI.riattivaCorpoRifiuto : ISCRITTI.riattivaCorpoMail,
+          cancelLabel: ISCRITTI.tieniAnnullata,
+          confirmLabel: ISCRITTI.confermaRiattiva,
+          busyLabel: ISCRITTI.riattivazione,
+          busy:
+            busy === "reactivateRegistration" &&
+            busyRegistrationId === registration.id,
+          onConfirm: guard(() => handleAdminReactivateRegistration(registration)),
+        };
+      }
+      case "deleteRegistration": {
+        const registration = sortedRegistrations.find(
+          (entry) => entry.id === confirmSheet.registrationId,
+        );
+        if (!registration) return null;
+        return {
+          title: fillCopy(ADMIN.eliminaIscrizioneTitolo, {
+            nome: getRegistrationDisplayName(registration),
+          }),
+          body: ADMIN.eliminaIscrizioneCorpo,
+          cancelLabel: ADMIN.tieniIscrizione,
+          confirmLabel: ADMIN.confermaEliminaIscrizione,
+          busyLabel: ADMIN.eliminazione,
+          busy:
+            busy === "deleteRegistration" &&
+            busyRegistrationId === registration.id,
+          onConfirm: guard(() => handleAdminDeleteRegistration(registration)),
+        };
+      }
+    }
+  })();
+
   return (
     <div className={`page page--activity-ios page--admin-activity-detail${activeTab === "overnight" ? " page--room-planner" : ""}${activeTab === "records" ? " page--rna-wide" : ""}`}>
       {error ? (
@@ -2019,7 +2172,7 @@ export function AdminEventDetailPage() {
         </div>
       ) : null}
 
-      {actionInfo ? (
+      {actionInfo && !pageModalOpen ? (
         <div className="notice notice--info">
           <div>
             <h3>Informazione</h3>
@@ -2043,7 +2196,7 @@ export function AdminEventDetailPage() {
         </div>
       ) : null}
 
-      {actionError ? (
+      {actionError && !pageModalOpen ? (
         <div className="notice notice--warning">
           <div>
             <h3>Azione non completata</h3>
@@ -2132,7 +2285,7 @@ export function AdminEventDetailPage() {
             aria-label="Cancella attività"
             className="activity-ios-action activity-ios-action--danger"
             disabled={busy !== null}
-            onClick={() => void handleDelete()}
+            onClick={() => showConfirm({ kind: "deleteActivity" })}
             title="Cancella"
             type="button"
           >
@@ -2560,7 +2713,7 @@ export function AdminEventDetailPage() {
                   <button
                     className="camp-ios-card camp-ios-card--committee"
                     key={committee.id}
-                    onClick={() => setSelectedCampCommitteeId(committee.id)}
+                    onClick={() => openCampCommittee(committee.id)}
                     type="button"
                   >
                     <span className="camp-ios-card__icon" aria-hidden="true">
@@ -2636,7 +2789,7 @@ export function AdminEventDetailPage() {
                     <button
                       className="camp-ios-card camp-ios-card--patrol"
                       key={patrol.id}
-                      onClick={() => setSelectedCampPatrolId(patrol.id)}
+                      onClick={() => openCampPatrol(patrol.id)}
                       type="button"
                     >
                       <span className="camp-ios-card__icon" aria-hidden="true">
@@ -2672,271 +2825,26 @@ export function AdminEventDetailPage() {
       ) : null}
 
       {activeTab === "registrations" ? (
-        <section className="admin-detail-stack">
-          {canReadConsentTasks &&
-          (consentTasks.length > 0 || consentTasksError || consentTasksLoadError) ? (
-            <article className="consent-tasks">
-              <div className="consent-tasks__head">
-                <h3>Da controllare</h3>
-                <small>
-                  {consentTasksTodo.length > 0
-                    ? `${consentTasksTodo.length} da fare`
-                    : "Niente da fare"}
-                </small>
-              </div>
-              {consentTasksError || consentTasksLoadError ? (
-                <p className="form-error" role="alert">
-                  {consentTasksError ??
-                    "Non sono riuscito a caricare i compiti sui consensi."}
-                </p>
-              ) : null}
-              {consentTasksTodo.map((task) => (
-                <div className="consent-task" key={task.id}>
-                  <div>
-                    <p>{task.title}</p>
-                    <small>{formatDateTime(task.createdAt)}</small>
-                  </div>
-                  <button
-                    className="button button--primary button--small"
-                    disabled={busy !== null}
-                    onClick={() => void handleSetConsentTaskDone(task, true)}
-                    type="button"
-                  >
-                    {busyConsentTaskId === task.id ? "Salvo..." : "Fatto"}
-                  </button>
-                </div>
-              ))}
-              {consentTasksDone.length > 0 ? (
-                <details className="consent-tasks__done">
-                  <summary>Completati ({consentTasksDone.length})</summary>
-                  <div className="consent-tasks__done-list">
-                    {consentTasksDone.map((task) => (
-                      <div className="consent-task consent-task--done" key={task.id}>
-                        <div>
-                          <p>{task.title}</p>
-                          {task.doneAt ? (
-                            <small>Fatto il {formatDateTime(task.doneAt)}</small>
-                          ) : null}
-                        </div>
-                        <button
-                          className="button button--ghost button--small"
-                          disabled={busy !== null}
-                          onClick={() => void handleSetConsentTaskDone(task, false)}
-                          type="button"
-                        >
-                          {busyConsentTaskId === task.id
-                            ? "Salvo..."
-                            : "Torna da fare"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              ) : null}
-            </article>
-          ) : null}
-
-          <div className="admin-inline-metrics admin-inline-metrics--three">
-            <article className="admin-inline-metric">
-              <strong>{currentCount}</strong>
-              <span>Attivi</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{waitlistCount}</strong>
-              <span>Attesa</span>
-            </article>
-            <article className="admin-inline-metric">
-              <strong>{cancelledCount}</strong>
-              <span>Annullati</span>
-            </article>
-          </div>
-
-          {sortedRegistrations.length === 0 ? (
-            <EmptyState
-              title="Nessun iscritto"
-              description="Le registrazioni compariranno qui come elenco rapido."
-            />
-          ) : (
-            <article className="surface-panel surface-panel--subtle admin-roster">
-              <div className="section-head admin-roster__head">
-                <div>
-                  <h3>Elenco iscritti</h3>
-                  <p>
-                    Tocca una riga per aprire tutti i dettagli della
-                    registrazione.
-                  </p>
-                </div>
-                <div className="admin-section-actions">
-                  <button
-                    className="button button--secondary button--small"
-                    disabled={downloadingExcel || loading}
-                    onClick={() => void handleDownloadYouthRegistrantsExcel()}
-                    type="button"
-                  >
-                    <AppIcon name="download" />
-                    <span>
-                      {downloadingExcel ? "Preparazione..." : "Elenco GU/GD"}
-                    </span>
-                  </button>
-                  <button
-                    className="button button--ghost button--small"
-                    disabled={downloadingExcel || loading}
-                    onClick={openExcelExportModal}
-                    type="button"
-                  >
-                    <AppIcon name="download" />
-                    <span>
-                      {downloadingExcel ? "Preparazione..." : "Scarica Excel"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className="admin-filter-bar"
-                aria-label="Filtri iscritti"
-                role="group"
-              >
-                {registrationCategoryFilterOptions.map((option) => {
-                  const active = activeRegistrationFilters.includes(
-                    option.value,
-                  );
-
-                  return (
-                    <button
-                      key={option.value}
-                      aria-pressed={active}
-                      className={
-                        active
-                          ? "admin-filter-toggle admin-filter-toggle--active"
-                          : "admin-filter-toggle"
-                      }
-                      onClick={() => toggleRegistrationFilter(option.value)}
-                      type="button"
-                    >
-                      <span
-                        className="admin-filter-toggle__box"
-                        aria-hidden="true"
-                      >
-                        {active ? <AppIcon name="check" /> : null}
-                      </span>
-                      <span className="admin-filter-toggle__label">
-                        {option.label}
-                      </span>
-                      <small>{registrationFilterCounts[option.value]}</small>
-                    </button>
-                  );
-                })}
-
-                <button
-                  aria-pressed={onlyPhotoToAsk}
-                  className={
-                    onlyPhotoToAsk
-                      ? "admin-filter-toggle admin-filter-toggle--active"
-                      : "admin-filter-toggle"
-                  }
-                  onClick={() => setOnlyPhotoToAsk((current) => !current)}
-                  type="button"
-                >
-                  <span
-                    className="admin-filter-toggle__box"
-                    aria-hidden="true"
-                  >
-                    {onlyPhotoToAsk ? <AppIcon name="check" /> : null}
-                  </span>
-                  <span className="admin-filter-toggle__label">
-                    Foto: da chiedere
-                  </span>
-                  <small>{photoToAskCount}</small>
-                </button>
-
-                <label className="admin-filter-select">
-                  <span>Unità</span>
-                  <select
-                    className="input"
-                    value={selectedUnitFilter}
-                    onChange={(eventInput) =>
-                      setSelectedUnitFilter(eventInput.target.value)
-                    }
-                  >
-                    <option value="all">Tutte le unità</option>
-                    {registrationUnitOptions.map((unitOption) => (
-                      <option key={unitOption} value={unitOption}>
-                        {unitOption}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="admin-filter-select admin-filter-select--search">
-                  <span>Cerca</span>
-                  <input
-                    className="input"
-                    type="search"
-                    placeholder="Nome, cognome o email"
-                    value={nameSearch}
-                    onChange={(eventInput) =>
-                      setNameSearch(eventInput.target.value)
-                    }
-                  />
-                </label>
-              </div>
-
-              {filteredRegistrations.length === 0 ? (
-                <EmptyState
-                  title="Nessun iscritto con questi filtri"
-                  description="Attiva almeno una categoria o cambia selezione."
-                />
-              ) : (
-                <div className="admin-roster__list" role="list">
-                  {filteredRegistrations.map((registration) => {
-                    const days = registration.participatingDays ?? [];
-                    const supportsDays =
-                      resolvedEvent.activityType === "overnight" ||
-                      resolvedEvent.activityType === "camp" ||
-                      resolvedEvent.activityType === "multi_day" ||
-                      resolvedEvent.activityType === "trip";
-                    const showDays = supportsDays && days.length > 0;
-                    return (
-                      <button
-                        key={registration.id}
-                        className="admin-roster-row"
-                        onClick={() =>
-                          openRegistrationModal(registration.id, "registration")
-                        }
-                        type="button"
-                      >
-                        <strong>
-                          {getRegistrationDisplayName(registration)}
-                        </strong>
-                        <span className="admin-roster-row__type">
-                          {getCategoryShortLabel(registration)}
-                        </span>
-                        {showDays ? (
-                          <small className="admin-roster-row__days">
-                            Giorni:{" "}
-                            {days
-                              .map((day) =>
-                                new Date(day).toLocaleDateString("it-IT", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                }),
-                              )
-                              .join(", ")}
-                          </small>
-                        ) : null}
-                        <PhotoConsentPills
-                          className="admin-roster-row__consent"
-                          registration={registration}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-          )}
-        </section>
+        <RegistrationsTab
+          activityType={resolvedEvent.activityType}
+          canReadConsentTasks={session?.isAdmin === true}
+          currentCount={currentCount}
+          downloadingExcel={downloadingExcel}
+          filters={registrationFilters}
+          onFiltersChange={setRegistrationFilters}
+          eventId={resolvedEventId}
+          loading={loading}
+          onAddManual={session?.isAdmin ? openAddManualSheet : undefined}
+          onDownloadYouthExcel={() => void handleDownloadYouthRegistrantsExcel()}
+          onOpenExcelExport={openExcelExportModal}
+          onOpenRegistration={(registrationId) =>
+            openRegistrationModal(registrationId, "registration")
+          }
+          pageBusy={busy !== null}
+          sessionUid={session?.firebaseUser.uid ?? null}
+          sortedRegistrations={sortedRegistrations}
+          stakeId={stakeId}
+        />
       ) : null}
 
       {activeTab === "consents" ? (
@@ -3068,7 +2976,13 @@ export function AdminEventDetailPage() {
                       <button
                         className="button button--primary button--small"
                         disabled={busy !== null}
-                        onClick={() => void handleSendConsentCompletion()}
+                        onClick={() =>
+                          showConfirm({
+                            kind: "consentCompletion",
+                            digest: consentCompletion.digest,
+                            total: consentCompletion.total,
+                          })
+                        }
                         type="button"
                       >
                         <AppIcon name="mail" />
@@ -3134,7 +3048,7 @@ export function AdminEventDetailPage() {
                       loading ||
                       legacyApprovedWithoutPdfCount === 0
                     }
-                    onClick={() => void handleBackfillLegacyApprovals()}
+                    onClick={() => showConfirm({ kind: "legacyApprovals" })}
                     type="button"
                   >
                     <AppIcon name="refresh" />
@@ -3560,7 +3474,10 @@ export function AdminEventDetailPage() {
                             className="button button--ghost button--small button--danger"
                             disabled={busy !== null}
                             onClick={() =>
-                              void handleAdminDeleteRegistration(registration)
+                              showConfirm({
+                                kind: "deleteRegistration",
+                                registrationId: registration.id,
+                              })
                             }
                             type="button"
                           >
@@ -3706,7 +3623,12 @@ export function AdminEventDetailPage() {
                         </button>
                         <button
                           className="button button--ghost button--small"
-                          onClick={() => void handleDeleteQuestion(question)}
+                          onClick={() =>
+                            showConfirm({
+                              kind: "deleteQuestion",
+                              questionId: question.id,
+                            })
+                          }
                           type="button"
                         >
                           <AppIcon name="trash" />
@@ -3850,12 +3772,13 @@ export function AdminEventDetailPage() {
           title={`${selectedCampCommittee.emoji} ${selectedCampCommittee.title}`}
           subtitle="Dirigenti e giovani assegnati al comitato"
           size="wide"
-          onClose={() => setSelectedCampCommitteeId(null)}
+          onClose={closeCampModal}
           footer={
             <>
+              <ModalFeedback error={actionError} />
               <button
                 className="button button--ghost"
-                onClick={() => setSelectedCampCommitteeId(null)}
+                onClick={closeCampModal}
                 type="button"
               >
                 {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
@@ -4044,12 +3967,13 @@ export function AdminEventDetailPage() {
           title={selectedCampPatrol.name}
           subtitle="Capo pattuglia, supervisori e membri"
           size="wide"
-          onClose={() => setSelectedCampPatrolId(null)}
+          onClose={closeCampModal}
           footer={
             <>
+              <ModalFeedback error={actionError} />
               <button
                 className="button button--ghost"
-                onClick={() => setSelectedCampPatrolId(null)}
+                onClick={closeCampModal}
                 type="button"
               >
                 {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
@@ -4058,7 +3982,10 @@ export function AdminEventDetailPage() {
                 className="button button--ghost button--danger"
                 disabled={busy === "saveCampManagement" || loading}
                 onClick={() =>
-                  void handleRemovePatrolAndSave(selectedCampPatrol.id)
+                  showConfirm({
+                    kind: "removePatrol",
+                    patrolId: selectedCampPatrol.id,
+                  })
                 }
                 type="button"
               >
@@ -4300,6 +4227,39 @@ export function AdminEventDetailPage() {
 
             <PhotoConsentPills registration={registrationModal} />
 
+            {isManualRegistration(registrationModal) ? (
+              <p className="subtle-text">
+                {modalCreatorName
+                  ? fillCopy(ISCRITTI.aggiuntaDa, {
+                      admin: modalCreatorName,
+                      data: formatDateOnly(registrationModal.createdAt),
+                    })
+                  : fillCopy(ISCRITTI.aggiuntaIl, {
+                      data: formatDateOnly(registrationModal.createdAt),
+                    })}
+              </p>
+            ) : null}
+
+            {session?.isAdmin && isMissingParentEmail(registrationModal) ? (
+              <div className="admin-outcome admin-outcome--warning">
+                <strong>{ISCRITTI.mancaEmailTitolo}</strong>{" "}
+                {ISCRITTI.mancaEmailCorpo}
+                <button
+                  className="button button--primary button--small"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setActionError(null);
+                    setActionInfo(null);
+                    setRequestAuthorizationId(registrationModal.id);
+                  }}
+                  type="button"
+                >
+                  <AppIcon name="mail" />
+                  <span>{ISCRITTI.chiediAutorizzazione}</span>
+                </button>
+              </div>
+            ) : null}
+
             {registrationModalHighlights.length > 0 ? (
               <div className="chip-row admin-chip-row">
                 {registrationModalHighlights.map((highlight) => (
@@ -4334,8 +4294,9 @@ export function AdminEventDetailPage() {
                 },
                 {
                   label: "Canale",
-                  value:
-                    registrationModal.submittedByMode === "anonymous"
+                  value: isManualRegistration(registrationModal)
+                    ? ISCRITTI.pillAMano
+                    : registrationModal.submittedByMode === "anonymous"
                       ? "Ospite"
                       : "Con account",
                 },
@@ -4419,13 +4380,26 @@ export function AdminEventDetailPage() {
             )}
 
             <div className="inline-actions" style={{ flexWrap: "wrap" }}>
+              {session?.isAdmin ? (
+                <button
+                  className="button button--ghost button--small"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setActionError(null);
+                    setActionInfo(null);
+                    setEditRegistrationId(registrationModal.id);
+                  }}
+                  type="button"
+                >
+                  <AppIcon name="pencil" />
+                  <span>{ISCRITTI.modificaDati}</span>
+                </button>
+              ) : null}
               {registrationModal.registrationStatus === "cancelled" ? (
                 <button
                   className="button button--soft button--small"
                   disabled={busy !== null}
-                  onClick={() =>
-                    void handleAdminReactivateRegistration(registrationModal)
-                  }
+                  onClick={() => requestReactivateRegistration(registrationModal)}
                   type="button"
                 >
                   <AppIcon name="check" />
@@ -4441,7 +4415,10 @@ export function AdminEventDetailPage() {
                   className="button button--soft button--small"
                   disabled={busy !== null}
                   onClick={() =>
-                    void handleAdminCancelRegistration(registrationModal)
+                    showConfirm({
+                      kind: "cancelRegistration",
+                      registrationId: registrationModal.id,
+                    })
                   }
                   type="button"
                 >
@@ -4458,7 +4435,10 @@ export function AdminEventDetailPage() {
                 className="button button--ghost button--small"
                 disabled={busy !== null}
                 onClick={() =>
-                  void handleAdminDeleteRegistration(registrationModal)
+                  showConfirm({
+                    kind: "deleteRegistration",
+                    registrationId: registrationModal.id,
+                  })
                 }
                 type="button"
               >
@@ -4475,6 +4455,7 @@ export function AdminEventDetailPage() {
               "Annulla" sposta l'iscrizione tra le cancellate (reversibile).
               "Elimina" rimuove definitivamente il documento (irreversibile).
             </p>
+            <ModalFeedback error={actionError} info={actionInfo} />
           </div>
         </AppModal>
       ) : null}
@@ -4498,10 +4479,80 @@ export function AdminEventDetailPage() {
         <RegistrationExcelExportModal
           totalRegistrations={activeRegistrations.length}
           busy={downloadingExcel}
+          error={actionError}
           onClose={() => {
-            if (!downloadingExcel) setExcelExportModalOpen(false);
+            if (downloadingExcel) return;
+            setActionError(null);
+            setExcelExportModalOpen(false);
           }}
           onConfirm={handleDownloadExcel}
+        />
+      ) : null}
+
+      {addManualOpen && session ? (
+        <AddManualRegistrationSheet
+          eventId={resolvedEventId}
+          onClose={() => setAddManualOpen(false)}
+          onCreated={(registrationId, info) => {
+            setAddManualOpen(false);
+            setRefreshKey((current) => current + 1);
+            openRegistrationModal(registrationId, "registration");
+            setActionInfo(info);
+          }}
+          onOpenRegistration={(registrationId) => {
+            setAddManualOpen(false);
+            openRegistrationModal(registrationId, "registration");
+          }}
+          registrations={sortedRegistrations}
+          requiresParentAuthorization={resolvedEvent.requiresParentAuthorization === true}
+          sessionUid={session.firebaseUser.uid}
+          stakeId={stakeId}
+        />
+      ) : null}
+
+      {editRegistration ? (
+        <EditRegistrationSheet
+          eventId={resolvedEventId}
+          key={editRegistration.id}
+          onClose={() => setEditRegistrationId(null)}
+          onSaved={(info) => {
+            setEditRegistrationId(null);
+            setActionInfo(info);
+            setRefreshKey((current) => current + 1);
+          }}
+          registration={editRegistration}
+          requiresParentAuthorization={resolvedEvent.requiresParentAuthorization === true}
+          stakeId={stakeId}
+        />
+      ) : null}
+
+      {requestAuthorizationRegistration ? (
+        <RequestAuthorizationSheet
+          eventId={resolvedEventId}
+          key={requestAuthorizationRegistration.id}
+          onClose={() => setRequestAuthorizationId(null)}
+          onSent={(info) => {
+            setRequestAuthorizationId(null);
+            setActionInfo(info);
+            setRefreshKey((current) => current + 1);
+          }}
+          registration={requestAuthorizationRegistration}
+          stakeId={stakeId}
+        />
+      ) : null}
+
+      {confirmView ? (
+        <ConfirmSheet
+          body={confirmView.body}
+          busy={confirmView.busy}
+          busyLabel={confirmView.busyLabel}
+          cancelLabel={confirmView.cancelLabel}
+          confirmLabel={confirmView.confirmLabel}
+          error={confirmError}
+          onCancel={() => showConfirm(null)}
+          onConfirm={confirmView.onConfirm}
+          title={confirmView.title}
+          tone="danger"
         />
       ) : null}
     </div>

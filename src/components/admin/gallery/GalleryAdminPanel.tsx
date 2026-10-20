@@ -1,4 +1,6 @@
 import {
+  useEffect,
+  useRef,
   useState,
   type Dispatch,
   type FormEvent,
@@ -9,11 +11,22 @@ import { GalleryGrid } from "@/components/admin/gallery/GalleryGrid";
 import { MediaActionSheet } from "@/components/admin/gallery/MediaActionSheet";
 import { useGalleryUploader } from "@/components/admin/gallery/useGalleryUploader";
 import { AppModal } from "@/components/AppModal";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { getDeleteMediaCopy } from "@/components/gallery/GalleryConfirmSheet";
+import { ADMIN } from "@/copy/admin";
+import { GALLERIA } from "@/copy/galleria";
+import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteMediaPath } from "@/services/firebase/galleryUploadService";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Gallery, GalleryMedia } from "@/types";
+import { getAdminActionError } from "@/utils/adminErrors";
+import { withWriteTimeout } from "@/utils/writeTimeout";
+
+// Foglio di conferma aperto: il media scelto (il foglio delle azioni resta
+// sotto) o la galleria intera (il modale Info resta sotto).
+type DeleteTarget = { kind: "media"; item: GalleryMedia } | { kind: "gallery" };
 
 interface GalleryAdminPanelProps {
   gallery: Gallery;
@@ -44,6 +57,36 @@ export function GalleryAdminPanel({
   const [editTitle, setEditTitle] = useState(gallery.title);
   const [editDescription, setEditDescription] = useState(gallery.description);
   const [savingInfo, setSavingInfo] = useState(false);
+
+  // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio chiuso
+  // nel frattempo non tocca quello aperto dopo.
+  const deleteRunRef = useRef(0);
+
+  function showDelete(target: DeleteTarget | null) {
+    deleteRunRef.current += 1;
+    setDeleteError(null);
+    setDeleteTarget(target);
+  }
+
+  // Altro account o altra galleria con il foglio aperto: si chiude, e l'esito
+  // di una richiesta partita prima non lo tocca.
+  useEffect(() => {
+    showDelete(null);
+  }, [uid, gallery.id]);
+  // Account e galleria di adesso (vuoto dopo l'uscita dalla pagina): un esito
+  // arrivato tardi non sostituisce un'altra galleria e non naviga via da una
+  // pagina che l'admin ha già lasciato.
+  const galleryContextKey = `${uid}|${gallery.id}`;
+  const galleryContextRef = useRef(galleryContextKey);
+  useEffect(() => {
+    galleryContextRef.current = galleryContextKey;
+    return () => {
+      galleryContextRef.current = "";
+    };
+  }, [galleryContextKey]);
 
   const uploader = useGalleryUploader({
     gallery,
@@ -93,27 +136,43 @@ export function GalleryAdminPanel({
   }
 
   async function handleDeleteMedia(item: GalleryMedia) {
-    if (!window.confirm("Eliminare questo media?")) return;
+    const run = deleteRunRef.current;
     setWorking(true);
-    try {
-      await galleriesService.deleteMedia(stakeId, gallery.id, item.id);
-      const targets = [
-        item.storagePath,
-        item.optimizedPath,
-        item.thumbnailPath,
-        item.posterPath,
-        item.originalPath,
-      ];
-      await Promise.all(
-        targets
+    setDeleteError(null);
+    const deletion = galleriesService.deleteMedia(stakeId, gallery.id, item.id);
+    // I file si tolgono quando il server ha confermato il documento, anche se
+    // la conferma arriva dopo il timeout del foglio.
+    const cleanup = deletion.then(() =>
+      Promise.all(
+        [
+          item.storagePath,
+          item.optimizedPath,
+          item.thumbnailPath,
+          item.posterPath,
+          item.originalPath,
+        ]
           .filter((path): path is string => Boolean(path))
           .map((path) => deleteMediaPath(path)),
-      );
+      ),
+    );
+    // Il rifiuto lo gestisce il catch qui sotto, tramite `deletion`.
+    cleanup.catch(() => undefined);
+    try {
+      await withWriteTimeout(deletion);
       setMedia((prev) => prev.filter((entry) => entry.id !== item.id));
+      // Il documento non c'è più: il foglio delle azioni su quel media si chiude.
+      setSelected((current) => (current?.id === item.id ? null : current));
+      if (run === deleteRunRef.current) {
+        showDelete(null);
+      }
+      await cleanup;
+      const startedFor = galleryContextKey;
       const refreshed = await galleriesService.getGallery(stakeId, gallery.id);
-      if (refreshed) setGallery(refreshed);
+      if (refreshed && galleryContextRef.current === startedFor) setGallery(refreshed);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Errore eliminazione.");
+      if (run === deleteRunRef.current) {
+        setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaMedia));
+      }
     } finally {
       setWorking(false);
     }
@@ -138,6 +197,8 @@ export function GalleryAdminPanel({
             }
           : prev,
       );
+    } catch (caughtError) {
+      setError(getAdminActionError(caughtError, ADMIN.erroreCover));
     } finally {
       setWorking(false);
     }
@@ -167,6 +228,8 @@ export function GalleryAdminPanel({
           return entry;
         }),
       );
+    } catch (caughtError) {
+      setError(getAdminActionError(caughtError, ADMIN.erroreSposta));
     } finally {
       setWorking(false);
     }
@@ -228,19 +291,24 @@ export function GalleryAdminPanel({
 
   async function handleDeleteGallery() {
     if (!onDeleted) return;
-    if (!window.confirm("Eliminare la galleria? L'azione non rimuove i file da Storage.")) {
-      return;
-    }
+    const run = deleteRunRef.current;
+    const startedFor = galleryContextKey;
     setWorking(true);
+    setDeleteError(null);
     try {
       const existingPosts = await feedService.findGalleryPosts(stakeId, gallery.id);
       for (const post of existingPosts) {
-        await feedService.deletePost(stakeId, post.id);
+        await withWriteTimeout(feedService.deletePost(stakeId, post.id));
       }
-      await galleriesService.deleteGallery(stakeId, gallery.id);
-      onDeleted();
+      await withWriteTimeout(galleriesService.deleteGallery(stakeId, gallery.id));
+      if (run === deleteRunRef.current) {
+        showDelete(null);
+      }
+      if (galleryContextRef.current === startedFor) onDeleted();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Errore eliminazione.");
+      if (run === deleteRunRef.current) {
+        setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaGalleria));
+      }
     } finally {
       setWorking(false);
     }
@@ -345,7 +413,7 @@ export function GalleryAdminPanel({
           onClose={() => setSelected(null)}
           onSetCover={() => void handleSetCover(selected)}
           onMove={(direction) => void handleMove(selected, direction)}
-          onDelete={() => void handleDeleteMedia(selected)}
+          onDelete={() => showDelete({ kind: "media", item: selected })}
         />
       ) : null}
 
@@ -404,7 +472,7 @@ export function GalleryAdminPanel({
                 <button
                   type="button"
                   className="button button--ghost button--danger"
-                  onClick={handleDeleteGallery}
+                  onClick={() => showDelete({ kind: "gallery" })}
                   disabled={savingInfo || working}
                 >
                   Elimina galleria
@@ -413,6 +481,35 @@ export function GalleryAdminPanel({
             ) : null}
           </form>
         </AppModal>
+      ) : null}
+
+      {deleteTarget?.kind === "media" &&
+      media.some((entry) => entry.id === deleteTarget.item.id) ? (
+        <ConfirmSheet
+          {...getDeleteMediaCopy(deleteTarget.item.type)}
+          body={GALLERIA.eliminaCorpo}
+          busy={working}
+          busyLabel={ADMIN.eliminazione}
+          error={deleteError}
+          onCancel={() => showDelete(null)}
+          onConfirm={() => void handleDeleteMedia(deleteTarget.item)}
+          tone="danger"
+        />
+      ) : null}
+
+      {deleteTarget?.kind === "gallery" && onDeleted ? (
+        <ConfirmSheet
+          body={ADMIN.eliminaGalleriaCorpo}
+          busy={working}
+          busyLabel={ADMIN.eliminazione}
+          cancelLabel={ADMIN.tieniGalleria}
+          confirmLabel={ADMIN.confermaEliminaGalleria}
+          error={deleteError}
+          onCancel={() => showDelete(null)}
+          onConfirm={() => void handleDeleteGallery()}
+          title={fillCopy(ADMIN.eliminaGalleriaTitolo, { titolo: gallery.title })}
+          tone="danger"
+        />
       ) : null}
     </div>
   );

@@ -5,6 +5,7 @@ import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AdminPushSettingsCard } from "@/components/AdminPushSettingsCard";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
+import { ModalFeedback } from "@/components/admin/ModalFeedback";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ADMIN } from "@/copy/admin";
@@ -22,11 +23,13 @@ import type {
   Unit,
   UserProfile,
 } from "@/types";
+import { getAdminActionError } from "@/utils/adminErrors";
 import { formatDateTime } from "@/utils/formatters";
 import {
   getVisibleStandardFieldDefinitions,
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
+import { withWriteTimeout } from "@/utils/writeTimeout";
 import { DEFAULT_STAKE_ID } from "@/config/app";
 
 interface SettingsActionCardProps {
@@ -147,29 +150,36 @@ function OrganizationMetaModal({
     youngWomenCounselorsText: organization.youngWomenCounselors.join(", "),
   });
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await onSave({
-      ...toSaveInput(organization),
-      stakeName: values.stakeName,
-      publicHomeTitle: values.publicHomeTitle,
-      publicHomeSubtitle: values.publicHomeSubtitle,
-      accountHelpText: values.accountHelpText,
-      codeRecoveryHelpText: values.codeRecoveryHelpText,
-      supportContact: values.supportContact,
-      guestRegistrationHint: values.guestRegistrationHint,
-      youngMenPresident: values.youngMenPresident,
-      youngMenCounselors: values.youngMenCounselorsText
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      youngWomenPresident: values.youngWomenPresident,
-      youngWomenCounselors: values.youngWomenCounselorsText
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    });
-    onClose();
+    setSaveError(null);
+    try {
+      await onSave({
+        ...toSaveInput(organization),
+        stakeName: values.stakeName,
+        publicHomeTitle: values.publicHomeTitle,
+        publicHomeSubtitle: values.publicHomeSubtitle,
+        accountHelpText: values.accountHelpText,
+        codeRecoveryHelpText: values.codeRecoveryHelpText,
+        supportContact: values.supportContact,
+        guestRegistrationHint: values.guestRegistrationHint,
+        youngMenPresident: values.youngMenPresident,
+        youngMenCounselors: values.youngMenCounselorsText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        youngWomenPresident: values.youngWomenPresident,
+        youngWomenCounselors: values.youngWomenCounselorsText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+      onClose();
+    } catch (caughtError) {
+      setSaveError(getAdminActionError(caughtError, ADMIN.erroreImpostazioni));
+    }
   }
 
   return (
@@ -326,6 +336,7 @@ function OrganizationMetaModal({
           />
         </label>
 
+        <ModalFeedback error={saveError} />
         <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Salvataggio..." : "Salva"}
         </button>
@@ -350,44 +361,73 @@ function UnitsModal({
     [] as Unit[],
   );
 
+  const [error, setError] = useState<string | null>(null);
+
   async function handleAdd() {
     if (!draft.trim()) {
       return;
     }
 
     setBusyId("new");
-    const savedUnit = await unitsService.createOrUpdateUnit(stakeId, { name: draft });
-    setDraft("");
-    setData((current) =>
-      [...current.filter((item) => item.id !== savedUnit.id), savedUnit].sort((left, right) =>
-        left.name.localeCompare(right.name, "it-IT"),
-      ),
-    );
-    setBusyId(null);
+    setError(null);
+    try {
+      const savedUnit = await withWriteTimeout(
+        unitsService.createOrUpdateUnit(stakeId, { name: draft }),
+      );
+      setDraft("");
+      setData((current) =>
+        [...current.filter((item) => item.id !== savedUnit.id), savedUnit].sort((left, right) =>
+          left.name.localeCompare(right.name, "it-IT"),
+        ),
+      );
+    } catch (caughtError) {
+      setError(getAdminActionError(caughtError, ADMIN.erroreUnita));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function handleSave(unit: Unit) {
     setBusyId(unit.id);
-    const updatedUnit = await unitsService.updateUnit(stakeId, unit.id, {
-      name: unit.name,
-      type: unit.type,
-      isActive: unit.isActive,
-    });
-    setData((current) =>
-      current.map((item) => (item.id === unit.id && updatedUnit ? updatedUnit : item)),
-    );
-    setBusyId(null);
+    setError(null);
+    try {
+      const updatedUnit = await withWriteTimeout(
+        unitsService.updateUnit(stakeId, unit.id, {
+          name: unit.name,
+          type: unit.type,
+          isActive: unit.isActive,
+        }),
+      );
+      setData((current) =>
+        current.map((item) => (item.id === unit.id && updatedUnit ? updatedUnit : item)),
+      );
+    } catch (caughtError) {
+      setError(getAdminActionError(caughtError, ADMIN.erroreUnita));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function handleDeactivate(unitId: string) {
     setBusyId(unitId);
-    await unitsService.deactivateUnit(stakeId, unitId);
-    setRefreshKey((current) => current + 1);
-    setBusyId(null);
+    setError(null);
+    try {
+      await withWriteTimeout(unitsService.deactivateUnit(stakeId, unitId));
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setError(getAdminActionError(caughtError, ADMIN.erroreRimuoviUnita));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
-    <AppModal title="Unità" subtitle="Aggiungi, modifica o rimuovi" onClose={onClose}>
+    <AppModal
+      title="Unità"
+      subtitle="Aggiungi, modifica o rimuovi"
+      onClose={onClose}
+      footer={error ? <ModalFeedback error={error} /> : undefined}
+    >
       <div className="form-stack form-stack--compact">
         <div className="inline-actions inline-actions--compact">
           <input
@@ -522,31 +562,38 @@ function StandardFieldsModal({
     }
   }
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSaveError(null);
 
-    await onSave({
-      ...toSaveInput(organization),
-      minorConsentExampleImageUrl,
-      minorConsentExampleImagePath,
-      registrationDefaults: {
-        allowGuestRegistration,
-        requireLoginForEdit,
-        enabledStandardFields: enabledFields,
-        fieldOverrides: fields.reduce<NonNullable<OrganizationProfile["registrationDefaults"]["fieldOverrides"]>>(
-          (accumulator, field) => {
-            accumulator[field.key] = {
-              label: field.label,
-              helpText: field.helpText,
-              options: field.options,
-            };
-            return accumulator;
-          },
-          {},
-        ),
-      },
-    });
-    onClose();
+    try {
+      await onSave({
+        ...toSaveInput(organization),
+        minorConsentExampleImageUrl,
+        minorConsentExampleImagePath,
+        registrationDefaults: {
+          allowGuestRegistration,
+          requireLoginForEdit,
+          enabledStandardFields: enabledFields,
+          fieldOverrides: fields.reduce<NonNullable<OrganizationProfile["registrationDefaults"]["fieldOverrides"]>>(
+            (accumulator, field) => {
+              accumulator[field.key] = {
+                label: field.label,
+                helpText: field.helpText,
+                options: field.options,
+              };
+              return accumulator;
+            },
+            {},
+          ),
+        },
+      });
+      onClose();
+    } catch (caughtError) {
+      setSaveError(getAdminActionError(caughtError, ADMIN.erroreImpostazioni));
+    }
   }
 
   return (
@@ -697,6 +744,7 @@ function StandardFieldsModal({
           })}
         </div>
 
+        <ModalFeedback error={saveError} />
         <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Salvataggio..." : "Salva"}
         </button>
@@ -719,17 +767,32 @@ function AssignAdminModal({
     [] as UserProfile[],
   );
 
+  const [error, setError] = useState<string | null>(null);
+
   async function handleAssignAdmin(userId: string) {
     setBusyId(userId);
-    const updatedProfile = await usersService.assignAdminRole(stakeId, userId);
-    setData((current) =>
-      current.map((item) => (item.id === userId && updatedProfile ? updatedProfile : item)),
-    );
-    setBusyId(null);
+    setError(null);
+    try {
+      const updatedProfile = await withWriteTimeout(
+        usersService.assignAdminRole(stakeId, userId),
+      );
+      setData((current) =>
+        current.map((item) => (item.id === userId && updatedProfile ? updatedProfile : item)),
+      );
+    } catch (caughtError) {
+      setError(getAdminActionError(caughtError, ADMIN.erroreAssegnaAdmin));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
-    <AppModal title="Assegna admin" subtitle="Solo utenti del tuo palo" onClose={onClose}>
+    <AppModal
+      title="Assegna admin"
+      subtitle="Solo utenti del tuo palo"
+      onClose={onClose}
+      footer={error ? <ModalFeedback error={error} /> : undefined}
+    >
       {loading ? (
         <p className="subtle-text">Sto caricando gli utenti...</p>
       ) : (
@@ -809,7 +872,9 @@ export function AdminSettingsPage() {
     setBusy(true);
 
     try {
-      await organizationService.saveProfile(stakeId, input);
+      // Senza rete la scrittura aspetterebbe il server per sempre, con il
+      // pulsante su "Salvataggio...": dopo il timeout l'errore va nel modale.
+      await withWriteTimeout(organizationService.saveProfile(stakeId, input));
       setRefreshKey((current) => current + 1);
     } finally {
       setBusy(false);

@@ -11,10 +11,9 @@ import ts from "typescript";
 // pannello e in alcune PWA non compare, e chi lo chiude senza leggere non lascia
 // traccia. Le conferme stanno dentro la pagina (ConfirmSheet, GalleryConfirmSheet).
 //
-// Restano dialoghi del browser solo nelle pagine admin, in attesa di una
-// decisione di Paolo. Sono in una allowlist con il NUMERO esatto di occorrenze
-// per file: un dialogo nuovo in admin fa diventare il test rosso, e uno tolto
-// obbliga ad abbassare il numero (così la lista non invecchia).
+// Dal 2026-10-20 nemmeno l'admin ne ha (task gugd-admin-dialoghi, scelta di
+// Paolo): l'allowlist è vuota. Resta il meccanismo con il NUMERO esatto di
+// occorrenze per file, se un giorno servisse un'eccezione: va chiesta a Paolo.
 //
 // La ricerca non è una regex sul testo ma una visita dell'albero del codice
 // (compilatore TypeScript del progetto): commenti, stringhe e testo JSX non
@@ -331,17 +330,12 @@ test("checkDialogs: un dialogo in meno obbliga ad abbassare il numero", () => {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "src");
 
-// Dialoghi del browser ancora ammessi: solo pagine admin, finché Paolo non
-// decide con cosa sostituirli. Numero ESATTO di occorrenze per file.
-// Aggiungere una riga o alzare un numero richiede il via libera di Paolo.
-const ADMIN_ALLOWLIST = {
-  "src/pages/admin/AdminEventDetailPage.tsx": 7,
-  "src/pages/admin/AdminFeedPage.tsx": 1,
-  "src/components/admin/gallery/GalleryAdminPanel.tsx": 2,
-  "src/components/SurveyEditor.tsx": 1,
-};
+// Dialoghi del browser ammessi: nessuno. Numero ESATTO di occorrenze per file;
+// aggiungere una riga richiede il via libera di Paolo.
+const ADMIN_ALLOWLIST = {};
 
-// Percorsi degli utenti, ripuliti dei dialoghi del browser (task gugd-finitura-famiglia).
+// File ripuliti dei dialoghi del browser: i percorsi degli utenti (task
+// gugd-finitura-famiglia) e l'admin (task gugd-admin-dialoghi).
 const USER_FILES = [
   "src/pages/me/MyActivityDetailPage.tsx",
   "src/pages/public/ParentConfirmPage.tsx",
@@ -352,6 +346,13 @@ const USER_FILES = [
   // I fogli che li sostituiscono.
   "src/components/ConfirmSheet.tsx",
   "src/components/gallery/GalleryConfirmSheet.tsx",
+  // Admin.
+  "src/pages/admin/AdminEventDetailPage.tsx",
+  "src/pages/admin/AdminFeedPage.tsx",
+  "src/pages/admin/AdminSettingsPage.tsx",
+  "src/components/admin/gallery/GalleryAdminPanel.tsx",
+  "src/components/admin/gallery/MediaActionSheet.tsx",
+  "src/components/SurveyEditor.tsx",
 ];
 
 function listSourceFiles(dir) {
@@ -388,8 +389,11 @@ test("la scansione vede davvero i file di src/", () => {
   for (const known of [...USER_FILES, ...Object.keys(ADMIN_ALLOWLIST)]) {
     assert.ok(names.includes(known), `${known} non è fra i file scansionati`);
   }
-  // E il cercatore, su un file vero, trova quello che c'è: l'allowlist non è vuota per caso.
-  assert.ok(dialogsByFile.size > 0, "nessun dialogo trovato: il cercatore o la scansione sono rotti");
+  // E il cercatore, su un file vero, trova quello che c'è: un sorgente di src/
+  // con un dialogo aggiunto in coda deve risultare.
+  const sample = path.join(SRC, "components", "ConfirmSheet.tsx");
+  const withDialog = `${readFileSync(sample, "utf8")}\nwindow.confirm("x");\n`;
+  assert.equal(findBrowserDialogs(withDialog, sample).length, 1, "il cercatore non vede un dialogo in un file vero");
 });
 
 test("in src/ i dialoghi del browser sono solo quelli dell'allowlist admin, in numero esatto", () => {
@@ -401,17 +405,9 @@ test("in src/ i dialoghi del browser sono solo quelli dell'allowlist admin, in n
   );
 });
 
-test("l'allowlist ammette soltanto i quattro file admin", () => {
-  assert.deepEqual(Object.keys(ADMIN_ALLOWLIST).sort(), [
-    "src/components/SurveyEditor.tsx",
-    "src/components/admin/gallery/GalleryAdminPanel.tsx",
-    "src/pages/admin/AdminEventDetailPage.tsx",
-    "src/pages/admin/AdminFeedPage.tsx",
-  ]);
-  for (const file of Object.keys(ADMIN_ALLOWLIST)) {
-    assert.ok(existsSync(path.join(ROOT, file)), `${file} non esiste più: toglilo dall'allowlist`);
-    assert.ok(Number.isInteger(ADMIN_ALLOWLIST[file]) && ADMIN_ALLOWLIST[file] > 0, file);
-  }
+test("l'allowlist è vuota: nessun dialogo del browser, nemmeno in admin", () => {
+  assert.deepEqual(ADMIN_ALLOWLIST, {});
+  assert.deepEqual(Object.fromEntries(linesByFile), {});
 });
 
 test("i percorsi degli utenti non hanno nessun dialogo del browser", () => {
@@ -426,28 +422,5 @@ test("i percorsi degli utenti non hanno nessun dialogo del browser", () => {
       [],
       `${file} ha un dialogo del browser: gli utenti vedono un foglio dentro la pagina (ConfirmSheet), mai un dialogo`,
     );
-  }
-});
-
-test("i componenti con un dialogo ammesso li importano solo file admin", () => {
-  // Un componente comune con un dialogo lo vedrebbero anche gli utenti: l'allowlist
-  // regge solo finché chi importa SurveyEditor e GalleryAdminPanel sta in admin.
-  const adminOnly = ["src/components/SurveyEditor.tsx", "src/components/admin/gallery/GalleryAdminPanel.tsx"];
-  const isAdminFile = (file) => file.startsWith("src/pages/admin/") || file.startsWith("src/components/admin/");
-
-  for (const component of adminOnly) {
-    const alias = "@/" + component.slice("src/".length).replace(/\.tsx$/u, "");
-    const pattern = new RegExp(`from\\s+["']${alias}["']`, "u");
-    const importers = files
-      .map(relativeToRoot)
-      .filter((file) => file !== component && pattern.test(readFileSync(path.join(ROOT, file), "utf8")));
-
-    assert.ok(importers.length > 0, `${component}: nessun file lo importa, controlla il percorso`);
-    for (const importer of importers) {
-      assert.ok(
-        isAdminFile(importer),
-        `${importer} importa ${component}, che ha un dialogo del browser ammesso solo in admin`,
-      );
-    }
   }
 });

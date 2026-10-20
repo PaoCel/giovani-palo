@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -606,18 +607,25 @@ export const galleriesService = {
     await updateDoc(mediaDoc(stakeId, galleryId, mediaId), allowed);
   },
 
+  // In transazione: il contatore scende solo se il media c'era ancora. Un
+  // "Elimina" ripetuto dopo il timeout del foglio (la prima richiesta ancora in
+  // volo) o da due schede non lo fa scendere due volte. Senza rete la
+  // transazione fallisce subito invece di restare in coda.
   async deleteMedia(
     stakeId: string,
     galleryId: string,
     mediaId: string,
   ): Promise<void> {
-    const batch = writeBatch(db);
-    batch.delete(mediaDoc(stakeId, galleryId, mediaId));
-    batch.update(galleryDoc(stakeId, galleryId), {
-      mediaCount: increment(-1),
-      updatedAt: nowIso(),
+    const mediaReference = mediaDoc(stakeId, galleryId, mediaId);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(mediaReference);
+      if (!snapshot.exists()) return;
+      transaction.delete(mediaReference);
+      transaction.update(galleryDoc(stakeId, galleryId), {
+        mediaCount: increment(-1),
+        updatedAt: nowIso(),
+      });
     });
-    await batch.commit();
   },
 
   serverTimestampToken: serverTimestamp,

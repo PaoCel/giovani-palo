@@ -50,6 +50,7 @@ const {
   BrevoError,
 } = require("./brevo");
 const { sanitizeSignaturePng } = require("./signatureImage");
+const { isAdultByAge } = require("./adultAge");
 const {
   CONSENT_TEXT_VERSION,
   validateConsentChoices,
@@ -764,6 +765,30 @@ async function recordEmailOutcome(db, registrationRef, tokenId, fields) {
   }
 }
 
+// Esito della copia firmata, scritto dopo la conferma: solo se l'iscrizione
+// porta ancora quella firma (stesso link, autorizzata). Un errore si registra
+// nei log: la firma è già valida e non si ripete.
+async function recordSignedCopyOutcome(db, registrationRef, tokenId, fields) {
+  try {
+    await db.runTransaction(async (tx) => {
+      const snapshot = await tx.get(registrationRef);
+      const state = snapshot.exists ? snapshot.data().parentAuthorization : null;
+      if (annotatedTokenId(state) !== tokenId || state.status !== "authorized") return;
+      const update = {};
+      for (const [key, value] of Object.entries(fields)) {
+        update[`parentAuthorization.${key}`] = value;
+      }
+      tx.update(registrationRef, update);
+    });
+  } catch (error) {
+    logger.error("Esito della copia firmata non registrato.", {
+      registrationPath: registrationRef.path,
+      tokenId,
+      detail: error.message,
+    });
+  }
+}
+
 // Emette il link e manda la mail. L'emissione è una transazione
 // sull'iscrizione: invalida tutti i link pendenti, crea il nuovo e lo annota.
 // Prima reinvio e trigger scrivevano `tokenId: null` e poi spedivano: quella
@@ -1056,6 +1081,25 @@ function isCancelledRegistration(registration) {
 }
 
 const ALREADY_AUTHORIZED_MESSAGE = "L'autorizzazione è già stata firmata.";
+const NOT_AWAITING_MESSAGE = "L'iscrizione non è in attesa dell'autorizzazione del genitore.";
+const NOT_NEEDED_MESSAGE =
+  "Per questa iscrizione l'autorizzazione del genitore non serve: ha 18 anni o più, o l'attività non la chiede.";
+
+// L'autorizzazione serve ancora: l'iscrizione è in attesa, oppure chi
+// partecipa ha meno di 18 anni in un'attività che la chiede (i minorenni
+// iscritti prima che l'attività la chiedesse). Il reinvio dell'admin non
+// emette link per un adulto: dopo una correzione della data di nascita il
+// genitore firmerebbe per lui.
+function parentAuthorizationStillNeeded(registration, activity) {
+  if (isAwaitingParentAuthorization(registration)) return true;
+  const birthDate = typeof registration?.birthDate === "string" ? registration.birthDate : "";
+  return (
+    activity?.requiresParentAuthorization === true &&
+    /^\d{4}-\d{2}-\d{2}$/u.test(birthDate) &&
+    !isAdultByAge(birthDate)
+  );
+}
+
 const ALREADY_REJECTED_MESSAGE = "Il genitore ha rifiutato l'autorizzazione.";
 const MISSING_PARENT_DATA_MESSAGE =
   "Mancano i dati del genitore: riapri il modulo di iscrizione e salvalo.";
@@ -1075,7 +1119,7 @@ function assertParentAuthorizationOpen(status) {
 // stessa transazione il link usato diventa "used" e ogni altro link pendente
 // dell'iscrizione si invalida: un reinvio partito durante la firma lasciava
 // valido il link nuovo, e la sua mail chiedeva una seconda firma.
-async function writeIfRegistrationActive(db, registrationRef, data, { token, usedAt }) {
+async function writeIfRegistrationActive(db, registrationRef, data, { token, usedAt, activity }) {
   await db.runTransaction(async (tx) => {
     const current = await tx.get(registrationRef);
     if (!current.exists) {
@@ -1083,6 +1127,20 @@ async function writeIfRegistrationActive(db, registrationRef, data, { token, use
     }
     if (isCancelledRegistration(current.data())) {
       throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
+    }
+    // Il link si rilegge qui: invalidato mentre la firma era in corso (un
+    // admin ha corretto la data di nascita e l'iscrizione non è più in
+    // attesa, o è partito un link nuovo), la firma non si scrive.
+    const tokenSnapshot = await tx.get(db.doc(`parentAuthorizationTokens/${token.hash}`));
+    const tokenStatus = deriveTokenStatus(tokenSnapshot.exists ? tokenSnapshot.data() : null);
+    if (tokenStatus !== "valid") {
+      throw new HttpsError("failed-precondition", `Token non utilizzabile (stato: ${tokenStatus}).`);
+    }
+    // E l'autorizzazione deve servire ancora: un'iscrizione diventata adulta
+    // (data corretta dall'admin, poi riattivata) non si firma, anche con un
+    // link rimasto valido.
+    if (!parentAuthorizationStillNeeded(current.data(), activity)) {
+      throw new HttpsError("failed-precondition", NOT_NEEDED_MESSAGE);
     }
     const pendenti = await readPendingTokens(tx, db, {
       stakeId: token.stakeId,
@@ -1193,6 +1251,61 @@ async function restartParentAuthorizationAfterCancellation({
   }
 }
 
+// Uscita da "in attesa" senza firma (un admin corregge la data di nascita e
+// la persona risulta adulta, o il modulo non chiede più l'autorizzazione):
+// i link pendenti smettono di valere. Prima la firma controllava solo che il
+// link fosse valido e l'iscrizione non annullata, e scriveva 'confirmed': il
+// genitore avrebbe firmato per un adulto; e al ritorno in attesa il trigger
+// vedeva il tokenId vecchio e non mandava nessun link nuovo
+// (docs/ADMIN_ISCRITTI.md, 2026-10-20). In transazione sul documento attuale:
+// una firma o un ritorno in attesa arrivati nel frattempo non si toccano.
+// Azzerare tokenId fa ripartire il trigger, che esce subito (non è in attesa).
+async function invalidateLinksAfterLeavingPending({ db, stakeId, activityId, registrationId }) {
+  const registrationRef = db.doc(
+    `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
+  );
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(registrationRef);
+    if (!snapshot.exists) return { skipped: true, reason: "missing" };
+    const registration = snapshot.data();
+    if (isAwaitingParentAuthorization(registration) || isCancelledRegistration(registration)) {
+      return { skipped: true, reason: "state" };
+    }
+    const state = registration.parentAuthorization;
+    if (state && typeof state === "object" && DECIDED_PARENT_AUTH_STATUSES.includes(state.status)) {
+      return { skipped: true, reason: "decided" };
+    }
+    const tokenId = annotatedTokenId(state);
+    const tokens = await readPendingTokens(tx, db, { stakeId, activityId, registrationId, tokenId });
+    if (tokens.length === 0 && !tokenId) return { skipped: true, reason: "no_tokens" };
+
+    await invalidateTokens(tx, db, tokens, { stakeId, activityId, registrationId, actorUserId: null });
+    if (tokenId) {
+      const timestamp = nowIso();
+      tx.update(registrationRef, {
+        "parentAuthorization.tokenId": null,
+        "parentAuthorization.updatedAt": timestamp,
+        updatedAt: timestamp,
+      });
+    }
+    return { skipped: false, invalidated: tokens.length };
+  });
+}
+
+// Ingresso in attesa che vale come richiesta nuova: da annullata, o da uno
+// stato che non è né l'attesa né un rifiuto del genitore (attiva dopo una
+// correzione della data di nascita). Dal rifiuto si esce solo annullando e
+// riattivando, con il foglio che lo dice all'admin: un rifiuto è una
+// decisione del genitore e non si riapre in silenzio.
+function entersPendingAsNewRequest(before) {
+  if (!before) return false;
+  if (isCancelledRegistration(before)) return true;
+  return (
+    !isAwaitingParentAuthorization(before) &&
+    before.registrationStatus !== "rejected_by_parent"
+  );
+}
+
 // Un invio fallito lascia status email_error, e ogni scrittura successiva
 // sul documento fa ripartire il trigger: senza tetto, un disservizio del
 // provider lo mette in rincorsa su se stesso (visto in emulatore il
@@ -1226,14 +1339,51 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
       return;
     }
 
+    const before = event.data?.before?.data();
+
     if (after.registrationStatus !== "pending_parent_authorization") {
+      // Uscita dall'attesa, o riattivazione diretta da annullata (i link di
+      // prima dell'annullamento restavano pendenti): senza firma, via i link.
+      if (
+        before &&
+        (isAwaitingParentAuthorization(before) || isCancelledRegistration(before)) &&
+        !isCancelledRegistration(after)
+      ) {
+        const { stakeId, activityId, registrationId } = event.params;
+        try {
+          const result = await invalidateLinksAfterLeavingPending({
+            db: getFirestore(),
+            stakeId,
+            activityId,
+            registrationId,
+          });
+          if (!result.skipped) {
+            logger.info("Link del genitore invalidati: iscrizione non più in attesa.", {
+              stakeId,
+              activityId,
+              registrationId,
+              invalidati: result.invalidated,
+            });
+          }
+        } catch (error) {
+          logger.error("Invalidazione dei link dopo l'uscita dall'attesa fallita.", {
+            stakeId,
+            activityId,
+            registrationId,
+            detail: error.message,
+          });
+        }
+      }
       return;
     }
 
     // Prima del tetto dei riprovi: la reiscrizione è un gesto della persona,
-    // non un riprovo automatico, e riparte da zero tentativi.
-    const before = event.data?.before?.data();
-    if (before && isCancelledRegistration(before)) {
+    // non un riprovo automatico, e riparte da zero tentativi. Vale per ogni
+    // ingresso in attesa da un altro stato (annullata, ma anche attiva dopo
+    // una correzione della data di nascita): un ritorno rapido in attesa,
+    // prima che l'uscita abbia invalidato i link, troverebbe il tokenId
+    // vecchio, magari scaduto, e non manderebbe niente.
+    if (entersPendingAsNewRequest(before)) {
       await restartParentAuthorizationAfterCancellation({
         db: getFirestore(),
         stakeId: event.params.stakeId,
@@ -1366,6 +1516,18 @@ function assertCanIssueOwnToken(registration, uid) {
 
   if (state?.status === "authorized") {
     throw new HttpsError("failed-precondition", ALREADY_AUTHORIZED_MESSAGE);
+  }
+  // Un rifiuto del genitore si riapre solo annullando e riattivando
+  // l'iscrizione, non con un link nuovo.
+  if (state?.status === "rejected_by_parent") {
+    throw new HttpsError("failed-precondition", ALREADY_REJECTED_MESSAGE);
+  }
+
+  // "Autorizza ora" solo per un'iscrizione in attesa, come mostra Famiglia:
+  // dopo una correzione che la rende attiva (18 anni o più) un link nuovo
+  // farebbe firmare un adulto (docs/ADMIN_ISCRITTI.md).
+  if (!isAwaitingParentAuthorization(registration)) {
+    throw new HttpsError("failed-precondition", NOT_AWAITING_MESSAGE);
   }
 
   const req = readParentAuthorizationRequest(registration);
@@ -1528,6 +1690,27 @@ const parentAuthorizationGetContext = onCall(
     }
 
     const status = deriveTokenStatus(token);
+
+    // Link invalidato (o ancora valido) per un'iscrizione che non è più in
+    // attesa e non ne ha bisogno (18 anni o più dopo una correzione): la
+    // pagina dice che non serve, non che c'è un link nuovo. Stato
+    // "invalidated" con un motivo, come per l'annullata: le PWA già
+    // installate conoscono solo quello.
+    if (status === "valid" || status === "invalidated") {
+      const current = await loadRegistration(db, token.stakeId, token.activityId, token.registrationId);
+      if (current && !isCancelledRegistration(current)) {
+        const activity = await loadActivity(db, token.stakeId, token.activityId);
+        if (activity && !parentAuthorizationStillNeeded(current, activity)) {
+          return {
+            status: "invalidated",
+            reason: "not_needed",
+            activityTitle: token.activityTitle || "",
+            participantName: token.participantName || "",
+            canSignInApp: canSignInApp(request, token),
+          };
+        }
+      }
+    }
 
     if (status !== "valid") {
       return {
@@ -1928,6 +2111,61 @@ const parentAuthorizationConfirm = onCall(
       // Non blocchiamo la conferma se PDF fallisce: l'audit log resta.
     }
 
+    // Aggiorna registration: status confirmed + sub-object completo
+    const registrationRef = db.doc(
+      `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
+    );
+
+    const newState = {
+      ...existingState,
+      status: "authorized",
+      tokenId: tokenHash,
+      authorizedAt: confirmedAt,
+      legalVersions: LEGAL_DOC_VERSIONS,
+      consents,
+      photoConsent,
+      socialPublicationConsent,
+      consentTextVersion: CONSENT_TEXT_VERSION,
+      consentUpdatedAt: confirmedAt,
+      signaturePath,
+      signatureUrl,
+      pdfPath,
+      pdfUrl,
+      conductPdfPath,
+      auditPdfPath,
+      signatureSource,
+      // Esito della copia per mail: dopo la transazione (sotto).
+      signedCopyEmailSentAt: null,
+      signedCopyEmailMessageId: null,
+      signedCopyEmailLastError: null,
+      ipAddress,
+      userAgent,
+      updatedAt: confirmedAt,
+    };
+
+    await writeIfRegistrationActive(
+      db,
+      registrationRef,
+      {
+        parentAuthorization: newState,
+        parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
+        parentConsentDocumentPath: pdfPath,
+        parentConsentDocumentUrl: null,
+        parentConsentUploadedAt: pdfPath ? confirmedAt : null,
+        consentSignaturePath: signaturePath,
+        consentSignatureUrl: null,
+        consentSignatureSetAt: confirmedAt,
+        registrationStatus: "confirmed",
+        updatedAt: confirmedAt,
+      },
+      { token, usedAt: confirmedAt, activity },
+    );
+
+    // Copia firmata e link per cambiare le scelte DOPO la transazione: se la
+    // firma viene rifiutata (link invalidato, iscrizione annullata o non più
+    // in attesa nei secondi della firma) il genitore non deve ricevere un
+    // "firmato" che non lo è. Il caso peggiore diventa "confermata senza
+    // copia", con signedCopyEmailSentAt null come traccia.
     // Link per cambiare le scelte su foto e social senza account: sta nella
     // copia firmata. Se non si riesce a crearlo la firma resta valida.
     let consentUrl = null;
@@ -1984,54 +2222,11 @@ const parentAuthorizationConfirm = onCall(
       }
     }
 
-    // Aggiorna registration: status confirmed + sub-object completo
-    const registrationRef = db.doc(
-      `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`,
-    );
-
-    const newState = {
-      ...existingState,
-      status: "authorized",
-      tokenId: tokenHash,
-      authorizedAt: confirmedAt,
-      legalVersions: LEGAL_DOC_VERSIONS,
-      consents,
-      photoConsent,
-      socialPublicationConsent,
-      consentTextVersion: CONSENT_TEXT_VERSION,
-      consentUpdatedAt: confirmedAt,
-      signaturePath,
-      signatureUrl,
-      pdfPath,
-      pdfUrl,
-      conductPdfPath,
-      auditPdfPath,
-      signatureSource,
+    await recordSignedCopyOutcome(db, registrationRef, tokenHash, {
       signedCopyEmailSentAt: copyEmailSentAt,
       signedCopyEmailMessageId: copyEmailMessageId,
       signedCopyEmailLastError: copyEmailError,
-      ipAddress,
-      userAgent,
-      updatedAt: confirmedAt,
-    };
-
-    await writeIfRegistrationActive(
-      db,
-      registrationRef,
-      {
-        parentAuthorization: newState,
-        parentConsentDocumentName: pdfPath ? `modulo-consenso-${registrationId}.pdf` : null,
-        parentConsentDocumentPath: pdfPath,
-        parentConsentDocumentUrl: null,
-        parentConsentUploadedAt: pdfPath ? confirmedAt : null,
-        consentSignaturePath: signaturePath,
-        consentSignatureUrl: null,
-        consentSignatureSetAt: confirmedAt,
-        registrationStatus: "confirmed",
-        updatedAt: confirmedAt,
-      },
-      { token, usedAt: confirmedAt },
-    );
+    });
 
     await writeAuditLog(db, stakeId, activityId, registrationId, {
       tokenId: tokenHash,
@@ -2106,6 +2301,11 @@ const parentAuthorizationReject = onCall(
       throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
     }
 
+    const activity = await loadActivity(db, stakeId, activityId);
+    if (!activity) {
+      throw new HttpsError("not-found", "Attività non trovata.");
+    }
+
     const rejectedAt = nowIso();
 
     const ipAddress = (
@@ -2139,7 +2339,7 @@ const parentAuthorizationReject = onCall(
         },
         updatedAt: rejectedAt,
       },
-      { token, usedAt: rejectedAt },
+      { token, usedAt: rejectedAt, activity },
     );
 
     await writeAuditLog(db, stakeId, activityId, registrationId, {
@@ -2220,6 +2420,10 @@ const parentAuthorizationResend = onCall(
       throw new HttpsError("not-found", "Attività non trovata.");
     }
 
+    if (!parentAuthorizationStillNeeded(registration, activity)) {
+      throw new HttpsError("failed-precondition", NOT_NEEDED_MESSAGE);
+    }
+
     // Nessuna scrittura intermedia con `tokenId: null`: faceva ripartire il
     // trigger, che mandava una seconda mail con un secondo link valido.
     // L'emissione invalida tutti i link pendenti nella stessa transazione.
@@ -2230,6 +2434,9 @@ const parentAuthorizationResend = onCall(
       registrationId,
       activity,
       actorUserId: request.auth.uid,
+      // Di nuovo nella transazione: una correzione ad adulto arrivata fra il
+      // controllo qui sopra e l'emissione non riceve un link inutile.
+      shouldStillSend: (current) => parentAuthorizationStillNeeded(current, activity),
     });
 
     // Cancellata, annullata o decisa fra la prima lettura e la transazione.
@@ -2241,6 +2448,11 @@ const parentAuthorizationResend = onCall(
     }
     if (result.reason === "already_decided") {
       assertParentAuthorizationOpen(result.status);
+    }
+    // Corretta ad adulto (o non più da autorizzare) fra la prima lettura e
+    // la transazione: nessun link emesso.
+    if (result.reason === "superseded") {
+      throw new HttpsError("failed-precondition", NOT_NEEDED_MESSAGE);
     }
     // Prima tornava { sent: false } dopo aver invalidato il link: ora non si
     // tocca niente e l'admin legge cosa manca.

@@ -155,14 +155,17 @@ save(participant_path, {**legacy, 'parentAuthorization': None}, actor='test-part
 # validOwnerCancellation valutato per primo, può superare il budget di 1000
 # espressioni.
 cancel_like_client(path, '2026-01-02T00:00:00.000Z')
-save(path, {**registration, 'assignedRoomId': 'admin-room'}, actor='test-admin')
-print('PASS: participant and legacy saves, parent cancellation, admin update')
+# L'admin del palo non assegna stanze dal client (docs/ADMIN_ISCRITTI.md, scelta R):
+# corregge i dati; le assegnazioni arrivano dalla callable, qui seminate come owner.
+save(path, {**registration, 'assignedRoomId': 'admin-room'}, actor='test-admin', expected=403)
+save(path, {**registration, 'phone': '1111111111'}, actor='test-admin')
+print('PASS: participant and legacy saves, parent cancellation, admin data update, admin cannot assign rooms')
 
 # Stanza comunicata dal server (callable roomManagementSave): il proprietario la
 # legge e la rimanda invariata, ma non può cambiarla né toglierla.
 published = {**registration, 'registrationStatus': 'cancelled', 'assignedRoomId': 'admin-room',
              'assignedRoomName': 'Stanza 12'}
-save(path, published, actor='test-admin')
+save(path, published)
 assert call(path, actor='test-parent')['fields']['assignedRoomName']['stringValue'] == 'Stanza 12'
 # Il proprietario rimanda la stanza invariata risalvando il modulo. Come nel
 # client (resolveRegistrationStatusOnSave), il risalvataggio di un'iscrizione

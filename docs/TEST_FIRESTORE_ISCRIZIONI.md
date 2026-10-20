@@ -172,3 +172,120 @@ Restano negati in place: `pending` verso `confirmed`, la riattivazione ad
 `active` di un minore non firmato e la scrittura di un altro account (questi
 escono per il limite di 1000 espressioni, non per `false`: restano negati).
 Test: `functions/tests/guestLinkedAccountRulesEmulator.test.mjs`.
+
+## Iscritti scritti dall'admin (2026-10-20)
+
+Prova dell'iscrizione a mano, della correzione dei dati e dei trigger
+collegati (`docs/ADMIN_ISCRITTI.md`), scritta da un agente diverso da chi ha
+scritto il codice. Quattro file, con le fixture in
+`functions/tests/helpers/adminRegistrationFixtures.mjs`; i payload sono quelli
+veri del client (`src/utils/adminRegistration.ts`, servizi in
+`registrationsService.ts` e `campManagementService.ts`):
+
+| File | Cosa prova | Emulatori |
+| --- | --- | --- |
+| `adminRegistrationRulesEmulator.test.mjs` | `validAdminManualCreate`, `validAdminRegistrationUpdate`, `createdBy` e i rami del titolare, con admin, super admin, admin di un altro palo, dirigenti, partecipante, genitore e un admin che è anche genitore | firestore |
+| `adminRegistrationBudgetEmulator.test.mjs` | costo in espressioni di 47 scritture (metodo sopra) | firestore |
+| `adminRegistrationTriggerEmulator.test.mjs` | link invalidati all'uscita dall'attesa, link nuovo al ritorno, firma/rifiuto/annullamento senza invalidazione, avvisi `adminAlerts` | firestore, functions |
+| `adminRegistrationCallablesEmulator.test.mjs` | "Autorizza ora" e reinvio dell'admin, firma e rifiuto dopo una correzione dei dati | auth, firestore, functions, storage |
+
+Rilancio dalla radice del repository (JDK 21; un file per giro, gli emulatori
+con le Functions uno alla volta: avviati insieme a un altro `emulators:exec`
+a volte cadono con "An unexpected error has occurred" e lasciano il Firestore
+emulato acceso sulla porta):
+
+```sh
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+firebase emulators:exec --only firestore --config firebase.room-test.json --project demo-admin-iscritti \
+  'node --test --test-concurrency=1 functions/tests/adminRegistrationRulesEmulator.test.mjs'
+firebase emulators:exec --only firestore --config firebase.room-test.json --project demo-admin-budget \
+  'node --test --test-concurrency=1 functions/tests/adminRegistrationBudgetEmulator.test.mjs'
+firebase emulators:exec --only firestore,functions --config firebase.room-test.json --project demo-admin-trigger \
+  'node --test --test-concurrency=1 functions/tests/adminRegistrationTriggerEmulator.test.mjs'
+firebase emulators:exec --only auth,firestore,functions,storage --config firebase.multistake-test.json --project demo-admin-callables \
+  'node --test --test-concurrency=1 functions/tests/adminRegistrationCallablesEmulator.test.mjs'
+```
+
+Le Functions vogliono `functions/.secret.local` con `BREVO_API_KEY=` e
+`WEB_PUSH_PRIVATE_KEY=` vuoti. Con le porte occupate da un'altra sessione si
+copia la config su porte proprie (anche hub, logging e websocket di
+Firestore). Il budget accetta `BUDGET_RULES_FILE=<file>` (misura le stesse
+scritture su un'altra versione delle rules, senza asserire: ad esempio
+`git show 2eb3e05:firestore.rules`) e `BUDGET_ONLY=<regex>` (solo gli scenari
+il cui gruppo o nome combacia). Quando una scrittura sfora il limite
+l'emulatore lo scrive nel log: "maximum of 1000 expressions to evaluate has
+been reached".
+
+Costo delle scritture dell'admin, documento massimo (ogni campo ammesso
+valorizzato; rules a `7c027aa`, margine = 1000 meno il costo). La colonna
+«prima» è `ff9d952`, prima che le chiavi immutabili del titolare passassero
+davanti al payload:
+
+| Scrittura | Prima | Costo |
+| --- | --- | --- |
+| admin crea a mano: minorenne in attesa, con o senza richiesta | 676 | 676 |
+| admin crea a mano: adulto attivo, attività con autorizzazione | 739 | 739 |
+| admin crea a mano: documento massimo (adulto / minorenne) | 744 / 681 | 744 / 681 |
+| secondo `setDoc` identico (retry) | 291 | 292 |
+| admin su iscrizione di un altro: annulla, riattiva, corregge, email del genitore, abbinamenti stanza, pattuglie | 299-437 | 299-435 |
+| admin titolare del figlio: salva dal modulo / riattiva dal modulo | 728 / 774 | 728 / 774 |
+| admin titolare: annulla | 73 | 73 |
+| admin titolare: corregge i dati del figlio massimo, unità cambiata | 980 | 447 |
+| admin titolare: corregge i propri dati di account massimo, unità cambiata | 933 | 415 |
+| admin titolare: la stessa, adulto → minorenne con richiesta, stato in attesa e le tre spunte foto tolte | 967 | 448 |
+| admin titolare: email del genitore del figlio massimo | 941 | 408 |
+| admin titolare: pattuglie in un campeggio sul figlio massimo, pattuglia cambiata | 914 | 914 |
+| admin titolare: pattuglie sulla propria iscrizione di account massima | 867 | 867 |
+| sintetico: tutte le chiavi lecite insieme sul figlio massimo annullato, admin titolare | oltre 1000 | 501 |
+| sintetico: le stesse, admin non titolare | 458 | 456 |
+
+L'ordine del `allow update` (titolare, camp staff, admin per ultimo) fa pagare
+all'admin che è anche titolare il ramo del titolare prima del proprio: prima
+`isStakeAdmin` passava subito. Con la validazione intera del payload davanti al
+controllo delle chiavi che il titolare non cambia mai (unità, consensi,
+`parentAuthorization`, `createdBy`), la correzione dell'unità del figlio massimo
+costava 980 (margine 20) e il sintetico con tutte le chiavi sforava. Ora quelle
+chiavi escono prima del payload: i flussi dell'admin titolare che le toccano
+scendono a 408-448, e restano sopra gli 800 solo le assegnazioni di pattuglia in
+un campeggio (914 e 867), che il ramo del titolare scarta più tardi, sui campi
+assegnati. Il controllo del formato di `birthDate` nell'update admin (`6c44deb`)
+e le regole sulle spunte foto delle risposte (`8a294f2`) pesano 12 e 19 espressioni
+nel ramo admin. Per chi passa dal ramo del titolare il costo non cambia, solo
+l'ordine. Il diff delle risposte si calcola solo se `answers` cambia
+(`validAdminAnswersChange`, `c640f8c`): un'iscrizione senza `answers` o con
+`answers: null` si annulla e si riattiva. Il test chiede 15 di margine ai flussi
+veri e solo di registrare i sintetici.
+
+Scritture del titolare, stesso metodo, rules di prima del task (`2eb3e05`)
+contro `7c027aa` (il costo del ramo del titolare è quello di `2dc3e80`: i commit dopo toccano solo l'admin e l'ordine dei controlli). Le due righe documentate sopra (972 e 974) con questo
+metodo e i documenti dei test danno 937 e 914 sulle rules di prima: il
+confronto vale fra righe misurate insieme, non con quei due numeri.
+
+| Scrittura del titolare | `2eb3e05` | `7c027aa` |
+| --- | --- | --- |
+| sonda: codici, comitati e riattivazione, figlio firmato legacy | 937 | 907 |
+| sonda: codici, comitati e riattivazione, adulto senza firma legacy | 914 | 884 |
+| le stesse con `birthDate` cambiata, figlio firmato legacy | 937 | 928 |
+| le stesse con `birthDate` cambiata, adulto senza firma legacy | 914 | 954 |
+| modulo, figlio pesante | 709 | 673 |
+| riattivazione, figlio pesante firmato | 749 | 719 |
+| modulo, account adulto massimo attivo, altra data da adulto | 717 | 751 |
+| modulo, figlio massimo firmato attivo, altra data da minorenne | 764 | 749 |
+| riattivazione, figlio massimo firmato con un'altra data | 804 | 795 |
+| riattivazione, account adulto massimo con un'altra data da adulto | 806 | 846 |
+| attivo → in attesa, account adulto massimo, data da minorenne e richiesta | non ammesso | 702 |
+| attivo → in attesa, figlio massimo senza firma, data da minorenne | non ammesso | 749 |
+| attivo → in attesa, account adulto massimo, solo stato e `updatedAt` | non ammesso | 697 |
+
+Fra `2eb3e05` e le rules con `createdBy` e il nuovo ordine di `allow update`
+(`958633d`) le sonde scendono di 47 (937 → 890, 914 → 867): l'admin non si
+valuta più prima del titolare. La clausola sulla data di nascita (`6d7c601`) e
+il ramo attivo → in attesa (`6e3f6c0`) ne rimettono 17 (890 → 907) e, solo
+quando la data cambia nella stessa scrittura, fino a 87: il caso peggiore
+sintetico (adulto senza firma, `birthDate`, codici e comitati insieme, nessun
+client lo fa) sta a 954, margine 46.
+
+Il metodo ritrova i numeri documentati dove i documenti sono gli stessi (crea
+il figlio minore in attesa, documento massimo: 797 contro 806) e se ne scosta
+dove i documenti dei test hanno altri campi (modulo, figlio pesante: 673
+contro 707; riattivazione pesante firmata: 719 contro 794).

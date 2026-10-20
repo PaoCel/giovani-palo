@@ -1317,11 +1317,17 @@ for (const kindDef of KINDS) {
       await expectReactivated(ctx, undefined, "risalvataggio");
     });
 
-    test("iscrizione attiva di un maggiorenne: il risalvataggio invariato passa, il ritorno a pending no", async () => {
+    test("iscrizione attiva di un maggiorenne: il risalvataggio invariato passa, e anche il passaggio in attesa (6e3f6c0: chiede un consenso, non lo salta)", async () => {
       const ctx = await seedCancelled(kindDef, { birthDate: ADULT, authorizationStatus: null, status: "active" });
       assert.equal(clientStatus(ctx), "active");
-      await expectReactivationDenied(ctx, "pending_parent_authorization", "active -> pending");
       await expectReactivated(ctx, undefined, "risalvataggio");
+      const other = await seedCancelled(kindDef, { birthDate: ADULT, authorizationStatus: null, status: "active" });
+      await expectReactivated(other, "pending_parent_authorization", "active -> pending");
+      // Le altre transizioni verso lo stato in attesa restano chiuse: da confermata o rifiutata.
+      for (const status of ["confirmed", "rejected_by_parent"]) {
+        const closed = await seedCancelled(kindDef, { birthDate: ADULT, authorizationStatus: null, status });
+        await expectReactivationDenied(closed, "pending_parent_authorization", `${status} -> pending`);
+      }
     });
   });
 }
@@ -1347,46 +1353,48 @@ describe("7b. osservazione: la data di nascita non è congelata dalla riattivazi
 // 8. Admin del palo e altri ruoli
 // ===========================================================================
 
-describe("8. admin del palo: stati liberi, come prima", () => {
+describe("8. admin del palo: non scrive più qualunque stato (docs/ADMIN_ISCRITTI.md, scelta R)", () => {
+  // Fino al 2026-10-20 isStakeAdmin bastava per creare e riscrivere tutto. Ora
+  // l'admin crea solo iscrizioni a mano (`manual_`) e cambia lo stato come
+  // transizione; il dettaglio sta in adminRegistrationRulesEmulator.test.mjs.
   /** L'admin scrive l'iscrizione di un altro (un account del palo) con il suo SDK. */
   async function adminCreates(actor, activityId, person, payload) {
     await setDoc(registrationRef(actor, activityId, person.registrationId), payload);
     return stored(registrationPath(activityId, person.registrationId));
   }
 
-  test("crea con confirmed l'iscrizione di un minorenne in un'attività con autorizzazione", async () => {
-    const person = await newPerson(kindOf("account"), MINOR);
-    const activityId = await seedActivity();
-    const data = await adminCreates("admin", activityId, person, { ...baselinePayload(person), registrationStatus: "confirmed" });
-    assert.equal(data.registrationStatus, "confirmed");
-  });
-
-  test("crea con active, draft, submitted, waitlist, cancelled e rejected_by_parent", async () => {
-    for (const status of ["active", "draft", "submitted", "waitlist", "cancelled", "rejected_by_parent"]) {
+  test("non crea più l'iscrizione di un altro account: confirmed, active, draft, submitted, waitlist, cancelled, rejected_by_parent negati", async () => {
+    for (const status of ["confirmed", "active", "draft", "submitted", "waitlist", "cancelled", "rejected_by_parent"]) {
       const person = await newPerson(kindOf("account"), MINOR);
       const activityId = await seedActivity();
-      const data = await adminCreates("admin", activityId, person, { ...baselinePayload(person), registrationStatus: status });
-      assert.equal(data.registrationStatus, status);
+      await expectDenied(
+        () => adminCreates("admin", activityId, person, { ...baselinePayload(person), registrationStatus: status }),
+        `admin crea user_ con ${status}`,
+      );
+      assert.equal(await stored(registrationPath(activityId, person.registrationId)), undefined);
     }
   });
 
-  test("crea un'iscrizione già firmata e assegnata (campi protetti valorizzati, come un import)", async () => {
+  test("non crea un'iscrizione già firmata e assegnata (campi protetti valorizzati, come un import)", async () => {
     const person = await newPerson(kindOf("figlio"), MINOR);
     const activityId = await seedActivity();
     const signed = cancelledRegistration(person, { authorizationStatus: "authorized", requiresAuth: true });
-    const data = await adminCreates("admin", activityId, person, { ...signed, registrationStatus: "confirmed" });
-    assert.equal(data.registrationStatus, "confirmed");
-    assert.equal(data.parentAuthorization.status, "authorized");
-    assert.equal(data.assignedRoomName, "Stanza 12");
+    await expectDenied(() => adminCreates("admin", activityId, person, { ...signed, registrationStatus: "confirmed" }), "import firmato");
+    assert.equal(await stored(registrationPath(activityId, person.registrationId)), undefined);
   });
 
-  test("riattiva in active un'iscrizione annullata di un minorenne senza firma", async () => {
+  test("riattiva in active un'iscrizione annullata di un minorenne senza firma: negato; in attesa consentito", async () => {
     const ctx = await seedCancelled(kindOf("account"), { authorizationStatus: "email_sent" });
+    await expectDenied(
+      () => updateDoc(registrationRef("admin", ctx.activityId, ctx.person.registrationId), { registrationStatus: "active", updatedAt: nowIso() }),
+      "admin active senza firma",
+    );
+    assert.deepEqual(await stored(ctx.path), ctx.current);
     await updateDoc(registrationRef("admin", ctx.activityId, ctx.person.registrationId), {
-      registrationStatus: "active",
+      registrationStatus: "pending_parent_authorization",
       updatedAt: nowIso(),
     });
-    assert.equal((await stored(ctx.path)).registrationStatus, "active");
+    assert.equal((await stored(ctx.path)).registrationStatus, "pending_parent_authorization");
   });
 
   test("un admin di un altro palo non è admin qui: per le sue iscrizioni valgono le regole normali", async () => {

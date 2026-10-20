@@ -18,8 +18,14 @@ export const PAROLE = {
   // Scrittura senza risposta dal server (offline): resta in coda e parte al
   // ritorno della rete; il pulsante si sblocca.
   erroreRete: "Il server non risponde: controlla la connessione e riprova.",
+  // Scrittura scaduta col timeout: con la cache persistente resta in coda e
+  // parte da sola al ritorno della rete, anche se il foglio si chiude.
+  erroreReteInCoda:
+    "Il server non risponde: controlla la connessione. La richiesta resta in coda e parte da sola appena torna la rete.",
   // Pulsante di un foglio "Elimina" mentre la cancellazione è in corso.
   eliminazione: "Eliminazione...",
+  // Pulsante "Salva" mentre la scrittura è in corso.
+  salvataggio: "Salvataggio...",
 } as const;
 
 // "Ciao {nome}" + { nome: "Marco" } → "Ciao Marco". Un segnaposto senza valore

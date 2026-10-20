@@ -41,6 +41,15 @@ export function useInertBackground(layerRef: RefObject<HTMLElement | null>) {
   }, [layerRef]);
 }
 
+// Vero se lo strato è il più alto della pila (o se non c'è pila: niente
+// browser, nessuno strato aperto). Esc chiude solo il foglio in cima: con due
+// AppModal aperti insieme lo ascoltano tutti e due.
+export function isTopLayer(layer: HTMLElement | null) {
+  if (!layers || !layer) return true;
+  const top = layers.top();
+  return top === null || top === layer;
+}
+
 // Tab e Maiusc+Tab girano fra i controlli dello strato, senza uscire verso il
 // browser.
 export function keepTabInside(event: ReactKeyboardEvent<HTMLElement>, container: HTMLElement | null) {

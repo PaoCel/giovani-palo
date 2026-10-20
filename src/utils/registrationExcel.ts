@@ -1,3 +1,4 @@
+import { ISCRITTI } from "@/copy/iscritti";
 import type { CampManagementPlan, GenderRoleCategory, Registration } from "@/types";
 import { formatDateOnly, formatDateTime } from "@/utils/formatters";
 import { getPhotoConsentBadges } from "@/utils/parentAuthorization";
@@ -227,7 +228,12 @@ function getFieldValue(registration: Registration, field: ExportFieldKey): strin
     case "registrationStatus":
       return getRegistrationStatusLabel(registration.registrationStatus);
     case "submittedByMode":
-      return registration.submittedByMode === "anonymous" ? "Anonimo" : "Autenticato";
+      // Le iscrizioni aggiunte a mano dall'admin (manual_) non sono anonime.
+      return registration.id.startsWith("manual_")
+        ? ISCRITTI.pillAMano
+        : registration.submittedByMode === "anonymous"
+          ? "Anonimo"
+          : "Autenticato";
     case "createdAt":
       return safeFormatDate(registration.createdAt || "", "datetime");
     default:

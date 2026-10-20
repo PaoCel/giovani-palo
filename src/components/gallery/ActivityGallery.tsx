@@ -206,8 +206,8 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
         closeIfShowing();
         setNotice(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
         if (isConnectionError(caughtError)) {
-          // La scrittura resta in coda e parte al ritorno della rete: i file
-          // si tolgono quando il server l'ha confermata.
+          // La transazione può ancora arrivare al server dopo il timeout: i
+          // file si tolgono solo quando l'ha confermata.
           void deletion
             .then(() => deleteMediaFolder(stakeId, item.galleryId, item.id))
             .catch(() => undefined);
