@@ -471,11 +471,11 @@ async function actionUnblock({ tx, db, stakeId, uid, callerUid, member, nowMs })
 // Ruolo da rimettere quando un'azione si annulla o si riattiva: solo se il
 // profilo ha ancora il ruolo lasciato da quell'azione, e un ruolo staff solo
 // se il palo scelto è ancora questo (altrimenti darebbe poteri su un altro).
-function restorableRole(roleChange, profile, stakeId) {
-  if (!roleChange || !profile || profile.role !== roleChange.after) return null;
-  const staff = roleChange.before === "admin" || roleChange.before === "unit_leader";
+function restorableRole(previous, profile, stakeId) {
+  if (!previous || typeof previous.role !== "string" || !profile || profile.role !== previous.roleAfter) return null;
+  const staff = previous.role === "admin" || previous.role === "unit_leader";
   if (staff && profile.stakeId !== stakeId) return null;
-  return roleChange.before;
+  return previous.role;
 }
 
 function staffRoleAfter(status, profile, role, stakeId) {
@@ -488,7 +488,7 @@ async function actionReactivate({ tx, db, stakeId, uid, callerUid, member, targe
   if (member.status !== "removed") throw invalidState(member.status);
   const prev = member.previous;
   const fromRemove = prev && prev.action === "remove" && prev.status === "active";
-  const nextRole = fromRemove ? restorableRole(prev.role, targetProfile, stakeId) : null;
+  const nextRole = fromRemove ? restorableRole(prev, targetProfile, stakeId) : null;
   if (nextRole && nextRole !== targetProfile.role) {
     tx.update(db.doc(`users/${uid}`), { role: nextRole, updatedAt: new Date(nowMs).toISOString() });
   }
@@ -525,7 +525,7 @@ async function actionUndo(ctx) {
   if (verdict === "denied") throw denied("Puoi annullare solo le tue azioni.");
 
   const restoredStatus = prev.status;
-  const nextRole = restorableRole(prev.role, targetProfile, stakeId);
+  const nextRole = restorableRole(prev, targetProfile, stakeId);
   const demotesAdmin = nextRole && core.isAdminOf(targetProfile, stakeId) && nextRole !== "admin";
   // Letture prima delle scritture: ultimo admin, elenchi, appartenenze spostate.
   if (demotesAdmin) await assertNotLastAdmin(tx, db, stakeId, uid);

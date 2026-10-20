@@ -279,7 +279,12 @@ function requestBlockOf(member, nowMs) {
 function previousOf(member, { action, by, at, role = null, staffLists = null, moved = null }) {
   const previous = { action, by, at };
   for (const field of PREVIOUS_FIELDS) previous[field] = member && field in member ? member[field] : null;
-  if (role) previous.role = role;
+  // `role` è il ruolo di prima, come gli altri campi; `roleAfter` quello che
+  // l'azione ha lasciato, così "Annulla" non sovrascrive un ruolo cambiato poi.
+  if (role) {
+    previous.role = role.before;
+    previous.roleAfter = role.after;
+  }
   if (staffLists && staffLists.length) previous.staffLists = staffLists;
   if (moved && moved.length) previous.moved = moved;
   return previous;

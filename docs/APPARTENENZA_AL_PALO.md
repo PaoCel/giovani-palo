@@ -509,8 +509,9 @@ cambiano l'esito. Risposta `{ ok: true, action, status, version, changed }`;
 `changed: false` quando lo stato era già quello (nessuna scrittura, `version`
 invariata). Ogni scrittura incrementa `version`, mette in `previous` lo stato
 di prima (`status`, `sources`, `staffRole`, `reviewNeeded`, `claimedUnitId`,
-`claimedUnitName`, `declineCount`, `decidedAt`, `decidedBy`, più `role` se
-l'azione ha cambiato `users.role`, `staffLists` se ha tolto l'uid dagli
+`claimedUnitName`, `declineCount`, `decidedAt`, `decidedBy`, più `role` (il
+ruolo di prima) e `roleAfter` (quello lasciato dall'azione) se l'azione ha
+cambiato `users.role`, `staffLists` se ha tolto l'uid dagli
 elenchi dello staff, `moved` se ha portato a `withdrawn` l'appartenenza in un
 altro palo) con `action` e `by`, e aggiunge una riga a
 `members/{uid}/history/{id}` (`action`, `by`, `at`, `fromStatus`,
