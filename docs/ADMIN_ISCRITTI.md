@@ -75,7 +75,7 @@ un'annullata cambiano solo i dati.
 
 | Cambio | Stato | Consensi foto e social | Chi la vede | Avviso prima di salvare |
 | --- | --- | --- | --- | --- |
-| adulto → minorenne, attività con autorizzazione, nessuna firma | Attiva → In attesa del genitore; con l'email nella richiesta parte la mail | pill "da chiedere"; le spunte da adulto spariscono da scheda ed Excel | invariato | "Diventa minorenne: passa in attesa del genitore" + "parte la mail a …" oppure "manca l'email: la chiedi dopo" |
+| adulto → minorenne, attività con autorizzazione, nessuna firma | Attiva → In attesa del genitore; con l'email nella richiesta parte la mail | pill "da chiedere"; le spunte foto date da adulto si cancellano (le rules ammettono solo di toglierle) | invariato | "Diventa minorenne: passa in attesa del genitore" + "parte la mail a …" oppure "manca l'email: la chiedi dopo" |
 | adulto → minorenne, attività senza autorizzazione | invariato | pill "da chiedere" | invariato | "Foto e social: decide il genitore" |
 | minorenne → adulto, in attesa, nessuna firma | In attesa → Attiva; il server invalida i link pendenti (vedi Functions) | pill sparite; per l'adulto le spunte restano vuote | invariato | "Diventa maggiorenne: torna attiva e il link mandato al genitore smette di valere" |
 | data cambiata con autorizzazione già firmata o rifiutata | invariato | invariati (la firma vale a ogni età) | invariato | "Il modulo firmato resta con la data di prima" |
@@ -155,6 +155,11 @@ Come si torna indietro:
   firma il cui modulo ora chiede il genitore (data corretta) passa in
   attesa, l'avviso del passo genitore lo dice e le rules ammettono il
   passaggio da attiva ad attesa.
+- **Terzo giro (Codex, 2026-10-20):** il reinvio ricontrolla nella
+  transazione che l'autorizzazione serva ancora; "Autorizza ora" non riapre
+  un rifiuto; l'admin non riporta in attesa un'iscrizione firmata o
+  rifiutata. Nei fogli, dopo un timeout la scrittura è in coda: i campi si
+  fermano e chiudere non chiede "Esci senza salvare".
 - **Avviso "nuovo iscritto" agli admin.** Oggi scatta a ogni creazione con
   "{nome} si è iscritto a {attività}": per una `manual_` niente push (l'ha
   fatta un admin), o il testo "aggiunta a mano da {admin}" (scelta I8).
