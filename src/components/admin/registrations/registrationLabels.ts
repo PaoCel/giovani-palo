@@ -45,6 +45,8 @@ export function getCategoryShortLabel(registration: Registration) {
       return "GD";
     case "dirigente":
       return "DIR";
+    case "accompagnatore":
+      return "ACC";
     default:
       return "--";
   }

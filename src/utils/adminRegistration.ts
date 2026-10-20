@@ -394,7 +394,11 @@ export function planAdminEdit(
       // 18 anni o più: l'attesa non ha più motivo, anche se la data prima
       // mancava (in attesa senza data, nessuna altra uscita).
       nextStatus = "active";
-      effects.push(ISCRITTI.effettoDa18);
+      // Il link c'è solo se è partita una richiesta: le aggiunte a mano senza
+      // email non ne hanno mai avuto uno.
+      effects.push(
+        registration.parentAuthorization?.tokenId ? ISCRITTI.effettoDa18 : ISCRITTI.effettoDa18SenzaLink,
+      );
     } else if (isMinor !== wasMinor) {
       effects.push(isMinor ? ISCRITTI.effettoFotoGenitore : ISCRITTI.effettoFotoPersona);
     }

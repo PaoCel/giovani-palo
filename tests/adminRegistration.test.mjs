@@ -1232,7 +1232,24 @@ test("modifica riga 2: adulto → meno di 18 anni in un'attività senza autorizz
 });
 
 test("modifica riga 3: meno di 18 anni in attesa → 18 anni o più: torna attiva e il link smette di valere", () => {
-  for (const autorizzazione of [null, firma("email_sent"), firma("expired"), firma("failed")]) {
+  // Con un link emesso (tokenId) l'avviso dice che smette di valere.
+  for (const stato of ["email_sent", "expired", "failed"]) {
+    const autorizzazione = { ...firma(stato), tokenId: "tok-1" };
+    const registrazione = conRichiesta(MAIL_GENITORE, {
+      birthDate: MINORE,
+      registrationStatus: ATTESA,
+      parentAuthorization: autorizzazione,
+    });
+    const piano = planAdminEdit(registrazione, bozza(registrazione, { birthDate: ADULTO }), GENITORE_VUOTO, contesto(registrazione));
+    assert.equal(piano.nextStatus, "active", stato);
+    assert.equal(piano.sendsMail, false);
+    assert.equal(piano.needsParentFields, false);
+    assert.deepEqual(piano.effects, [ISCRITTI.effettoDa18]);
+  }
+});
+
+test("modifica riga 3: in attesa senza nessun link emesso → 18 anni o più: torna attiva, senza parlare di link", () => {
+  for (const autorizzazione of [null, firma("email_sent"), firma("failed")]) {
     const registrazione = conRichiesta(MAIL_GENITORE, {
       birthDate: MINORE,
       registrationStatus: ATTESA,
@@ -1240,9 +1257,7 @@ test("modifica riga 3: meno di 18 anni in attesa → 18 anni o più: torna attiv
     });
     const piano = planAdminEdit(registrazione, bozza(registrazione, { birthDate: ADULTO }), GENITORE_VUOTO, contesto(registrazione));
     assert.equal(piano.nextStatus, "active", JSON.stringify(autorizzazione));
-    assert.equal(piano.sendsMail, false);
-    assert.equal(piano.needsParentFields, false);
-    assert.deepEqual(piano.effects, [ISCRITTI.effettoDa18]);
+    assert.deepEqual(piano.effects, [ISCRITTI.effettoDa18SenzaLink]);
   }
 });
 
@@ -1250,7 +1265,7 @@ test("modifica riga 3: anche senza l'email del genitore (in attesa senza richies
   const registrazione = iscrizione({ birthDate: MINORE, registrationStatus: ATTESA });
   const piano = planAdminEdit(registrazione, bozza(registrazione, { birthDate: ADULTO }), GENITORE_VUOTO, contesto(registrazione));
   assert.equal(piano.nextStatus, "active");
-  assert.deepEqual(piano.effects, [ISCRITTI.effettoDa18]);
+  assert.deepEqual(piano.effects, [ISCRITTI.effettoDa18SenzaLink]);
 });
 
 test(

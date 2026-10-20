@@ -63,8 +63,8 @@ import {
   isMissingParentEmail,
   planAdminReactivate,
 } from "@/utils/adminRegistration";
-import { withWriteTimeout } from "@/utils/writeTimeout";
-import { formatDateRange, formatDateTime } from "@/utils/formatters";
+import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+import { formatDateOnly, formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
   downloadCampManagementExcel,
   downloadRegistrationsExcel,
@@ -1836,6 +1836,13 @@ export function AdminEventDetailPage() {
   // 18 anni in un'attività con autorizzazione torna in attesa del genitore.
   // Se parte una mail (o si riapre un rifiuto) prima un foglio di conferma.
   function requestReactivateRegistration(registration: Registration) {
+    // Senza rete la riattivazione resterebbe in coda e potrebbe partire più
+    // tardi con la mail al genitore: si dice subito, come nei fogli.
+    if (isOffline()) {
+      setActionInfo(null);
+      setActionError(ISCRITTI.erroreRete);
+      return;
+    }
     const plan = planAdminReactivate(registration, resolvedEvent.requiresParentAuthorization === true);
     if (plan.sendsMail) {
       showConfirm({ kind: "reactivateRegistration", registrationId: registration.id });
@@ -1846,6 +1853,10 @@ export function AdminEventDetailPage() {
 
   async function handleAdminReactivateRegistration(registration: Registration) {
     const run = confirmRunRef.current;
+    if (isOffline()) {
+      setConfirmError(ISCRITTI.erroreRete);
+      return;
+    }
     const startedFor = eventContextRef.current;
     const plan = planAdminReactivate(registration, resolvedEvent.requiresParentAuthorization === true);
     setBusy("reactivateRegistration");
@@ -4221,10 +4232,10 @@ export function AdminEventDetailPage() {
                 {modalCreatorName
                   ? fillCopy(ISCRITTI.aggiuntaDa, {
                       admin: modalCreatorName,
-                      data: formatDateTime(registrationModal.createdAt),
+                      data: formatDateOnly(registrationModal.createdAt),
                     })
                   : fillCopy(ISCRITTI.aggiuntaIl, {
-                      data: formatDateTime(registrationModal.createdAt),
+                      data: formatDateOnly(registrationModal.createdAt),
                     })}
               </p>
             ) : null}

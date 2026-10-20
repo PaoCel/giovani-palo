@@ -20,6 +20,12 @@ const CATEGORIES: Array<{ value: GenderRoleCategory; label: string }> = [
 
 const BIRTH_DATE_MIN = "1920-01-01";
 
+// "2006-06-21" → "21/06/2006", come la scrive chi la legge.
+function formatBirthDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
 const PROBLEM_TEXT: Record<ManualAddProblem, string> = {
   nome: ISCRITTI.erroreNome,
   cognome: ISCRITTI.erroreCognome,
@@ -51,6 +57,7 @@ interface AdminPersonFieldsProps {
   person: AdminPersonDraft;
   onChange: (patch: Partial<AdminPersonDraft>) => void;
   units: Unit[];
+  unitsLoading?: boolean;
   // Problemi da mostrare (dopo il primo tentativo di salvare).
   problems: ManualAddProblem[];
   // Valori di prima (Modifica dati): i campi cambiati lo dicono.
@@ -69,6 +76,7 @@ export function AdminPersonFields({
   person,
   onChange,
   units,
+  unitsLoading = false,
   problems,
   previous,
   birthDateNotice,
@@ -139,7 +147,7 @@ export function AdminPersonFields({
           value={person.birthDate}
           onChange={(event) => onChange({ birthDate: event.target.value })}
         />
-        {before("birthDate")}
+        {before("birthDate", previous?.birthDate ? formatBirthDate(previous.birthDate) : "—")}
         {birthDateNotice ? (
           <small className="child-form__warning" id={`${ids}-data-nota`}>
             {birthDateNotice}
@@ -180,7 +188,7 @@ export function AdminPersonFields({
           aria-describedby={`${ids}-unita-nota ${ids}-unita`}
           aria-invalid={problemFor("unita") ? true : undefined}
           className={inputClass("unitId")}
-          disabled={unitOptions.length === 0}
+          disabled={unitOptions.length === 0 || unitsLoading}
           value={person.unitId}
           onChange={(event) => {
             const unit = unitOptions.find((option) => option.id === event.target.value);
@@ -188,7 +196,11 @@ export function AdminPersonFields({
           }}
         >
           <option value="">
-            {unitOptions.length > 0 ? ISCRITTI.selezionaUnita : ISCRITTI.nessunaUnita}
+            {unitsLoading
+              ? ISCRITTI.caricamentoUnita
+              : unitOptions.length > 0
+                ? ISCRITTI.selezionaUnita
+                : ISCRITTI.nessunaUnita}
           </option>
           {unitOptions.map((unit) => (
             <option key={unit.id} value={unit.id}>
@@ -197,7 +209,7 @@ export function AdminPersonFields({
           ))}
         </select>
         {before("unitId", previous?.unitName || "—")}
-        {unitOptions.length === 0 ? (
+        {unitOptions.length === 0 && !unitsLoading ? (
           <small className="admin-person-fields__note">{ISCRITTI.aiutoNessunaUnita}</small>
         ) : unitNotice ? (
           <small className="admin-person-fields__note" id={`${ids}-unita-nota`}>

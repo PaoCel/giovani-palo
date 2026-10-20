@@ -91,7 +91,7 @@ export function AddManualRegistrationSheet({
     };
   }, []);
 
-  const { data: units } = useAsyncData<Unit[]>(
+  const { data: units, loading: unitsLoading } = useAsyncData<Unit[]>(
     () => unitsService.listUnits(stakeId),
     [stakeId],
     [],
@@ -213,29 +213,65 @@ export function AddManualRegistrationSheet({
     <>
       <AppModal
         footer={
-          <>
+          <div className="admin-sheet-footer">
+            {showDuplicates ? (
+              <div className="admin-outcome admin-outcome--warning" role="status">
+                {fillCopy(ISCRITTI.doppione, {
+                  nome: getRegistrationDisplayName(duplicates[0]),
+                  dettagli: `${getCategoryShortLabel(duplicates[0])}, ${getUnitLabel(duplicates[0])}`,
+                })}
+                <div className="admin-outcome__actions">
+                  <button
+                    className="button button--ghost button--small"
+                    onClick={() => onOpenRegistration(duplicates[0].id)}
+                    type="button"
+                  >
+                    {ISCRITTI.apriLaSuaIscrizione}
+                  </button>
+                  <button
+                    className="button button--ghost button--small"
+                    onClick={() => setDuplicateAccepted(true)}
+                    type="button"
+                  >
+                    {ISCRITTI.aggiungiLoStesso}
+                  </button>
+                </div>
+              </div>
+            ) : fullName ? (
+              <div
+                className={
+                  outcome.needsParent ? "admin-outcome admin-outcome--warning" : "admin-outcome"
+                }
+                role="status"
+              >
+                <h4>{ISCRITTI.salvando}</h4>
+                {outcomeText}
+              </div>
+            ) : null}
             <ModalFeedback error={error} />
-            <button
-              className="button button--ghost"
-              disabled={busy}
-              onClick={requestClose}
-              type="button"
-            >
-              {ISCRITTI.annulla}
-            </button>
-            <button
-              className="button button--primary"
-              disabled={busy || showDuplicates}
-              onClick={() => void handleSubmit()}
-              type="button"
-            >
-              {busy
-                ? ISCRITTI.salvataggio
-                : outcome.sendsMail
-                  ? ISCRITTI.aggiungiEMail
-                  : ISCRITTI.aggiungi}
-            </button>
-          </>
+            <div className="admin-sheet-actions">
+              <button
+                className="button button--primary"
+                disabled={busy || showDuplicates}
+                onClick={() => void handleSubmit()}
+                type="button"
+              >
+                {busy
+                  ? ISCRITTI.salvataggio
+                  : outcome.sendsMail
+                    ? ISCRITTI.aggiungiEMail
+                    : ISCRITTI.aggiungi}
+              </button>
+              <button
+                className="button button--ghost"
+                disabled={busy}
+                onClick={requestClose}
+                type="button"
+              >
+                {ISCRITTI.annulla}
+              </button>
+            </div>
+          </div>
         }
         onClose={requestClose}
         title={ISCRITTI.aggiungiAMano}
@@ -255,32 +291,8 @@ export function AddManualRegistrationSheet({
               person.unitName ? fillCopy(ISCRITTI.unitaVisibile, { unita: person.unitName }) : null
             }
             units={units}
+            unitsLoading={unitsLoading}
           />
-
-          {showDuplicates ? (
-            <div className="admin-outcome admin-outcome--warning" role="status">
-              {fillCopy(ISCRITTI.doppione, {
-                nome: getRegistrationDisplayName(duplicates[0]),
-                dettagli: `${getCategoryShortLabel(duplicates[0])}, ${getUnitLabel(duplicates[0])}`,
-              })}
-              <div className="admin-outcome__actions">
-                <button
-                  className="button button--ghost button--small"
-                  onClick={() => onOpenRegistration(duplicates[0].id)}
-                  type="button"
-                >
-                  {ISCRITTI.apriLaSuaIscrizione}
-                </button>
-                <button
-                  className="button button--ghost button--small"
-                  onClick={() => setDuplicateAccepted(true)}
-                  type="button"
-                >
-                  {ISCRITTI.aggiungiLoStesso}
-                </button>
-              </div>
-            </div>
-          ) : null}
 
           {outcome.needsParent ? (
             <AdminParentFields
@@ -297,16 +309,6 @@ export function AddManualRegistrationSheet({
             />
           ) : null}
 
-          {fullName ? (
-            <div
-              className={
-                outcome.needsParent ? "admin-outcome admin-outcome--warning" : "admin-outcome"
-              }
-            >
-              <h4>{ISCRITTI.salvando}</h4>
-              {outcomeText}
-            </div>
-          ) : null}
         </div>
       </AppModal>
 

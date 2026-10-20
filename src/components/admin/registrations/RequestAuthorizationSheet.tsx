@@ -82,25 +82,27 @@ export function RequestAuthorizationSheet({
   return (
     <AppModal
       footer={
-        <>
+        <div className="admin-sheet-footer">
           <ModalFeedback error={error} />
-          <button
-            className="button button--ghost"
-            disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            {ISCRITTI.annulla}
-          </button>
-          <button
-            className="button button--primary"
-            disabled={busy}
-            onClick={() => void handleSend()}
-            type="button"
-          >
-            {busy ? ISCRITTI.salvataggio : ISCRITTI.mandaLaMail}
-          </button>
-        </>
+          <div className="admin-sheet-actions">
+            <button
+              className="button button--primary"
+              disabled={busy}
+              onClick={() => void handleSend()}
+              type="button"
+            >
+              {busy ? ISCRITTI.salvataggio : ISCRITTI.mandaLaMail}
+            </button>
+            <button
+              className="button button--ghost"
+              disabled={busy}
+              onClick={onClose}
+              type="button"
+            >
+              {ISCRITTI.annulla}
+            </button>
+          </div>
+        </div>
       }
       onClose={busy ? () => undefined : onClose}
       size="compact"

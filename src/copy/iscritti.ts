@@ -79,10 +79,12 @@ export const ISCRITTI = {
     "Ha meno di 18 anni: passa in attesa del genitore e parte la mail a {email}.",
   effettoMenoDi18SenzaEmail:
     "Ha meno di 18 anni: passa in attesa del genitore. Manca l'email del genitore: scrivila qui sotto o chiedila dopo dalla scheda.",
+  effettoDa18SenzaLink: "Ha 18 anni o più: torna attiva.",
   effettoDa18:
     "Ha 18 anni o più: torna attiva e il link mandato al genitore smette di valere.",
   effettoParteMail: "Parte la mail per autorizzare a {email}.",
   effettoRiprovaMail: "La mail al genitore non era partita: salvando si riprova a mandarla.",
+  caricamentoUnita: "Sto caricando le unità...",
   effettoFirmaResta:
     "L'autorizzazione del genitore resta com'è: il modulo firmato riporta i dati di prima.",
   effettoFotoGenitore: "Foto e social: ora decide il genitore.",

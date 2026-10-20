@@ -62,7 +62,7 @@ export function EditRegistrationSheet({
     };
   }, []);
 
-  const { data: units } = useAsyncData<Unit[]>(
+  const { data: units, loading: unitsLoading } = useAsyncData<Unit[]>(
     () => unitsService.listUnits(stakeId),
     [stakeId],
     [],
@@ -128,25 +128,37 @@ export function EditRegistrationSheet({
     <>
       <AppModal
         footer={
-          <>
+          <div className="admin-sheet-footer">
+            {dirty && plan.effects.length > 0 ? (
+              <div className="admin-outcome admin-outcome--warning" role="status">
+                <h4>{ISCRITTI.salvando}</h4>
+                <ul>
+                  {plan.effects.map((effect) => (
+                    <li key={effect}>{effect}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <ModalFeedback error={error} />
-            <button
-              className="button button--ghost"
-              disabled={busy}
-              onClick={requestClose}
-              type="button"
-            >
-              {ISCRITTI.annulla}
-            </button>
-            <button
-              className="button button--primary"
-              disabled={busy || !dirty}
-              onClick={() => void handleSave()}
-              type="button"
-            >
-              {busy ? ISCRITTI.salvataggio : plan.sendsMail ? ISCRITTI.salvaEMail : ISCRITTI.salva}
-            </button>
-          </>
+            <div className="admin-sheet-actions">
+              <button
+                className="button button--primary"
+                disabled={busy || !dirty}
+                onClick={() => void handleSave()}
+                type="button"
+              >
+                {busy ? ISCRITTI.salvataggio : plan.sendsMail ? ISCRITTI.salvaEMail : ISCRITTI.salva}
+              </button>
+              <button
+                className="button button--ghost"
+                disabled={busy}
+                onClick={requestClose}
+                type="button"
+              >
+                {ISCRITTI.annulla}
+              </button>
+            </div>
+          </div>
         }
         onClose={requestClose}
         subtitle={`${registration.lastName} ${registration.firstName}`.trim()}
@@ -163,6 +175,7 @@ export function EditRegistrationSheet({
             previous={initial}
             problems={showProblems ? problems : []}
             units={units}
+            unitsLoading={unitsLoading}
           />
 
           {plan.needsParentFields ? (
@@ -180,16 +193,6 @@ export function EditRegistrationSheet({
             />
           ) : null}
 
-          {dirty && plan.effects.length > 0 ? (
-            <div className="admin-outcome admin-outcome--warning" role="status">
-              <h4>{ISCRITTI.salvando}</h4>
-              <ul>
-                {plan.effects.map((effect) => (
-                  <li key={effect}>{effect}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
         </div>
       </AppModal>
 
