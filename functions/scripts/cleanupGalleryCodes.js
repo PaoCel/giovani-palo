@@ -3,7 +3,8 @@
  * Scelta S2-1 (docs/APPARTENENZA_AL_PALO.md, «Callable e trigger: interfaccia»,
  * "Script S2-1"): via i resti dei codici galleria, che non aprono più niente
  * (l'accesso lo decide l'appartenenza al palo).
- *   - ogni galleria `accessMode: "code_required"` diventa `"open"`;
+ *   - ogni galleria `accessMode: "code_required"`, o senza `accessMode` (la
+ *     PWA vecchia la tratta come con codice), diventa `"open"`;
  *   - si cancellano `stakes/{s}/gallerySecrets/*`,
  *     `stakes/{s}/galleries/{g}/members/*` e `users/{uid}/unlockedGalleries/*`.
  * Non tocca mai `stakes/{s}/members` (l'appartenenza di S2): per questo scorre
@@ -58,7 +59,7 @@ async function readPlan(db) {
     gallerySecrets.push(...secrets);
     const snaps = galleries.length ? await db.getAll(...galleries) : [];
     for (const snap of snaps) {
-      if (snap.exists && snap.get("accessMode") === "code_required") codeGalleries.push(snap.ref);
+      if (snap.exists && snap.get("accessMode") !== "open") codeGalleries.push(snap.ref);
     }
     for (const gallery of galleries) {
       galleryMembers.push(...(await gallery.collection("members").listDocuments()));
@@ -80,6 +81,11 @@ async function commitInBatches(db, operations) {
 async function main() {
   const args = parseArgs(process.argv);
   const emulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+  // Prima di qualunque lettura: fuori dall'emulatore l'apply vuole i numeri.
+  if (args.apply && !emulator && (args.expectGalleries === null || args.expectDeletes === null)) {
+    console.error("--apply fuori dall'emulatore vuole --expect-galleries <n> --expect-deletes <m> (i numeri del dry-run).");
+    process.exit(2);
+  }
   initializeApp(
     emulator ? { projectId: process.env.GCLOUD_PROJECT || "demo-room-planner" } : { credential: applicationDefault() },
   );
@@ -100,11 +106,6 @@ async function main() {
   );
 
   if (!args.apply) return;
-  const missing = args.expectGalleries === null || args.expectDeletes === null;
-  if (missing && !emulator) {
-    console.error("--apply fuori dall'emulatore vuole --expect-galleries <n> --expect-deletes <m> (i numeri del dry-run).");
-    process.exit(2);
-  }
   if (
     (args.expectGalleries !== null && args.expectGalleries !== plan.codeGalleries.length) ||
     (args.expectDeletes !== null && args.expectDeletes !== deletes)

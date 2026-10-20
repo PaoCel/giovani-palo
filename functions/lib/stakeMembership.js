@@ -281,9 +281,13 @@ function previousOf(member, { action, by, at, role = null, staffLists = null, mo
   for (const field of PREVIOUS_FIELDS) previous[field] = member && field in member ? member[field] : null;
   // `role` è il ruolo di prima, come gli altri campi; `roleAfter` quello che
   // l'azione ha lasciato, così "Annulla" non sovrascrive un ruolo cambiato poi.
+  // `roleUnitId`: unità del profilo quando il ruolo è stato tolto. Un
+  // dirigente riprende il ruolo solo nella stessa unità: da `participant` può
+  // cambiarla da solo, e il ruolo gli darebbe i minori di un'altra unità.
   if (role) {
     previous.role = role.before;
     previous.roleAfter = role.after;
+    previous.roleUnitId = role.unitId ?? null;
   }
   if (staffLists && staffLists.length) previous.staffLists = staffLists;
   if (moved && moved.length) previous.moved = moved;

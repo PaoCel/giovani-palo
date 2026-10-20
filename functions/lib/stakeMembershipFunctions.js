@@ -22,6 +22,8 @@ const REGION = "europe-west1";
 // bloccato ne esce (docs/APPARTENENZA_AL_PALO.md, contratto).
 const STAFF_LIST_DOCS = Object.freeze(["campStaff", "recordNight"]);
 const STAFF_PROFILE_ROLES = Object.freeze(["admin", "unit_leader", "super_admin"]);
+// Stesso tetto degli elenchi di campeggio e Notte dei Record (MAX_STAFF).
+const MAX_STAFF_LIST = 100;
 
 function cleanId(value, field) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -174,12 +176,11 @@ function removeFromStaffLists(tx, listSnaps, uid, by, nowMs) {
     if (!snap || !snap.exists) continue;
     const current = staffUidsOf(snap.data());
     if (!current.includes(uid)) continue;
-    tx.update(snap.ref, {
-      staffUids: current.filter((item) => item !== uid),
-      updatedAt: new Date(nowMs).toISOString(),
-      updatedBy: by,
-    });
-    removed.push({ activityId: snap.ref.parent.parent.id, doc: snap.id });
+    const updatedAt = new Date(nowMs).toISOString();
+    tx.update(snap.ref, { staffUids: current.filter((item) => item !== uid), updatedAt, updatedBy: by });
+    // `updatedAt` lasciato qui: "Annulla" rimette l'uid solo se nessuno ha
+    // toccato l'elenco nel frattempo.
+    removed.push({ activityId: snap.ref.parent.parent.id, doc: snap.id, updatedAt });
   }
   return removed;
 }
@@ -218,7 +219,7 @@ function parseRequest(data, callerUid) {
 function demoteStaff(tx, db, uid, profile, stakeId, nowMs) {
   if (!core.isDemotableStaffOf(profile, stakeId)) return null;
   tx.update(db.doc(`users/${uid}`), { role: "participant", updatedAt: new Date(nowMs).toISOString() });
-  return { before: profile.role, after: "participant" };
+  return { before: profile.role, after: "participant", unitId: typeof profile.unitId === "string" ? profile.unitId : "" };
 }
 
 async function actionRequest(ctx) {
@@ -237,22 +238,23 @@ async function actionRequest(ctx) {
 
   let status;
   let version;
-  if (staffRole && (!member || member.status === "pending" || member.status === "active")) {
+  if (staffRole && member?.status !== "removed" && member?.status !== "blocked") {
     // Un ruolo staff vuol dire che un admin conosce già la persona: come il
-    // trigger, la richiesta diventa subito appartenenza attiva.
+    // trigger, la richiesta diventa subito appartenenza attiva (anche dopo
+    // un'uscita: il super admin, che tiene il ruolo, rientra così).
     if (member && member.status === "active" && member.staffRole === staffRole && member.reviewNeeded !== true) {
       return { status: "active", version: member.version, changed: false };
     }
     status = "active";
+    const patch = { status, staffRole, reviewNeeded: false };
+    if (member && member.status !== "active") {
+      patch.sources = [...(member.sources || []), roleSource(nowMs)];
+      patch.decidedAt = FieldValue.serverTimestamp();
+      patch.decidedBy = "system";
+      if (member.movedToStakeId) patch.movedToStakeId = FieldValue.delete();
+    }
     version = member
-      ? writeMember(tx, ref, member, {
-          status,
-          staffRole,
-          reviewNeeded: false,
-          sources: [...(member.sources || []), roleSource(nowMs)],
-          decidedAt: FieldValue.serverTimestamp(),
-          decidedBy: "system",
-        }, { action: "request", by: uid, nowMs })
+      ? writeMember(tx, ref, member, patch, { action: "request", by: uid, nowMs })
       : writeMember(tx, ref, null, newMemberDoc({ status, profile, sources: [roleSource(nowMs)], staffRole, hints, decidedBy: "system" }), {
           action: "request",
           by: uid,
@@ -475,6 +477,7 @@ function restorableRole(previous, profile, stakeId) {
   if (!previous || typeof previous.role !== "string" || !profile || profile.role !== previous.roleAfter) return null;
   const staff = previous.role === "admin" || previous.role === "unit_leader";
   if (staff && profile.stakeId !== stakeId) return null;
+  if (previous.role === "unit_leader" && (profile.unitId || "") !== (previous.roleUnitId || "")) return null;
   return previous.role;
 }
 
@@ -539,10 +542,12 @@ async function actionUndo(ctx) {
     tx.update(db.doc(`users/${uid}`), { role: nextRole, updatedAt: new Date(nowMs).toISOString() });
   }
   const finalRole = nextRole || (targetProfile ? targetProfile.role : null);
-  listSnaps.forEach((snap) => {
+  listSnaps.forEach((snap, index) => {
     if (!snap.exists) return;
-    const current = staffUidsOf(snap.data());
-    if (current.includes(uid)) return;
+    const data = snap.data();
+    if (data.updatedAt !== prev.staffLists[index].updatedAt) return; // cambiato nel frattempo
+    const current = staffUidsOf(data);
+    if (current.includes(uid) || current.length >= MAX_STAFF_LIST) return;
     tx.update(snap.ref, {
       staffUids: [...current, uid].sort(),
       updatedAt: new Date(nowMs).toISOString(),
@@ -557,6 +562,8 @@ async function actionUndo(ctx) {
     if (!otherPrev || otherPrev.action !== "moved") return;
     const restore = { previous: null, movedToStakeId: FieldValue.delete() };
     for (const field of core.PREVIOUS_FIELDS) restore[field] = otherPrev[field] ?? null;
+    // Il ruolo staff vale solo nel palo scelto: lì non si ricopia da `previous`.
+    restore.staffRole = staffRoleAfter(otherPrev.status, targetProfile, finalRole, recorded.stakeId);
     writeMember(tx, snap.ref, other, restore, { action: "undo", by: callerUid, nowMs });
   });
 
@@ -614,6 +621,19 @@ async function runAction(tx, db, input) {
   return ACTION_HANDLERS[action](ctx);
 }
 
+const CROSS_STAKE_ACTIONS = Object.freeze(["request", "approve"]);
+
+// Il contesto per chi approva (diverse letture) si calcola solo se `request`
+// aprirà davvero una richiesta: una chiamata ripetuta da chi è già in coda o
+// già dentro costa poche letture.
+async function opensRequest(db, stakeId, uid) {
+  const [profileSnap, memberSnap] = await db.getAll(db.doc(`users/${uid}`), memberRef(db, stakeId, uid));
+  const profile = profileSnap.exists ? profileSnap.data() : null;
+  if (!profile || profile.stakeId !== stakeId || core.needsProfileCompletion(profile)) return false;
+  if (core.staffRoleForStake(profile, stakeId)) return false;
+  return !memberSnap.exists || ["withdrawn", "declined"].includes(memberSnap.data().status);
+}
+
 function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
   return async (request) => {
     const firestore = db || getFirestore();
@@ -625,8 +645,11 @@ function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
     const input = parseRequest(request.data, callerUid);
     const stakeSnap = await firestore.doc(`stakes/${input.stakeId}`).get();
     if (!stakeSnap.exists) throw new HttpsError("not-found", "Palo non trovato.");
-    const stakeIds = await listStakeIds(firestore);
-    const hints = input.action === "request" ? await computeRegistrationHints(firestore, input.stakeId, callerUid) : [];
+    // Altri pali: servono solo a chi apre una richiesta o approva.
+    const stakeIds = CROSS_STAKE_ACTIONS.includes(input.action) ? await listStakeIds(firestore) : [input.stakeId];
+    const hints = input.action === "request" && (await opensRequest(firestore, input.stakeId, callerUid))
+      ? await computeRegistrationHints(firestore, input.stakeId, callerUid)
+      : [];
     const nowMs = clock();
     const result = await runTransactionWithRetry(firestore, (tx) =>
       runAction(tx, firestore, { ...input, callerUid, stakeIds, hints, nowMs }),

@@ -510,8 +510,9 @@ cambiano l'esito. Risposta `{ ok: true, action, status, version, changed }`;
 invariata). Ogni scrittura incrementa `version`, mette in `previous` lo stato
 di prima (`status`, `sources`, `staffRole`, `reviewNeeded`, `claimedUnitId`,
 `claimedUnitName`, `declineCount`, `decidedAt`, `decidedBy`, più `role` (il
-ruolo di prima) e `roleAfter` (quello lasciato dall'azione) se l'azione ha
-cambiato `users.role`, `staffLists` se ha tolto l'uid dagli
+ruolo di prima), `roleAfter` (quello lasciato dall'azione) e `roleUnitId`
+(l'unità del profilo in quel momento) se l'azione ha cambiato `users.role`,
+`staffLists` se ha tolto l'uid dagli
 elenchi dello staff, `moved` se ha portato a `withdrawn` l'appartenenza in un
 altro palo) con `action` e `by`, e aggiunge una riga a
 `members/{uid}/history/{id}` (`action`, `by`, `at`, `fromStatus`,
@@ -530,11 +531,13 @@ altro palo) con `action` e `by`, e aggiunge una riga a
 | `remove` | A | `active` → `removed` | uscita dello staff, elenchi dello staff |
 | `block` | A | ogni stato tranne `blocked` → `blocked` | uscita dello staff, elenchi dello staff |
 | `unblock` | A | `blocked` → `pending` | |
-| `reactivate` | A | `removed` → stato, motivi e ruolo di `previous` (senza `previous` attivo: `active` con `staffRole: null`) | il ruolo torna solo se `users.stakeId` è ancora questo palo |
+| `reactivate` | A | `removed` → stato, motivi e ruolo di `previous` (senza `previous` attivo: `active` con `staffRole: null`) | il ruolo torna solo se `users.stakeId` è ancora questo palo e, per un dirigente, `users.unitId` è ancora la sua unità (`previous.roleUnitId`) |
 | `undo` | A; D solo per le proprie azioni | ripristina `previous` se `version` è quella passata e l'ultima azione è dello staff | ruolo, elenchi e appartenenze spostate tornano come prima, ciascuno solo se nel frattempo non è cambiato; dopo, `previous: null` |
 
 `request` di chi ha già un ruolo staff del palo segue la regola 1 del trigger
-(sotto): l'appartenenza diventa subito `active` con `staffRole`.
+(sotto): l'appartenenza diventa subito `active` con `staffRole`, anche da
+`withdrawn` o `declined` (il super admin che è uscito tiene il ruolo e rientra
+così); da `removed` e `blocked` resta `invalid_state`.
 
 Uscita dello staff (`leave`, `remove`, `block`, e `decline`/`markUnknown` se
 la persona ha un ruolo staff): `users.role` → `participant` e `staffRole:
@@ -595,7 +598,8 @@ membro attivo, altrimenti `permission-denied`; `context`, `edit`, `withdraw`,
 **Script S2-1** `functions/scripts/cleanupGalleryCodes.js`: dry-run di
 default, stampa solo conteggi in una riga JSON (`codeGalleries`,
 `gallerySecrets`, `galleryMembers`, `unlockedGalleries`, `deletes`). Con
-`--apply` porta ogni galleria `accessMode: "code_required"` a `"open"` e
+`--apply` porta ogni galleria `accessMode: "code_required"` o senza
+`accessMode` (la PWA vecchia la tratta come con codice) a `"open"` e
 cancella `stakes/*/gallerySecrets/*`, `stakes/*/galleries/*/members/*` e
 `users/*/unlockedGalleries/*`; fuori dall'emulatore vuole `--expect-galleries
 <n> --expect-deletes <m>` uguali al dry-run, altrimenti esce con 2 senza
