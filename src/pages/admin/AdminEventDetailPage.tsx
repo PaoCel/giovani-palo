@@ -520,13 +520,12 @@ export function AdminEventDetailPage() {
   // tocca bozza, modali né navigazione.
   const eventContextKey = `${session?.firebaseUser.uid ?? ""}|${stakeId}|${eventId ?? ""}`;
   const eventContextRef = useRef(eventContextKey);
-  eventContextRef.current = eventContextKey;
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    eventContextRef.current = eventContextKey;
+    return () => {
       eventContextRef.current = "";
-    },
-    [],
-  );
+    };
+  }, [eventContextKey]);
 
   const { data, loading, error } = useAsyncData(
     async () => {

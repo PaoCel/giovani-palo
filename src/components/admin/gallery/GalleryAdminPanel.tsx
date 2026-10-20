@@ -79,10 +79,17 @@ export function GalleryAdminPanel({
   useEffect(() => {
     showDelete(null);
   }, [uid, gallery.id]);
-  // La galleria mostrata adesso: un esito arrivato tardi non la sostituisce
-  // con un'altra.
-  const galleryIdRef = useRef(gallery.id);
-  galleryIdRef.current = gallery.id;
+  // Account e galleria di adesso (vuoto dopo l'uscita dalla pagina): un esito
+  // arrivato tardi non sostituisce un'altra galleria e non naviga via da una
+  // pagina che l'admin ha già lasciato.
+  const galleryContextKey = `${uid}|${gallery.id}`;
+  const galleryContextRef = useRef(galleryContextKey);
+  useEffect(() => {
+    galleryContextRef.current = galleryContextKey;
+    return () => {
+      galleryContextRef.current = "";
+    };
+  }, [galleryContextKey]);
 
   const uploader = useGalleryUploader({
     gallery,
@@ -186,8 +193,9 @@ export function GalleryAdminPanel({
         showDelete(null);
       }
       await cleanup;
+      const startedFor = galleryContextKey;
       const refreshed = await galleriesService.getGallery(stakeId, gallery.id);
-      if (refreshed && galleryIdRef.current === refreshed.id) setGallery(refreshed);
+      if (refreshed && galleryContextRef.current === startedFor) setGallery(refreshed);
     } catch (caughtError) {
       if (run === deleteRunRef.current) {
         setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaMedia));
@@ -315,6 +323,7 @@ export function GalleryAdminPanel({
   async function handleDeleteGallery() {
     if (!onDeleted) return;
     const run = deleteRunRef.current;
+    const startedFor = galleryContextKey;
     setWorking(true);
     setDeleteError(null);
     try {
@@ -326,7 +335,7 @@ export function GalleryAdminPanel({
       if (run === deleteRunRef.current) {
         showDelete(null);
       }
-      if (galleryIdRef.current === gallery.id) onDeleted();
+      if (galleryContextRef.current === startedFor) onDeleted();
     } catch (caughtError) {
       if (run === deleteRunRef.current) {
         setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaGalleria));
