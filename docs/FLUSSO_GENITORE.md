@@ -621,7 +621,9 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    campeggio (staff del campo), quindi anche quelle dei figli di un altro
    dirigente; non le annulla. C'era già, ora riguarda più famiglie.
 7. Finitura di Famiglia e dialoghi del browser rimasti (task
-   `gugd-finitura-famiglia`, solo client). Famiglia: tasti piccoli a 44 px,
+   `gugd-finitura-famiglia`, solo client). **In produzione dal 2026-10-20**
+   (solo hosting da una copia isolata di `c0df9e3`, service worker v29,
+   bundle `index-Cv9tASyT.js`). Famiglia: tasti piccoli a 44 px,
    stati e consensi a 13 px. Fogli in pagina al posto di `window.confirm` e
    `window.alert` fuori dall'admin: "Annulla l'iscrizione" dalla scheda
    `/me/activities/:id` (stesso testo di Famiglia, in seconda persona),

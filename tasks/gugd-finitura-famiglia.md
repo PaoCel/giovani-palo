@@ -16,7 +16,7 @@ blocked_by: []
 branch: task/gugd-finitura-famiglia
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/ecstatic-hodgkin-e6b647
 session: dd94c8b9-2344-4ff7-a5b3-500246ad7983
-stopped_at: Merge in main
+stopped_at: "In produzione dal 2026-10-20: hosting da c0df9e3, service worker v29, bundle index-Cv9tASyT.js"
 next: ""
 verified: "Collaudo Playwright sul mini contro emulatori auth+firestore+functions+storage in copia separata, 183/183 a 320/390/430 sul codice finale (09cc6d7, 2026-10-20): Famiglia tasti >= 44 px e badge 13 px, nessuno scroll orizzontale; fogli al posto dei dialoghi (scheda, firma, domande, galleria, nascosti) con i dati controllati nel database; nessun dialogo del browser; pagina inerte e Tab nel foglio, anche nel BottomSheet dell'iscrizione; cambio di scheda col foglio aperto senza annullamenti; errore offline dentro il modale del figlio. Test: 970 (960 verdi, 9 saltati, accentApostrophes verde in locale), scritti da un altro agente con mutazioni. Review: Codex gpt-6-astra BLOCKED x3 corretti a ogni giro, poi Fable 5.1 PASS WITH CONCERNS (P3 corretti: file orfani dopo timeout, errore grezzo, copy duplicato; restano focus senza fallback e Tab su controlli nascosti, P3 remoti)."
 links: [docs/FLUSSO_GENITORE.md, side-session-notes local_554ce4c8/qa-finitura]
