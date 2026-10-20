@@ -384,6 +384,9 @@ service cloud.firestore {
           'assignedPatrolName',
           'assignedPatrolRole',
           'assignedCommittees',
+          // Autore di un'iscrizione a mano (manual_): lo scrive solo l'admin
+          // alla creazione, nessuno lo cambia (docs/ADMIN_ISCRITTI.md).
+          'createdBy',
           'createdAt',
           'updatedAt'
         ])
@@ -529,7 +532,8 @@ service cloud.firestore {
           'assignedPatrolName': null,
           'assignedPatrolRole': null,
           'assignedCommittees': [],
-          'linkedLaterToUserId': null
+          'linkedLaterToUserId': null,
+          'createdBy': null
         }).changedKeys().size() == 0;
     }
 
@@ -657,7 +661,7 @@ service cloud.firestore {
           'assignedRoomId', 'assignedTempleShiftId', 'assignedServiceTeamIds',
           'linkedLaterToUserId'
         ])
-        && !changed.hasAny(['parentAuthorization'])
+        && !changed.hasAny(['parentAuthorization', 'createdBy'])
         && (
           !changed.hasAny([
             'assignedPatrolId', 'assignedPatrolName', 'assignedPatrolRole',
@@ -724,6 +728,129 @@ service cloud.firestore {
         && (request.resource.data.assignedPatrolRole == null || request.resource.data.assignedPatrolRole in ['leader', 'supervisor', 'member'])
         && (!('assignedCommittees' in request.resource.data) || request.resource.data.assignedCommittees is list)
         && request.resource.data.updatedAt is string;
+    }
+
+    // Iscrizione a mano dell'admin (docs/ADMIN_ISCRITTI.md, scelte I1-I3): id
+    // manual_, nessun titolare, autore annotato, data di nascita e unità
+    // obbligatorie, stato iniziale con la regola del minorenne (come il
+    // titolare), consensi, firme, codici e assegnazioni vuoti. Il prefisso
+    // per primo: chi si iscrive da sé non paga il resto. Prima l'admin creava
+    // qualunque documento senza nessun controllo.
+    function validAdminManualCreate(stakeId, activityId, registrationId) {
+      let next = request.resource.data;
+      return registrationId.matches('manual_[A-Za-z0-9_-]{6,80}')
+        && isStakeAdmin(stakeId)
+        && validRegistrationPayload(next)
+        && next.createdBy == request.auth.uid
+        && next.userId == null
+        && next.anonymousUid == null
+        && next.anonymousTokenId == null
+        && next.get('parentUid', null) == null
+        && next.get('childId', null) == null
+        && next.submittedByMode == 'anonymous'
+        && next.firstName.size() > 0
+        && next.lastName.size() > 0
+        && next.birthDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && next.unitId.size() > 0
+        && exists(/databases/$(database)/documents/stakes/$(stakeId)/units/$(next.unitId))
+        && validInitialRegistrationStatus(stakeId, activityId, next)
+        && next.accessCode == null
+        && next.recoveryCode == null
+        && next.recoveryPdfGenerated == false
+        && next.diff({
+          'parentConsentDocumentName': null,
+          'parentConsentDocumentUrl': null,
+          'parentConsentDocumentPath': null,
+          'parentConsentUploadedAt': null,
+          'consentSignatureUrl': null,
+          'consentSignaturePath': null,
+          'consentSignatureSetAt': null,
+          'parentIdDocumentName': null,
+          'parentIdDocumentUrl': null,
+          'parentIdDocumentPath': null,
+          'parentIdUploadedAt': null,
+          'parentAuthorization': null,
+          'assignedRoomId': null,
+          'assignedRoomName': null,
+          'assignedTempleShiftId': null,
+          'assignedServiceTeamIds': [],
+          'assignedPatrolId': null,
+          'assignedPatrolName': null,
+          'assignedPatrolRole': null,
+          'assignedCommittees': [],
+          'linkedLaterToUserId': null
+        }).changedKeys().size() == 0;
+    }
+
+    // Admin su un'iscrizione esistente (docs/ADMIN_ISCRITTI.md, scelta R):
+    // solo i campi che le sue schermate scrivono. Stato, dati della persona,
+    // email del genitore (nel modulo e sull'autorizzazione), abbinamenti
+    // delle preferenze stanza. Mai firme, consensi del genitore, assegnazioni,
+    // codici, titolare o autore. Lo stato si controlla come transizione:
+    // invariato sempre (correggere i dati di una confermata), annullata e in
+    // attesa sempre, attiva solo se il genitore ha firmato o la firma non
+    // serve. 'confirmed' e 'rejected_by_parent' li scrive solo il server.
+    // Prima bastava essere admin per riscrivere tutto, consensi firmati e
+    // 'confirmed' compresi; e "Riattiva" rimetteva attivo un minorenne senza
+    // firma. I tipi dei dati della persona si controllano solo se cambiano: i
+    // documenti vecchi con campi fuori elenco ('status', 'youthGroup') si
+    // annullano e si correggono lo stesso.
+    function validAdminRegistrationUpdate(stakeId, activityId) {
+      let next = request.resource.data;
+      let prev = resource.data;
+      let changed = next.diff(prev).affectedKeys();
+      return isStakeAdmin(stakeId)
+        && changed.hasOnly([
+          'registrationStatus', 'updatedAt', 'answers', 'parentAuthorization',
+          'roomPreferenceMatches', 'firstName', 'lastName', 'fullName',
+          'birthDate', 'genderRoleCategory', 'unitId', 'unitNameSnapshot',
+          'email', 'phone'
+        ])
+        && (
+          !changed.hasAny(['answers'])
+          || next.answers.diff(prev.answers).affectedKeys().hasOnly([
+            'parentAuthorizationRequest', 'birthDate', 'genderRoleCategory',
+            'youthGroup', 'unitName'
+          ])
+        )
+        && (
+          !changed.hasAny(['parentAuthorization'])
+          || (
+            prev.get('parentAuthorization', null) is map
+            && next.parentAuthorization is map
+            && next.parentAuthorization.diff(prev.parentAuthorization).affectedKeys()
+              .hasOnly(['parentEmail', 'emailLastError', 'updatedAt'])
+          )
+        )
+        && (
+          !changed.hasAny([
+            'firstName', 'lastName', 'fullName', 'birthDate', 'genderRoleCategory',
+            'unitId', 'unitNameSnapshot', 'email', 'phone'
+          ])
+          || (
+            next.firstName is string
+            && next.lastName is string
+            && next.fullName is string
+            && next.email is string
+            && next.phone is string
+            && next.birthDate is string
+            && validGenderRoleCategory(next.genderRoleCategory)
+            && next.unitId is string
+            && next.unitNameSnapshot is string
+          )
+        )
+        && (
+          next.registrationStatus == prev.registrationStatus
+          || next.registrationStatus in ['cancelled', 'pending_parent_authorization']
+          || (
+            next.registrationStatus == 'active'
+            && (
+              (prev.get('parentAuthorization', null) is map
+                && prev.parentAuthorization.get('status', null) == 'authorized')
+              || !parentAuthorizationRequired(stakeId, activityId, next)
+            )
+          )
+        );
     }
 
     function validQuestionStatus(value) {
@@ -1495,13 +1622,21 @@ service cloud.firestore {
           allow list: if isStakeAdmin(stakeId)
             || isUnitLeaderOfUnit(stakeId, resource.data.unitId)
             || isCampStaffOfActivity(stakeId, activityId);
-          allow create: if isStakeAdmin(stakeId)
+          // L'admin crea solo iscrizioni a mano (manual_), con il loro
+          // controllo; la propria iscrizione la fa dal modulo come tutti.
+          allow create: if validAdminManualCreate(stakeId, activityId, registrationId)
             || validRegistrationCreate(stakeId, activityId, registrationId);
           // Ordine per costo: il proprietario non deve pagare le letture del
           // ramo staff campo (attività, iscrizione adulta) prima del proprio.
           // validOwnerCancellation per primo: è il più economico (circa 12
-          // espressioni contro le 600-800 di validRegistrationUpdate).
-          allow update: if validOwnerCancellation() || isStakeAdmin(stakeId) || validRegistrationUpdate(stakeId, activityId) || validCampAssignmentUpdate(stakeId, activityId);
+          // espressioni contro le 600-800 di validRegistrationUpdate). L'admin
+          // per ultimo, con la sua lista di campi (docs/ADMIN_ISCRITTI.md): un
+          // admin che salva dal modulo la propria iscrizione o quella del
+          // figlio passa dal ramo del titolare come ogni genitore.
+          allow update: if validOwnerCancellation()
+            || validRegistrationUpdate(stakeId, activityId)
+            || validCampAssignmentUpdate(stakeId, activityId)
+            || validAdminRegistrationUpdate(stakeId, activityId);
           allow delete: if isStakeAdmin(stakeId)
             || canDeleteMigratedGuestRegistration(stakeId, activityId, registrationId);
 
