@@ -689,6 +689,11 @@ service cloud.firestore {
         && (
           next.registrationStatus == prev.registrationStatus
           || next.registrationStatus == 'cancelled'
+          // Attiva che passa in attesa del genitore: il modulo raccoglie ora la
+          // richiesta (data di nascita corretta, attività che chiede
+          // l'autorizzazione). Solo più restrittivo: chiede un consenso.
+          || (prev.registrationStatus == 'active'
+            && next.registrationStatus == 'pending_parent_authorization')
           // Riattivazione: chi ha annullato può reiscriversi risalvando il
           // modulo. Senza questo ramo il salvataggio passava ma lo stato
           // restava 'cancelled' e l'iscrizione era invisibile agli admin.
@@ -713,8 +718,9 @@ service cloud.firestore {
           )
         )
         // Come per l'admin: cambiare la data di nascita lasciando attiva
-        // l'iscrizione non salta il consenso (il modulo la mette già in
-        // attesa). Solo se la data cambia: il caso comune costa 2 espressioni.
+        // l'iscrizione non salta il consenso. Il modulo la mette in attesa
+        // (resolveRegistrationStatusOnSave, dal 2026-10-20). Solo se la data
+        // cambia: il caso comune costa 2 espressioni.
         && (
           !changed.hasAny(['birthDate'])
           || next.registrationStatus != 'active'

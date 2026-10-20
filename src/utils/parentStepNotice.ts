@@ -51,10 +51,15 @@ export function getParentStepNotice(
     parentAuthorizationRequested: true,
   });
 
-  // Annullata e senza firma: il salvataggio vale come iscrizione nuova e il
+  // Ingresso in attesa da un altro stato (annullata senza firma, o attiva che
+  // ora chiede il genitore): il salvataggio vale come iscrizione nuova e il
   // trigger manda un link nuovo, anche dopo un rifiuto o con un link già
-  // partito (restartParentAuthorizationAfterCancellation nelle functions).
-  if (existing.registrationStatus === "cancelled" && next === "pending_parent_authorization") {
+  // partito (restartParentAuthorizationAfterCancellation nelle functions, che
+  // dal 2026-10-20 riparte per ogni ingresso in attesa).
+  if (
+    existing.registrationStatus !== "pending_parent_authorization" &&
+    next === "pending_parent_authorization"
+  ) {
     return "nuovo_link";
   }
 
