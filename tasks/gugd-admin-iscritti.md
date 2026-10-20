@@ -55,6 +55,11 @@ payload (`firestore.rules:1498-1504`).
   la tab Iscritti di `AdminEventDetailPage.tsx` (4800 righe) in un file suo.
 - spec `docs/ADMIN_ISCRITTI.md`: stati e ritorni, effetti di data di
   nascita, unità e nome su consensi e visibilità, rules, functions, scelte.
+- S2 (`task/gugd-s2-appartenenza`) cambia `currentUserExists()` (account non
+  anonimo), usata da `isStakeAdmin`: quando i due branch si incontrano in
+  `main`, rimisurare il budget dell'update iscrizione
+  (`registrationUpdateRules.py`, casi pesanti di `parentCancelRulesEmulator`,
+  test di budget di questo task). S2 fase 2 tocca anche `functions/index.js`.
 - serve anche un deploy delle functions (trigger che invalida i link quando
   un'iscrizione esce da "in attesa" senza firma): `delivery: deploy` vale per
   rules, functions e hosting, nell'ordine.
