@@ -1,7 +1,7 @@
 ---
 id: gugd-etichette-home
 title: "Finitura della home /me, della scheda attività e della firma"
-status: needs-paolo
+status: backlog
 impact: 1
 urgency: 1
 effort: S
@@ -12,12 +12,12 @@ opened: 2026-10-20
 started_at:
 touched: 2026-10-20
 due:
-blocked_by: ["decisione: quale variante per le etichette della home"]
+blocked_by: []
 branch:
 worktree:
 session:
 stopped_at: ""
-next: "Paolo sceglie A, B o C per le etichette (confronto in side-session-notes local_554ce4c8/qa-finitura/out/etichetta-confronto.png); poi stesso giro sui rilievi"
+next: "CSS mirato per home, scheda e firma, poi collaudo con .claude/qa-finitura/qa.mjs"
 verified: ""
 links: []
 done_at:
@@ -32,10 +32,9 @@ quindi prima la scelta di Paolo.
 
 ## Fatto quando
 
-- Etichette `.dash-section__eyebrow` (10,9 px) e `.dash-head__eyebrow`
-  (11,2 px) secondo la scelta: A com'è, B 13 px mono maiuscolo
-  (consigliata), C 13 px testo normale. Confronto:
-  `side-session-notes/local_554ce4c8…/qa-finitura/out/etichetta-confronto.png`.
+- Etichette della home: fatte il 2026-10-20 (variante B scelta da Paolo,
+  13 px mono maiuscolo, spaziatura 0.08em), in produzione con il service
+  worker v29.
 - Home `/me`: "Condividi il sito" 43 px, "Iscriviti"/"Dettagli attività"
   42 px, chip di stato 12,8 px.
 - Scheda `/me/activities/:id`: "Condividi" e tasto senza nome 42 px, chip
@@ -46,7 +45,7 @@ quindi prima la scelta di Paolo.
 
 ## Da fare
 
-- scelta di Paolo; CSS mirato per pagina; collaudo.
+- CSS mirato per pagina; collaudo.
 
 ## Verificato
 

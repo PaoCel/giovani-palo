@@ -651,9 +651,11 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
    - senza rete le eliminazioni lasciavano il foglio bloccato: timeout delle
      scritture e `PAROLE.erroreRete`.
    Restano dialoghi del browser solo nell'admin (11 in 4 file), guardati da
-   `tests/browserDialogs.test.mjs`. Rilievi fuori perimetro, da decidere:
-   etichette della home `/me` (10,9 e 11,2 px), chip e tasti da 42-43 px
-   della home e della scheda attività, passi della pagina di firma a 11 px.
+   `tests/browserDialogs.test.mjs`. Etichette della home `/me` a 13 px,
+   mono maiuscole con spaziatura 0.08em (variante B, scelta di Paolo il
+   2026-10-20). Restano fuori perimetro (task `gugd-etichette-home`): chip e
+   tasti da 42-43 px della home e della scheda attività, passi della pagina
+   di firma a 11 px.
 
 Test (da un agente diverso da chi scrive il codice): unitari su `per`, primo
 passo valido per ogni tipo di account, guardia (soglia, data dell'attività,
