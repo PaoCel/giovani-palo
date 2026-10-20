@@ -1517,6 +1517,11 @@ function assertCanIssueOwnToken(registration, uid) {
   if (state?.status === "authorized") {
     throw new HttpsError("failed-precondition", ALREADY_AUTHORIZED_MESSAGE);
   }
+  // Un rifiuto del genitore si riapre solo annullando e riattivando
+  // l'iscrizione, non con un link nuovo.
+  if (state?.status === "rejected_by_parent") {
+    throw new HttpsError("failed-precondition", ALREADY_REJECTED_MESSAGE);
+  }
 
   // "Autorizza ora" solo per un'iscrizione in attesa, come mostra Famiglia:
   // dopo una correzione che la rende attiva (18 anni o più) un link nuovo
@@ -2429,6 +2434,9 @@ const parentAuthorizationResend = onCall(
       registrationId,
       activity,
       actorUserId: request.auth.uid,
+      // Di nuovo nella transazione: una correzione ad adulto arrivata fra il
+      // controllo qui sopra e l'emissione non riceve un link inutile.
+      shouldStillSend: (current) => parentAuthorizationStillNeeded(current, activity),
     });
 
     // Cancellata, annullata o decisa fra la prima lettura e la transazione.
@@ -2440,6 +2448,11 @@ const parentAuthorizationResend = onCall(
     }
     if (result.reason === "already_decided") {
       assertParentAuthorizationOpen(result.status);
+    }
+    // Corretta ad adulto (o non più da autorizzare) fra la prima lettura e
+    // la transazione: nessun link emesso.
+    if (result.reason === "superseded") {
+      throw new HttpsError("failed-precondition", NOT_NEEDED_MESSAGE);
     }
     // Prima tornava { sent: false } dopo aver invalidato il link: ora non si
     // tocca niente e l'admin legge cosa manca.
