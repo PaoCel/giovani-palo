@@ -1,25 +1,25 @@
 ---
 id: gugd-admin-iscritti
 title: "Admin: iscrizione a mano e correzione dei dati di un iscritto"
-status: ready
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: M
 delivery: deploy
-surface: [web, rules]
+surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
-started_at:
+started_at: 2026-10-20
 touched: 2026-10-20
 due:
-blocked_by: []
-branch:
-worktree:
-session:
-stopped_at: ""
-next: "Spec breve con stati e ritorni (cosa succede ai consensi se cambiano data di nascita, unità o nome), mockup con i token reali, poi codice nella tab Iscritti"
+blocked_by: ["decisione: scelte I1-I8, R e F in docs/ADMIN_ISCRITTI.md"]
+branch: task/gugd-admin-iscritti
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
+session: 3b5e6431-ed1b-420c-83ed-ae790b460974
+stopped_at: "Spec e mockup pronti, rivisti da un secondo modello; aspettano le scelte di Paolo"
+next: "Con le scelte di Paolo: censimento in sola lettura delle iscrizioni in prod, rules con test nell'emulatore (budget), trigger che invalida i link, poi estrazione della tab Iscritti e UI"
 verified: ""
-links: [docs/AUTONOMIA_MULTI_PALO.md]
+links: [docs/ADMIN_ISCRITTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
 
@@ -48,8 +48,12 @@ payload (`firestore.rules:1498-1504`).
 
 ## Da fare
 
-- dopo `gugd-admin-dialoghi` se rientra: tocca lo stesso
-  `AdminEventDetailPage.tsx` (4509 righe); estrarre la tab Iscritti in un file
-  suo mentre ci si lavora.
+- `gugd-admin-dialoghi` è chiuso (2026-10-20): si parte da `main`; estrarre
+  la tab Iscritti di `AdminEventDetailPage.tsx` (4800 righe) in un file suo.
+- spec `docs/ADMIN_ISCRITTI.md`: stati e ritorni, effetti di data di
+  nascita, unità e nome su consensi e visibilità, rules, functions, scelte.
+- serve anche un deploy delle functions (trigger che invalida i link quando
+  un'iscrizione esce da "in attesa" senza firma): `delivery: deploy` vale per
+  rules, functions e hosting, nell'ordine.
 
 ## Verificato
