@@ -90,7 +90,8 @@ service cloud.firestore {
     // documento mancante tolga la galleria a chi la modera. Il documento members
     // si legge per primo, così un membro attivo non paga la lettura del profilo.
     function isStakeMember(stakeId) {
-      return isActiveStakeMember(stakeId) || isGalleryStaff(stakeId);
+      return isNonAnonymousSignedIn()
+        && (isActiveStakeMember(stakeId) || isGalleryStaff(stakeId));
     }
 
     function isGalleryStaff(stakeId) {
@@ -1198,7 +1199,15 @@ service cloud.firestore {
         );
     }
 
-    function canAdminAssignUserRole() {
+    // Un ruolo staff dà anche l'appartenenza (isStakeMember): non si assegna a
+    // chi è uscito dal palo, rifiutato, rimosso o bloccato. Prima va riattivato
+    // dalla coda (stakeMembership), poi promosso.
+    function canReceiveStaffRole(uid, stakeId) {
+      return !exists(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid))
+        || get(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid)).data.status in ['pending', 'active'];
+    }
+
+    function canAdminAssignUserRole(uid) {
       return currentUserExists()
         && validUserPayload(request.resource.data)
         && isStakeAdmin(resource.data.stakeId)
@@ -1219,7 +1228,12 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.lastLoginAt == resource.data.lastLoginAt
         && request.resource.data.updatedAt is string
-        && request.resource.data.role in ['participant', 'admin', 'unit_leader', 'parent'];
+        && request.resource.data.role in ['participant', 'admin', 'unit_leader', 'parent']
+        && (
+          !(request.resource.data.role in ['admin', 'unit_leader'])
+          || request.resource.data.role == resource.data.role
+          || canReceiveStaffRole(uid, resource.data.stakeId)
+        );
     }
 
     function validChildPayload(data) {
@@ -1255,7 +1269,7 @@ service cloud.firestore {
       allow list: if isStakeAdmin(resource.data.stakeId)
         || isUnitLeaderOfUnit(resource.data.stakeId, resource.data.unitId);
       allow create: if canCreateOwnUser(uid);
-      allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole();
+      allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole(uid);
       allow delete: if false;
 
       // Specchio delle gallerie sbloccate dall'utente. La scrittura avviene

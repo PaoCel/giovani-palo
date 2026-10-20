@@ -73,13 +73,15 @@ function buildRegistrationHints(registrations, activityTitles) {
 }
 
 // Documento members iniziale per un account esistente. `at` è il Timestamp (o
-// il sentinel serverTimestamp) da scrivere: il chiamante decide.
-function buildMigratedMember({ user, liveRegistrations, activityTitles, at, migrationRef }) {
+// il sentinel serverTimestamp) dei campi di primo livello; `sourceAt` quello
+// dentro `sources`, che deve essere un valore concreto: Firestore non accetta
+// serverTimestamp() dentro un array.
+function buildMigratedMember({ user, liveRegistrations, activityTitles, at, sourceAt = at, migrationRef }) {
   const group = migrationGroupOf(user, liveRegistrations.length);
   const active = group !== "queued";
   return {
     status: active ? "active" : "pending",
-    sources: [{ kind: "migration", ref: migrationRef, at }],
+    sources: [{ kind: "migration", ref: migrationRef, at: sourceAt }],
     previous: null,
     staffRole: staffRoleFromUserRole(user.role),
     claimedUnitId: cleanString(user.unitId),
@@ -103,7 +105,7 @@ function buildMigratedMember({ user, liveRegistrations, activityTitles, at, migr
 // users: [{ uid, role, stakeId, unitId, unitName, fullName, firstName, lastName, birthDate }]
 // registrations: [{ activityId, userId, parentUid, anonymousUid, registrationStatus }] del palo
 // existingMemberUids: Set di uid con members già presente
-function planStakeMemberMigration({ stakeId, users, registrations, existingMemberUids, activityTitles, at, migrationRef }) {
+function planStakeMemberMigration({ stakeId, users, registrations, existingMemberUids, activityTitles, at, sourceAt = at, migrationRef }) {
   const liveByUid = new Map();
   for (const registration of registrations) {
     if (!isLiveRegistration(registration)) continue;
@@ -127,7 +129,7 @@ function planStakeMemberMigration({ stakeId, users, registrations, existingMembe
       continue;
     }
     const liveRegistrations = liveByUid.get(user.uid) || [];
-    const doc = buildMigratedMember({ user, liveRegistrations, activityTitles: titles, at, migrationRef });
+    const doc = buildMigratedMember({ user, liveRegistrations, activityTitles: titles, at, sourceAt, migrationRef });
     counts[migrationGroupOf(user, liveRegistrations.length)] += 1;
     toCreate.push({ uid: user.uid, doc });
   }

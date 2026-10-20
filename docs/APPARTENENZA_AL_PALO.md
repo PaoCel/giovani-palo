@@ -340,9 +340,19 @@ membro, qualunque documento abbia. Lo staff ha sempre anche il proprio
 documento members attivo con `staffRole` (migrazione, trigger sul ruolo); il
 ramo "staff dal profilo" esiste perché un documento mancante non tolga la
 galleria a chi la modera, e i poteri dello staff (cancellare contenuti altrui,
-leggere segnalazioni) restano quelli del ruolo. Rimuovere o bloccare un membro
-dello staff lo riporta a `participant` nella stessa transazione: è la callable
-a garantire che ruolo e appartenenza non divergano.
+leggere segnalazioni) restano quelli del ruolo. Perché ruolo e appartenenza
+non divergano:
+
+- ogni uscita da `active` di chi ha `staffRole` (esce dal palo, rimosso,
+  bloccato, passato a un altro palo) lo riporta a `participant` e azzera
+  `staffRole` nella stessa transazione; "Annulla" li ripristina da `previous`;
+- l'ultimo admin del palo non può uscire, né essere rimosso o bloccato;
+- un ruolo staff si assegna solo a chi non ha il documento o è `pending` o
+  `active` (le rules lo negano negli altri stati: prima si riattiva, poi si
+  promuove); il trigger su `users` porta il documento ad `active` con
+  `staffRole`; togliere il ruolo azzera `staffRole` e lascia l'appartenenza;
+- rimuovere o bloccare toglie l'uid anche dagli elenchi dello staff delle
+  attività del palo (`management/campStaff`, `management/recordNight`).
 
 **Chi.**
 
@@ -358,6 +368,10 @@ a garantire che ruolo e appartenenza non divergano.
 | D | dirigente di unità del palo | ruolo `unit_leader` e `users.stakeId` del palo (assegnati da un admin) |
 | A | admin del palo, super admin | ruolo `admin` con `users.stakeId` del palo, o `super_admin` |
 
+Lo staff "in elenco" di un'attività (`staffUids` del campeggio o della Notte
+dei Record, scelto da un admin) vale solo per quella funzione e non dà
+appartenenza.
+
 **Firestore** (✓ permesso, ✗ negato; "propri" = documenti con il proprio uid).
 
 | Dato e operazione dell'app | V | O | N | P | M | F | X | D | A |
@@ -365,7 +379,7 @@ a garantire che ruolo e appartenenza non divergano.
 | `members/{sé}` get, anche se non esiste | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `members/{altro}` get | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo chi ha dichiarato la sua unità | ✓ |
 | `members` list | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo `where('claimedUnitId','==',<sua unità>)` | ✓ |
-| `members/{uid}/staff/*` (note dello staff) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo la sua unità dichiarata | ✓ |
+| `members/{uid}/staff/*` (note dello staff) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | get, solo la sua unità dichiarata | ✓ |
 | `members` scrittura da client | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | `galleries` `where('activityId','==',a)`, get | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
 | `media` onSnapshot, `orderBy('createdAt','desc')` + `limit`, getDocs | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
@@ -377,7 +391,7 @@ a garantire che ruolo e appartenenza non divergano.
 | `hiddenMedia` `where('uploadedBy','==',sé)` / tutti | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
 | `reports` (il client non li legge) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
 | `records` `where('status','==','open')` | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
-| `records` senza filtro (gestione) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
+| `records` senza filtro (gestione; anche lo staff in elenco) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
 | `recordEntries` `where('ownerUid','==',sé)` | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `surveyQuestions` `orderBy('order')` | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
 | `surveyResponses` get per id, set della bozza e dell'invio | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
@@ -393,10 +407,12 @@ Righe "incoerenti", provate apposta:
 | --- | --- |
 | `users.stakeId` del palo, nessun members (N) | negato su tutto ciò che è dei membri: è il cuore di S2 |
 | `galleries/{g}/members/{uid}` o `users/{uid}/unlockedGalleries/{g}` presenti (codici galleria vecchi), nessun members attivo | negato: le rules non leggono mai quei documenti né `gallerySecrets` |
-| sessione anonima con un members `active` scritto per errore | negato |
+| sessione anonima con un members `active` o con un profilo staff | negato |
 | D o A con il proprio members mancante o `removed` | permesso: decide il ruolo, e la callable che rimuove toglie anche il ruolo |
 | members `active` nel palo A, `users.stakeId` già cambiato verso B | permesso in A finché l'appartenenza in A non passa a `withdrawn` |
-| like o `mediaCount` mossi di 2, o senza il proprio documento like/media nello stesso batch | negato |
+| like mosso di 2, o senza il proprio documento like nello stesso batch; `mediaCount` mosso di 2 | negato |
+| ruolo `admin` o `unit_leader` assegnato da client a chi è `declined`, `withdrawn`, `removed` o `blocked` | negato |
+| query del dirigente su `members` senza il filtro della sua unità, con `in`, `!=`, `not-in`, `count()` senza filtro, `collectionGroup('members')` | negato |
 
 **Storage** (dopo la fase B di `gugd-storage-eu`). Path
 `protected/stakes/{s}/galleries/{g}/media/{m}/{file}`; stesse persone,
@@ -423,7 +439,7 @@ Gli URL con token già distribuiti restano validi dopo una rimozione (vedi sopra
 | --- | --- |
 | `activityGallery` | `ensure` e `report`: membro, letto da `members/{uid}` e non più dal profilo; `restore` e `delete`: staff (ruolo). Stessa regola delle rules: se una cambia, cambia anche l'altra |
 | `recordNightParticipant` | `context` resta com'è (solo le proprie iscrizioni). `propose` e `challenge`: iscrizione attiva all'attività **e** membro; `edit`, `withdraw`, `restore` dei propri tentativi: come oggi, così chi esce dal palo può ancora ritirarsi. Lo staff (ruolo o elenco dell'admin) non cambia |
-| `stakeMembership` (nuova) | `request` solo per sé, non anonimo, palo esistente, tetti; ritiro e uscita solo per sé; approva, rifiuta e "Non è della mia unità": D per la sua unità dichiarata, A per tutte; rimuovi, blocca, sblocca, riattiva: solo A, mai su sé stesso né sull'ultimo admin; "Lo conosco" / "Non lo conosco": D per la sua unità, A; "Annulla" passa la `version` vista e fallisce se è cambiata |
+| `stakeMembership` (nuova) | `request` solo per sé, non anonimo, palo esistente, tetti; ritiro e uscita solo per sé; approva, rifiuta e "Non è della mia unità": D per la sua unità dichiarata, A per tutte; rimuovi, blocca, sblocca, riattiva: solo A, mai su sé stesso né sull'ultimo admin; "Lo conosco" / "Non lo conosco": D per la sua unità, A; "Annulla" passa la `version` vista e fallisce se è cambiata. Ogni transizione segue i punti su ruolo e appartenenza qui sopra, nella stessa transazione, e ricalcola tutto dal documento (trigger doppi o fuori ordine non cambiano l'esito) |
 | `unlockGalleryWithCode`, `setGallerySecretCode` | live in produzione, sorgente fuori dal repo (codici galleria tolti da Paolo, 2026-10-07). Scrivono solo `galleries/{g}/members`, `users/{uid}/unlockedGalleries` e `gallerySecrets`, che nessuna rule legge per dare accesso: **nessuna delle due apre la galleria a chi non è membro**, oggi e dopo S2 (riga "codici galleria vecchi" sopra). Proposta di cancellarle: scelta S2-1 |
 
 **Chi scrive members** (solo server, Admin SDK): lo script di migrazione; la
@@ -453,6 +469,13 @@ nuovo non arriva:
 | sondaggio | messaggio inglese e "Non ci sono ancora domande"; in `/me` la sezione sondaggi sparisce |
 | `activityGallery` `ensure` | finché la callable legge il profilo, crea la galleria anche per loro (senza mostrargliela): va pubblicata con le rules |
 
+Quello che il telefono ha già scaricato resta visibile finché vive la cache
+(la lettura "cache prima" non cancella i dati quando il server nega, e gli URL
+con token restano validi): vale come per gli URL già distribuiti. Il client
+nuovo decide "membro" dal proprio documento members di quel palo, non da
+`users.stakeId` (oggi `useGalleryAccess`), e su un diniego svuota la cache di
+quella galleria.
+
 Nessuna pagina si rompe, ma i testi danno motivi falsi: il client nuovo
 (banner "in attesa", "Si sbloccano dopo la verifica") deve uscire subito dopo
 rules e callable, e i 41 "account esistente" non hanno iscrizioni, quindi
@@ -462,10 +485,13 @@ difficilmente aprono una galleria nel frattempo.
 e quelle dei figli, consensi, stanze, `recordEntries` proprie, Notte dei Record
 senza account, feed in lettura.
 
-**Ordine di deploy**: migrazione in dry-run → migrazione reale → rules
-Firestore e trigger su `users` nello stesso giro → callable (`activityGallery`,
-`recordNightParticipant`, `stakeMembership`) → client. Rules Storage con la
-fase B di `gugd-storage-eu` o dopo. Ogni passo con conferma di Paolo.
+**Ordine di deploy**: migrazione in dry-run → migrazione reale (con il numero
+visto nel dry-run) → rules Firestore e trigger su `users` nello stesso giro →
+callable (`activityGallery`, `recordNightParticipant`, `stakeMembership`) →
+client. Rules Storage con la fase B di `gugd-storage-eu` o dopo. Ogni passo con
+conferma di Paolo. S2 è efficace solo quando rules Firestore, rules Storage e
+le due callable leggono tutte `members`: finché una legge ancora il profilo,
+quella strada resta aperta a chi ha solo scelto il palo.
 
 ## Parte C. Primo passo: accesso e registrazione (esce con S3)
 
