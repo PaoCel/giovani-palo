@@ -241,11 +241,16 @@ async function settled(path, { quietMs = 600, maxMs = 15000 } = {}) {
   throw new Error(`${path} non si ferma dopo ${maxMs} ms`);
 }
 
-/** L'iscrizione come l'ha scritta il client: senza i campi che il trigger del genitore aggiunge dopo. */
-function asWrittenByClient(data) {
-  if (!data) return data;
-  const { parentAuthorization, updatedAt, ...rest } = data;
-  return rest;
+/**
+ * L'iscrizione salvata è quella scritta dal client: il trigger del genitore
+ * può aggiungere solo `parentAuthorization` e un `updatedAt` più recente.
+ */
+function assertWrittenByClient(actual, payload, label = "iscrizione") {
+  const { parentAuthorization: added, updatedAt: actualUpdatedAt, ...rest } = actual || {};
+  const { parentAuthorization: written, updatedAt: payloadUpdatedAt, ...expected } = payload || {};
+  assert.deepEqual(rest, expected, label);
+  assert.ok(added === written || (written === null && added && typeof added === "object"), `${label}: parentAuthorization`);
+  assert.ok(typeof actualUpdatedAt === "string" && actualUpdatedAt >= payloadUpdatedAt, `${label}: updatedAt`);
 }
 const unitOf = (actor) => UNITS[ACTORS[actor].stake].find((unit) => unit.id === ACTORS[actor].unitId);
 
@@ -1479,7 +1484,7 @@ for (const owner of OWNERS) {
         assert.equal(child.saved.parentUid, me());
         assert.equal(child.saved.userId, null);
         assert.equal(child.saved.childId, nicola.id);
-        assert.deepEqual(asWrittenByClient(await stored(path)), asWrittenByClient(child.payload));
+        assertWrittenByClient(await stored(path), child.payload);
         const attempt = await stored(`stakes/${stakeId}/registrationAttempts/${child.attemptId}`);
         assert.equal(attempt.status, "succeeded");
         assert.equal(attempt.userId, me());
@@ -1524,10 +1529,7 @@ for (const owner of OWNERS) {
       assert.equal(own.saved.registrationStatus, "active");
       assert.equal((await stored(`users/${me()}`)).role, ACTORS[owner].role);
       // L'iscrizione del figlio non è cambiata.
-      assert.deepEqual(
-        asWrittenByClient(await stored(registrationPath(activityB, child.registrationId))),
-        asWrittenByClient(child.payload),
-      );
+      assertWrittenByClient(await stored(registrationPath(activityB, child.registrationId)), child.payload);
       t.diagnostic(note);
     });
 
