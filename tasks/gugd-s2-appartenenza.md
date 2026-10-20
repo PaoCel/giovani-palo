@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: ready
+status: in-progress
 impact: 2
 urgency: 2
 effort: L
@@ -9,13 +9,13 @@ delivery: deploy
 surface: [web, rules, functions, storage]
 source: paolo
 opened: 2026-10-20
-started_at:
+started_at: 2026-10-20
 touched: 2026-10-20
 due:
 blocked_by: []
-branch:
-worktree:
-session:
+branch: task/gugd-s2-appartenenza
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/epic-northcutt-1a7fb6
+session: 5fe59c7c-e31b-461e-858e-ea93b1ccc3e6
 stopped_at: ""
 next: "Rileggere i numeri di produzione (quelli di A3 sono del 15/10), poi scrivere il contratto ruolo × stato × dato con un test nell'emulatore per cella, prima del codice applicativo"
 verified: ""
