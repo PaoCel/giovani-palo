@@ -1204,9 +1204,13 @@ service cloud.firestore {
     // Un ruolo staff dà anche l'appartenenza (isStakeMember): non si assegna a
     // chi è uscito dal palo, rifiutato, rimosso o bloccato. Prima va riattivato
     // dalla coda (stakeMembership), poi promosso.
+    // Senza palo (`stakeId` vuoto) niente ruolo staff: i poteri valgono per un palo.
     function canReceiveStaffRole(uid, stakeId) {
-      return !exists(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid))
-        || get(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid)).data.status in ['pending', 'active'];
+      return stakeId != ''
+        && (
+          !exists(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid))
+          || get(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid)).data.status in ['pending', 'active']
+        );
     }
 
     function canAdminAssignUserRole(uid) {

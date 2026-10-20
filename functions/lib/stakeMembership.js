@@ -45,14 +45,26 @@ function registrationOwnerUids(registration) {
   return [...uids];
 }
 
+// Iscrizione inviata e non chiusa. Non contano la bozza mai inviata, quella
+// annullata e quella rifiutata dal genitore: chi ha solo quelle va in coda e lo
+// verifica un dirigente (il 2026-10-20 in produzione non ce n'erano).
+const LIVE_REGISTRATION_STATUSES = Object.freeze([
+  "submitted",
+  "waitlist",
+  "active",
+  "pending_parent_authorization",
+  "confirmed",
+]);
+
 function isLiveRegistration(registration) {
-  return Boolean(registration) && registration.registrationStatus !== "cancelled";
+  return Boolean(registration) && LIVE_REGISTRATION_STATUSES.includes(registration.registrationStatus);
 }
 
 // Gruppi della scelta A3 (approvata il 2026-10-16):
 // - staff (admin, dirigente di unità): `active` con `staffRole`;
-// - participant/parent con almeno un'iscrizione non annullata nel palo,
-//   propria o di un figlio: `active` con `reviewNeeded: true`;
+// - participant/parent con almeno un'iscrizione inviata e non chiusa nel
+//   palo (vedi isLiveRegistration), propria o di un figlio: `active` con
+//   `reviewNeeded: true`;
 // - gli altri: `pending` ("account esistente" in coda).
 function migrationGroupOf(user, liveRegistrationCount) {
   if (staffRoleFromUserRole(user.role)) return "staff";
@@ -164,6 +176,7 @@ module.exports = {
   STAFF_ROLES,
   SOURCE_KINDS,
   MAX_REGISTRATION_HINTS,
+  LIVE_REGISTRATION_STATUSES,
   staffRoleFromUserRole,
   birthYearOf,
   registrationOwnerUids,

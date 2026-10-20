@@ -270,7 +270,7 @@ Un'iscrizione libera non prova l'appartenenza, ma togliere oggi la galleria a
 | Gruppo | 2026-10-15 | 2026-10-20 | Stato |
 | --- | --- | --- | --- |
 | admin, unit_leader | 31 | 31 (10 admin, 21 dirigenti) | `active`, `staffRole` |
-| participant/parent con almeno un'iscrizione non annullata nel palo (propria, di un figlio, o da ospite poi collegato allo stesso account) | ~104 | 108 (101 participant, 7 parent) | `active` con `reviewNeeded: true` |
+| participant/parent con almeno un'iscrizione inviata e non chiusa nel palo (propria, di un figlio, o da ospite poi collegato allo stesso account; non contano bozza, annullata, rifiutata dal genitore) | ~104 | 108 (101 participant, 7 parent) | `active` con `reviewNeeded: true` |
 | account senza iscrizioni | 45 | 41 (39 participant, 2 parent) | `pending`, etichetta "account esistente" |
 
 Riletti il 2026-10-20 in sola lettura (solo conteggi): 180 profili, tutti
@@ -347,9 +347,9 @@ non divergano:
   bloccato, passato a un altro palo) lo riporta a `participant` e azzera
   `staffRole` nella stessa transazione; "Annulla" li ripristina da `previous`;
 - l'ultimo admin del palo non può uscire, né essere rimosso o bloccato;
-- un ruolo staff si assegna solo a chi non ha il documento o è `pending` o
-  `active` (le rules lo negano negli altri stati: prima si riattiva, poi si
-  promuove); il trigger su `users` porta il documento ad `active` con
+- un ruolo staff si assegna solo a chi ha un palo nel profilo e non ha il
+  documento o è `pending` o `active` (le rules lo negano negli altri stati:
+  prima si riattiva, poi si promuove); il trigger su `users` porta il documento ad `active` con
   `staffRole`; togliere il ruolo azzera `staffRole` e lascia l'appartenenza;
 - rimuovere o bloccare toglie l'uid anche dagli elenchi dello staff delle
   attività del palo (`management/campStaff`, `management/recordNight`).
@@ -467,7 +467,7 @@ nuovo non arriva:
 | commenti di una foto | "Nessun commento ancora"; l'invio mostra il messaggio inglese |
 | Notte dei Record | "Non riesco a caricare i record. Controlla la connessione e riprova." (motivo sbagliato) |
 | sondaggio | messaggio inglese e "Non ci sono ancora domande"; in `/me` la sezione sondaggi sparisce |
-| `activityGallery` `ensure` | finché la callable legge il profilo, crea la galleria anche per loro (senza mostrargliela): va pubblicata con le rules |
+| `activityGallery` `ensure` | finché la callable legge il profilo, crea la galleria anche per loro (senza mostrargliela): la versione che legge members va pubblicata subito dopo le rules, nello stesso rilascio |
 
 Quello che il telefono ha già scaricato resta visibile finché vive la cache
 (la lettura "cache prima" non cancella i dati quando il server nega, e gli URL
