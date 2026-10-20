@@ -17,7 +17,7 @@ branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/epic-northcutt-1a7fb6
 session: 5fe59c7c-e31b-461e-858e-ea93b1ccc3e6
 stopped_at: "Fase 1 chiusa: contratto, test (1724 verdi, Storage saltati) e rules Firestore di members sul branch, rivisti da Codex e Fable; niente deployato"
-next: "Far scrivere a un altro agente i test della callable stakeMembership e del trigger su users dal contratto, poi il codice; S2-1 e S2-2 da Paolo"
+next: "Fase 2: un altro agente scrive dal contratto i test di stakeMembership, del trigger su users, di activityGallery e recordNightParticipant da members (S2-2) e della pulizia S2-1; poi il codice"
 verified: "2026-10-20 sul mini a aba2cd2: contratto 1724/0 (164 Storage saltati), migrazione 54+13, 26 file emulatore esistenti a 0 fail, registrationUpdateRules.py 5/5; review Codex e Fable recepite; niente in produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
@@ -71,9 +71,11 @@ Prossime fasi:
 - rilascio nell'ordine della spec, ogni passo con conferma di Paolo; prima
   dell'`--apply` un dry-run con `--report` contro 31/108/41.
 
-Scelte aperte per Paolo (tabella "Scelte per Paolo" della spec): S2-1
-cancellare `unlockGalleryWithCode`, `setGallerySecretCode`, il codice client
-morto e i documenti di sblocco; S2-2 Notte dei Record solo da membro.
+Scelte S2-1 e S2-2 approvate da Paolo il 2026-10-20 ("sì, vai con la fase
+2"): cancellare `unlockGalleryWithCode`, `setGallerySecretCode`, il codice
+client morto, il pulsante del codice e i documenti di sblocco (la cancellazione
+in produzione resta un passo del rilascio, con conferma fresca); Notte dei
+Record solo da membro (`propose`/`challenge`), ritirarsi sempre.
 
 ## Verificato
 
