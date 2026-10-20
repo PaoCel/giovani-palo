@@ -53,12 +53,14 @@ export function EditRegistrationSheet({
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  // Rimesso a vero a ogni montaggio: con StrictMode (sviluppo) l'effetto
+  // gira due volte e la pulizia del primo giro lo lascerebbe falso.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const { data: units } = useAsyncData<Unit[]>(
     () => unitsService.listUnits(stakeId),

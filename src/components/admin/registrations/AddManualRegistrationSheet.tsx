@@ -82,12 +82,14 @@ export function AddManualRegistrationSheet({
   // Un tentativo è già partito: il secondo controlla prima se il documento
   // c'è (id fissato all'apertura).
   const attemptedRef = useRef(false);
-  useEffect(
-    () => () => {
+  // Rimesso a vero a ogni montaggio: con StrictMode (sviluppo) l'effetto
+  // gira due volte e la pulizia del primo giro lo lascerebbe falso.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const { data: units } = useAsyncData<Unit[]>(
     () => unitsService.listUnits(stakeId),

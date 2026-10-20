@@ -39,12 +39,14 @@ export function RequestAuthorizationSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  // Rimesso a vero a ogni montaggio: con StrictMode (sviluppo) l'effetto
+  // gira due volte e la pulizia del primo giro lo lascerebbe falso.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const emailValid = isValidEmail(parent.email);
 
