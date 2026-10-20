@@ -3,6 +3,7 @@
 // Convenzioni in ./parole.ts.
 
 import { FAMIGLIA } from "./famiglia.ts";
+import { PAROLE } from "./parole.ts";
 
 export const PROFILO = {
   // Dentro l'iscrizione, "Partecipo io": chi compila è chi partecipa.
@@ -38,7 +39,7 @@ export const PROFILO = {
 
   continua: "Continua",
   indietro: "Indietro",
-  salvataggio: "Salvataggio...",
+  salvataggio: PAROLE.salvataggio,
   piede: "Puoi cambiarli quando vuoi dal profilo.",
 
   erroreNome: "Inserisci nome e cognome.",

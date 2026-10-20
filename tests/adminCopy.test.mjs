@@ -430,16 +430,10 @@ async function findPhrasesWrittenByHand() {
   return copied;
 }
 
-// «Salvataggio...» è scritta a mano in ADMIN, CHI_ISCRIVI e PROFILO: una frase
-// sola per un concetto solo vorrebbe un'unica voce in PAROLE (come
-// «Eliminazione...») e gli altri tre file che la riusano per riferimento.
+// «Salvataggio...» sta in PAROLE (come «Eliminazione...») e ADMIN, CHI_ISCRIVI
+// e PROFILO la riusano per riferimento.
 test(
   "riferimenti: nessuna frase degli altri file di src/copy/ è riscritta a mano in admin.ts",
-  {
-    todo:
-      "ADMIN.salvataggio ripete «Salvataggio...» di CHI_ISCRIVI e PROFILO: da portare in PAROLE " +
-      "come PAROLE.eliminazione",
-  },
   async () => {
     assert.deepEqual(
       await findPhrasesWrittenByHand(),

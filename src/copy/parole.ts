@@ -20,6 +20,8 @@ export const PAROLE = {
   erroreRete: "Il server non risponde: controlla la connessione e riprova.",
   // Pulsante di un foglio "Elimina" mentre la cancellazione è in corso.
   eliminazione: "Eliminazione...",
+  // Pulsante "Salva" mentre la scrittura è in corso.
+  salvataggio: "Salvataggio...",
 } as const;
 
 // "Ciao {nome}" + { nome: "Marco" } → "Ciao Marco". Un segnaposto senza valore

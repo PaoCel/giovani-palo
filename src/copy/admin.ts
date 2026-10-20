@@ -15,6 +15,7 @@ export const ADMIN = {
   // Fogli di conferma dell'admin (mai un dialogo del browser): la scelta
   // sicura viene prima, il tasto che toglie qualcosa è rosso.
   eliminazione: PAROLE.eliminazione,
+  // Lo dà getAdminActionError (src/utils/adminErrors.ts) per rete e timeout.
   erroreRete: PAROLE.erroreRete,
 
   // Iscrizioni (scheda dell'attività, tab Iscritti e Consensi).
@@ -46,7 +47,7 @@ export const ADMIN = {
     "I suoi membri tornano da assegnare. Comitati e pattuglie si salvano subito, con le altre modifiche non ancora salvate.",
   tieniPattuglia: "Tieni la pattuglia",
   confermaEliminaPattuglia: "Sì, elimina e salva",
-  salvataggio: "Salvataggio...",
+  salvataggio: PAROLE.salvataggio,
   erroreSalvaCampo: "Impossibile salvare comitati e pattuglie.",
 
   // Domande per il caminetto, viste dall'admin.
