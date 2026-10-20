@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { ADMIN } from "@/copy/admin";
+import { useAuth } from "@/hooks/useAuth";
 import { surveysService } from "@/services/firestore/surveysService";
 import type {
   SurveyQuestion,
@@ -33,6 +34,8 @@ const EMPTY_DRAFT: DraftQuestion = {
 };
 
 export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
+  const { session } = useAuth();
+  const uid = session?.firebaseUser.uid ?? "";
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +56,14 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
     setDeleteTarget(question);
   }
 
+  // Altro account o altra attività con il foglio aperto: si chiude, e l'esito
+  // di una richiesta partita prima non lo tocca.
+  useEffect(() => {
+    showDelete(null);
+  }, [uid, stakeId, eventId]);
+
   useEffect(() => {
     let cancelled = false;
-    // Altra attività: il foglio di prima non vale più.
-    showDelete(null);
     setLoading(true);
     setError(null);
     surveysService

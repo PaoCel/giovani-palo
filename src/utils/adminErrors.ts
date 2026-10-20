@@ -13,6 +13,13 @@ import { isConnectionError } from "./writeTimeout.ts";
 // Codici delle callable con un messaggio generico in inglese, non nostro.
 const GENERIC_CALLABLE_CODES = new Set(["functions/internal", "functions/unknown"]);
 
+// Senza un messaggio applicativo lo SDK usa il codice ("unauthenticated") o lo
+// stato HTTP della risposta ("UNAUTHENTICATED") come messaggio: non è nostro.
+function isGenericCallableMessage(code: string, message: string) {
+  const suffix = code.slice("functions/".length);
+  return message.toLowerCase().replace(/_/g, "-") === suffix;
+}
+
 export function getAdminActionError(error: unknown, fallback: string): string {
   if (isConnectionError(error)) {
     return PAROLE.erroreRete;
@@ -21,7 +28,12 @@ export function getAdminActionError(error: unknown, fallback: string): string {
   const code = String((error as { code?: unknown } | null | undefined)?.code ?? "");
   const message = error instanceof Error ? error.message.trim() : "";
 
-  if (code.startsWith("functions/") && !GENERIC_CALLABLE_CODES.has(code) && message) {
+  if (
+    code.startsWith("functions/") &&
+    !GENERIC_CALLABLE_CODES.has(code) &&
+    message &&
+    !isGenericCallableMessage(code, message)
+  ) {
     return message;
   }
 

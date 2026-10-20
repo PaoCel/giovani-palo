@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type Dispatch,
@@ -72,6 +73,16 @@ export function GalleryAdminPanel({
     setDeleteError(null);
     setDeleteTarget(target);
   }
+
+  // Altro account o altra galleria con il foglio aperto: si chiude, e l'esito
+  // di una richiesta partita prima non lo tocca.
+  useEffect(() => {
+    showDelete(null);
+  }, [uid, gallery.id]);
+  // La galleria mostrata adesso: un esito arrivato tardi non la sostituisce
+  // con un'altra.
+  const galleryIdRef = useRef(gallery.id);
+  galleryIdRef.current = gallery.id;
 
   const uploader = useGalleryUploader({
     gallery,
@@ -148,28 +159,35 @@ export function GalleryAdminPanel({
     const run = deleteRunRef.current;
     setWorking(true);
     setDeleteError(null);
+    const deletion = galleriesService.deleteMedia(stakeId, gallery.id, item.id);
+    // I file si tolgono quando il server ha confermato il documento, anche se
+    // la conferma arriva dopo il timeout del foglio.
+    const cleanup = deletion.then(() =>
+      Promise.all(
+        [
+          item.storagePath,
+          item.optimizedPath,
+          item.thumbnailPath,
+          item.posterPath,
+          item.originalPath,
+        ]
+          .filter((path): path is string => Boolean(path))
+          .map((path) => deleteMediaPath(path)),
+      ),
+    );
+    // Il rifiuto lo gestisce il catch qui sotto, tramite `deletion`.
+    cleanup.catch(() => undefined);
     try {
-      await withWriteTimeout(galleriesService.deleteMedia(stakeId, gallery.id, item.id));
+      await withWriteTimeout(deletion);
       setMedia((prev) => prev.filter((entry) => entry.id !== item.id));
       // Il documento non c'è più: il foglio delle azioni su quel media si chiude.
       setSelected((current) => (current?.id === item.id ? null : current));
       if (run === deleteRunRef.current) {
         showDelete(null);
       }
-      const targets = [
-        item.storagePath,
-        item.optimizedPath,
-        item.thumbnailPath,
-        item.posterPath,
-        item.originalPath,
-      ];
-      await Promise.all(
-        targets
-          .filter((path): path is string => Boolean(path))
-          .map((path) => deleteMediaPath(path)),
-      );
+      await cleanup;
       const refreshed = await galleriesService.getGallery(stakeId, gallery.id);
-      if (refreshed) setGallery(refreshed);
+      if (refreshed && galleryIdRef.current === refreshed.id) setGallery(refreshed);
     } catch (caughtError) {
       if (run === deleteRunRef.current) {
         setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaMedia));
@@ -308,7 +326,7 @@ export function GalleryAdminPanel({
       if (run === deleteRunRef.current) {
         showDelete(null);
       }
-      onDeleted();
+      if (galleryIdRef.current === gallery.id) onDeleted();
     } catch (caughtError) {
       if (run === deleteRunRef.current) {
         setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaGalleria));

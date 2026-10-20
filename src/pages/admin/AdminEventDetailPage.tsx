@@ -515,6 +515,18 @@ export function AdminEventDetailPage() {
   useEffect(() => {
     showConfirm(null);
   }, [confirmContextKey]);
+  // Account e attività di adesso (vuoto dopo l'uscita dalla pagina): l'esito
+  // di una richiesta partita su un'altra attività, o prima di Indietro, non
+  // tocca bozza, modali né navigazione.
+  const eventContextKey = `${session?.firebaseUser.uid ?? ""}|${stakeId}|${eventId ?? ""}`;
+  const eventContextRef = useRef(eventContextKey);
+  eventContextRef.current = eventContextKey;
+  useEffect(
+    () => () => {
+      eventContextRef.current = "";
+    },
+    [],
+  );
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -1373,6 +1385,7 @@ export function AdminEventDetailPage() {
     setBusy("saveCampManagement");
     setActionError(null);
     setActionInfo(null);
+    const startedFor = eventContextRef.current;
 
     try {
       const saved = await withWriteTimeout(
@@ -1382,6 +1395,7 @@ export function AdminEventDetailPage() {
           options?.draftOverride ?? campDraft,
         ),
       );
+      if (eventContextRef.current !== startedFor) return false;
       setCampDraft(saved);
       setCampDraftDirty(false);
       setActionInfo("Comitati e pattuglie salvati.");
@@ -1392,6 +1406,7 @@ export function AdminEventDetailPage() {
       setRefreshKey((current) => current + 1);
       return true;
     } catch (caughtError) {
+      if (eventContextRef.current !== startedFor) return false;
       const message = getAdminActionError(caughtError, ADMIN.erroreSalvaCampo);
       if (options?.onError) {
         options.onError(message);
@@ -1491,6 +1506,7 @@ export function AdminEventDetailPage() {
 
   async function handleDeleteQuestion(question: Question) {
     const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("deleteQuestion");
     setConfirmError(null);
     setActionInfo(null);
@@ -1504,6 +1520,7 @@ export function AdminEventDetailPage() {
           question.id,
         ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setQuestionsRefreshKey((current) => current + 1);
       setActionInfo("Domanda eliminata.");
       if (run === confirmRunRef.current) showConfirm(null);
@@ -1586,24 +1603,31 @@ export function AdminEventDetailPage() {
 
   async function handleDelete() {
     const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("delete");
     setConfirmError(null);
     setActionInfo(null);
 
-    try {
-      // Prima i documenti: se la cancellazione si ferma, l'attività resta con
-      // la sua immagine e si può riprovare.
-      // Molti documenti in più lotti: un minuto prima di dire "nessuna risposta".
-      await withWriteTimeout(eventsService.deleteEvent(stakeId, resolvedEventId), 60000);
+    // Prima i documenti, poi l'immagine: se la cancellazione si ferma,
+    // l'attività resta con la sua immagine e si può riprovare. L'immagine si
+    // toglie quando i documenti sono andati, anche dopo il timeout del foglio.
+    const deletion = eventsService.deleteEvent(stakeId, resolvedEventId);
+    const heroImagePath = resolvedEvent.heroImagePath;
+    if (heroImagePath) {
+      deletion
+        .then(() => storageService.deleteFile(heroImagePath))
+        .catch(() => undefined);
+    }
 
-      if (resolvedEvent.heroImagePath) {
-        await storageService
-          .deleteFile(resolvedEvent.heroImagePath)
-          .catch(() => undefined);
-      }
+    try {
+      // Molti documenti in più lotti: un minuto prima di dire "nessuna risposta".
+      await withWriteTimeout(deletion, 60000);
 
       if (run === confirmRunRef.current) showConfirm(null);
-      navigate("/admin/events", { replace: true });
+      // Indietro o un'altra attività nel frattempo: la pagina resta dov'è.
+      if (eventContextRef.current === startedFor) {
+        navigate("/admin/events", { replace: true });
+      }
     } catch (caughtError) {
       if (run === confirmRunRef.current) {
         setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaAttivita));
@@ -1752,6 +1776,7 @@ export function AdminEventDetailPage() {
 
   async function handleBackfillLegacyApprovals() {
     const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("backfillLegacyApprovals");
     setConfirmError(null);
     setActionError(null);
@@ -1762,6 +1787,7 @@ export function AdminEventDetailPage() {
         stakeId,
         activityId: resolvedEventId,
       });
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(
         `Fallback completato: ${result.processed} moduli generati, ${result.emailed} email inviate` +
           (result.skipped ? `, ${result.skipped} saltati` : "") +
@@ -1814,6 +1840,7 @@ export function AdminEventDetailPage() {
     if (!consentCompletion || consentCompletion.total === 0) return;
 
     const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     const total = consentCompletion.total;
     setBusy("consentCompletionSend");
     setConfirmError(null);
@@ -1829,6 +1856,7 @@ export function AdminEventDetailPage() {
         expectedDigest: consentCompletion.digest,
       });
 
+      if (eventContextRef.current !== startedFor) return;
       if (!result.dryRun) {
         if (run === confirmRunRef.current) showConfirm(null);
         setConsentCompletionOutcome(result);
@@ -1852,6 +1880,7 @@ export function AdminEventDetailPage() {
           "functions/failed-precondition";
       // L'elenco è cambiato: il foglio non vale più (si chiude da solo) e lo
       // si dice nella pagina, dove si rifà il controllo.
+      if (eventContextRef.current !== startedFor) return;
       if (isStaleList) {
         setConsentCompletion(null);
         if (run === confirmRunRef.current) showConfirm(null);
@@ -1892,6 +1921,7 @@ export function AdminEventDetailPage() {
 
   async function handleAdminDeleteRegistration(registration: Registration) {
     const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("deleteRegistration");
     setBusyRegistrationId(registration.id);
     setConfirmError(null);
@@ -1905,9 +1935,11 @@ export function AdminEventDetailPage() {
           registration.id,
         ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(`Iscrizione di ${registration.fullName} eliminata.`);
       if (run === confirmRunRef.current) showConfirm(null);
-      if (registrationModalId === registration.id) closeRegistrationModal();
+      // Il modale di quell'iscrizione, se è ancora aperto, non ha più niente da mostrare.
+      setRegistrationModalId((current) => (current === registration.id ? null : current));
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
       if (run === confirmRunRef.current) {
@@ -1921,6 +1953,7 @@ export function AdminEventDetailPage() {
 
   async function handleAdminCancelRegistration(registration: Registration) {
     const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
     setBusy("cancelRegistration");
     setBusyRegistrationId(registration.id);
     setConfirmError(null);
@@ -1935,6 +1968,7 @@ export function AdminEventDetailPage() {
           "cancelled",
         ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(`Iscrizione di ${registration.fullName} annullata.`);
       if (run === confirmRunRef.current) showConfirm(null);
       setRefreshKey((current) => current + 1);
@@ -1949,6 +1983,7 @@ export function AdminEventDetailPage() {
   }
 
   async function handleAdminReactivateRegistration(registration: Registration) {
+    const startedFor = eventContextRef.current;
     setBusy("reactivateRegistration");
     setBusyRegistrationId(registration.id);
     setActionError(null);
@@ -1962,9 +1997,11 @@ export function AdminEventDetailPage() {
           "active",
         ),
       );
+      if (eventContextRef.current !== startedFor) return;
       setActionInfo(`Iscrizione di ${registration.fullName} riattivata.`);
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
+      if (eventContextRef.current !== startedFor) return;
       setActionError(
         getAdminActionError(caughtError, "Impossibile riattivare l'iscrizione."),
       );

@@ -49,9 +49,10 @@ export function AdminFeedPage() {
     setDeleteTarget(post);
   }
 
+  // Altro account o altro palo con il foglio aperto: si chiude.
   useEffect(() => {
     showDelete(null);
-  }, [stakeId]);
+  }, [stakeId, uid]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
