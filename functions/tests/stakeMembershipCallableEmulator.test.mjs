@@ -41,6 +41,16 @@
 //    esiste è `not-found`, non `stake_not_chosen`;
 //  - un members si toglie dal seed con `recursiveDelete`: la history del trigger
 //    (by `system`) altrimenti resterebbe sotto un documento che non c'è più;
+//  - `request` di chi ha un ruolo staff del palo segue la regola 1 del trigger:
+//    `active` con `staffRole`, `decidedBy: "system"`, un solo motivo
+//    `staff_approval` con `ref: "role"`, senza chiedere il profilo completo
+//    (solo `users.stakeId` uguale al palo); la copia in `staffRole` di un
+//    `super_admin` è `admin` (è il ruolo che dà i poteri dello staff); i tetti
+//    (`cooldown`) non sono provati per lo staff: il rifiuto di prova è vecchio;
+//  - «ciascuno solo se nel frattempo non è cambiato» (undo): per l'altro palo
+//    conta la `version`, per gli elenchi dello staff `updatedAt`, per il ruolo
+//    `users.stakeId` e, per un dirigente, `users.unitId` (`previous.roleUnitId`);
+//    un documento spostato che torna `active` torna con `staffRole: null`.
 //  - le verifiche di autorizzazione precedono quelle di stato: un dirigente su
 //    una persona con ruolo staff riceve `permission-denied` qualunque sia lo
 //    stato del documento; `notMyUnit` è solo del dirigente (l'admin riceve
@@ -69,7 +79,7 @@ import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/
 
 const require = createRequire(import.meta.url);
 const { initializeApp: initializeAdminApp } = require("firebase-admin/app");
-const { Timestamp, getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
+const { FieldValue, Timestamp, getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
 
 // ---------------------------------------------------------------------------
 // Guardie: mai fuori dagli emulatori locali
@@ -656,6 +666,98 @@ describe("request", () => {
     assert.equal((await memberOf(STAKE_A, removed.uid)).status, "removed");
     assert.equal((await memberOf(STAKE_A, blocked.uid)).status, "blocked");
   });
+
+  test("chi ha un ruolo staff del palo (unit_leader, admin, super_admin): da N, pending, withdrawn, declined → active con staffRole, decidedBy system, un solo motivo staff_approval ref role", async () => {
+    const roles = [["unit_leader", "unit_leader"], ["admin", "admin"], ["super_admin", "admin"]];
+    const starts = [
+      ["nessun-documento", null],
+      ["pending", pendingData(UNIT1)],
+      ["withdrawn", { status: "withdrawn", sources: [], decidedAt: null, decidedBy: null }],
+      ["declined", declinedData(30, 1)],
+    ];
+    const defs = [];
+    for (const [role] of roles) {
+      for (const [label] of starts) {
+        // Anche admin e super admin con l'unità nel profilo: `request` vuole il profilo completo (unità compresa).
+        defs.push({ label: `staff-${role.replace("_", "-")}-${label}`, role, unit: UNIT1, member: { status: "active", staffRole: role === "unit_leader" ? "unit_leader" : "admin" } });
+      }
+    }
+    const people = await fresh(defs);
+    let index = 0;
+    for (const [role, staffRole] of roles) {
+      for (const [label, start] of starts) {
+        const who = people[index++];
+        // Lo stato di partenza si scrive con l'Admin SDK dopo la quiete: il trigger sul profilo lo avrebbe già attivato.
+        if (start) await adminDb.doc(memberPath(STAKE_A, who.uid)).set(memberData({ ...start, staffRole: null }));
+        else await removeMember(STAKE_A, who.uid);
+        const version = start ? 2 : 1;
+        const tag = `${role} da ${label}`;
+        assertChanged(await forSelf(who, "request"), { action: "request", status: "active", version });
+        const data = await memberOf(STAKE_A, who.uid);
+        assert.equal(data.status, "active", tag);
+        assert.equal(data.staffRole, staffRole, `${tag}: staffRole`);
+        assert.equal(data.reviewNeeded, false, tag);
+        assert.equal(data.decidedBy, "system", tag);
+        assert.ok(data.decidedAt instanceof Timestamp, tag);
+        const approvals = data.sources.filter((source) => source.kind === "staff_approval");
+        assert.equal(approvals.length, 1, `${tag}: un solo motivo staff_approval (${JSON.stringify(data.sources)})`);
+        assert.equal(approvals[0].ref, "role", tag);
+        assert.equal((await userOf(who.uid)).role, role, `${tag}: il ruolo del profilo non cambia`);
+        await expectHistoryRow(STAKE_A, who.uid, { action: "request", by: who.uid, fromStatus: start ? start.status : null, toStatus: "active", version });
+      }
+    }
+  });
+
+  test("staff già active con reviewNeeded: reviewNeeded false, staffRole, nessun motivo in più; già confermato: changed false; da removed e blocked: invalid_state", async () => {
+    const [review, done, removed, blocked] = await fresh([
+      { label: "staff-review", role: "unit_leader", member: { status: "active", staffRole: "unit_leader" } },
+      { label: "staff-done", role: "admin", unit: UNIT1, member: { status: "active", staffRole: "admin" } },
+      { label: "staff-removed", role: "unit_leader", member: { status: "removed", staffRole: null } },
+      { label: "staff-blocked", role: "admin", unit: UNIT1, member: { status: "blocked", staffRole: null } },
+    ]);
+    // Migrato da confermare, con il motivo del ruolo già presente (Admin SDK dopo la quiete).
+    await adminDb.doc(memberPath(STAKE_A, review.uid)).set(memberData({
+      status: "active",
+      staffRole: null,
+      reviewNeeded: true,
+      sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }, { kind: "staff_approval", ref: "role", at: Timestamp.now() }],
+    }));
+    assertChanged(await forSelf(review, "request"), { action: "request", status: "active", version: 2 });
+    const data = await memberOf(STAKE_A, review.uid);
+    assert.equal(data.reviewNeeded, false);
+    assert.equal(data.staffRole, "unit_leader");
+    assert.equal(data.sources.filter((source) => source.kind === "staff_approval").length, 1, `nessun motivo doppio: ${JSON.stringify(data.sources)}`);
+    assert.equal(data.sources.length, 2, "gli altri motivi restano");
+    await expectNoop(STAKE_A, done.uid, () => forSelf(done, "request"), { action: "request", status: "active" });
+    await expectInvalidState(forSelf(removed, "request"));
+    await expectInvalidState(forSelf(blocked, "request"));
+    assert.equal((await memberOf(STAKE_A, removed.uid)).status, "removed");
+    assert.equal((await memberOf(STAKE_A, blocked.uid)).status, "blocked");
+  });
+
+  test("staff senza unità nel profilo (admin migrato): da N → active con staffRole, come la regola 1; un participant con lo stesso profilo resta profile_incomplete", async () => {
+    const [admin, leader, plain] = await fresh([
+      { label: "admin-senza-unita", role: "admin", unit: null, member: { status: "active", staffRole: "admin" } },
+      { label: "dirigente-senza-unita", role: "unit_leader", unit: null, member: { status: "active", staffRole: "unit_leader" } },
+      { label: "participant-senza-unita", unit: null },
+    ]);
+    for (const person of [admin, leader]) await removeMember(STAKE_A, person.uid);
+    assert.equal(await memberOf(STAKE_A, plain.uid), null, "premessa: senza unità il trigger non mette in coda");
+    for (const [person, staffRole] of [[admin, "admin"], [leader, "unit_leader"]]) {
+      const profile = await userOf(person.uid);
+      assert.equal(profile.unitId, "", `${person.name}: premessa`);
+      assert.equal(profile.unitName, "", `${person.name}: premessa`);
+      assertChanged(await forSelf(person, "request"), { action: "request", status: "active", version: 1 });
+      const data = await memberOf(STAKE_A, person.uid);
+      assert.equal(data.status, "active", person.name);
+      assert.equal(data.staffRole, staffRole, person.name);
+      assert.equal(data.claimedUnitId, "", person.name);
+      assert.equal(data.decidedBy, "system", person.name);
+      assert.equal(data.sources.filter((source) => source.kind === "staff_approval" && source.ref === "role").length, 1, person.name);
+    }
+    await expectError(forSelf(plain, "request"), "failed-precondition", "profile_incomplete");
+    assert.equal(await memberOf(STAKE_A, plain.uid), null, "il participant resta senza documento");
+  });
 });
 
 // ===========================================================================
@@ -691,9 +793,11 @@ describe("withdraw e leave", () => {
     assert.equal(data.status, "withdrawn");
     assert.equal(data.staffRole, null);
     assert.equal(profile.role, "participant", "il ruolo del profilo cade con l'uscita");
-    assertPrevious(data.previous, { status: "active", action: "leave", by: leader.uid, extraKeys: ["role"] });
+    assertPrevious(data.previous, { status: "active", action: "leave", by: leader.uid, extraKeys: ["role", "roleAfter", "roleUnitId"] });
     assert.equal(data.previous.staffRole, "unit_leader");
     assert.equal(data.previous.role, "unit_leader");
+    assert.equal(data.previous.roleAfter, "participant");
+    assert.equal(data.previous.roleUnitId, UNIT1.id);
     await settleAll();
     assert.equal((await memberOf(STAKE_A, leader.uid)).version, 2, "il trigger sul cambio di ruolo non riscrive il documento");
   });
@@ -906,7 +1010,10 @@ describe("remove, block, unblock, reactivate", () => {
     assert.equal(data.status, "removed");
     assert.equal(data.staffRole, null);
     assert.equal(profile.role, "participant");
-    assertPrevious(data.previous, { status: "active", action: "remove", by: P.A.uid, extraKeys: ["role", "staffLists"] });
+    assertPrevious(data.previous, { status: "active", action: "remove", by: P.A.uid, extraKeys: ["role", "roleAfter", "roleUnitId", "staffLists"] });
+    assert.equal(data.previous.role, "unit_leader");
+    assert.equal(data.previous.roleAfter, "participant");
+    assert.equal(data.previous.roleUnitId, UNIT1.id, "l'unità al momento della rimozione");
     assert.deepEqual(await staffLists(STAKE_A, actA1), { camp: [other.uid], night: [other.uid] });
     assert.deepEqual(await staffLists(STAKE_A, actA2), { camp: [other.uid], night: [other.uid] });
     assert.deepEqual(await staffLists(STAKE_B, actB), { camp: [leader.uid], night: [leader.uid] }, "gli elenchi di un altro palo non si toccano");
@@ -1155,6 +1262,143 @@ describe("undo", () => {
     assert.ok(!b.movedToStakeId, "movedToStakeId sparisce");
     assert.equal(b.version, 4);
   });
+
+  test("undo di un approve con appartenenza spostata: l'altro documento non si tocca se è cambiato (version diversa); se torna, torna senza staffRole", async () => {
+    const [changed, withRole] = await fresh([
+      { label: "spostato-cambiato", members: [{ stake: STAKE_B, status: "active", version: 2 }, { stake: STAKE_A, ...pendingData(UNIT1) }] },
+      { label: "spostato-con-ruolo", members: [{ stake: STAKE_B, status: "active", version: 2 }, { stake: STAKE_A, ...pendingData(UNIT1) }] },
+    ]);
+    // In B `withRole` aveva un ruolo: scritto dopo la quiete, perché il trigger (regola 4) lo azzererebbe.
+    await adminDb.doc(memberPath(STAKE_B, withRole.uid)).update({ staffRole: "unit_leader" });
+
+    const approvedChanged = await onUid(P.A, "approve", changed);
+    assert.equal((await memberOf(STAKE_B, changed.uid)).status, "withdrawn");
+    // Nel frattempo in B qualcun altro agisce sul documento: version diversa.
+    await adminDb.doc(memberPath(STAKE_B, changed.uid)).update({ version: FieldValue.increment(1), decidedBy: "altro-admin" });
+    const bBefore = await memberMeta(STAKE_B, changed.uid);
+    assertChanged(await undo(P.A, changed, approvedChanged.version), { action: "undo", status: "pending", version: 3 });
+    assert.equal((await memberOf(STAKE_A, changed.uid)).status, "pending");
+    assert.deepEqual(await memberMeta(STAKE_B, changed.uid), bBefore, "il documento cambiato nell'altro palo non si tocca");
+
+    const approvedWithRole = await onUid(P.A, "approve", withRole);
+    assert.equal((await memberOf(STAKE_B, withRole.uid)).status, "withdrawn");
+    assertChanged(await undo(P.A, withRole, approvedWithRole.version), { action: "undo", status: "pending", version: 3 });
+    const b = await memberOf(STAKE_B, withRole.uid);
+    assert.equal(b.status, "active", "l'appartenenza spostata torna");
+    assert.equal(b.staffRole, null, "il ruolo vale solo nel palo scelto: torna senza staffRole");
+    assert.ok(!b.movedToStakeId);
+  });
+
+  test("undo della riattivazione di un admin rimosso: il ruolo torna participant", async () => {
+    const stake = await newStake("undo-riattiva");
+    const [ax] = await fresh([
+      { label: "admin-x", role: "admin", stake, unit: null, member: { status: "active", staffRole: "admin" } },
+      { label: "admin-y", role: "admin", stake, unit: null, member: { status: "active", staffRole: "admin" } },
+    ]);
+    const act = (action, target, extra = {}) => P.SA.call({ action, stakeId: stake, uid: target.uid, ...extra });
+    assertChanged(await act("remove", ax), { action: "remove", status: "removed", version: 2 });
+    assert.equal((await userOf(ax.uid)).role, "participant");
+    await settleAll();
+    const reactivated = await act("reactivate", ax);
+    assertChanged(reactivated, { action: "reactivate", status: "active", version: 3 });
+    assert.equal((await userOf(ax.uid)).role, "admin");
+    assert.equal((await memberOf(stake, ax.uid)).previous.roleAfter, "admin");
+    await settleAll();
+    assertChanged(await act("undo", ax, { version: reactivated.version }), { action: "undo", status: "removed", version: 4 });
+    const [data, profile] = await Promise.all([memberOf(stake, ax.uid), userOf(ax.uid)]);
+    assert.equal(data.status, "removed");
+    assert.equal(data.staffRole, null);
+    assert.equal(data.previous, null);
+    assert.equal(profile.role, "participant", "il ruolo ridato dalla riattivazione viene tolto");
+    await settleAll();
+    assert.equal((await memberOf(stake, ax.uid)).version, 4, "il trigger sul ruolo non riscrive");
+  });
+
+  test("undo della riattivazione di un admin che nel frattempo è rimasto l'unico: last_admin", async () => {
+    const stake = await newStake("undo-ultimo");
+    const [bx, by] = await fresh([
+      { label: "admin-bx", role: "admin", stake, unit: null, member: { status: "active", staffRole: "admin" } },
+      { label: "admin-by", role: "admin", stake, unit: null, member: { status: "active", staffRole: "admin" } },
+    ]);
+    const act = (action, target, extra = {}) => P.SA.call({ action, stakeId: stake, uid: target.uid, ...extra });
+    assertChanged(await act("remove", bx), { action: "remove", status: "removed", version: 2 });
+    await settleAll();
+    const reactivated = await act("reactivate", bx);
+    assertChanged(reactivated, { action: "reactivate", status: "active", version: 3 });
+    await settleAll();
+    assertChanged(await forSelf(by, "leave", stake), { action: "leave", status: "withdrawn", version: 2 });
+    await settleAll();
+    await expectError(act("undo", bx, { version: reactivated.version }), "failed-precondition", "last_admin");
+    assert.equal((await memberOf(stake, bx.uid)).status, "active");
+    assert.equal((await userOf(bx.uid)).role, "admin");
+  });
+
+  test("undo di remove e reactivate di un dirigente che nel frattempo ha cambiato unità o palo: ruolo non restituito, staffRole null", async () => {
+    const leaderDef = (label) => ({ label, role: "unit_leader", member: { status: "active", staffRole: "unit_leader", claimedUnitId: UNIT1.id, claimedUnitName: UNIT1.name } });
+    const cases = [
+      ["undo-unita", "undo", "unit"],
+      ["undo-palo", "undo", "stake"],
+      ["riattiva-unita", "reactivate", "unit"],
+      ["riattiva-palo", "reactivate", "stake"],
+    ];
+    const people = await fresh(cases.map(([label]) => leaderDef(`dirigente-${label}`)));
+    const stakeB = STAKES.get(STAKE_B);
+    for (const [index, [label, action, change]] of cases.entries()) {
+      const leader = people[index];
+      const removed = await onUid(P.A, "remove", leader);
+      const afterRemove = await memberOf(STAKE_A, leader.uid);
+      assert.equal(afterRemove.previous.role, "unit_leader", label);
+      assert.equal(afterRemove.previous.roleUnitId, UNIT1.id, label);
+      assert.equal((await userOf(leader.uid)).role, "participant", label);
+      await settleAll();
+      // Ora è participant: può cambiare unità (o palo) da solo. Qui lo fa la console.
+      const patch = change === "unit"
+        ? { unitId: UNIT2.id, unitName: UNIT2.name, updatedAt: iso() }
+        : { stakeId: STAKE_B, stakeSlug: stakeB.slug, stakeName: stakeB.name, updatedAt: iso() };
+      await adminDb.doc(`users/${leader.uid}`).update(patch);
+      await settleAll();
+      const result = action === "undo" ? await undo(P.A, leader, removed.version) : await onUid(P.A, "reactivate", leader);
+      assertChanged(result, { action, status: "active", version: 3 });
+      const [data, profile] = await Promise.all([memberOf(STAKE_A, leader.uid), userOf(leader.uid)]);
+      assert.equal(data.status, "active", label);
+      assert.equal(data.staffRole, null, `${label}: staffRole`);
+      assert.equal(profile.role, "participant", `${label}: il ruolo non torna`);
+    }
+  });
+
+  test("undo degli elenchi dello staff: un elenco cambiato dopo la rimozione (updatedAt diverso) non riprende l'uid, l'altro sì", async () => {
+    const [leader, other] = await fresh([
+      { label: "dirigente-elenchi", role: "unit_leader", member: { status: "active", staffRole: "unit_leader", claimedUnitId: UNIT1.id } },
+      { label: "collega-elenchi", member: { status: "active" } },
+    ]);
+    const act = `campo-elenchi-${runId}`;
+    await seedStaffLists(STAKE_A, act, [leader.uid, other.uid]);
+    const removed = await onUid(P.A, "remove", leader);
+    assert.deepEqual(await staffLists(STAKE_A, act), { camp: [other.uid], night: [other.uid] });
+    await settleAll();
+    // Un admin cambia lo staff del campeggio nel frattempo: terzo in elenco, updatedAt nuovo.
+    await adminDb.doc(`stakes/${STAKE_A}/activities/${act}/management/campStaff`).set({ staffUids: [other.uid, "terzo-uid"], updatedAt: iso(Date.now() + 5_000) });
+    assertChanged(await undo(P.A, leader, removed.version), { action: "undo", status: "active", version: 3 });
+    const lists = await staffLists(STAKE_A, act);
+    assert.deepEqual(lists.camp, [other.uid, "terzo-uid"], "campStaff cambiato dopo: non si tocca");
+    assert.deepEqual(new Set(lists.night), new Set([other.uid, leader.uid]), "recordNight invariato: l'uid torna");
+    assert.equal((await userOf(leader.uid)).role, "unit_leader");
+    assert.equal((await memberOf(STAKE_A, leader.uid)).staffRole, "unit_leader");
+  });
+
+  test("il dirigente annulla il proprio notMyUnit anche se la richiesta non è più della sua unità", async () => {
+    const [target] = await fresh([{ label: "undo-notmyunit", member: pendingData(UNIT1) }]);
+    const passed = await onUid(P.D, "notMyUnit", target);
+    assertChanged(passed, { action: "notMyUnit", status: "pending", version: 2 });
+    assert.equal((await memberOf(STAKE_A, target.uid)).claimedUnitId, "");
+    await expectDenied(undo(P.D2, target, passed.version));
+    assertChanged(await undo(P.D, target, passed.version), { action: "undo", status: "pending", version: 3 });
+    const data = await memberOf(STAKE_A, target.uid);
+    assert.equal(data.claimedUnitId, UNIT1.id, "l'unità dichiarata torna");
+    assert.equal(data.claimedUnitName, UNIT1.name);
+    assert.equal(data.previous, null);
+    await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.D.uid, fromStatus: "pending", toStatus: "pending", version: 3 });
+  });
 });
 
 // ===========================================================================
@@ -1204,7 +1448,7 @@ describe("gare", () => {
     assert.deepEqual(statuses, ["active", "withdrawn"]);
   });
 
-  test("request insieme alla creazione del trigger (profilo completato dal client): un solo documento pending", async () => {
+  test("request insieme alla creazione del trigger (profilo completato dal client): un solo documento pending, version 1", async () => {
     const person = await newPerson({ label: "gara-trigger", profile: null });
     const profile = profileData({ label: person.name, email: `${person.name}@example.invalid` });
     // Scrittura del client (rules canCreateOwnUser) e richiesta nello stesso istante.
@@ -1222,7 +1466,7 @@ describe("gare", () => {
     assert.equal(data.status, "pending");
     assert.equal(data.claimedUnitId, UNIT1.id);
     assert.equal(data.displayName, profile.fullName);
-    assert.ok(data.version >= 1 && data.version <= 2, `version ${data.version}: al più una scrittura in più`);
+    assert.equal(data.version, 1, "transazioni giuste: il documento nasce una volta sola, chi arriva dopo non scrive");
     assert.equal(data.sources.filter((source) => source.kind === "staff_approval").length, 0);
     const docs = await adminDb.collection(`stakes/${STAKE_A}/members`).where("displayName", "==", profile.fullName).get();
     assert.equal(docs.size, 1, "un solo documento per questo uid");

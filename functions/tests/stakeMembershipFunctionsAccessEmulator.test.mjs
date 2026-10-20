@@ -18,7 +18,8 @@
 // E members attivo scritti per errore), N senza members (profilo completo: il
 // pending creato dal trigger si toglie con l'Admin SDK), P in attesa, M attivo,
 // F fuori (removed; e `declined` per la Notte dei Record), X attivo in un altro
-// palo, D dirigente di unità, A admin del palo.
+// palo, D dirigente di unità, A admin del palo; in più D e A con il proprio
+// members mancante o `removed` (riga «decide il ruolo» del contratto).
 //
 // Contratto provato:
 //   activityGallery: `ensure` e `report` → M, D, A; `restore` e `delete` → D, A.
@@ -393,7 +394,7 @@ before(async () => {
     // Trigger assente: N resta senza members da solo.
   }
 
-  const [V, O, Nn, Pp, M, F, FD, X, D, A] = await Promise.all([
+  const [V, O, Nn, Pp, M, F, FD, X, D, A, DN, DR, AN, AR] = await Promise.all([
     newPerson({ mode: "none", label: "v" }),
     newPerson({ mode: "anonymous", label: "o", member: { status: "active" } }),
     newPerson({ label: "n" }),
@@ -404,11 +405,16 @@ before(async () => {
     newPerson({ label: "x", stake: STAKE_B, member: { status: "active" } }),
     newPerson({ label: "d", role: "unit_leader", member: { status: "active", staffRole: "unit_leader", claimedUnitId: UNIT1.id, claimedUnitName: UNIT1.name } }),
     newPerson({ label: "a", role: "admin", unit: null, member: { status: "active", staffRole: "admin" } }),
+    // Staff "incoerenti" del contratto («decide il ruolo»): members mancante (il trigger lo crea, poi si toglie) o removed.
+    newPerson({ label: "d-senza-members", role: "unit_leader" }),
+    newPerson({ label: "d-removed", role: "unit_leader", member: { status: "removed", staffRole: null } }),
+    newPerson({ label: "a-senza-members", role: "admin", unit: null }),
+    newPerson({ label: "a-removed", role: "admin", unit: null, member: { status: "removed", staffRole: null } }),
   ]);
-  Object.assign(P, { V, O, N: Nn, P: Pp, M, F, FD, X, D, A });
+  Object.assign(P, { V, O, N: Nn, P: Pp, M, F, FD, X, D, A, DN, DR, AN, AR });
   await settleAll();
   // Con la history: un `delete()` del solo documento lascerebbe le righe del pending appena tolto.
-  await adminDb.recursiveDelete(adminDb.doc(memberPath(STAKE_A, Nn.uid)));
+  for (const person of [Nn, DN, AN]) await adminDb.recursiveDelete(adminDb.doc(memberPath(STAKE_A, person.uid)));
 });
 
 after(async () => {
@@ -592,5 +598,49 @@ describe("recordNightParticipant", () => {
       await expectDenied(N(who, act, "challenge", { recordId }));
       assert.equal((await entriesRef(act).get()).size, 1, `${exitStatus}: un solo tentativo, quello di prima`);
     }
+  });
+});
+
+// ===========================================================================
+// D e A con il proprio members mancante o removed: decide il ruolo
+// ===========================================================================
+describe("D e A con il proprio members mancante o removed (riga «decide il ruolo» del contratto)", () => {
+  const ODD = () => [P.DN, P.DR, P.AN, P.AR];
+
+  test("premessa: il members manca o è removed, il ruolo nel profilo c'è", async () => {
+    assert.equal(await memberOf(STAKE_A, P.DN.uid), null);
+    assert.equal(await memberOf(STAKE_A, P.AN.uid), null);
+    assert.equal((await memberOf(STAKE_A, P.DR.uid)).status, "removed");
+    assert.equal((await memberOf(STAKE_A, P.AR.uid)).status, "removed");
+    assert.equal((await adminData(`users/${P.DN.uid}`)).role, "unit_leader");
+    assert.equal((await adminData(`users/${P.AR.uid}`)).role, "admin");
+  });
+
+  test("activityGallery: ensure, report, restore e delete permessi", async () => {
+    for (const person of ODD()) {
+      const activityId = await runningActivity();
+      assert.deepEqual(await ensure(person, activityId), { galleryId: `act_${activityId}`, created: true }, person.name);
+      const g = await newGallery();
+      const mediaId = nextId("m-");
+      await seedMedia(g, mediaId, "seed-uploader");
+      assert.deepEqual(await report(person, g, mediaId), { status: "hidden" }, person.name);
+      await restore(person, g, mediaId);
+      assert.notEqual(await adminData(mediaDocPath(g, mediaId)), null, `${person.name}: restore`);
+      await report(P.M, g, mediaId);
+      await deleteHidden(person, g, mediaId);
+      assert.equal(await adminData(hiddenDocPath(g, mediaId)), null, `${person.name}: delete`);
+    }
+  });
+
+  test("recordNightParticipant: propose e challenge permessi", async () => {
+    const act = await nightActivity(ODD());
+    const recordId = await seedRecord(act, "Record dello staff");
+    for (const person of ODD()) {
+      const proposed = await N(person, act, "propose", proposal(`Proposta di ${person.name}`));
+      assert.equal(proposed.entry.status, "pending", person.name);
+      const challenged = await N(person, act, "challenge", { recordId });
+      assert.equal(challenged.entry.kind, "challenge", person.name);
+    }
+    assert.equal((await entriesRef(act).get()).size, 8);
   });
 });

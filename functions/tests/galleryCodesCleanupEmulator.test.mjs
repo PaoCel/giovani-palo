@@ -14,10 +14,14 @@
 // userebbe le credenziali vere, e qui non deve succedere mai.
 //
 // Interpretazioni scelte (la più stretta): `deletes` è la somma di
-// gallerySecrets, galleryMembers e unlockedGalleries; il dry-run stampa UNA riga
-// JSON e basta; nell'emulatore gli --expect-* sono facoltativi ma, se passati e
-// sbagliati, fermano lo script (exit 2) anche qui; un argomento sconosciuto fa
-// uscire con codice diverso da 0 senza scrivere.
+// gallerySecrets, galleryMembers e unlockedGalleries; una galleria senza
+// `accessMode` conta in `codeGalleries` e diventa `open`; il dry-run stampa UNA
+// riga JSON e basta; nell'emulatore gli --expect-* sono facoltativi ma, se
+// passati e sbagliati, fermano lo script (exit 2) anche qui; fuori
+// dall'emulatore `--apply` senza --expect-* esce con 2 PRIMA di qualunque
+// lettura (provato senza FIRESTORE_EMULATOR_HOST e con credenziali
+// inesistenti: nessuna rete verso un progetto vero); un argomento sconosciuto
+// fa uscire con codice diverso da 0 senza scrivere.
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -50,11 +54,15 @@ const STAKE_2 = `gc-b-${runId}`;
 const uid = (name) => `${name}-${runId}`;
 const iso = () => new Date().toISOString();
 
+const EMULATOR_ENV = () => ({ PATH: process.env.PATH, FIRESTORE_EMULATOR_HOST: EMULATOR, GCLOUD_PROJECT: PROJECT });
+// Fuori dall'emulatore, per la sola guardia di --apply: niente host, credenziali che non esistono.
+const NO_EMULATOR_ENV = () => ({ PATH: process.env.PATH, GCLOUD_PROJECT: PROJECT, GOOGLE_APPLICATION_CREDENTIALS: "/nonexistent" });
+
 /** Lancia lo script come processo figlio, con il solo ambiente dell'emulatore (mai credenziali). */
-function runScript(args) {
+function runScript(args, env = EMULATOR_ENV()) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [SCRIPT, ...args], {
-      env: { PATH: process.env.PATH, FIRESTORE_EMULATOR_HOST: EMULATOR, GCLOUD_PROJECT: PROJECT },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -73,7 +81,8 @@ function runScript(args) {
 }
 
 const COUNT_KEYS = ["codeGalleries", "gallerySecrets", "galleryMembers", "unlockedGalleries", "deletes"];
-const EXPECTED = { codeGalleries: 2, gallerySecrets: 3, galleryMembers: 4, unlockedGalleries: 3, deletes: 10 };
+// Gallerie con codice: g1 e g3 (`code_required`) più g4, senza `accessMode` (la PWA vecchia la tratta come con codice).
+const EXPECTED = { codeGalleries: 3, gallerySecrets: 3, galleryMembers: 4, unlockedGalleries: 3, deletes: 10 };
 
 // ---------------------------------------------------------------------------
 // Seed: due pali, tre gallerie (due con codice), segreti, sblocchi, members di S2
@@ -88,7 +97,7 @@ const gallery = (stake, id, accessMode, extra = {}) =>
     updatedAt: iso(),
     published: true,
     mediaCount: 3,
-    accessMode,
+    ...(accessMode === null ? {} : { accessMode }),
     codeStatus: accessMode === "code_required" ? "set" : "missing",
     likeCount: 0,
     ...extra,
@@ -140,6 +149,7 @@ async function seed() {
     gallery(STAKE_1, "g1", "code_required"),
     gallery(STAKE_1, "g2", "open"),
     gallery(STAKE_2, "g3", "code_required"),
+    gallery(STAKE_2, "g4", null),
   ]);
   await Promise.all([
     // Segreti: due gallerie con codice e uno rimasto su una galleria già aperta.
@@ -225,19 +235,29 @@ describe("cleanupGalleryCodes.js nell'emulatore", { skip: SKIP }, () => {
   });
 
   test("--apply con --expect-* diversi dal dry-run: exit 2 e niente scritto", async () => {
-    const wrongGalleries = await runScript(["--apply", "--expect-galleries", "1", "--expect-deletes", "10"]);
+    const wrongGalleries = await runScript(["--apply", "--expect-galleries", "2", "--expect-deletes", "10"]);
     assert.equal(wrongGalleries.code, 2, wrongGalleries.stderr);
-    const wrongDeletes = await runScript(["--apply", "--expect-galleries", "2", "--expect-deletes", "9"]);
+    const wrongDeletes = await runScript(["--apply", "--expect-galleries", "3", "--expect-deletes", "9"]);
     assert.equal(wrongDeletes.code, 2, wrongDeletes.stderr);
     assert.deepEqual(await snapshotAll(), beforeAll, "nessun documento è cambiato");
   });
 
-  test("--apply con i numeri del dry-run: gallerie aperte, segreti e sblocchi cancellati in tutti e due i pali", async () => {
-    const run = await runScript(["--apply", "--expect-galleries", "2", "--expect-deletes", "10"]);
+  test("fuori dall'emulatore --apply senza --expect-* esce con 2 prima di qualunque lettura (credenziali inesistenti, nessuna rete)", async () => {
+    const startedAt = Date.now();
+    const run = await runScript(["--apply"], NO_EMULATOR_ENV());
+    assert.equal(run.code, 2, `exit ${run.code}: ${run.stderr}`);
+    assert.ok(Date.now() - startedAt < 15_000, "la guardia scatta subito, senza tentare la rete");
+    assert.doesNotMatch(run.stderr, /nonexistent|ENOENT|credential/iu, `ha provato le credenziali prima della guardia: ${run.stderr}`);
+    assert.deepEqual(await snapshotAll(), beforeAll, "nessun documento è cambiato nell'emulatore");
+  });
+
+  test("--apply con i numeri del dry-run: gallerie aperte (anche quella senza accessMode), segreti e sblocchi cancellati in tutti e due i pali", async () => {
+    const run = await runScript(["--apply", "--expect-galleries", "3", "--expect-deletes", "10"]);
     assert.equal(run.code, 0, run.stderr);
     afterApply = await snapshotAll();
 
-    for (const [stake, id] of [[STAKE_1, "g1"], [STAKE_2, "g3"]]) {
+    assert.equal(beforeAll[`stakes/${STAKE_2}/galleries/g4`].data.accessMode, undefined, "premessa: g4 nasce senza accessMode");
+    for (const [stake, id] of [[STAKE_1, "g1"], [STAKE_2, "g3"], [STAKE_2, "g4"]]) {
       const data = afterApply[`stakes/${stake}/galleries/${id}`]?.data;
       assert.ok(data, `${id}: galleria sparita`);
       assert.equal(data.accessMode, "open", `${id}: accessMode`);

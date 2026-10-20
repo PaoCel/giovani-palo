@@ -24,7 +24,8 @@
 //  - un ruolo staff si assegna dal client solo con la forma di assignAdminRole
 //    (`updateDoc` di `role` e `updatedAt`); per `unit_leader` e per togliere il
 //    ruolo oggi non c'è una UI, si usa la stessa forma (le rules la ammettono);
-//  - un documento nuovo creato dal trigger nasce con `version: 1`;
+//  - un documento nuovo creato dal trigger nasce con `version: 1`; la copia in
+//    `staffRole` di un `super_admin` con il palo nel profilo è `admin`;
 //  - regola 4 letta alla lettera: lo staff spostato di palo dalla console resta
 //    `active` nel palo vecchio ma con `staffRole: null`, e nel nuovo nasce
 //    `active` con `staffRole`;
@@ -403,6 +404,25 @@ describe("regole 1 e 2: ruolo staff assegnato o tolto da un admin", () => {
     assert.equal(data.status, "active");
     assert.equal(data.reviewNeeded, false);
     assert.equal(data.version, 2);
+  });
+
+  test("regola 1 per super_admin con il palo nel profilo: members assente → active con staffRole admin e motivo staff_approval ref role; da pending → active", async () => {
+    const [fromNothing, fromPending] = await fresh([
+      { label: "super-nuovo", role: "super_admin", unit: null },
+      { label: "super-pending", role: "super_admin", unit: null, member: pendingData(UNIT1) },
+    ]);
+    const created = await waitFor(() => memberOf(STAKE_A, fromNothing.uid), (item) => item?.status === "active", "members attivo del super admin");
+    assert.equal(created.staffRole, "admin", "la copia in staffRole di un super_admin è admin (il ruolo che dà i poteri dello staff)");
+    assert.equal(created.reviewNeeded, false);
+    assert.equal(created.version, 1);
+    assert.ok(created.sources.some((source) => source.kind === "staff_approval" && source.ref === "role"), JSON.stringify(created.sources));
+    const promoted = await waitFor(() => memberOf(STAKE_A, fromPending.uid), (item) => item?.status === "active", "pending del super admin attivato");
+    assert.equal(promoted.staffRole, "admin");
+    assert.equal(promoted.reviewNeeded, false);
+    assert.equal(promoted.version, 2);
+    await settleAll();
+    assert.equal((await memberOf(STAKE_A, fromNothing.uid)).version, 1, "una sola scrittura");
+    assert.equal((await memberOf(STAKE_A, fromPending.uid)).version, 2, "una sola scrittura");
   });
 
   test("ruolo tolto (participant): staffRole null, stato invariato, version +1", async () => {
