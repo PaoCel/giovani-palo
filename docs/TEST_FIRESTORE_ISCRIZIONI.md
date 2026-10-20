@@ -217,7 +217,7 @@ l'emulatore lo scrive nel log: "maximum of 1000 expressions to evaluate has
 been reached".
 
 Costo delle scritture dell'admin, documento massimo (ogni campo ammesso
-valorizzato; rules a `84603ae`, margine = 1000 meno il costo). La colonna
+valorizzato; rules a `7c027aa`, margine = 1000 meno il costo). La colonna
 «prima» è `ff9d952`, prima che le chiavi immutabili del titolare passassero
 davanti al payload:
 
@@ -226,18 +226,18 @@ davanti al payload:
 | admin crea a mano: minorenne in attesa, con o senza richiesta | 676 | 676 |
 | admin crea a mano: adulto attivo, attività con autorizzazione | 739 | 739 |
 | admin crea a mano: documento massimo (adulto / minorenne) | 744 / 681 | 744 / 681 |
-| secondo `setDoc` identico (retry) | 291 | 299 |
-| admin su iscrizione di un altro: annulla, riattiva, corregge, email del genitore, abbinamenti stanza, pattuglie | 299-437 | 300-434 |
+| secondo `setDoc` identico (retry) | 291 | 292 |
+| admin su iscrizione di un altro: annulla, riattiva, corregge, email del genitore, abbinamenti stanza, pattuglie | 299-437 | 299-435 |
 | admin titolare del figlio: salva dal modulo / riattiva dal modulo | 728 / 774 | 728 / 774 |
 | admin titolare: annulla | 73 | 73 |
-| admin titolare: corregge i dati del figlio massimo, unità cambiata | 980 | 445 |
-| admin titolare: corregge i propri dati di account massimo, unità cambiata | 933 | 413 |
-| admin titolare: la stessa, adulto → minorenne con richiesta, stato in attesa e le tre spunte foto tolte | 967 | 447 |
-| admin titolare: email del genitore del figlio massimo | 941 | 406 |
+| admin titolare: corregge i dati del figlio massimo, unità cambiata | 980 | 447 |
+| admin titolare: corregge i propri dati di account massimo, unità cambiata | 933 | 415 |
+| admin titolare: la stessa, adulto → minorenne con richiesta, stato in attesa e le tre spunte foto tolte | 967 | 448 |
+| admin titolare: email del genitore del figlio massimo | 941 | 408 |
 | admin titolare: pattuglie in un campeggio sul figlio massimo, pattuglia cambiata | 914 | 914 |
 | admin titolare: pattuglie sulla propria iscrizione di account massima | 867 | 867 |
-| sintetico: tutte le chiavi lecite insieme sul figlio massimo annullato, admin titolare | oltre 1000 | 500 |
-| sintetico: le stesse, admin non titolare | 458 | 455 |
+| sintetico: tutte le chiavi lecite insieme sul figlio massimo annullato, admin titolare | oltre 1000 | 501 |
+| sintetico: le stesse, admin non titolare | 458 | 456 |
 
 L'ordine del `allow update` (titolare, camp staff, admin per ultimo) fa pagare
 all'admin che è anche titolare il ramo del titolare prima del proprio: prima
@@ -246,20 +246,22 @@ controllo delle chiavi che il titolare non cambia mai (unità, consensi,
 `parentAuthorization`, `createdBy`), la correzione dell'unità del figlio massimo
 costava 980 (margine 20) e il sintetico con tutte le chiavi sforava. Ora quelle
 chiavi escono prima del payload: i flussi dell'admin titolare che le toccano
-scendono a 406-447, e restano sopra gli 800 solo le assegnazioni di pattuglia in
+scendono a 408-448, e restano sopra gli 800 solo le assegnazioni di pattuglia in
 un campeggio (914 e 867), che il ramo del titolare scarta più tardi, sui campi
 assegnati. Il controllo del formato di `birthDate` nell'update admin (`6c44deb`)
 e le regole sulle spunte foto delle risposte (`8a294f2`) pesano 12 e 19 espressioni
 nel ramo admin. Per chi passa dal ramo del titolare il costo non cambia, solo
-l'ordine. Il test chiede 15 di margine ai flussi veri e solo di registrare i
-sintetici.
+l'ordine. Il diff delle risposte si calcola solo se `answers` cambia
+(`validAdminAnswersChange`, `c640f8c`): un'iscrizione senza `answers` o con
+`answers: null` si annulla e si riattiva. Il test chiede 15 di margine ai flussi
+veri e solo di registrare i sintetici.
 
 Scritture del titolare, stesso metodo, rules di prima del task (`2eb3e05`)
-contro `84603ae` (il costo del ramo del titolare è quello di `2dc3e80`: i commit dopo toccano solo l'admin e l'ordine dei controlli). Le due righe documentate sopra (972 e 974) con questo
+contro `7c027aa` (il costo del ramo del titolare è quello di `2dc3e80`: i commit dopo toccano solo l'admin e l'ordine dei controlli). Le due righe documentate sopra (972 e 974) con questo
 metodo e i documenti dei test danno 937 e 914 sulle rules di prima: il
 confronto vale fra righe misurate insieme, non con quei due numeri.
 
-| Scrittura del titolare | `2eb3e05` | `84603ae` |
+| Scrittura del titolare | `2eb3e05` | `7c027aa` |
 | --- | --- | --- |
 | sonda: codici, comitati e riattivazione, figlio firmato legacy | 937 | 907 |
 | sonda: codici, comitati e riattivazione, adulto senza firma legacy | 914 | 884 |

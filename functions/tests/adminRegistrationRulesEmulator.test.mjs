@@ -1446,6 +1446,46 @@ describe("10. documenti vecchi: campi fuori elenco, campi mancanti", () => {
     assert.equal((await stored(ctx.path)).registrationStatus, "cancelled");
   });
 
+  test("senza `answers` e con `answers: null`: l'admin annulla e riattiva (c640f8c)", async () => {
+    const { answers: _answers, ...withoutAnswers } = oldDocument();
+    for (const [label, data] of [
+      ["senza answers", withoutAnswers],
+      ["answers null", { ...oldDocument(), answers: null }],
+    ]) {
+      const ctx = await F.seedRegistration(data, childIdOf("genitore"));
+      await clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "cancelled");
+      const cancelled = await stored(ctx.path);
+      assert.equal(cancelled.registrationStatus, "cancelled", label);
+      assert.equal(cancelled.answers ?? null, data.answers ?? null, `${label}: answers com'erano`);
+      await clientOps.setStatus("admin", ctx.activityId, ctx.registrationId, "active");
+      assert.equal((await stored(ctx.path)).registrationStatus, "active", label);
+    }
+  });
+
+  test("osservazione: senza `answers` / con `answers: null`, correzione dei dati e email del genitore", async (t) => {
+    const { answers: _answers, ...withoutAnswers } = oldDocument();
+    const outcomes = [];
+    for (const [label, data] of [
+      ["senza answers", withoutAnswers],
+      ["answers null", { ...oldDocument(), answers: null }],
+    ]) {
+      const ctx = await F.seedRegistration(data, childIdOf("genitore"));
+      try {
+        await withPatch(ctx.activityId, ctx.registrationId, { phone: "3471112222", updatedAt: nowIso() });
+        outcomes.push(`${label}, telefono: consentito`);
+      } catch (error) {
+        outcomes.push(`${label}, telefono: negato (${error?.code})`);
+      }
+      try {
+        await clientOps.updateParentEmail("admin", ctx.activityId, ctx.registrationId, "nuovo@esempio.invalid");
+        outcomes.push(`${label}, email del genitore: consentita`);
+      } catch (error) {
+        outcomes.push(`${label}, email del genitore: negata (${error?.code})`);
+      }
+    }
+    t.diagnostic(outcomes.join("; "));
+  });
+
   test("si corregge (nome, unità, data) e i campi fuori elenco restano com'erano", async () => {
     const ctx = await F.seedRegistration(oldDocument(), childIdOf("genitore"));
     const { patch } = editPatch(ctx.current, ctx.registrationId, { firstName: "Elisa", unitId: UNIT_2.id, unitName: UNIT_2.name });
