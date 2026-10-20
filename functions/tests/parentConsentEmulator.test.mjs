@@ -290,12 +290,16 @@ before(async () => {
         startDate: "2026-10-16T14:00:00.000Z",
         endDate: "2026-10-17T16:00:00.000Z",
         status: "registrations_open",
+        // Firma e rifiuto vogliono che l'autorizzazione serva ancora (83ac159):
+        // iscrizione in attesa, oppure minorenne in un'attività che la chiede.
+        requiresParentAuthorization: true,
       }),
     ),
     adminDb.doc(`stakes/${STAKE_COMPLETION}/activities/${ACTIVITY_2}`).set({
       title: "Seconda gita",
       startDate: "2026-11-16T14:00:00.000Z",
       status: "registrations_open",
+      requiresParentAuthorization: true,
     }),
   ]);
 });
