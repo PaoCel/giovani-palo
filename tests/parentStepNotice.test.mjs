@@ -13,10 +13,12 @@ import {
 // Avviso del passo "Genitore e sicurezza" nel modulo di iscrizione. Deve dire
 // quello che il salvataggio fa DAVVERO, cioè la somma di tre cose:
 //  1. lo stato dopo il salvataggio (src/utils/registrationStatus.ts: il modulo
-//     chiede sempre "in attesa" con i dati del genitore);
+//     chiede sempre "in attesa" con i dati del genitore; un'iscrizione attiva
+//     senza firma né rifiuto passa in attesa, le altre conservano lo stato);
 //  2. se il trigger onRegistrationPendingParentAuth manda la mail
-//     (functions/lib/parentAuthorization.js). Una reiscrizione, cioè un'annullata
-//     che torna in attesa, è una richiesta nuova: link nuovo e mail comunque
+//     (functions/lib/parentAuthorization.js). Ogni ingresso in attesa da un
+//     altro stato (annullata, ma anche attiva che ora chiede il genitore) è una
+//     richiesta nuova: link nuovo e mail comunque
 //     (restartParentAuthorizationAfterCancellation), qualunque fosse lo stato
 //     dell'autorizzazione tranne "authorized", che torna attiva senza mail;
 //  3. l'esito della mail mostrato all'utente (getParentEmailOutcome: "email_sent"
@@ -328,19 +330,49 @@ const CASI = [
   // (L'annullata dopo un rifiuto non sta qui: reiscriversi riapre la richiesta,
   // vedi sopra.)
 
-  // Lo stato resta com'è, senza firma né mail.
-  ["active senza autorizzazione (null)", iscrizione("active", null), "nessuno"],
-  ["active senza autorizzazione (campo assente)", iscrizione("active", undefined), "nessuno"],
+  // Attiva senza firma né rifiuto: il salvataggio la mette in attesa e il
+  // trigger vede un ingresso in attesa da un altro stato, cioè una richiesta
+  // nuova: link nuovo e mail, qualunque fosse lo stato dell'autorizzazione.
+  ["active senza autorizzazione (null)", iscrizione("active", null), "nuovo_link"],
+  ["active senza autorizzazione (campo assente)", iscrizione("active", undefined), "nuovo_link"],
   [
-    "active con un link emesso ma non firmato (il trigger guarda solo le iscrizioni in attesa)",
+    "active con un link emesso ma non firmato (ne parte uno nuovo)",
     iscrizione("active", firma("email_sent", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID })),
-    "nessuno",
+    "nuovo_link",
   ],
   [
-    "active con email_error",
+    "active con email_error (il tetto dei riprovi non c'entra)",
     iscrizione("active", firma("email_error", { tokenId: TOKEN_ID, emailRetryCount: 1 })),
-    "nessuno",
+    "nuovo_link",
   ],
+  [
+    "active con email_error oltre il tetto dei tentativi",
+    iscrizione(
+      "active",
+      firma("email_error", { tokenId: TOKEN_ID, emailRetryCount: MAX_EMAIL_RETRIES + 2 }),
+    ),
+    "nuovo_link",
+  ],
+  [
+    "active con selfTokenIssuedAt (non è \"autorizza ora\": è un ingresso in attesa, link nuovo)",
+    iscrizione(
+      "active",
+      firma("pending_parent_authorization", { tokenId: TOKEN_ID, selfTokenIssuedAt: SELF_IL }),
+    ),
+    "nuovo_link",
+  ],
+  [
+    "active con pending_request e tokenId",
+    iscrizione("active", firma("pending_request", { tokenId: TOKEN_ID })),
+    "nuovo_link",
+  ],
+  [
+    "active con link scaduto (expired)",
+    iscrizione("active", firma("expired", { tokenId: TOKEN_ID })),
+    "nuovo_link",
+  ],
+
+  // Gli altri stati si conservano senza firma né mail.
   ["waitlist senza autorizzazione", iscrizione("waitlist", null), "nessuno"],
   ["submitted senza autorizzazione", iscrizione("submitted", null), "nessuno"],
   ["draft senza autorizzazione", iscrizione("draft", null), "nessuno"],
@@ -449,6 +481,55 @@ test("annullata firmata: resta autorizzata, torna attiva e nessuna mail parte", 
     const avviso = getParentStepNotice(iscrizione("cancelled", autorizzazione));
     assert.equal(avviso, "autorizzata", JSON.stringify(autorizzazione));
     assert.equal(parentStepNoticeSendsLink(avviso), false, JSON.stringify(autorizzazione));
+  }
+});
+
+test("attiva senza firma né rifiuto: entra in attesa, link nuovo qualunque fosse l'autorizzazione", () => {
+  for (const autorizzazione of AUTORIZZAZIONI_NON_FIRMATE) {
+    if (autorizzazione?.status === "rejected_by_parent") continue;
+    const esistente = congela(structuredClone(iscrizione("active", autorizzazione)));
+    const avviso = getParentStepNotice(esistente);
+    const dove = JSON.stringify(autorizzazione) ?? "undefined";
+    assert.equal(avviso, "nuovo_link", dove);
+    assert.equal(parentStepNoticeSendsLink(avviso), true, dove);
+  }
+});
+
+test("attiva con la decisione del genitore: resta attiva, firma e rifiuto si dicono e nessuna mail parte", () => {
+  const firmate = [
+    firma("authorized"),
+    firma("authorized", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID }),
+    firma("authorized", { tokenId: TOKEN_ID, selfTokenIssuedAt: SELF_IL }),
+  ];
+  for (const autorizzazione of firmate) {
+    const avviso = getParentStepNotice(iscrizione("active", autorizzazione));
+    assert.equal(avviso, "autorizzata", JSON.stringify(autorizzazione));
+    assert.equal(parentStepNoticeSendsLink(avviso), false, JSON.stringify(autorizzazione));
+  }
+  const rifiuti = [
+    firma("rejected_by_parent"),
+    firma("rejected_by_parent", { tokenId: TOKEN_ID, brevoMessageId: MAIL_ID }),
+  ];
+  for (const autorizzazione of rifiuti) {
+    const avviso = getParentStepNotice(iscrizione("active", autorizzazione));
+    assert.equal(avviso, "rifiutata", JSON.stringify(autorizzazione));
+    assert.equal(parentStepNoticeSendsLink(avviso), false, JSON.stringify(autorizzazione));
+  }
+});
+
+test("solo l'attiva e l'annullata entrano in attesa: gli altri stati si conservano senza link nuovo", () => {
+  for (const stato of ["draft", "submitted", "waitlist"]) {
+    for (const autorizzazione of AUTORIZZAZIONI_NON_FIRMATE) {
+      if (autorizzazione?.status === "rejected_by_parent") continue;
+      const avviso = getParentStepNotice(iscrizione(stato, autorizzazione));
+      assert.equal(avviso, "nessuno", `${stato} + ${JSON.stringify(autorizzazione) ?? "undefined"}`);
+    }
+  }
+  // Confermata e rifiutata (come stato dell'iscrizione) non tornano in attesa
+  // nemmeno senza firma.
+  for (const autorizzazione of AUTORIZZAZIONI_NON_FIRMATE) {
+    assert.notEqual(getParentStepNotice(iscrizione("confirmed", autorizzazione)), "nuovo_link");
+    assert.equal(getParentStepNotice(iscrizione("rejected_by_parent", autorizzazione)), "rifiutata");
   }
 });
 
@@ -577,26 +658,37 @@ function tutteLeAutorizzazioni() {
 
 // Stato dell'iscrizione dopo il salvataggio del modulo (che chiede sempre
 // "in attesa" con i dati del genitore): chi esiste lo conserva, tranne
-// l'annullata, che torna attiva se la firma c'era e in attesa altrimenti.
+//  - l'annullata, che torna attiva se la firma c'era e in attesa altrimenti;
+//  - l'attiva senza firma né rifiuto, che passa in attesa (il modulo ora
+//    raccoglie il genitore: meno di 18 anni in un'attività che lo chiede).
+// Una decisione del genitore (firma o rifiuto) lascia l'attiva com'è.
 function statoDopoIlSalvataggio(esistente) {
   if (!esistente) return IN_ATTESA;
-  if (esistente.registrationStatus !== "cancelled") return esistente.registrationStatus;
-  return esistente.parentAuthorization?.status === "authorized" ? "active" : IN_ATTESA;
+  const deciso = DECIDED_PARENT_AUTH_STATUSES.includes(esistente.parentAuthorization?.status);
+  if (esistente.registrationStatus === "cancelled") {
+    return esistente.parentAuthorization?.status === "authorized" ? "active" : IN_ATTESA;
+  }
+  if (esistente.registrationStatus === "active" && !deciso) return IN_ATTESA;
+  return esistente.registrationStatus;
 }
 
-// Reiscrizione: il trigger vede before annullata e after in attesa
-// (onRegistrationPendingParentAuth: `before && isCancelledRegistration(before)`).
-function eUnaReiscrizione(esistente) {
+// Ingresso in attesa da un altro stato: il trigger vede before non in attesa
+// (annullata, ma anche attiva) e after in attesa
+// (onRegistrationPendingParentAuth: `before && (isCancelledRegistration(before)
+// || !isAwaitingParentAuthorization(before))`).
+function eUnIngressoInAttesa(esistente) {
   return (
-    esistente?.registrationStatus === "cancelled" &&
+    Boolean(esistente) &&
+    esistente.registrationStatus !== IN_ATTESA &&
     statoDopoIlSalvataggio(esistente) === IN_ATTESA
   );
 }
 
-// Reiscrizione: restartParentAuthorizationAfterCancellation chiama
+// Ingresso in attesa: restartParentAuthorizationAfterCancellation chiama
 // sendInitialAuthorizationEmail con `restart`, e la transazione si ferma solo
 // davanti a una decisione già presa. L'eccezione è il rifiuto che l'evento ha
-// visto (`reopenRejection`), che si sostituisce. Niente tetto dei riprovi, niente
+// visto (`reopenRejection`), che si sostituisce (solo da annullata: da attiva
+// il rifiuto lascia l'iscrizione com'è). Niente tetto dei riprovi, niente
 // "link già emesso", niente selfTokenIssuedAt: la richiesta riparte da zero.
 // Si assume che il modulo abbia scritto i dati del genitore (parentEmail
 // compresa), altrimenti l'invio salta con missing_request_payload.
@@ -606,14 +698,14 @@ function laReiscrizioneScrive(stato) {
 }
 
 // Il trigger scrive al genitore, con lo stesso indirizzo di prima?
-// onRegistrationPendingParentAuth: solo iscrizioni in attesa; la reiscrizione
-// passa prima di tutto il resto; mai su una decisione già presa; si ferma al
+// onRegistrationPendingParentAuth: solo iscrizioni in attesa; l'ingresso in
+// attesa passa prima di tutto il resto; mai su una decisione già presa; si ferma al
 // tetto dei tentativi; con un link già emesso non rimanda, tranne dopo un
 // invio fallito.
 function ilTriggerScrive(esistente) {
   if (statoDopoIlSalvataggio(esistente) !== IN_ATTESA) return false;
   const stato = esistente?.parentAuthorization;
-  if (eUnaReiscrizione(esistente)) return laReiscrizioneScrive(stato);
+  if (eUnIngressoInAttesa(esistente)) return laReiscrizioneScrive(stato);
   if (!stato) return true;
   if (DECIDED_PARENT_AUTH_STATUSES.includes(stato.status)) return false;
   if (stato.status === "email_error") return stato.emailRetryCount < MAX_EMAIL_RETRIES;
@@ -626,11 +718,11 @@ function ilTriggerScrive(esistente) {
 function unLinkPuoPartire(esistente) {
   if (statoDopoIlSalvataggio(esistente) !== IN_ATTESA) return false;
   const stato = esistente?.parentAuthorization;
-  if (eUnaReiscrizione(esistente)) return laReiscrizioneScrive(stato);
+  if (eUnIngressoInAttesa(esistente)) return laReiscrizioneScrive(stato);
   return !stato || !DECIDED_PARENT_AUTH_STATUSES.includes(stato.status);
 }
 
-test("il trigger gestisce la reiscrizione prima del tetto dei riprovi e del link già emesso", () => {
+test("il trigger gestisce ogni ingresso in attesa prima del tetto dei riprovi e del link già emesso", () => {
   // Il modello sopra riproduce questo ordine: se il codice delle functions
   // cambia forma, il test si ferma qui invece di confrontare con un modello
   // vecchio.
@@ -638,15 +730,22 @@ test("il trigger gestisce la reiscrizione prima del tetto dei riprovi e del link
   assert.ok(inizio > 0, "onRegistrationPendingParentAuth non trovato");
   const trigger = FUNCTIONS_TESTO.slice(inizio);
 
-  const reiscrizione = trigger.indexOf("isCancelledRegistration(before)");
+  const condizione = trigger.match(
+    /if \(\s*before\s*&&\s*\(\s*isCancelledRegistration\(before\)\s*\|\|\s*!isAwaitingParentAuthorization\(before\)\s*\)\s*\)\s*\{\s*await restartParentAuthorizationAfterCancellation\(/,
+  );
+  assert.ok(
+    condizione,
+    "il trigger non riparte più per ogni ingresso in attesa (annullata o non in attesa): il modello sotto è da rifare",
+  );
+  const ingresso = condizione.index;
   const ripartenza = trigger.indexOf("restartParentAuthorizationAfterCancellation(");
   const tetto = trigger.indexOf("retryCapReached(after)");
   const linkEmesso = trigger.indexOf("after.parentAuthorization.tokenId");
 
-  assert.ok(reiscrizione > 0, "il trigger non guarda più lo stato precedente annullato");
-  assert.ok(ripartenza > reiscrizione, "la ripartenza non segue il controllo dell'annullata");
-  assert.ok(tetto > ripartenza, "il tetto dei riprovi viene prima della reiscrizione");
-  assert.ok(linkEmesso > ripartenza, "il link già emesso viene prima della reiscrizione");
+  assert.ok(ingresso > 0, "il trigger non guarda più lo stato precedente");
+  assert.ok(ripartenza > ingresso, "la ripartenza non segue il controllo dello stato precedente");
+  assert.ok(tetto > ingresso, "il tetto dei riprovi viene prima dell'ingresso in attesa");
+  assert.ok(linkEmesso > ingresso, "il link già emesso viene prima dell'ingresso in attesa");
 
   // La reiscrizione riapre solo il rifiuto: la firma non si tocca mai.
   assert.ok(DECIDED_PARENT_AUTH_STATUSES.includes("authorized"));
@@ -660,7 +759,15 @@ test("il trigger gestisce la reiscrizione prima del tetto dei riprovi e del link
 test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", () => {
   const autorizzazioni = tutteLeAutorizzazioni();
   let verificate = 0;
-  const viste = { reiscrizioni: 0, dopoRifiuto: 0, oltreTetto: 0, conSelfToken: 0, firmateAnnullate: 0 };
+  const viste = {
+    reiscrizioni: 0,
+    dopoRifiuto: 0,
+    oltreTetto: 0,
+    conSelfToken: 0,
+    firmateAnnullate: 0,
+    attiveInAttesa: 0,
+    attiveDecise: 0,
+  };
 
   for (const registrationStatus of STATI_ISCRIZIONE) {
     for (const parentAuthorization of autorizzazioni) {
@@ -668,7 +775,7 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
       const avviso = getParentStepNotice(esistente);
       const dove = `${registrationStatus} + ${JSON.stringify(parentAuthorization)} => ${avviso}`;
       const stato = parentAuthorization;
-      const reiscrizione = eUnaReiscrizione(esistente);
+      const reiscrizione = eUnIngressoInAttesa(esistente);
       // Un rifiuto conta finché l'iscrizione non è annullata: dopo, reiscriversi
       // lo riapre.
       const rifiuto =
@@ -677,17 +784,26 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
       const firmata =
         !rifiuto && (registrationStatus === "confirmed" || stato?.status === "authorized");
 
-      // Reiscrizione: link nuovo e mail, qualunque cosa ci fosse prima (tranne
-      // la firma, che la rende attiva senza mail).
+      // Ingresso in attesa (annullata o attiva): link nuovo e mail, qualunque
+      // cosa ci fosse prima (tranne la firma, che lascia l'iscrizione attiva
+      // senza mail).
       if (reiscrizione) {
-        assert.equal(ilTriggerScrive(esistente), true, `reiscrizione senza mail: ${dove}`);
-        assert.equal(avviso, "nuovo_link", `reiscrizione senza nuovo_link: ${dove}`);
+        assert.equal(ilTriggerScrive(esistente), true, `ingresso in attesa senza mail: ${dove}`);
+        assert.equal(avviso, "nuovo_link", `ingresso in attesa senza nuovo_link: ${dove}`);
         viste.reiscrizioni += 1;
+        if (registrationStatus === "active") viste.attiveInAttesa += 1;
         if (stato?.status === "rejected_by_parent") viste.dopoRifiuto += 1;
         if (stato?.status === "email_error" && stato.emailRetryCount >= MAX_EMAIL_RETRIES) {
           viste.oltreTetto += 1;
         }
         if (stato?.selfTokenIssuedAt) viste.conSelfToken += 1;
+      }
+      // Attiva con una decisione del genitore: resta attiva, nessuna mail.
+      if (registrationStatus === "active" && DECIDED_PARENT_AUTH_STATUSES.includes(stato?.status)) {
+        assert.equal(statoDopoIlSalvataggio(esistente), "active", `attiva decisa che cambia stato: ${dove}`);
+        assert.equal(ilTriggerScrive(esistente), false, `attiva decisa con mail: ${dove}`);
+        assert.equal(avviso, stato.status === "authorized" ? "autorizzata" : "rifiutata", dove);
+        viste.attiveDecise += 1;
       }
       if (registrationStatus === "cancelled" && stato?.status === "authorized") {
         assert.equal(ilTriggerScrive(esistente), false, `annullata firmata con mail: ${dove}`);
@@ -706,11 +822,11 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
       }
 
       // Un invio fallito: o il trigger riprova, o siamo al tetto dei tentativi.
-      // Mai per un'annullata: la reiscrizione riparte da zero.
+      // Mai per un'annullata o un'attiva: l'ingresso in attesa riparte da zero.
       if (avviso === "mail_fallita") {
         assert.equal(stato?.status, "email_error", `mail_fallita senza errore: ${dove}`);
         assert.equal(statoDopoIlSalvataggio(esistente), IN_ATTESA, `mail_fallita fuori attesa: ${dove}`);
-        assert.equal(reiscrizione, false, `mail_fallita su una reiscrizione: ${dove}`);
+        assert.equal(reiscrizione, false, `mail_fallita su un ingresso in attesa: ${dove}`);
         if (!ilTriggerScrive(esistente)) {
           assert.ok(stato.emailRetryCount >= MAX_EMAIL_RETRIES, `mail_fallita senza tetto: ${dove}`);
         }
@@ -721,7 +837,7 @@ test("su tutte le combinazioni l'avviso non contraddice salvataggio e trigger", 
         assert.equal(ilTriggerScrive(esistente), false, `mail nuova sotto "${avviso}": ${dove}`);
         assert.ok(stato?.tokenId, `${avviso} senza link emesso: ${dove}`);
         assert.equal(statoDopoIlSalvataggio(esistente), IN_ATTESA, `${avviso} fuori attesa: ${dove}`);
-        assert.equal(reiscrizione, false, `${avviso} su una reiscrizione: ${dove}`);
+        assert.equal(reiscrizione, false, `${avviso} su un ingresso in attesa: ${dove}`);
       }
 
       // "scritto" solo con la conferma del provider.
