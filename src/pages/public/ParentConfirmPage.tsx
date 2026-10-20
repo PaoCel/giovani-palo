@@ -661,14 +661,19 @@ function TokenInvalidPanel({
 
   const registrationCancelled =
     status === "invalidated" && context.reason === "registration_cancelled";
+  const notNeeded = status === "invalidated" && context.reason === "not_needed";
   const info = registrationCancelled
     ? { title: FIRMA.iscrizioneAnnullataTitolo, body: FIRMA.iscrizioneAnnullataCorpo }
+    : notNeeded
+      ? { title: FIRMA.nonServeTitolo, body: FIRMA.nonServeCorpo }
     : status === "expired" && canSignInApp
       ? { title: FIRMA.linkScadutoTitolo, body: FIRMA.linkScadutoConAccount }
       : messages[status as Exclude<ParentTokenStatus, "valid">] ?? messages.not_found;
   // Per un genitore entrato la strada è Famiglia: "Autorizza ora" crea un link nuovo.
   const showFamilyLink =
-    canSignInApp && (registrationCancelled || status === "invalidated" || status === "expired");
+    canSignInApp &&
+    !notNeeded &&
+    (registrationCancelled || status === "invalidated" || status === "expired");
 
   return (
     <StatusPanel tone="info" title={info.title} icon="bell">

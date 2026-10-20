@@ -1686,6 +1686,27 @@ const parentAuthorizationGetContext = onCall(
 
     const status = deriveTokenStatus(token);
 
+    // Link invalidato (o ancora valido) per un'iscrizione che non è più in
+    // attesa e non ne ha bisogno (18 anni o più dopo una correzione): la
+    // pagina dice che non serve, non che c'è un link nuovo. Stato
+    // "invalidated" con un motivo, come per l'annullata: le PWA già
+    // installate conoscono solo quello.
+    if (status === "valid" || status === "invalidated") {
+      const current = await loadRegistration(db, token.stakeId, token.activityId, token.registrationId);
+      if (current && !isCancelledRegistration(current)) {
+        const activity = await loadActivity(db, token.stakeId, token.activityId);
+        if (activity && !parentAuthorizationStillNeeded(current, activity)) {
+          return {
+            status: "invalidated",
+            reason: "not_needed",
+            activityTitle: token.activityTitle || "",
+            participantName: token.participantName || "",
+            canSignInApp: canSignInApp(request, token),
+          };
+        }
+      }
+    }
+
     if (status !== "valid") {
       return {
         status,
