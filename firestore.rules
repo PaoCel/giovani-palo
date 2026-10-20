@@ -810,6 +810,27 @@ service cloud.firestore {
         }).changedKeys().size() == 0;
     }
 
+    // Risposte toccate dall'admin: solo i dati della persona e la richiesta al
+    // genitore; le spunte foto date da adulto si possono solo togliere (data
+    // corretta a meno di 18 anni), mai scriverle al posto della persona.
+    // In una funzione a parte: il diff delle risposte si calcola solo se le
+    // risposte cambiano davvero.
+    function validAdminAnswersChange(answersChanged, nextAnswers) {
+      return answersChanged.hasOnly([
+          'parentAuthorizationRequest', 'birthDate', 'genderRoleCategory',
+          'youthGroup', 'unitName', 'photoInternalConsent',
+          'photoPublicConsent', 'photoReleaseAccepted'
+        ])
+        && (
+          !answersChanged.hasAny([
+            'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
+          ])
+          || !nextAnswers.keys().hasAny([
+            'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
+          ])
+        );
+    }
+
     // Admin su un'iscrizione esistente (docs/ADMIN_ISCRITTI.md, scelta R):
     // solo i campi che le sue schermate scrivono. Stato, dati della persona,
     // email del genitore (nel modulo e sull'autorizzazione), abbinamenti
@@ -827,7 +848,6 @@ service cloud.firestore {
       let next = request.resource.data;
       let prev = resource.data;
       let changed = next.diff(prev).affectedKeys();
-      let answersChanged = next.answers.diff(prev.answers).affectedKeys();
       return isStakeAdmin(stakeId)
         && changed.hasOnly([
           'registrationStatus', 'updatedAt', 'answers', 'parentAuthorization',
@@ -837,23 +857,7 @@ service cloud.firestore {
         ])
         && (
           !changed.hasAny(['answers'])
-          || (
-            answersChanged.hasOnly([
-              'parentAuthorizationRequest', 'birthDate', 'genderRoleCategory',
-              'youthGroup', 'unitName', 'photoInternalConsent',
-              'photoPublicConsent', 'photoReleaseAccepted'
-            ])
-            // Le spunte foto date da adulto si possono solo togliere (data
-            // corretta a meno di 18 anni): mai scriverle al posto della persona.
-            && (
-              !answersChanged.hasAny([
-                'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
-              ])
-              || !next.answers.keys().hasAny([
-                'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
-              ])
-            )
-          )
+          || validAdminAnswersChange(next.answers.diff(prev.answers).affectedKeys(), next.answers)
         )
         && (
           !changed.hasAny(['parentAuthorization'])
