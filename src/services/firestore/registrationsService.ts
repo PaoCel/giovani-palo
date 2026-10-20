@@ -224,6 +224,7 @@ function mapRegistration(
       typeof data.assignedPatrolName === "string" ? data.assignedPatrolName : null,
     assignedPatrolRole: mapCampPatrolRole(data.assignedPatrolRole),
     assignedCommittees: mapAssignedCommittees(data.assignedCommittees),
+    createdBy: typeof data.createdBy === "string" ? data.createdBy : null,
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
   };
@@ -710,8 +711,33 @@ export const registrationsService = {
     await deleteDoc(getRegistrationReference(stakeId, eventId, registrationId));
   },
 
-  // Admin cambia stato iscrizione (active/cancelled). Rules consentono
-  // qualunque update se isStakeAdmin.
+  // Iscrizione a mano dell'admin (docs/ADMIN_ISCRITTI.md): documento intero
+  // costruito da buildManualRegistrationDoc, id fissato all'apertura del
+  // foglio. Le rules (validAdminManualCreate) controllano forma e stato.
+  async adminCreateManualRegistration(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    document: Record<string, unknown>,
+  ) {
+    await setDoc(getRegistrationReference(stakeId, eventId, registrationId), document);
+  },
+
+  // Correzione dei dati e richiesta di autorizzazione dall'admin: chiavi di
+  // buildAdminEditPatch / buildRequestAuthorizationPatch, nella lista delle
+  // rules (validAdminRegistrationUpdate).
+  async adminUpdateRegistration(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    patch: Record<string, unknown>,
+  ) {
+    await updateDoc(getRegistrationReference(stakeId, eventId, registrationId), patch);
+  },
+
+  // Admin cambia stato iscrizione: annullata, attiva o in attesa del genitore
+  // (planAdminReactivate). 'confirmed' e 'rejected_by_parent' li scrive solo
+  // il server (validAdminRegistrationUpdate).
   async adminSetRegistrationStatus(
     stakeId: string,
     eventId: string,

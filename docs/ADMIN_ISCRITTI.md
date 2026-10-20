@@ -1,6 +1,6 @@
 # Admin: iscrizione a mano e correzione dei dati
 
-Task `gugd-admin-iscritti`. Bozza del 2026-10-20, da approvare (scelte in fondo). Rivista da un secondo modello (PASS WITH CONCERNS, punti recepiti: link da invalidare, ordine e budget delle rules, push, campi, transizioni, rifiuto riaperto, `status` legacy).
+Task `gugd-admin-iscritti`. Scelte approvate da Paolo il 2026-10-20: tutte come consigliato (in fondo). Rivista da un secondo modello (PASS WITH CONCERNS, punti recepiti: link da invalidare, ordine e budget delle rules, push, campi, transizioni, rifiuto riaperto, `status` legacy).
 Fatti letti dal codice il 2026-10-20. Mockup: `side-session-notes/local_0456cb35…/mockups/admin-iscritti/`
 (`admin-iscritti.png`, sorgente `index.html`), fuori da git.
 

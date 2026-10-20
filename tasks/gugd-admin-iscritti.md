@@ -1,7 +1,7 @@
 ---
 id: gugd-admin-iscritti
 title: "Admin: iscrizione a mano e correzione dei dati di un iscritto"
-status: needs-paolo
+status: in-progress
 impact: 2
 urgency: 2
 effort: M
@@ -12,11 +12,11 @@ opened: 2026-10-20
 started_at: 2026-10-20
 touched: 2026-10-20
 due:
-blocked_by: ["decisione: scelte I1-I8, R e F in docs/ADMIN_ISCRITTI.md"]
+blocked_by: []
 branch: task/gugd-admin-iscritti
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
 session: 3b5e6431-ed1b-420c-83ed-ae790b460974
-stopped_at: "Spec e mockup pronti, rivisti da un secondo modello; aspettano le scelte di Paolo"
+stopped_at: "Scelte approvate da Paolo (tutte come consigliato); si parte dal censimento"
 next: "Con le scelte di Paolo: censimento in sola lettura delle iscrizioni in prod, rules con test nell'emulatore (budget), trigger che invalida i link, poi estrazione della tab Iscritti e UI"
 verified: ""
 links: [docs/ADMIN_ISCRITTI.md, docs/AUTONOMIA_MULTI_PALO.md]
@@ -24,6 +24,9 @@ done_at:
 ---
 
 ## Contesto
+
+Scelte I1-I8, R e F di `docs/ADMIN_ISCRITTI.md` approvate da Paolo il
+2026-10-20: tutte come consigliato.
 
 Audit del 2026-10-20: le iscrizioni `manual_` si creano solo con l'Admin SDK
 (13 sul viaggio al tempio) e l'admin non può correggere nome, unità o data di

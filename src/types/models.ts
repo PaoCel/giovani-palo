@@ -404,6 +404,8 @@ export interface Registration {
   assignedPatrolName: string | null;
   assignedPatrolRole: CampPatrolRole | null;
   assignedCommittees: CampCommitteeAssignment[];
+  // Admin che ha aggiunto l'iscrizione a mano (solo `manual_`, dal 2026-10-20).
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
   cancelledAt?: string | null;

@@ -3,8 +3,11 @@
 // convenzioni in ./parole.ts.
 
 import { ANNULLA } from "./annulla.ts";
+import { CHI_ISCRIVI } from "./chiIscrivi.ts";
 import { DOMANDE } from "./domande.ts";
+import { ISCRIZIONE } from "./iscrizione.ts";
 import { PAROLE } from "./parole.ts";
+import { PROFILO } from "./profilo.ts";
 
 export const ADMIN = {
   // Interruttore `requireLoginForEdit`, uguale in tutte le schermate.
@@ -110,4 +113,95 @@ export const ADMIN = {
   // Esportazione: un modulo che non si carica più dopo un aggiornamento si
   // risolve ricaricando.
   erroreExcel: "Impossibile esportare l'Excel. Ricarica la pagina e riprova.",
+
+  // Iscritti: aggiunta a mano e correzione dei dati (docs/ADMIN_ISCRITTI.md).
+  aggiungiAMano: "Aggiungi a mano",
+  pillAMano: "A mano",
+  pillMancaEmail: "Manca l'email del genitore",
+  nome: PROFILO.nome,
+  cognome: PROFILO.cognome,
+  dataNascita: PROFILO.dataNascita,
+  categoria: "Categoria",
+  giovaneUomo: PROFILO.giovaneUomo,
+  giovaneDonna: PROFILO.giovaneDonna,
+  dirigente: PROFILO.dirigente,
+  accompagnatore: PROFILO.accompagnatore,
+  unita: CHI_ISCRIVI.unita,
+  selezionaUnita: PROFILO.selezionaUnita,
+  nessunaUnita: PROFILO.nessunaUnita,
+  aiutoNessunaUnita: PROFILO.aiutoNessunaUnita,
+  email: "Email",
+  telefono: "Telefono",
+  facoltativa: "facoltativa",
+  facoltativo: "facoltativo",
+  anniMinore: "{anni} anni: per questa attività serve l'autorizzazione del genitore.",
+  unitaVisibile: "La vedranno anche i dirigenti di {unita}.",
+  genitore: "Genitore",
+  genitoreSotto: "Riceve il link per autorizzare l'iscrizione di {nome}.",
+  nomeGenitore: "Nome del genitore",
+  salvando: "Salvando",
+  esitoAttiva: "{nome} entra tra gli iscritti.",
+  esitoAttesaMail:
+    "{nome} entra tra gli iscritti in attesa del genitore. La mail per autorizzare parte subito a {email}.",
+  esitoAttesaSenzaEmail:
+    "{nome} entra tra gli iscritti in attesa del genitore. Senza l'email del genitore la richiesta non parte: la chiedi dopo dalla scheda.",
+  aggiungi: "Aggiungi",
+  aggiungiEMail: "Aggiungi e manda la mail",
+  annulla: CHI_ISCRIVI.annulla,
+  salva: CHI_ISCRIVI.salva,
+  salvaEMail: "Salva e manda la mail",
+  esciSenzaSalvareTitolo: "Uscire senza salvare?",
+  esciSenzaSalvareCorpo: "I dati scritti nel foglio si perdono.",
+  continuaACompilare: ISCRIZIONE.continuaACompilare,
+  esciSenzaSalvare: "Esci senza salvare",
+  doppione: "C'è già {nome} tra gli iscritti ({dettagli}).",
+  apriLaSuaIscrizione: "Apri la sua iscrizione",
+  aggiungiLoStesso: "Aggiungi lo stesso",
+  erroreNome: "Scrivi il nome.",
+  erroreCognome: "Scrivi il cognome.",
+  erroreDataNascita: PROFILO.erroreDataNonValida,
+  erroreCategoria: "Scegli la categoria.",
+  erroreUnitaScelta: CHI_ISCRIVI.erroreUnita,
+  erroreEmail: "Controlla l'email.",
+  erroreAggiungi: "Impossibile aggiungere l'iscrizione.",
+  aggiuntaOk: "{nome} è tra gli iscritti.",
+  mailInPartenza: "La mail al genitore è in partenza: lo stato è nella tab Consensi.",
+  aggiuntaDa: "Aggiunta a mano da {admin}, il {data}.",
+  aggiuntaIl: "Aggiunta a mano il {data}.",
+  mancaEmailTitolo: "Manca l'email del genitore.",
+  mancaEmailCorpo: "Senza, la richiesta di autorizzazione non parte.",
+  chiediAutorizzazione: "Chiedi l'autorizzazione",
+  chiediSotto: "Per l'iscrizione di {nome}",
+  chiediCorpo:
+    "La mail con il link per autorizzare parte subito. Se l'indirizzo è sbagliato lo correggi in Consensi e la rimandi.",
+  mandaLaMail: "Manda la mail",
+  erroreChiedi: "Impossibile chiedere l'autorizzazione.",
+  modificaDati: "Modifica dati",
+  prima: "Prima: {valore}",
+  nessunaModifica: "Nessun dato cambiato.",
+  erroreModifica: "Impossibile salvare le modifiche.",
+  modificaOk: "Dati di {nome} aggiornati.",
+  effettoDiventaMinoreMail:
+    "Diventa minorenne: passa in attesa del genitore e parte la mail a {email}.",
+  effettoDiventaMinoreSenzaEmail:
+    "Diventa minorenne: passa in attesa del genitore. Manca l'email del genitore: scrivila qui sotto o chiedila dopo dalla scheda.",
+  effettoDiventaAdulto:
+    "Diventa maggiorenne: torna attiva e il link mandato al genitore smette di valere.",
+  effettoFirmaResta:
+    "L'autorizzazione del genitore resta com'è: il modulo firmato riporta i dati di prima.",
+  effettoFotoGenitore: "Foto e social: ora decide il genitore.",
+  effettoFotoPersona: "Foto e social: ora decide la persona, non più il genitore.",
+  effettoUnita: "La vedranno i dirigenti di {nuova}, non più quelli di {vecchia}.",
+  effettoUnitaNuova: "La vedranno i dirigenti di {nuova}.",
+  effettoNomeFirmato: "Il modulo firmato resta con il nome di prima.",
+  effettoStanza: "È nella stanza {stanza}: ricontrolla il piano stanze.",
+  effettoProfilo: "Il profilo del suo account non cambia: la prossima iscrizione partirà da lì.",
+  riattivaTitolo: "Riattivare l'iscrizione di {nome}?",
+  riattivaCorpoMail: "Torna in attesa del genitore e parte una nuova mail per autorizzare.",
+  riattivaCorpoRifiuto: "Il genitore aveva rifiutato: riceverà una nuova mail per autorizzare.",
+  tieniAnnullata: "Lasciala annullata",
+  confermaRiattiva: "Sì, riattiva e manda la mail",
+  riattivazione: "Riattivazione...",
+  erroreRiattiva: "Impossibile riattivare l'iscrizione.",
+  riattivataInAttesa: "Iscrizione di {nome} riattivata: è in attesa del genitore.",
 } as const;
