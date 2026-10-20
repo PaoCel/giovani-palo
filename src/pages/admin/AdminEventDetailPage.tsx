@@ -1451,11 +1451,7 @@ export function AdminEventDetailPage() {
       );
       setActionInfo("Excel comitati e pattuglie generato.");
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile esportare l'Excel.",
-      );
+      setActionError(getAdminActionError(caughtError, ADMIN.erroreExcel));
     } finally {
       setDownloadingExcel(false);
     }
@@ -2036,7 +2032,7 @@ export function AdminEventDetailPage() {
       setExcelExportModalOpen(false);
     } catch (caughtError) {
       setActionError(
-        getAdminActionError(caughtError, "Impossibile esportare l'Excel."),
+        getAdminActionError(caughtError, ADMIN.erroreExcel),
       );
     } finally {
       setDownloadingExcel(false);
@@ -2062,11 +2058,7 @@ export function AdminEventDetailPage() {
         `Elenco GU/GD esportato con ${youthRegistrations.length} iscritti attivi.`,
       );
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile esportare l'Excel.",
-      );
+      setActionError(getAdminActionError(caughtError, ADMIN.erroreExcel));
     } finally {
       setDownloadingExcel(false);
     }

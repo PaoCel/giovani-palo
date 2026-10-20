@@ -8,7 +8,7 @@
 // Questo file lo carica anche Node (tests/): niente alias "@/".
 
 import { PAROLE } from "../copy/parole.ts";
-import { isConnectionError } from "./writeTimeout.ts";
+import { WRITE_TIMEOUT_CODE, isConnectionError, isOffline } from "./writeTimeout.ts";
 
 // Codici delle callable con un messaggio generico in inglese, non nostro.
 const GENERIC_CALLABLE_CODES = new Set(["functions/internal", "functions/unknown"]);
@@ -21,11 +21,25 @@ function isGenericCallableMessage(code: string, message: string) {
 }
 
 export function getAdminActionError(error: unknown, fallback: string): string {
-  if (isConnectionError(error)) {
+  const code = String((error as { code?: unknown } | null | undefined)?.code ?? "");
+
+  // Una scrittura di Firestore scaduta non è annullata: parte al ritorno della
+  // rete. Il messaggio non deve far credere che "Tieni" la fermi.
+  if (code === WRITE_TIMEOUT_CODE) {
+    return PAROLE.erroreReteInCoda;
+  }
+
+  // Senza rete una callable risponde "functions/internal": lo dice il browser.
+  if (isConnectionError(error) || isOffline()) {
     return PAROLE.erroreRete;
   }
 
-  const code = String((error as { code?: unknown } | null | undefined)?.code ?? "");
+  // Errori del browser (rete, modulo non più sul server dopo un
+  // aggiornamento): in inglese e tecnici, non per l'admin.
+  if (error instanceof TypeError) {
+    return fallback;
+  }
+
   const message = error instanceof Error ? error.message.trim() : "";
 
   if (

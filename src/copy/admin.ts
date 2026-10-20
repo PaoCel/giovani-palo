@@ -15,8 +15,10 @@ export const ADMIN = {
   // Fogli di conferma dell'admin (mai un dialogo del browser): la scelta
   // sicura viene prima, il tasto che toglie qualcosa è rosso.
   eliminazione: PAROLE.eliminazione,
-  // Lo dà getAdminActionError (src/utils/adminErrors.ts) per rete e timeout.
+  // Li dà getAdminActionError (src/utils/adminErrors.ts): rete assente, e
+  // scrittura scaduta che resta in coda.
   erroreRete: PAROLE.erroreRete,
+  erroreReteInCoda: PAROLE.erroreReteInCoda,
 
   // Iscrizioni (scheda dell'attività, tab Iscritti e Consensi).
   annullaIscrizioneTitolo: "Annullare l'iscrizione di {nome}?",
@@ -105,4 +107,7 @@ export const ADMIN = {
   erroreRimuoviUnita: "Impossibile rimuovere l'unità.",
   erroreAssegnaAdmin: "Impossibile assegnare il ruolo di admin.",
   erroreImpostazioni: "Impossibile salvare le impostazioni.",
+  // Esportazione: un modulo che non si carica più dopo un aggiornamento si
+  // risolve ricaricando.
+  erroreExcel: "Impossibile esportare l'Excel. Ricarica la pagina e riprova.",
 } as const;
