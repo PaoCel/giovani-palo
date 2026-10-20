@@ -75,8 +75,8 @@ export interface GalleryMedia {
   likeCount: number;
 }
 
-export type GalleryCodeStatus = "set" | "missing";
-export type GalleryAccessMode = "code_required" | "open";
+/** Sempre "open": l'accesso alla galleria lo decide l'appartenenza al palo. */
+export type GalleryAccessMode = "open";
 
 export interface Gallery {
   id: string;
@@ -97,7 +97,6 @@ export interface Gallery {
   likeCount: number;
   commentsEnabled: false;
   postsCreated: boolean;
-  codeStatus: GalleryCodeStatus;
   /** Caricamenti dei membri chiusi a mano da un admin. */
   uploadsClosed: boolean;
   /** Finestra di caricamento (ms epoch) scritta dalla callable activityGallery o da un admin. */
@@ -114,15 +113,6 @@ export interface HiddenGalleryMedia extends GalleryMedia {
   hiddenAt: string;
   hiddenBy: string;
   hiddenReason: GalleryReportReason;
-}
-
-export interface GalleryMember {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-  unlockedAt: string;
-  unlockedBy: "code" | "admin";
-  source: "home_code_prompt" | "admin_manual";
 }
 
 export interface GalleryComment {

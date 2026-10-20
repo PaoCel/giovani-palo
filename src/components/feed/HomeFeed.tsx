@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { LikeButton } from "@/components/feed/LikeButton";
-import { GalleryUnlockForm } from "@/components/feed/GalleryUnlockForm";
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
 import { useAuth } from "@/hooks/useAuth";
 import { onCacheRevalidated } from "@/services/firestore/cacheFirst";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
-import { galleryUnlockService } from "@/services/firestore/galleryUnlockService";
 import { userActivitiesService, type UserActivityItem } from "@/services/firestore/userActivitiesService";
 import type { FeedPost, Gallery, GalleryMedia } from "@/types";
 import { isCampEvent, isPastEvent } from "@/utils/events";
@@ -23,10 +21,6 @@ interface ActivityRefMap {
 
 interface MediaCacheMap {
   [galleryId: string]: GalleryMedia[];
-}
-
-interface UnlockedSet {
-  [galleryId: string]: true;
 }
 
 interface LikeState {
@@ -48,7 +42,6 @@ export function HomeFeed(_: HomeFeedProps) {
   const [galleries, setGalleries] = useState<Record<string, Gallery>>({});
   const [activities, setActivities] = useState<ActivityRefMap>({});
   const [campChecklistActivities, setCampChecklistActivities] = useState<UserActivityItem[]>([]);
-  const [unlocked, setUnlocked] = useState<UnlockedSet>({});
   const [mediaByGallery, setMediaByGallery] = useState<MediaCacheMap>({});
   const [likes, setLikes] = useState<LikeState>({ posts: {}, media: {} });
   const [loading, setLoading] = useState(true);
@@ -102,12 +95,6 @@ export function HomeFeed(_: HomeFeedProps) {
         ),
       );
 
-      // Niente più codice galleria: tutte le gallerie del feed sono
-      // automaticamente accessibili a chi è loggato.
-      const unlockedMap: UnlockedSet = {};
-      for (const id of galleryIds) {
-        unlockedMap[id] = true;
-      }
       const activityIds = Array.from(
         new Set(
           visibleFeedPosts
@@ -129,9 +116,6 @@ export function HomeFeed(_: HomeFeedProps) {
       galleryDocs.forEach((gallery) => {
         if (gallery) {
           galleryMap[gallery.id] = gallery;
-          if (gallery.accessMode === "open") {
-            unlockedMap[gallery.id] = true;
-          }
         }
       });
 
@@ -149,13 +133,10 @@ export function HomeFeed(_: HomeFeedProps) {
       const galleryPosts = visibleFeedPosts.filter(
         (post) => post.type === "gallery" && post.galleryId,
       );
-      const unlockedGalleryPosts = galleryPosts.filter(
-        (post) => post.galleryId && unlockedMap[post.galleryId],
-      );
 
       const mediaCache: MediaCacheMap = {};
       await Promise.all(
-        unlockedGalleryPosts.map(async (post) => {
+        galleryPosts.map(async (post) => {
           if (!post.galleryId) return;
           if (!mediaCache[post.galleryId]) {
             mediaCache[post.galleryId] = await galleriesService
@@ -180,7 +161,6 @@ export function HomeFeed(_: HomeFeedProps) {
       setCampChecklistActivities(checklistActivities);
       setGalleries(galleryMap);
       setActivities(activityMap);
-      setUnlocked(unlockedMap);
       setMediaByGallery(mediaCache);
       setLikes((prev) => ({ ...prev, posts: postLikes }));
     } catch (caughtError) {
@@ -189,7 +169,6 @@ export function HomeFeed(_: HomeFeedProps) {
         setCampChecklistActivities([]);
         setGalleries({});
         setActivities({});
-        setUnlocked({});
         setMediaByGallery({});
         setLikes((prev) => ({ ...prev, posts: {} }));
         return;
@@ -212,23 +191,6 @@ export function HomeFeed(_: HomeFeedProps) {
   // Le letture cache-first possono dipingere un feed vecchio di una visita:
   // quando il refresh in background trova dati diversi sul server, ricarica.
   useEffect(() => onCacheRevalidated(() => void refresh({ silent: true })), [refresh]);
-
-  const handleUnlock = useCallback(
-    async (galleryId: string, code: string) => {
-      if (!stakeId) {
-        return { success: false, message: "Sessione non disponibile." };
-      }
-      const result = await galleryUnlockService.unlock({ stakeId, galleryId, code });
-      if (!result.success) {
-        return { success: false, message: result.message ?? "Codice non valido." };
-      }
-      setUnlocked((prev) => ({ ...prev, [galleryId]: true }));
-      const media = await galleriesService.listMedia(stakeId, galleryId).catch(() => []);
-      setMediaByGallery((prev) => ({ ...prev, [galleryId]: media }));
-      return { success: true };
-    },
-    [stakeId],
-  );
 
   const handleTogglePostLike = useCallback(
     async (post: FeedPost) => {
@@ -365,7 +327,6 @@ export function HomeFeed(_: HomeFeedProps) {
             }
             if (post.type === "gallery" && post.galleryId) {
               const gallery = galleries[post.galleryId];
-              const isUnlocked = Boolean(unlocked[post.galleryId]);
               const allMedia = mediaByGallery[post.galleryId] ?? [];
               const postMedia = post.mediaIds
                 .map((mediaId) => allMedia.find((media) => media.id === mediaId))
@@ -375,13 +336,9 @@ export function HomeFeed(_: HomeFeedProps) {
                   key={post.id}
                   post={post}
                   gallery={gallery}
-                  unlocked={isUnlocked}
                   media={postMedia}
                   liked={liked}
                   onToggleLike={() => handleTogglePostLike(post)}
-                  onUnlock={(code) =>
-                    handleUnlock(post.galleryId as string, code)
-                  }
                   onOpenMedia={(index) =>
                     setLightbox({
                       galleryId: post.galleryId as string,
@@ -506,11 +463,9 @@ function ActivityReminderCard({
 interface GalleryCardProps {
   post: FeedPost;
   gallery?: Gallery;
-  unlocked: boolean;
   media: GalleryMedia[];
   liked: boolean;
   onToggleLike: () => Promise<void>;
-  onUnlock: (code: string) => Promise<{ success: boolean; message?: string }>;
   onOpenMedia: (index: number) => void;
   isMediaLiked: (mediaId: string) => boolean;
 }
@@ -518,11 +473,9 @@ interface GalleryCardProps {
 function GalleryCard({
   post,
   gallery,
-  unlocked,
   media,
   liked,
   onToggleLike,
-  onUnlock,
   onOpenMedia,
 }: GalleryCardProps) {
   const totalBatches = useMemo(() => {
@@ -540,71 +493,52 @@ function GalleryCard({
       <h3 className="feed-card__title">{post.title || gallery?.title || "Galleria"}</h3>
       {post.body ? <p className="feed-card__body">{post.body}</p> : null}
 
-      {!unlocked ? (
-        <div className="gallery-card__locked">
-          <div
-            className="gallery-card__cover gallery-card__cover--locked"
-            style={{
-              backgroundImage: gallery?.coverImageUrl
-                ? `url(${gallery.coverImageUrl})`
-                : undefined,
-            }}
-          >
-            <div className="gallery-card__lock-badge">🔒</div>
-          </div>
-          <p className="feed-card__hint">
-            Inserisci il codice ricevuto dai responsabili per vedere foto e video.
-          </p>
-          <GalleryUnlockForm onUnlock={onUnlock} />
-        </div>
-      ) : (
-        <div className="gallery-card__unlocked">
-          {media.length > 0 ? (
-            <>
-              <div className="gallery-carousel" role="list">
-                {media.map((item, index) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="gallery-carousel__item"
-                    onClick={() => onOpenMedia(index)}
-                    role="listitem"
-                    aria-label={`Apri ${item.type === "video" ? "video" : "foto"} ${index + 1} di ${media.length}`}
-                  >
-                    {item.type === "image" ? (
+      <div className="gallery-card__content">
+        {media.length > 0 ? (
+          <>
+            <div className="gallery-carousel" role="list">
+              {media.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="gallery-carousel__item"
+                  onClick={() => onOpenMedia(index)}
+                  role="listitem"
+                  aria-label={`Apri ${item.type === "video" ? "video" : "foto"} ${index + 1} di ${media.length}`}
+                >
+                  {item.type === "image" ? (
+                    <img
+                      src={item.thumbnailUrl ?? item.optimizedUrl ?? item.storageUrl ?? ""}
+                      alt={item.caption || `Foto ${index + 1}`}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <>
                       <img
-                        src={item.thumbnailUrl ?? item.optimizedUrl ?? item.storageUrl ?? ""}
-                        alt={item.caption || `Foto ${index + 1}`}
+                        src={item.posterUrl ?? item.thumbnailUrl ?? ""}
+                        alt={item.caption || `Video ${index + 1}`}
                         loading="lazy"
                       />
-                    ) : (
-                      <>
-                        <img
-                          src={item.posterUrl ?? item.thumbnailUrl ?? ""}
-                          alt={item.caption || `Video ${index + 1}`}
-                          loading="lazy"
-                        />
-                        <span className="gallery-carousel__play" aria-hidden="true">▶</span>
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="gallery-card__meta-row">
-                <span className="gallery-card__counter">
-                  {post.galleryBatchIndex !== null && totalBatches && totalBatches > 1
-                    ? `Parte ${post.galleryBatchIndex + 1}/${totalBatches} · ${media.length} elementi`
-                    : `${media.length} elementi`}
-                </span>
-              </div>
-            </>
-          ) : (
-            <p className="subtle-text">
-              La galleria è stata sbloccata, ma non ci sono ancora media in questo gruppo.
-            </p>
-          )}
-        </div>
-      )}
+                      <span className="gallery-carousel__play" aria-hidden="true">▶</span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="gallery-card__meta-row">
+              <span className="gallery-card__counter">
+                {post.galleryBatchIndex !== null && totalBatches && totalBatches > 1
+                  ? `Parte ${post.galleryBatchIndex + 1}/${totalBatches} · ${media.length} elementi`
+                  : `${media.length} elementi`}
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="subtle-text">
+            Non ci sono ancora media in questo gruppo.
+          </p>
+        )}
+      </div>
 
       <footer className="feed-card__footer">
         <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
