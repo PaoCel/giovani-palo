@@ -53,5 +53,8 @@ export function createLayerStack<T extends LayerElement>(host: { children: () =>
     },
     sync,
     size: () => layers.length,
+    // Lo strato più alto, o null: Esc chiude solo quello (due AppModal aperti
+    // insieme ascoltano tutti e due la tastiera).
+    top: () => (layers.length > 0 ? layers[layers.length - 1] : null),
   };
 }

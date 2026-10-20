@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { AppIcon } from "@/components/AppIcon";
-import { keepTabInside, useInertBackground } from "@/hooks/useModalLayer";
+import { isTopLayer, keepTabInside, useInertBackground } from "@/hooks/useModalLayer";
 
 interface AppModalProps {
   title: string;
@@ -39,7 +39,8 @@ export function AppModal({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      // Un foglio aperto sopra (conferma su un modale) prende lui l'Esc.
+      if (event.key === "Escape" && isTopLayer(backdropRef.current)) {
         onClose();
       }
     }
