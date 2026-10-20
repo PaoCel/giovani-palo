@@ -228,12 +228,14 @@ async function actionRequest(ctx) {
   if (profile.stakeId !== stakeId) {
     throw precondition("stake_not_chosen", "Scegli prima questo palo nel profilo.");
   }
-  if (core.needsProfileCompletion(profile)) {
+  const staffRole = core.staffRoleForStake(profile, stakeId);
+  // Lo staff segue la regola 1 del trigger, che non chiede il profilo
+  // completo (gli admin migrati possono non avere un'unità).
+  if (!staffRole && core.needsProfileCompletion(profile)) {
     throw precondition("profile_incomplete", "Completa il profilo prima di chiedere di entrare.");
   }
   const otherRefs = stakeIds.filter((id) => id !== stakeId).map((id) => memberRef(db, id, uid));
   const others = await readDocs(tx, otherRefs);
-  const staffRole = core.staffRoleForStake(profile, stakeId);
   const ref = memberRef(db, stakeId, uid);
 
   let status;

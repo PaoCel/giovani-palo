@@ -537,7 +537,8 @@ altro palo) con `action` e `by`, e aggiunge una riga a
 `request` di chi ha già un ruolo staff del palo segue la regola 1 del trigger
 (sotto): l'appartenenza diventa subito `active` con `staffRole`, anche da
 `withdrawn` o `declined` (il super admin che è uscito tiene il ruolo e rientra
-così); da `removed` e `blocked` resta `invalid_state`.
+così); da `removed` e `blocked` resta `invalid_state`. Come la regola 1, non
+chiede il profilo completo (gli admin migrati possono non avere un'unità).
 
 Uscita dello staff (`leave`, `remove`, `block`, e `decline`/`markUnknown` se
 la persona ha un ruolo staff): `users.role` → `participant` e `staffRole:
