@@ -857,6 +857,8 @@ service cloud.firestore {
             && next.email is string
             && next.phone is string
             && next.birthDate is string
+            && (next.birthDate == ''
+              || next.birthDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}'))
             && validGenderRoleCategory(next.genderRoleCategory)
             && next.unitId is string
             && next.unitNameSnapshot is string
