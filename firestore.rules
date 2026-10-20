@@ -654,14 +654,19 @@ service cloud.firestore {
       let prev = resource.data;
       let delta = next.diff(prev);
       let changed = delta.affectedKeys();
+      // Le chiavi che il titolare non cambia mai prima del payload: un admin
+      // che corregge l'unità o i consensi della propria iscrizione (o del
+      // figlio) esce da qui e paga solo il proprio ramo, non anche la
+      // validazione intera (era a 980 su 1000, docs/TEST_FIRESTORE_ISCRIZIONI.md).
+      // Per chi passa il costo è lo stesso: cambia solo l'ordine.
       return registrationBelongsToCaller(next)
-        && validRegistrationPayload(next)
         && delta.unchangedKeys().hasAll([
           'userId', 'anonymousUid', 'createdAt', 'submittedByMode', 'unitId',
           'assignedRoomId', 'assignedTempleShiftId', 'assignedServiceTeamIds',
           'linkedLaterToUserId'
         ])
         && !changed.hasAny(['parentAuthorization', 'createdBy'])
+        && validRegistrationPayload(next)
         && (
           !changed.hasAny([
             'assignedPatrolId', 'assignedPatrolName', 'assignedPatrolRole',
@@ -822,6 +827,7 @@ service cloud.firestore {
       let next = request.resource.data;
       let prev = resource.data;
       let changed = next.diff(prev).affectedKeys();
+      let answersChanged = next.answers.diff(prev.answers).affectedKeys();
       return isStakeAdmin(stakeId)
         && changed.hasOnly([
           'registrationStatus', 'updatedAt', 'answers', 'parentAuthorization',
@@ -832,7 +838,7 @@ service cloud.firestore {
         && (
           !changed.hasAny(['answers'])
           || (
-            next.answers.diff(prev.answers).affectedKeys().hasOnly([
+            answersChanged.hasOnly([
               'parentAuthorizationRequest', 'birthDate', 'genderRoleCategory',
               'youthGroup', 'unitName', 'photoInternalConsent',
               'photoPublicConsent', 'photoReleaseAccepted'
@@ -840,7 +846,7 @@ service cloud.firestore {
             // Le spunte foto date da adulto si possono solo togliere (data
             // corretta a meno di 18 anni): mai scriverle al posto della persona.
             && (
-              !next.answers.diff(prev.answers).affectedKeys().hasAny([
+              !answersChanged.hasAny([
                 'photoInternalConsent', 'photoPublicConsent', 'photoReleaseAccepted'
               ])
               || !next.answers.keys().hasAny([
