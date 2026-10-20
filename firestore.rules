@@ -711,6 +711,16 @@ service cloud.firestore {
               )
             )
           )
+        )
+        // Come per l'admin: cambiare la data di nascita lasciando attiva
+        // l'iscrizione non salta il consenso (il modulo la mette già in
+        // attesa). Solo se la data cambia: il caso comune costa 2 espressioni.
+        && (
+          !changed.hasAny(['birthDate'])
+          || next.registrationStatus != 'active'
+          || (prev.get('parentAuthorization', null) is map
+            && prev.parentAuthorization.get('status', null) == 'authorized')
+          || !parentAuthorizationRequired(stakeId, activityId, next)
         );
     }
 
@@ -748,6 +758,13 @@ service cloud.firestore {
         && next.get('parentUid', null) == null
         && next.get('childId', null) == null
         && next.submittedByMode == 'anonymous'
+        // Nelle risposte solo i dati della persona e la richiesta al genitore:
+        // un flag come parentConfirmed o le spunte foto da adulto varrebbero
+        // come consenso per le callable (review 2026-10-20).
+        && next.answers.keys().hasOnly([
+          'birthDate', 'genderRoleCategory', 'youthGroup', 'unitName',
+          'parentAuthorizationRequest'
+        ])
         && next.firstName.size() > 0
         && next.lastName.size() > 0
         && next.birthDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
@@ -850,6 +867,16 @@ service cloud.firestore {
               || !parentAuthorizationRequired(stakeId, activityId, next)
             )
           )
+        )
+        // Una data di nascita corretta che fa risultare meno di 18 anni in
+        // un'attività con autorizzazione non lascia l'iscrizione attiva senza
+        // firma: passa in attesa (o resta annullata, firmata o rifiutata).
+        && (
+          !changed.hasAny(['birthDate'])
+          || next.registrationStatus != 'active'
+          || (prev.get('parentAuthorization', null) is map
+            && prev.parentAuthorization.get('status', null) == 'authorized')
+          || !parentAuthorizationRequired(stakeId, activityId, next)
         );
     }
 
