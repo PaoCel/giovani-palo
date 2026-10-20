@@ -16,8 +16,8 @@ blocked_by: []
 branch: task/gugd-admin-iscritti
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
 session: 3b5e6431-ed1b-420c-83ed-ae790b460974
-stopped_at: "Scelte approvate da Paolo (tutte come consigliato); si parte dal censimento"
-next: "Con le scelte di Paolo: censimento in sola lettura delle iscrizioni in prod, rules con test nell'emulatore (budget), trigger che invalida i link, poi estrazione della tab Iscritti e UI"
+stopped_at: "Codice, rules e functions fatti; review Codex corretta; test di rules e trigger e collaudo nel browser in corso"
+next: "Esiti dei test nell'emulatore e del collaudo, secondo giro di review, poi merge e deploy rules → functions → hosting con conferma di Paolo"
 verified: ""
 links: [docs/ADMIN_ISCRITTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
