@@ -1,7 +1,7 @@
 ---
 id: gugd-admin-dialoghi
 title: "Admin: fogli al posto dei dialoghi ed errori nei modali"
-status: in-progress
+status: done
 impact: 1
 urgency: 1
 effort: M
@@ -20,7 +20,7 @@ stopped_at: "Fatto e mergiato in main; non deployato (prossimo hosting: service 
 next: "Deploy hosting con conferma di Paolo, insieme al resto pronto"
 verified: "Test: 1131 sul mini (1121 verdi, 9 skipped, accentApostrophes verde in locale), 140+22 test nuovi scritti da un altro agente con mutazioni di src/. Review: Codex (BLOCKED, 4 punti corretti: doppio decremento mediaCount, guardie di contesto, messaggi delle callable, pulizia Storage dopo timeout) e secondo giro con un altro modello (PASS WITH CONCERNS, navigazione da pagina lasciata corretta in 7a1a3be). Collaudo da admin contro emulatori sul mini (Playwright, 390 e 1280): 494/494 dopo 9ea3cf4, script e screenshot in side-session-notes/local_0456cb35…/qa-admin-dialoghi/. Non provati: cambio account con foglio aperto, 320/430 px, Safari iOS."
 links: []
-done_at:
+done_at: 2026-10-20
 ---
 
 ## Contesto
