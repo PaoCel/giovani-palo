@@ -98,6 +98,29 @@ function buildMigratedMember({ user, liveRegistrations, activityTitles, at, sour
   };
 }
 
+// Membro attivo creato da chi ha già verificato la persona (tool del super
+// admin per un palo nuovo, seed dei dati demo): stessa forma della migrazione,
+// senza "da confermare".
+function buildActiveMember({ user, source, at, sourceAt = at }) {
+  return {
+    status: "active",
+    sources: [{ kind: source.kind, ref: source.ref, at: sourceAt }],
+    previous: null,
+    staffRole: staffRoleFromUserRole(user.role),
+    claimedUnitId: cleanString(user.unitId),
+    claimedUnitName: cleanString(user.unitName),
+    displayName: cleanString(user.fullName) || [cleanString(user.firstName), cleanString(user.lastName)].filter(Boolean).join(" "),
+    birthYear: birthYearOf(user.birthDate),
+    registrationHints: [],
+    reviewNeeded: false,
+    requestedAt: at,
+    decidedAt: at,
+    decidedBy: "system",
+    declineCount: 0,
+    version: 1,
+  };
+}
+
 // Piano della migrazione per un palo: un documento per ogni profilo con
 // `users.stakeId == stakeId` che non ha ancora il proprio members. I documenti
 // esistenti non si toccano mai (decisioni dello staff, richieste nuove).
@@ -147,5 +170,6 @@ module.exports = {
   isLiveRegistration,
   migrationGroupOf,
   buildMigratedMember,
+  buildActiveMember,
   planStakeMemberMigration,
 };

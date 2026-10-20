@@ -236,6 +236,16 @@ before(async () => {
   for (const [, name, , profile] of ACTORS) {
     if (name && profile) seeds.push(adminDb.doc(`users/${uid(name)}`).set(profile));
   }
+  // Appartenenza (S2): i record aperti li leggono i membri attivi del palo (members/{uid}, scritto dal
+  // server), non chi ha solo users.stakeId. "anon-listed" lo ha per errore (caso peggiore): resta negato.
+  for (const name of ["youth-a", "outsider", "parent", "listed-staff", "anon-listed"]) {
+    seeds.push(adminDb.doc(`stakes/${stakeId}/members/${uid(name)}`).set({
+      status: "active", sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }], previous: null,
+      staffRole: null, claimedUnitId: "", claimedUnitName: "", displayName: "Persona Prova", birthYear: null,
+      registrationHints: [], reviewNeeded: false, requestedAt: Timestamp.now(), decidedAt: Timestamp.now(),
+      decidedBy: "system", declineCount: 0, version: 1,
+    }));
+  }
   for (const [id, data] of Object.entries(SEEDED_REQUESTS)) seeds.push(adminDb.doc(`${activityPath}/recordRequests/${id}`).set(data));
   for (const [id, data] of Object.entries(SEEDED_RECORDS)) seeds.push(adminDb.doc(`${activityPath}/records/${id}`).set(data));
   for (const [id, data] of Object.entries(SEEDED_ENTRIES)) seeds.push(adminDb.doc(`${activityPath}/recordEntries/${id}`).set(data));

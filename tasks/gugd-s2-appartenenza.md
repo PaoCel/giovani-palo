@@ -16,8 +16,8 @@ blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/epic-northcutt-1a7fb6
 session: 5fe59c7c-e31b-461e-858e-ea93b1ccc3e6
-stopped_at: Review Codex 1 recepita (5f6c44d); test dell'emulatore ancora in scrittura da un altro agente
-next: "Esito test contratto e migrazione, members del primo admin in create-stake e demoData, seconda review Codex sul diff con i test"
+stopped_at: "Test del contratto scritti da un altro agente (1591 verdi, 45 rossi sugli anonimi con profilo staff, chiusi in currentUserExists); batteria completa sul mini in corso"
+next: "Leggere l'esito della batteria (job mini 20261020-114140-21054, log in s2logs/), committare test e tool, seconda review Codex sul diff completo"
 verified: ""
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:

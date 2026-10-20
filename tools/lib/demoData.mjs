@@ -11,7 +11,7 @@
 // validChildPayload) e le callable in functions/lib/parentAuthorization.js.
 import crypto from "node:crypto";
 
-import { buildStakeDocument, buildUnitDocument, buildUserDocument, unitIdFor } from "./stakes.mjs";
+import { buildMemberDocument, buildStakeDocument, buildUnitDocument, buildUserDocument, unitIdFor } from "./stakes.mjs";
 
 export const DEMO_STAKE_ID = "palo-demo";
 export const DEMO_STAKE_NAME = "Palo Demo";
@@ -259,6 +259,11 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
       firstName: person.firstName, lastName: person.lastName, role: "participant", stake,
       genderRoleCategory: person.gender, birthDate: person.birthDate, unit: person.unit, now,
     }));
+  }
+
+  // Appartenenza al palo: ogni profilo del palo demo è membro attivo.
+  for (const { path, data } of docs.filter((entry) => /^users\/[^/]+$/u.test(entry.path))) {
+    add(`stakes/${stakeId}/members/${path.slice("users/".length)}`, buildMemberDocument({ user: data, ref: "tools/seed-demo", now }));
   }
 
   // Attività

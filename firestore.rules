@@ -35,8 +35,11 @@ service cloud.firestore {
       return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/registrations/$(registrationId);
     }
 
+    // Profilo di un account vero. Usato solo per i poteri dello staff: una
+    // sessione anonima non è mai admin né dirigente, qualunque ruolo abbia il
+    // suo profilo.
     function currentUserExists() {
-      return isSignedIn() && exists(userDocPath(request.auth.uid));
+      return isNonAnonymousSignedIn() && exists(userDocPath(request.auth.uid));
     }
 
     function currentUser() {
@@ -90,8 +93,7 @@ service cloud.firestore {
     // documento mancante tolga la galleria a chi la modera. Il documento members
     // si legge per primo, così un membro attivo non paga la lettura del profilo.
     function isStakeMember(stakeId) {
-      return isNonAnonymousSignedIn()
-        && (isActiveStakeMember(stakeId) || isGalleryStaff(stakeId));
+      return isActiveStakeMember(stakeId) || isGalleryStaff(stakeId);
     }
 
     function isGalleryStaff(stakeId) {
