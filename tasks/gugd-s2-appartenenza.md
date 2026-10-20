@@ -14,11 +14,11 @@ touched: 2026-10-20
 due:
 blocked_by: []
 branch: task/gugd-s2-appartenenza
-worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/epic-northcutt-1a7fb6
-session: 5fe59c7c-e31b-461e-858e-ea93b1ccc3e6
-stopped_at: "Fase 1 chiusa: contratto, test (1724 verdi, Storage saltati) e rules Firestore di members sul branch, rivisti da Codex e Fable; niente deployato"
-next: "Fase 2: un altro agente scrive dal contratto i test di stakeMembership, del trigger su users, di activityGallery e recordNightParticipant da members (S2-2) e della pulizia S2-1; poi il codice"
-verified: "2026-10-20 sul mini a aba2cd2: contratto 1724/0 (164 Storage saltati), migrazione 54+13, 26 file emulatore esistenti a 0 fail, registrationUpdateRules.py 5/5; review Codex e Fable recepite; niente in produzione"
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/kind-rosalind-0307da
+session: 06fff723-1b5c-4005-b272-7301f19676bf
+stopped_at: "Fase 2 chiusa: callable stakeMembership, trigger onUserStakeMembership, galleria e record da members (S2-2), S2-1 nel client e script di pulizia sul branch; review Fable e verifica Codex recepite; niente deployato"
+next: "Fase 3: client (banner in attesa, coda Richieste in admin e /unit, membro da members in useGalleryAccess, testi) e nota dello staff; prima merge di main nel branch (12 commit, functions/index.js toccato anche da gugd-admin-iscritti)"
+verified: "2026-10-20 sul mini: 107 test della fase (scritti da Fable) verdi a 7faa832+test; batteria a 0367e29 con 33 file emulatore a 0 fail, contratto 1724/0, rules py 5/5, puri functions 409/409, client 969/970 (accenti senza git, locale 55/55), build ok; all'indietro 5/13 rossi con galleria e record di main; review Fable e Codex recepite; niente in produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -53,23 +53,38 @@ Firestore di `members` e di ciò che è dei membri, logica e script della
 migrazione con dry-run e `--expect-create`, `members` del primo admin in
 `create-stake` e nel seed demo. Niente deployato.
 
+Fase 2 (fatta il 2026-10-20): interfaccia di callable e trigger scritta nella
+spec prima del codice («Callable e trigger: interfaccia»); test dell'emulatore
+scritti da un altro agente (Fable) dalla spec; callable `stakeMembership`
+(richiesta, ritiro, uscita, approva, rifiuta, "Non è della mia unità", "Lo
+conosco"/"Non lo conosco", rimuovi, blocca, sblocca, riattiva, Annulla con
+`version`) e trigger `onUserStakeMembership` in `europe-west1`;
+`activityGallery` e `recordNightParticipant` da `members` (S2-2); S2-1 sul
+branch (client senza codici galleria, script `cleanupGalleryCodes.js`).
+Niente deployato.
+
 Prossime fasi:
 
-- test della callable `stakeMembership` e del trigger su `users` (staffRole,
-  richiesta alla scelta del palo, cambio di palo) scritti da un altro agente
-  dal contratto, poi il codice; transizioni dello staff e ultimo admin come
-  dice la spec;
-- `activityGallery` e `recordNightParticipant` da `members` (S2-2 per i
-  record);
-- cleanup di `members` e note dello staff alla cancellazione account (nel repo
-  non c'è ancora un flusso di cancellazione);
 - client: banner in attesa, coda nell'admin e in `/unit`, "membro" dal
-  documento members e non da `users.stakeId`, testi al posto dei messaggi
-  inglesi della tabella "PWA vecchia", push dopo 48 ore;
+  documento members e non da `users.stakeId` (`useGalleryAccess`), testi al
+  posto dei messaggi inglesi della tabella "PWA vecchia", push dopo 48 ore;
+- nota dello staff "stesso nome e data di un membro attivo" e risposta "Ha già
+  un account" (spec, «Utente che sbaglia»): non ancora nella callable;
+- cleanup di `members` (con `history` e `staff`) alla cancellazione account
+  (nel repo non c'è ancora un flusso di cancellazione);
 - rules Storage dopo la fase B di `gugd-storage-eu` (celle già scritte, si
   sbloccano con `S2_STORAGE_CONTRACT=1`);
-- rilascio nell'ordine della spec, ogni passo con conferma di Paolo; prima
-  dell'`--apply` un dry-run con `--report` contro 31/108/41.
+- rilascio nell'ordine della spec, ogni passo con conferma di Paolo: dry-run
+  della migrazione con `--report` contro 31/108/41, `--apply`, rules Firestore
+  e trigger, callable (`activityGallery`, `recordNightParticipant`,
+  `stakeMembership`), client. Per S2-1 nello stesso rilascio: dry-run di
+  `cleanupGalleryCodes.js` (atteso 1 galleria), `--apply --expect-galleries
+  --expect-deletes`, poi `firebase functions:delete unlockGalleryWithCode
+  setGallerySecretCode` per nome. Prima del deploy, in sola lettura su prod, la
+  query dell'ultimo admin (`users` con `stakeId` e `role == admin`);
+- dopo che la PWA vecchia è uscita dalle cache: togliere dalle rules i match
+  di `galleries/{g}/members`, `users/{uid}/unlockedGalleries` e
+  `gallerySecrets`.
 
 Scelte S2-1 e S2-2 approvate da Paolo il 2026-10-20 ("sì, vai con la fase
 2"): cancellare `unlockGalleryWithCode`, `setGallerySecretCode`, il codice
@@ -86,3 +101,18 @@ vero); 26 file di emulatore esistenti a 0 fail; `registrationUpdateRules.py`
 locale passa). Controllo all'indietro: con le rules di `main` 360 celle
 diventano rosse. Review: Codex BLOCKED (6 punti) e Fable PASS WITH CONCERNS (4
 punti), tutti recepiti. Non provato: niente in produzione, nessun account vero.
+
+Fase 2, 2026-10-20, sul mini in una copia isolata (`~/qa/giovani-palo-s2f2`):
+batteria completa a `0367e29` (prima delle correzioni di review, che toccano
+solo callable, trigger e script) con 33 file di emulatore a 0 fail (contratto 1724/0 con 164 Storage
+saltati, migrazione 13/0, i 26 esistenti), `registrationUpdateRules.py` 5/5,
+test puri delle functions 409/409, client 969/970 (accenti senza git sul mini;
+in locale 55/55) e build verde. Test della fase scritti da Fable dalla spec:
+callable, trigger, accesso a galleria e record, script S2-1 (vedi «verified»
+per i numeri finali). Controllo all'indietro: il file di accesso contro
+`activityGallery.js` e `recordNight.js` di `main` dà 5 test rossi su 13 (N, P,
+F, X ammessi). Primo giro della batteria: 3 file rossi per seed senza members e
+una gara di tempi in `familyAnyAdultRulesEmulator`, corretti. Review: Fable
+PASS WITH CONCERNS (9 punti, recepiti 1-7 e 9; l'8 sono residui pianificati),
+poi Codex sulle correzioni PASS WITH CONCERNS (3 punti, recepiti). Non
+provato: niente in produzione, nessun account vero, rules Storage.
