@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/kind-rosalind-0307da
 session: 06fff723-1b5c-4005-b272-7301f19676bf
-stopped_at: "Fase 2 chiusa: callable stakeMembership, trigger onUserStakeMembership, galleria e record da members (S2-2), S2-1 nel client e script di pulizia sul branch; review Fable e verifica Codex recepite; niente deployato"
-next: "Fase 3: client (banner in attesa, coda Richieste in admin e /unit, membro da members in useGalleryAccess, testi) e nota dello staff; prima merge di main nel branch (12 commit, functions/index.js toccato anche da gugd-admin-iscritti)"
-verified: "2026-10-20 sul mini: 107 test della fase (scritti da Fable) verdi a 7faa832+test; batteria a 0367e29 con 33 file emulatore a 0 fail, contratto 1724/0, rules py 5/5, puri functions 409/409, client 969/970 (accenti senza git, locale 55/55), build ok; all'indietro 5/13 rossi con galleria e record di main; review Fable e Codex recepite; niente in produzione"
+stopped_at: "Fase 2 chiusa e main unito nel branch (092e7e6): budget delle iscrizioni rimisurato, batteria completa verde; niente deployato"
+next: "Fase 3: client (banner in attesa, coda Richieste in admin e /unit, membro da members in useGalleryAccess, testi) e nota dello staff"
+verified: "2026-10-20 sul mini dopo il merge di main (092e7e6, codice a 7faa832): 35 file emulatore a 0 fail (adminRegistrationCallables 39/39 col comando del doc, con Storage), contratto 1724/0, 107 test della fase, budget iscrizioni 48/48 con massimo reale 914→924 (margine 76) e sonda 954 invariata, rules py 5/5, puri functions 409/409, client 1289/1290 (accenti senza git, locale 55/55), build ok; all'indietro 5/13 rossi con galleria e record di main; review Fable e Codex recepite; niente in produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
