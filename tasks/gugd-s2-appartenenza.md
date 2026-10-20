@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/epic-northcutt-1a7fb6
 session: 5fe59c7c-e31b-461e-858e-ea93b1ccc3e6
-stopped_at: "Contratto, rules Firestore, test (1636 verdi, 164 Storage saltati) e tool sul branch (6b99a8e); batteria completa verde sul mini; seconda review Codex in corso"
-next: "Leggere la seconda review Codex (scratchpad codex-review2.log), recepirla, poi fase successiva: test della callable stakeMembership e del trigger su users scritti da un altro agente prima del codice"
-verified: ""
+stopped_at: "Fase 1 chiusa: contratto, test (1724 verdi, Storage saltati) e rules Firestore di members sul branch, rivisti da Codex e Fable; niente deployato"
+next: "Far scrivere a un altro agente i test della callable stakeMembership e del trigger su users dal contratto, poi il codice; S2-1 e S2-2 da Paolo"
+verified: "2026-10-20 sul mini a aba2cd2: contratto 1724/0 (164 Storage saltati), migrazione 54+13, 26 file emulatore esistenti a 0 fail, registrationUpdateRules.py 5/5; review Codex e Fable recepite; niente in produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -47,17 +47,40 @@ Claude: attivi staff e iscritti, questi ultimi da confermare).
 
 ## Da fare
 
-- dopo la fase B di `gugd-storage-eu` per la parte Storage (il contratto e le
-  rules Firestore possono partire prima);
-- contratto scritto e test (da un altro agente) prima delle callable;
-- callable `stakeMembership`, trigger, script `migrateStakeMembers.js`;
-- client: banner in attesa, coda nell'admin e in `/unit`, push dopo 48 ore;
-- elenco delle letture che smettono di funzionare per chi ha la PWA vecchia;
-- `unlockGalleryWithCode` e `setGallerySecretCode` sono live in produzione
-  senza sorgente nel repo (codici galleria tolti da Paolo, note del
-  2026-10-07; il client le chiama ancora da `galleryUnlockService.ts` e
-  `gallerySecretsService.ts`): il contratto deve dire che nessuna delle due
-  apre la galleria a un non membro, e proporre a Paolo di cancellarle insieme
-  al codice client morto.
+Fase 1 (fatta il 2026-10-20): numeri A3 riletti, contratto ruolo × stato ×
+dato nella spec, test dell'emulatore scritti da un altro agente, rules
+Firestore di `members` e di ciò che è dei membri, logica e script della
+migrazione con dry-run e `--expect-create`, `members` del primo admin in
+`create-stake` e nel seed demo. Niente deployato.
+
+Prossime fasi:
+
+- test della callable `stakeMembership` e del trigger su `users` (staffRole,
+  richiesta alla scelta del palo, cambio di palo) scritti da un altro agente
+  dal contratto, poi il codice; transizioni dello staff e ultimo admin come
+  dice la spec;
+- `activityGallery` e `recordNightParticipant` da `members` (S2-2 per i
+  record);
+- cleanup di `members` e note dello staff alla cancellazione account (nel repo
+  non c'è ancora un flusso di cancellazione);
+- client: banner in attesa, coda nell'admin e in `/unit`, "membro" dal
+  documento members e non da `users.stakeId`, testi al posto dei messaggi
+  inglesi della tabella "PWA vecchia", push dopo 48 ore;
+- rules Storage dopo la fase B di `gugd-storage-eu` (celle già scritte, si
+  sbloccano con `S2_STORAGE_CONTRACT=1`);
+- rilascio nell'ordine della spec, ogni passo con conferma di Paolo; prima
+  dell'`--apply` un dry-run con `--report` contro 31/108/41.
+
+Scelte aperte per Paolo (tabella "Scelte per Paolo" della spec): S2-1
+cancellare `unlockGalleryWithCode`, `setGallerySecretCode`, il codice client
+morto e i documenti di sblocco; S2-2 Notte dei Record solo da membro.
 
 ## Verificato
+
+2026-10-20, sul mini, branch a `aba2cd2`: test del contratto 1724 pass, 0 fail,
+164 Storage saltati; migrazione 54 pura + 13 nell'emulatore (con `--apply`
+vero); 26 file di emulatore esistenti a 0 fail; `registrationUpdateRules.py`
+5/5; client 969/970 (il rosso è il test degli accenti senza git sul mini, in
+locale passa). Controllo all'indietro: con le rules di `main` 360 celle
+diventano rosse. Review: Codex BLOCKED (6 punti) e Fable PASS WITH CONCERNS (4
+punti), tutti recepiti. Non provato: niente in produzione, nessun account vero.
