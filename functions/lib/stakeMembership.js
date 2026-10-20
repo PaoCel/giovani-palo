@@ -171,7 +171,161 @@ function planStakeMemberMigration({ stakeId, users, registrations, existingMembe
   return { toCreate, skipped, counts };
 }
 
+// ---------------------------------------------------------------------------
+// Callable `stakeMembership` e trigger su `users/{uid}` (fase 2): parti pure.
+// Interfaccia: docs/APPARTENENZA_AL_PALO.md, «Callable e trigger: interfaccia».
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Dopo un rifiuto si può chiedere di nuovo dopo 7 giorni, al massimo 3 volte;
+// poi serve il codice di uno staff (Tetti).
+const DECLINE_COOLDOWN_MS = 7 * DAY_MS;
+const MAX_DECLINES = 3;
+
+// Campi che `previous` conserva per "Annulla" e "Riattiva".
+const PREVIOUS_FIELDS = Object.freeze([
+  "status",
+  "sources",
+  "staffRole",
+  "reviewNeeded",
+  "claimedUnitId",
+  "claimedUnitName",
+  "declineCount",
+  "decidedAt",
+  "decidedBy",
+]);
+
+// Azioni dello staff: le sole che "Annulla" ripristina. Il dirigente di unità
+// fa solo le prime cinque, e solo per chi ha dichiarato la sua unità.
+const UNIT_LEADER_ACTIONS = Object.freeze(["approve", "decline", "notMyUnit", "confirmKnown", "markUnknown"]);
+const ADMIN_ACTIONS = Object.freeze(["approve", "decline", "confirmKnown", "markUnknown", "remove", "block", "unblock", "reactivate"]);
+const STAFF_ACTIONS = Object.freeze([...new Set([...UNIT_LEADER_ACTIONS, ...ADMIN_ACTIONS])]);
+const SELF_ACTIONS = Object.freeze(["request", "withdraw", "leave"]);
+const ACTIONS = Object.freeze([...SELF_ACTIONS, ...STAFF_ACTIONS, "undo"]);
+
+// "Partecipante" è il nome provvisorio dei profili creati senza nome.
+function isPlaceholderName(value) {
+  return !value || value === "Partecipante";
+}
+
+// Stessa regola del client (src/utils/profileCompletion.ts,
+// needsProfileCompletion): per il genitore bastano nome, unità, palo e comune.
+function needsProfileCompletion(profile) {
+  const p = profile || {};
+  if (p.role === "parent") {
+    return isPlaceholderName(p.fullName) || !p.unitName || !p.stakeId || !p.city;
+  }
+  return isPlaceholderName(p.fullName) || !p.birthDate || !p.genderRoleCategory || !p.unitName || !p.stakeId;
+}
+
+// Poteri di chi chiama su un palo, dal ruolo del profilo (assegnato da un
+// admin, mai autodichiarato). Il super admin vale come admin ovunque.
+// Restituisce { level: "admin" | "unit_leader", superAdmin, unitId } o null.
+function staffAuthorityOf(profile, stakeId) {
+  if (!profile || typeof profile !== "object") return null;
+  if (profile.role === "super_admin") return { level: "admin", superAdmin: true, unitId: "" };
+  if (profile.stakeId !== stakeId) return null;
+  if (profile.role === "admin") return { level: "admin", superAdmin: false, unitId: "" };
+  if (profile.role === "unit_leader") {
+    return { level: "unit_leader", superAdmin: false, unitId: cleanString(profile.unitId) };
+  }
+  return null;
+}
+
+// Ruolo staff che il documento members di un palo deve copiare: quello del
+// profilo, solo se il profilo è di quel palo.
+function staffRoleForStake(profile, stakeId) {
+  if (!profile || typeof profile !== "object" || profile.stakeId !== stakeId) return null;
+  return staffRoleFromUserRole(profile.role);
+}
+
+// Ruolo che dà poteri sul palo e che un'uscita dal palo deve togliere. Il
+// super admin non è un ruolo del palo: lo tiene.
+function isDemotableStaffOf(profile, stakeId) {
+  return Boolean(profile) && profile.stakeId === stakeId && (profile.role === "admin" || profile.role === "unit_leader");
+}
+
+function isAdminOf(profile, stakeId) {
+  return Boolean(profile) && profile.stakeId === stakeId && profile.role === "admin";
+}
+
+function timestampMs(value) {
+  if (value && typeof value.toMillis === "function") return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string") {
+    const ms = Date.parse(value);
+    return Number.isFinite(ms) ? ms : null;
+  }
+  return null;
+}
+
+// Perché una nuova richiesta non è ammessa, o null. Vale per `request`; il
+// trigger non scavalca mai i tetti perché non tocca documenti esistenti.
+function requestBlockOf(member, nowMs) {
+  if (!member) return null;
+  if (member.status === "removed" || member.status === "blocked") return { reason: "invalid_state" };
+  if ((member.status === "declined" || member.status === "withdrawn") && Number(member.declineCount || 0) >= MAX_DECLINES) {
+    return { reason: "too_many_declines" };
+  }
+  if (member.status === "declined") {
+    const decidedMs = timestampMs(member.decidedAt);
+    if (decidedMs !== null && nowMs - decidedMs < DECLINE_COOLDOWN_MS) {
+      return { reason: "cooldown", retryAt: new Date(decidedMs + DECLINE_COOLDOWN_MS).toISOString() };
+    }
+  }
+  return null;
+}
+
+function previousOf(member, { action, by, at, role = null, staffLists = null, moved = null }) {
+  const previous = { action, by, at };
+  for (const field of PREVIOUS_FIELDS) previous[field] = member && field in member ? member[field] : null;
+  if (role) previous.role = role;
+  if (staffLists && staffLists.length) previous.staffLists = staffLists;
+  if (moved && moved.length) previous.moved = moved;
+  return previous;
+}
+
+// Chi può annullare l'ultima azione: un admin del palo qualunque azione dello
+// staff, un dirigente solo le proprie. Le azioni dell'utente e del sistema non
+// si annullano.
+function canUndo(previous, authority, callerUid) {
+  if (!previous || !STAFF_ACTIONS.includes(previous.action) || !previous.by || previous.by === "system") return "nothing";
+  if (!authority) return "denied";
+  if (authority.level === "admin") return "ok";
+  return previous.by === callerUid && UNIT_LEADER_ACTIONS.includes(previous.action) ? "ok" : "denied";
+}
+
+// Campi della richiesta presi dal profilo (unità, nome, anno).
+function requestFieldsFromProfile(profile) {
+  const p = profile || {};
+  return {
+    claimedUnitId: cleanString(p.unitId),
+    claimedUnitName: cleanString(p.unitName),
+    displayName: cleanString(p.fullName) || [cleanString(p.firstName), cleanString(p.lastName)].filter(Boolean).join(" "),
+    birthYear: birthYearOf(p.birthDate),
+  };
+}
+
 module.exports = {
+  DECLINE_COOLDOWN_MS,
+  MAX_DECLINES,
+  PREVIOUS_FIELDS,
+  UNIT_LEADER_ACTIONS,
+  ADMIN_ACTIONS,
+  STAFF_ACTIONS,
+  SELF_ACTIONS,
+  ACTIONS,
+  needsProfileCompletion,
+  staffAuthorityOf,
+  staffRoleForStake,
+  isDemotableStaffOf,
+  isAdminOf,
+  timestampMs,
+  requestBlockOf,
+  previousOf,
+  canUndo,
+  requestFieldsFromProfile,
+  buildRegistrationHints,
   MEMBER_STATUSES,
   STAFF_ROLES,
   SOURCE_KINDS,

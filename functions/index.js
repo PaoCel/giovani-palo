@@ -19,6 +19,7 @@ const roomManagement = require("./lib/roomManagement");
 const recordNight = require("./lib/recordNight");
 const recordNightGuest = require("./lib/recordNightGuest");
 const activityGallery = require("./lib/activityGallery");
+const stakeMembership = require("./lib/stakeMembershipFunctions");
 
 exports.onRegistrationPendingParentAuth = parentAuthorization.onRegistrationPendingParentAuth;
 exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationGetContext;
@@ -49,6 +50,8 @@ exports.recordNightGuest = recordNightGuest.recordNightGuest;
 exports.onRecordNightRegistrationChanged = recordNight.onRecordNightRegistrationChanged;
 exports.onRecordNightActivityDeleted = recordNight.onRecordNightActivityDeleted;
 exports.activityGallery = activityGallery.activityGallery;
+exports.stakeMembership = stakeMembership.stakeMembership;
+exports.onUserStakeMembership = stakeMembership.onUserStakeMembership;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const PRODUCTION_WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const PRODUCTION_WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
