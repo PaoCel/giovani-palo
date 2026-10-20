@@ -151,9 +151,12 @@ before(async () => {
   // Appartenenza (S2): galleria e media sono dei membri attivi (members/{uid}, scritto dal server),
   // non di chi ha solo users.stakeId. Il members attivo lo semino per chi nel test è "del palo";
   // anon lo ha per errore (caso peggiore): resta negato perché anonimo.
+  // memberB è membro attivo del palo B: le prove di isolamento (attività o
+  // galleria del palo A raggiunte passando lo stakeId del palo B) restano
+  // quelle di un membro vero, non di chi ha solo scelto il palo.
   await Promise.all(
-    ["author", "other", "parent", "leader", "admin", "anon"].map((key) =>
-      adminDb.doc(`stakes/${STAKE_A}/members/${U[key].uid}`).set({
+    [...["author", "other", "parent", "leader", "admin", "anon"].map((key) => [STAKE_A, key]), [STAKE_B, "memberB"]].map(([stake, key]) =>
+      adminDb.doc(`stakes/${stake}/members/${U[key].uid}`).set({
         status: "active",
         sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }],
         previous: null,

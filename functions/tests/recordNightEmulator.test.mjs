@@ -1698,6 +1698,8 @@ test("gare sulle transazioni: limite, doppio tocco e contatore senza aggiornamen
       }),
     ),
   );
+  // S2-2: proporre e sfidare è dei membri attivi del palo (members/{uid}).
+  await Promise.all(crowd.map((uid) => adminDb.doc(`stakes/${stakeId}/members/${uid}`).set({ status: "active", version: 1 })));
   const outcome = (settled) => settled.map((r) => (r.status === "fulfilled" ? "ok" : r.reason?.code ?? "errore"));
 
   // A. Una persona, molte proposte insieme: il limite di 2 regge.
