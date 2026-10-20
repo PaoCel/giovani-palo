@@ -109,6 +109,13 @@ function roleSource(nowMs) {
   return { kind: "staff_approval", ref: "role", at: Timestamp.fromMillis(nowMs) };
 }
 
+// Un motivo per `kind` e `ref`: rientrare o essere riapprovati dalla stessa
+// persona non lo ripete.
+function withSource(sources, source) {
+  const list = Array.isArray(sources) ? sources : [];
+  return list.some((item) => item && item.kind === source.kind && item.ref === source.ref) ? list : [...list, source];
+}
+
 /**
  * Scrive il documento members e la riga di storia. Su un documento esistente
  * salva in `previous` lo stato di prima (per "Annulla"), salvo `previous`
@@ -250,7 +257,7 @@ async function actionRequest(ctx) {
     status = "active";
     const patch = { status, staffRole, reviewNeeded: false };
     if (member && member.status !== "active") {
-      patch.sources = [...(member.sources || []), roleSource(nowMs)];
+      patch.sources = withSource(member.sources, roleSource(nowMs));
       patch.decidedAt = FieldValue.serverTimestamp();
       patch.decidedBy = "system";
       if (member.movedToStakeId) patch.movedToStakeId = FieldValue.delete();
@@ -384,7 +391,7 @@ async function actionApprove(ctx) {
     status: "active",
     staffRole: core.staffRoleForStake(targetProfile, stakeId),
     reviewNeeded: false,
-    sources: [...(member.sources || []), { kind: "staff_approval", ref: callerUid, at: Timestamp.fromMillis(nowMs) }],
+    sources: withSource(member.sources, { kind: "staff_approval", ref: callerUid, at: Timestamp.fromMillis(nowMs) }),
     ...decided(callerUid),
   }, { action: "approve", by: callerUid, nowMs, moved });
   return { status: "active", version, changed: true };
@@ -479,7 +486,10 @@ function restorableRole(previous, profile, stakeId) {
   if (!previous || typeof previous.role !== "string" || !profile || profile.role !== previous.roleAfter) return null;
   const staff = previous.role === "admin" || previous.role === "unit_leader";
   if (staff && profile.stakeId !== stakeId) return null;
-  if (previous.role === "unit_leader" && (profile.unitId || "") !== (previous.roleUnitId || "")) return null;
+  // Senza l'unità registrata non si sa dove valeva il ruolo: non torna.
+  if (previous.role === "unit_leader" && (typeof previous.roleUnitId !== "string" || (profile.unitId || "") !== previous.roleUnitId)) {
+    return null;
+  }
   return previous.role;
 }
 
@@ -633,7 +643,8 @@ async function opensRequest(db, stakeId, uid) {
   const profile = profileSnap.exists ? profileSnap.data() : null;
   if (!profile || profile.stakeId !== stakeId || core.needsProfileCompletion(profile)) return false;
   if (core.staffRoleForStake(profile, stakeId)) return false;
-  return !memberSnap.exists || ["withdrawn", "declined"].includes(memberSnap.data().status);
+  // Una richiesta che i tetti respingono non paga le letture del contesto.
+  return !memberSnap.exists || (["withdrawn", "declined"].includes(memberSnap.data().status) && !core.requestBlockOf(memberSnap.data(), Date.now()));
 }
 
 function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
@@ -734,7 +745,7 @@ async function reconcileUserMembership(db, uid, { nowMs = Date.now(), auth = get
             if (member.status === "active" && member.staffRole === staffRole && member.reviewNeeded !== true) return;
             const patch = { status: "active", staffRole, reviewNeeded: false };
             if (member.status === "pending") {
-              patch.sources = [...(member.sources || []), roleSource(nowMs)];
+              patch.sources = withSource(member.sources, roleSource(nowMs));
               patch.decidedAt = FieldValue.serverTimestamp();
               patch.decidedBy = "system";
             }
