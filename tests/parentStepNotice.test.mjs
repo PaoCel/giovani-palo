@@ -674,8 +674,9 @@ function statoDopoIlSalvataggio(esistente) {
 
 // Ingresso in attesa da un altro stato: il trigger vede before non in attesa
 // (annullata, ma anche attiva) e after in attesa
-// (onRegistrationPendingParentAuth: `before && (isCancelledRegistration(before)
-// || !isAwaitingParentAuthorization(before))`).
+// (onRegistrationPendingParentAuth, entersPendingAsNewRequest: da annullata,
+// o da uno stato che non è attesa né rifiuto; il modulo non porta mai un
+// rifiuto in attesa, quindi qui il rifiuto non entra).
 function eUnIngressoInAttesa(esistente) {
   return (
     Boolean(esistente) &&
@@ -731,8 +732,13 @@ test("il trigger gestisce ogni ingresso in attesa prima del tetto dei riprovi e 
   const trigger = FUNCTIONS_TESTO.slice(inizio);
 
   const condizione = trigger.match(
-    /if \(\s*before\s*&&\s*\(\s*isCancelledRegistration\(before\)\s*\|\|\s*!isAwaitingParentAuthorization\(before\)\s*\)\s*\)\s*\{\s*await restartParentAuthorizationAfterCancellation\(/,
+    /if \(\s*entersPendingAsNewRequest\(before\)\s*\)\s*\{\s*await restartParentAuthorizationAfterCancellation\(/,
   );
+  // La condizione: da annullata, o da uno stato che non è attesa né rifiuto.
+  const helper = FUNCTIONS_TESTO.match(
+    /function entersPendingAsNewRequest\(before\) \{[\s\S]*?isCancelledRegistration\(before\)[\s\S]*?!isAwaitingParentAuthorization\(before\)\s*&&\s*before\.registrationStatus !== "rejected_by_parent"/,
+  );
+  assert.ok(helper, "entersPendingAsNewRequest non ha più la forma del modello sotto");
   assert.ok(
     condizione,
     "il trigger non riparte più per ogni ingresso in attesa (annullata o non in attesa): il modello sotto è da rifare",

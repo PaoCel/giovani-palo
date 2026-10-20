@@ -1269,8 +1269,8 @@ describe("10. documenti vecchi: campi fuori elenco, campi mancanti", () => {
     assert.ok((await stored(ctx.path)).roomPreferenceMatches);
   });
 
-  test("riallineare il vecchio campo status (spec: 'status solo per riallineare') insieme a registrationStatus", {
-    todo: "BUG: la spec (docs/ADMIN_ISCRITTI.md, Rules) mette `status` nella lista dell'admin 'solo per riallineare il vecchio campo', ma validAdminRegistrationUpdate non lo ammette e nessun servizio lo scrive: una riattivazione lascia status: 'cancelled' e il trigger (isCancelledRegistration legge anche `status`) considera ancora annullata l'iscrizione",
+  test("riallineare il vecchio campo status insieme a registrationStatus", {
+    skip: "Scelta (docs/ADMIN_ISCRITTI.md, Riattiva): il censimento del 2026-10-20 trova 0 iscrizioni con status 'cancelled' in produzione, quindi l'admin non scrive `status`",
   }, async () => {
     const ctx = await F.seedRegistration({ ...oldDocument(), status: "cancelled", registrationStatus: "cancelled" }, childIdOf("genitore"));
     await withPatch(ctx.activityId, ctx.registrationId, { registrationStatus: "active", status: "active", updatedAt: nowIso() });
