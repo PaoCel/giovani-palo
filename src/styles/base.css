@@ -4102,6 +4102,21 @@ button {
   font-weight: 800;
 }
 
+/* Esito di un'azione partita da un modale admin: dentro il modale, anche nel
+   piede accanto ai tasti (va a capo sopra di loro). */
+.modal-feedback {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.app-modal__footer:has(> .modal-feedback) {
+  flex-wrap: wrap;
+}
+
+.app-modal__footer > .modal-feedback {
+  flex-basis: 100%;
+}
+
 .button--danger {
   background: rgba(255, 246, 245, 0.96);
   border-color: rgba(177, 78, 68, 0.16);

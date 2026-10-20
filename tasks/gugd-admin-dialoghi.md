@@ -1,7 +1,7 @@
 ---
 id: gugd-admin-dialoghi
 title: "Admin: fogli al posto dei dialoghi ed errori nei modali"
-status: needs-paolo
+status: in-progress
 impact: 1
 urgency: 1
 effort: M
@@ -9,15 +9,15 @@ delivery: merge
 surface: [web]
 source: review
 opened: 2026-10-20
-started_at:
+started_at: 2026-10-20
 touched: 2026-10-20
 due:
-blocked_by: ["decisione: i dialoghi admin rientrano?"]
-branch:
-worktree:
-session:
-stopped_at: ""
-next: "Paolo dice se i dialoghi del browser dell'admin rientrano; se sì, ConfirmSheet tone danger come nella scheda"
+blocked_by: []
+branch: task/gugd-admin-dialoghi
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
+session: 3b5e6431-ed1b-420c-83ed-ae790b460974
+stopped_at: "Codice fatto: 11 dialoghi sostituiti, errori nei modali, catch in AdminSettingsPage; guardia a zero"
+next: "Test di un altro agente, review Codex del diff, collaudo da admin contro emulatori sul mini"
 verified: ""
 links: []
 done_at:
@@ -37,9 +37,12 @@ pagina dietro il modale aperto (`AdminEventDetailPage`), e in
 `AdminSettingsPage` unità e admin senza `catch`/`finally` (`busyId` resta
 acceso, nessun messaggio).
 
+Decisione di Paolo (2026-10-20): **rientrano**. Ha avviato la sessione che li
+sostituisce insieme a `gugd-admin-iscritti`.
+
 ## Fatto quando
 
-- Paolo dice se rientrano. Se sì: `ConfirmSheet` con `tone="danger"`, copy in
+- Paolo dice se rientrano (sì, 2026-10-20). Se sì: `ConfirmSheet` con `tone="danger"`, copy in
   `src/copy/admin.ts`, errori dentro il modale, conteggi della guardia a zero.
 - Collaudo da admin contro emulatori (foglio, Esc, dati nel database).
 

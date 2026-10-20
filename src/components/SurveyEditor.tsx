@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { ADMIN } from "@/copy/admin";
 import { surveysService } from "@/services/firestore/surveysService";
 import type {
   SurveyQuestion,
   SurveyQuestionType,
   SurveyQuestionWriteInput,
 } from "@/types";
+import { getAdminActionError } from "@/utils/adminErrors";
+import { withWriteTimeout } from "@/utils/writeTimeout";
 
 interface SurveyEditorProps {
   stakeId: string;
@@ -35,9 +39,24 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
   const [draft, setDraft] = useState<DraftQuestion>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
+  const [deleteTarget, setDeleteTarget] = useState<SurveyQuestion | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio chiuso
+  // nel frattempo (o da un'altra attività) non tocca quello aperto dopo.
+  const deleteRunRef = useRef(0);
+
+  function showDelete(question: SurveyQuestion | null) {
+    deleteRunRef.current += 1;
+    setDeleteError(null);
+    setDeleteTarget(question);
+  }
 
   useEffect(() => {
     let cancelled = false;
+    // Altra attività: il foglio di prima non vale più.
+    showDelete(null);
     setLoading(true);
     setError(null);
     surveysService
@@ -103,12 +122,24 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
     }
   }
 
-  async function removeQuestion(id: string) {
-    if (!confirm("Eliminare la domanda? Le risposte già inviate non saranno cancellate.")) {
-      return;
+  async function removeQuestion(question: SurveyQuestion) {
+    const run = deleteRunRef.current;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await withWriteTimeout(surveysService.deleteQuestion(stakeId, eventId, question.id));
+      setQuestions((current) => current.filter((entry) => entry.id !== question.id));
+      setDraft((current) => (current.id === question.id ? EMPTY_DRAFT : current));
+      if (run === deleteRunRef.current) {
+        showDelete(null);
+      }
+    } catch (caughtError) {
+      if (run === deleteRunRef.current) {
+        setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaDomanda));
+      }
+    } finally {
+      setDeleting(false);
     }
-    await surveysService.deleteQuestion(stakeId, eventId, id);
-    await refresh();
   }
 
   function startEdit(question: SurveyQuestion) {
@@ -256,7 +287,7 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
                 <button
                   type="button"
                   className="button button--ghost button--small"
-                  onClick={() => removeQuestion(question.id)}
+                  onClick={() => showDelete(question)}
                 >
                   Elimina
                 </button>
@@ -265,6 +296,21 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
           </article>
         ))}
       </div>
+
+      {deleteTarget ? (
+        <ConfirmSheet
+          body={ADMIN.eliminaDomandaSondaggioCorpo}
+          busy={deleting}
+          busyLabel={ADMIN.eliminazione}
+          cancelLabel={ADMIN.tieniDomanda}
+          confirmLabel={ADMIN.confermaEliminaDomanda}
+          error={deleteError}
+          onCancel={() => showDelete(null)}
+          onConfirm={() => void removeQuestion(deleteTarget)}
+          title={ADMIN.eliminaDomandaSondaggioTitolo}
+          tone="danger"
+        />
+      ) : null}
     </div>
   );
 }

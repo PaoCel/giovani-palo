@@ -1,11 +1,14 @@
 import { RoomManagementPanel } from "@/components/admin/RoomManagementPanel";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { ANNULLA } from "@/copy/annulla";
+import { ADMIN } from "@/copy/admin";
+import { fillCopy } from "@/copy/parole";
 import { AppModal } from "@/components/AppModal";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { PhotoConsentPills } from "@/components/PhotoConsentPills";
 import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExportModal";
@@ -14,6 +17,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { SurveyEditor } from "@/components/SurveyEditor";
 import { SurveyResultsPanel } from "@/components/SurveyResultsPanel";
 import { CampStaffSection } from "@/components/admin/CampStaffSection";
+import { ModalFeedback } from "@/components/admin/ModalFeedback";
 import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
 import { RecordNightAdminTab } from "@/components/admin/recordNight/RecordNightAdminTab";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -41,6 +45,8 @@ import type {
   Registration,
 } from "@/types";
 import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
+import { getAdminActionError } from "@/utils/adminErrors";
+import { withWriteTimeout } from "@/utils/writeTimeout";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
   downloadCampManagementExcel,
@@ -393,6 +399,18 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
   }
 }
 
+// Foglio di conferma aperto (mai un dialogo del browser). Ognuno si lega
+// all'oggetto con cui è stato aperto: se sparisce, o se cambiano account o
+// rotta, il foglio si chiude e nessuna azione parte per l'oggetto sbagliato.
+type AdminConfirm =
+  | { kind: "removePatrol"; patrolId: string }
+  | { kind: "deleteQuestion"; questionId: string }
+  | { kind: "deleteActivity" }
+  | { kind: "legacyApprovals" }
+  | { kind: "consentCompletion"; digest: string; total: number }
+  | { kind: "cancelRegistration"; registrationId: string }
+  | { kind: "deleteRegistration"; registrationId: string };
+
 export function AdminEventDetailPage() {
   const { eventId } = useParams();
   const location = useLocation();
@@ -417,6 +435,7 @@ export function AdminEventDetailPage() {
     | "consentCompletionCheck"
     | "consentCompletionSend"
     | "consentTask"
+    | "deleteQuestion"
     | "deleteRegistration"
     | "cancelRegistration"
     | "reactivateRegistration"
@@ -475,6 +494,27 @@ export function AdminEventDetailPage() {
   const [selectedCampPatrolId, setSelectedCampPatrolId] = useState<
     string | null
   >(null);
+  const [confirmSheet, setConfirmSheet] = useState<AdminConfirm | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio chiuso
+  // nel frattempo non tocca quello aperto dopo.
+  const confirmRunRef = useRef(0);
+
+  function showConfirm(next: AdminConfirm | null) {
+    confirmRunRef.current += 1;
+    setConfirmError(null);
+    setConfirmSheet(next);
+    if (next) {
+      setActionError(null);
+    }
+  }
+
+  // Cambio di account o di rotta (altra attività, altra tab, Indietro) con il
+  // foglio aperto: si chiude.
+  const confirmContextKey = `${session?.firebaseUser.uid ?? ""}|${location.pathname}|${location.search}`;
+  useEffect(() => {
+    showConfirm(null);
+  }, [confirmContextKey]);
 
   const { data, loading, error } = useAsyncData(
     async () => {
@@ -1028,6 +1068,14 @@ export function AdminEventDetailPage() {
           (patrol) => patrol.id === selectedCampPatrolId,
         ) ?? null)
       : null;
+  // Con un modale aperto gli esiti delle azioni stanno dentro il modale: la
+  // pagina sotto è coperta e inerte.
+  const pageModalOpen = Boolean(
+    registrationModal ||
+      selectedCampCommittee ||
+      selectedCampPatrol ||
+      excelExportModalOpen,
+  );
 
   function getRegistrationName(registrationId: string) {
     const registration = activeRegistrationById.get(registrationId);
@@ -1315,19 +1363,24 @@ export function AdminEventDetailPage() {
     });
   }
 
+  // Ritorna se il salvataggio è riuscito. L'errore va a `onError` (il foglio
+  // di conferma aperto) o, senza, all'avviso della pagina o del modale aperto.
   async function handleSaveCampManagement(options?: {
     closeModal?: boolean;
     draftOverride?: CampManagementPlan;
+    onError?: (message: string) => void;
   }) {
     setBusy("saveCampManagement");
     setActionError(null);
     setActionInfo(null);
 
     try {
-      const saved = await campManagementService.saveCampManagement(
-        stakeId,
-        resolvedEventId,
-        options?.draftOverride ?? campDraft,
+      const saved = await withWriteTimeout(
+        campManagementService.saveCampManagement(
+          stakeId,
+          resolvedEventId,
+          options?.draftOverride ?? campDraft,
+        ),
       );
       setCampDraft(saved);
       setCampDraftDirty(false);
@@ -1337,28 +1390,38 @@ export function AdminEventDetailPage() {
         setSelectedCampPatrolId(null);
       }
       setRefreshKey((current) => current + 1);
+      return true;
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile salvare comitati e pattuglie.",
-      );
+      const message = getAdminActionError(caughtError, ADMIN.erroreSalvaCampo);
+      if (options?.onError) {
+        options.onError(message);
+      } else {
+        setActionError(message);
+      }
+      return false;
     } finally {
       setBusy(null);
     }
   }
 
+  // "Elimina e salva": la bozza cambia solo se il salvataggio riesce, così
+  // "Tieni la pattuglia" dopo un errore ritrova tutto com'era.
   async function handleRemovePatrolAndSave(patrolId: string) {
-    const confirmed = window.confirm("Rimuovere questa pattuglia e salvare?");
-    if (!confirmed) return;
-
+    const run = confirmRunRef.current;
     const nextDraft = {
       ...campDraft,
       patrols: campDraft.patrols.filter((patrol) => patrol.id !== patrolId),
     };
-    setCampDraftDirty(true);
-    setCampDraft(nextDraft);
-    await handleSaveCampManagement({ closeModal: true, draftOverride: nextDraft });
+    const saved = await handleSaveCampManagement({
+      closeModal: true,
+      draftOverride: nextDraft,
+      onError: (message) => {
+        if (run === confirmRunRef.current) setConfirmError(message);
+      },
+    });
+    if (saved && run === confirmRunRef.current) {
+      showConfirm(null);
+    }
   }
 
   async function handleDownloadCampManagementExcel() {
@@ -1427,32 +1490,29 @@ export function AdminEventDetailPage() {
   }
 
   async function handleDeleteQuestion(question: Question) {
-    const confirmed = window.confirm(
-      "Eliminare definitivamente questa domanda?",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setActionError(null);
+    const run = confirmRunRef.current;
+    setBusy("deleteQuestion");
+    setConfirmError(null);
     setActionInfo(null);
 
     try {
-      await questionsService.adminDelete(
-        stakeId,
-        resolvedEventId,
-        question.registrationId,
-        question.id,
+      await withWriteTimeout(
+        questionsService.adminDelete(
+          stakeId,
+          resolvedEventId,
+          question.registrationId,
+          question.id,
+        ),
       );
       setQuestionsRefreshKey((current) => current + 1);
       setActionInfo("Domanda eliminata.");
+      if (run === confirmRunRef.current) showConfirm(null);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare la domanda.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaDomanda));
+      }
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -1468,12 +1528,34 @@ export function AdminEventDetailPage() {
     registrationId: string,
     mode: RegistrationModalMode,
   ) {
+    setActionError(null);
+    setActionInfo(null);
     setRegistrationModalMode(mode);
     setRegistrationModalId(registrationId);
   }
 
   function closeRegistrationModal() {
+    setActionError(null);
     setRegistrationModalId(null);
+  }
+
+  function openCampCommittee(committeeId: CampCommitteeId) {
+    setActionError(null);
+    setActionInfo(null);
+    setSelectedCampCommitteeId(committeeId);
+  }
+
+  function openCampPatrol(patrolId: string) {
+    setActionError(null);
+    setActionInfo(null);
+    setSelectedCampPatrolId(patrolId);
+  }
+
+  // Un errore visto nel modale non resta nella pagina dopo la chiusura.
+  function closeCampModal() {
+    setActionError(null);
+    setSelectedCampCommitteeId(null);
+    setSelectedCampPatrolId(null);
   }
 
   async function handlePublish() {
@@ -1503,33 +1585,29 @@ export function AdminEventDetailPage() {
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm(
-      "Vuoi davvero eliminare questa attività? L'azione rimuove anche modulo e registrazioni.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+    const run = confirmRunRef.current;
     setBusy("delete");
-    setActionError(null);
+    setConfirmError(null);
     setActionInfo(null);
 
     try {
+      // Prima i documenti: se la cancellazione si ferma, l'attività resta con
+      // la sua immagine e si può riprovare.
+      // Molti documenti in più lotti: un minuto prima di dire "nessuna risposta".
+      await withWriteTimeout(eventsService.deleteEvent(stakeId, resolvedEventId), 60000);
+
       if (resolvedEvent.heroImagePath) {
         await storageService
           .deleteFile(resolvedEvent.heroImagePath)
           .catch(() => undefined);
       }
 
-      await eventsService.deleteEvent(stakeId, resolvedEventId);
+      if (run === confirmRunRef.current) showConfirm(null);
       navigate("/admin/events", { replace: true });
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare l'attività.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaAttivita));
+      }
     } finally {
       setBusy(null);
     }
@@ -1673,13 +1751,9 @@ export function AdminEventDetailPage() {
   }
 
   async function handleBackfillLegacyApprovals() {
-    const confirmed = window.confirm(
-      "Generare il modulo ufficiale per le autorizzazioni già approvate col vecchio metodo e inviare una copia ai genitori?\n\n" +
-        "Verranno saltati automaticamente gli iscritti che hanno già un modulo firmato.",
-    );
-    if (!confirmed) return;
-
+    const run = confirmRunRef.current;
     setBusy("backfillLegacyApprovals");
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
 
@@ -1695,12 +1769,13 @@ export function AdminEventDetailPage() {
           ".",
       );
       setRefreshKey((current) => current + 1);
+      if (run === confirmRunRef.current) showConfirm(null);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile generare i fallback legacy.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(
+          getAdminActionError(caughtError, ADMIN.erroreModuliVecchioMetodo),
+        );
+      }
     } finally {
       setBusy(null);
     }
@@ -1738,15 +1813,10 @@ export function AdminEventDetailPage() {
   async function handleSendConsentCompletion() {
     if (!consentCompletion || consentCompletion.total === 0) return;
 
+    const run = confirmRunRef.current;
     const total = consentCompletion.total;
-    const confirmed = window.confirm(
-      `Inviare ${total} email ai genitori?\n\n` +
-        "È un invio a persone reali e non si può annullare. " +
-        "Ogni genitore riceve un link per completare le scelte su foto e social.",
-    );
-    if (!confirmed) return;
-
     setBusy("consentCompletionSend");
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
 
@@ -1760,6 +1830,7 @@ export function AdminEventDetailPage() {
       });
 
       if (!result.dryRun) {
+        if (run === confirmRunRef.current) showConfirm(null);
         setConsentCompletionOutcome(result);
         setConsentCompletion(null);
         setActionInfo(
@@ -1779,16 +1850,15 @@ export function AdminEventDetailPage() {
         "code" in caughtError &&
         (caughtError as { code?: unknown }).code ===
           "functions/failed-precondition";
+      // L'elenco è cambiato: il foglio non vale più (si chiude da solo) e lo
+      // si dice nella pagina, dove si rifà il controllo.
       if (isStaleList) {
         setConsentCompletion(null);
+        if (run === confirmRunRef.current) showConfirm(null);
+        setActionError(ADMIN.completamentoElencoCambiato);
+      } else if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreCompletamento));
       }
-      setActionError(
-        isStaleList
-          ? "L'elenco dei destinatari è cambiato dopo il controllo. Nessuna email è stata inviata: rifai il controllo e verifica l'elenco."
-          : caughtError instanceof Error
-            ? caughtError.message
-            : "Impossibile inviare le email ai genitori.",
-      );
     } finally {
       setBusy(null);
     }
@@ -1821,32 +1891,28 @@ export function AdminEventDetailPage() {
   }
 
   async function handleAdminDeleteRegistration(registration: Registration) {
-    const confirmed = window.confirm(
-      `Eliminare definitivamente l'iscrizione di ${registration.fullName}?\n\n` +
-        "L'iscrizione verrà rimossa dal database. Eventuali firme/PDF/documenti " +
-        "associati su Storage NON vengono eliminati automaticamente (vanno rimossi a mano se serve).\n\n" +
-        "Azione irreversibile.",
-    );
-    if (!confirmed) return;
+    const run = confirmRunRef.current;
     setBusy("deleteRegistration");
     setBusyRegistrationId(registration.id);
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
     try {
-      await registrationsService.adminDeleteRegistration(
-        stakeId,
-        resolvedEventId,
-        registration.id,
+      await withWriteTimeout(
+        registrationsService.adminDeleteRegistration(
+          stakeId,
+          resolvedEventId,
+          registration.id,
+        ),
       );
       setActionInfo(`Iscrizione di ${registration.fullName} eliminata.`);
-      closeRegistrationModal();
+      if (run === confirmRunRef.current) showConfirm(null);
+      if (registrationModalId === registration.id) closeRegistrationModal();
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare l'iscrizione.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreEliminaIscrizione));
+      }
     } finally {
       setBusy(null);
       setBusyRegistrationId(null);
@@ -1854,31 +1920,28 @@ export function AdminEventDetailPage() {
   }
 
   async function handleAdminCancelRegistration(registration: Registration) {
-    const confirmed = window.confirm(
-      `Annullare l'iscrizione di ${registration.fullName}?\n\n` +
-        "L'iscrizione resta nel database con stato 'cancelled'. Puoi riattivarla " +
-        "in qualsiasi momento dalla stessa scheda.",
-    );
-    if (!confirmed) return;
+    const run = confirmRunRef.current;
     setBusy("cancelRegistration");
     setBusyRegistrationId(registration.id);
+    setConfirmError(null);
     setActionError(null);
     setActionInfo(null);
     try {
-      await registrationsService.adminSetRegistrationStatus(
-        stakeId,
-        resolvedEventId,
-        registration.id,
-        "cancelled",
+      await withWriteTimeout(
+        registrationsService.adminSetRegistrationStatus(
+          stakeId,
+          resolvedEventId,
+          registration.id,
+          "cancelled",
+        ),
       );
       setActionInfo(`Iscrizione di ${registration.fullName} annullata.`);
+      if (run === confirmRunRef.current) showConfirm(null);
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile annullare l'iscrizione.",
-      );
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, ADMIN.erroreAnnulla));
+      }
     } finally {
       setBusy(null);
       setBusyRegistrationId(null);
@@ -1891,19 +1954,19 @@ export function AdminEventDetailPage() {
     setActionError(null);
     setActionInfo(null);
     try {
-      await registrationsService.adminSetRegistrationStatus(
-        stakeId,
-        resolvedEventId,
-        registration.id,
-        "active",
+      await withWriteTimeout(
+        registrationsService.adminSetRegistrationStatus(
+          stakeId,
+          resolvedEventId,
+          registration.id,
+          "active",
+        ),
       );
       setActionInfo(`Iscrizione di ${registration.fullName} riattivata.`);
       setRefreshKey((current) => current + 1);
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile riattivare l'iscrizione.",
+        getAdminActionError(caughtError, "Impossibile riattivare l'iscrizione."),
       );
     } finally {
       setBusy(null);
@@ -1937,9 +2000,7 @@ export function AdminEventDetailPage() {
       setExcelExportModalOpen(false);
     } catch (caughtError) {
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile esportare l'Excel.",
+        getAdminActionError(caughtError, "Impossibile esportare l'Excel."),
       );
     } finally {
       setDownloadingExcel(false);
@@ -2008,6 +2069,150 @@ export function AdminEventDetailPage() {
     }
   }
 
+  // Il foglio di conferma aperto, con l'oggetto ancora presente: se è
+  // sparito (riletto dal server, cancellato altrove) il foglio non compare.
+  const confirmView = ((): null | {
+    title: string;
+    body: string;
+    cancelLabel: string;
+    confirmLabel: string;
+    busyLabel: string;
+    busy: boolean;
+    onConfirm: () => void;
+  } => {
+    if (!confirmSheet) return null;
+    // Un'altra azione in corso: il foglio aspetta, non ne parte una seconda.
+    const guard = (action: () => Promise<void>) => () => {
+      if (busy === null) void action();
+    };
+
+    switch (confirmSheet.kind) {
+      case "removePatrol": {
+        const patrol = campDraft.patrols.find(
+          (entry) => entry.id === confirmSheet.patrolId,
+        );
+        if (!patrol) return null;
+        return {
+          title: fillCopy(ADMIN.eliminaPattugliaTitolo, { nome: patrol.name }),
+          body: campDraftDirty
+            ? ADMIN.eliminaPattugliaCorpoBozza
+            : ADMIN.eliminaPattugliaCorpo,
+          cancelLabel: ADMIN.tieniPattuglia,
+          confirmLabel: ADMIN.confermaEliminaPattuglia,
+          busyLabel: ADMIN.salvataggio,
+          busy: busy === "saveCampManagement",
+          onConfirm: guard(() => handleRemovePatrolAndSave(patrol.id)),
+        };
+      }
+      case "deleteQuestion": {
+        const question = sortedQuestions.find(
+          (entry) => entry.id === confirmSheet.questionId,
+        );
+        if (!question) return null;
+        return {
+          title: ADMIN.eliminaDomandaTitolo,
+          body: ADMIN.eliminaDomandaCorpo,
+          cancelLabel: ADMIN.tieniDomanda,
+          confirmLabel: ADMIN.confermaEliminaDomanda,
+          busyLabel: ADMIN.eliminazione,
+          busy: busy === "deleteQuestion",
+          onConfirm: guard(() => handleDeleteQuestion(question)),
+        };
+      }
+      case "deleteActivity":
+        return {
+          title: fillCopy(ADMIN.eliminaAttivitaTitolo, {
+            attivita: resolvedEvent.title,
+          }),
+          body: ADMIN.eliminaAttivitaCorpo,
+          cancelLabel: ADMIN.tieniAttivita,
+          confirmLabel: ADMIN.confermaEliminaAttivita,
+          busyLabel: ADMIN.eliminazione,
+          busy: busy === "delete",
+          onConfirm: guard(handleDelete),
+        };
+      case "legacyApprovals":
+        return {
+          title: ADMIN.moduliVecchioMetodoTitolo,
+          body: ADMIN.moduliVecchioMetodoCorpo,
+          cancelLabel: ADMIN.nonOra,
+          confirmLabel: ADMIN.confermaModuliVecchioMetodo,
+          busyLabel: ADMIN.generazione,
+          busy: busy === "backfillLegacyApprovals",
+          onConfirm: guard(handleBackfillLegacyApprovals),
+        };
+      case "consentCompletion": {
+        // Il foglio vale per l'elenco controllato: rifatto il controllo, si chiude.
+        if (
+          !consentCompletion ||
+          consentCompletion.digest !== confirmSheet.digest ||
+          consentCompletion.total !== confirmSheet.total
+        ) {
+          return null;
+        }
+        const total = confirmSheet.total;
+        const n = String(total);
+        return {
+          title:
+            total === 1
+              ? ADMIN.completamentoTitoloUno
+              : fillCopy(ADMIN.completamentoTitoloPiu, { n }),
+          body: ADMIN.completamentoCorpo,
+          cancelLabel: ADMIN.nonInviare,
+          confirmLabel:
+            total === 1
+              ? ADMIN.confermaCompletamentoUno
+              : fillCopy(ADMIN.confermaCompletamentoPiu, { n }),
+          busyLabel: ADMIN.invio,
+          busy: busy === "consentCompletionSend",
+          onConfirm: guard(handleSendConsentCompletion),
+        };
+      }
+      case "cancelRegistration": {
+        const registration = sortedRegistrations.find(
+          (entry) => entry.id === confirmSheet.registrationId,
+        );
+        if (!registration || registration.registrationStatus === "cancelled") {
+          return null;
+        }
+        return {
+          title: fillCopy(ADMIN.annullaIscrizioneTitolo, {
+            nome: getRegistrationDisplayName(registration),
+          }),
+          body: fillCopy(ADMIN.annullaIscrizioneCorpo, {
+            attivita: resolvedEvent.title,
+          }),
+          cancelLabel: ADMIN.tieniIscrizione,
+          confirmLabel: ADMIN.confermaAnnulla,
+          busyLabel: ADMIN.annullamento,
+          busy:
+            busy === "cancelRegistration" &&
+            busyRegistrationId === registration.id,
+          onConfirm: guard(() => handleAdminCancelRegistration(registration)),
+        };
+      }
+      case "deleteRegistration": {
+        const registration = sortedRegistrations.find(
+          (entry) => entry.id === confirmSheet.registrationId,
+        );
+        if (!registration) return null;
+        return {
+          title: fillCopy(ADMIN.eliminaIscrizioneTitolo, {
+            nome: getRegistrationDisplayName(registration),
+          }),
+          body: ADMIN.eliminaIscrizioneCorpo,
+          cancelLabel: ADMIN.tieniIscrizione,
+          confirmLabel: ADMIN.confermaEliminaIscrizione,
+          busyLabel: ADMIN.eliminazione,
+          busy:
+            busy === "deleteRegistration" &&
+            busyRegistrationId === registration.id,
+          onConfirm: guard(() => handleAdminDeleteRegistration(registration)),
+        };
+      }
+    }
+  })();
+
   return (
     <div className={`page page--activity-ios page--admin-activity-detail${activeTab === "overnight" ? " page--room-planner" : ""}${activeTab === "records" ? " page--rna-wide" : ""}`}>
       {error ? (
@@ -2019,7 +2224,7 @@ export function AdminEventDetailPage() {
         </div>
       ) : null}
 
-      {actionInfo ? (
+      {actionInfo && !pageModalOpen ? (
         <div className="notice notice--info">
           <div>
             <h3>Informazione</h3>
@@ -2043,7 +2248,7 @@ export function AdminEventDetailPage() {
         </div>
       ) : null}
 
-      {actionError ? (
+      {actionError && !pageModalOpen ? (
         <div className="notice notice--warning">
           <div>
             <h3>Azione non completata</h3>
@@ -2132,7 +2337,7 @@ export function AdminEventDetailPage() {
             aria-label="Cancella attività"
             className="activity-ios-action activity-ios-action--danger"
             disabled={busy !== null}
-            onClick={() => void handleDelete()}
+            onClick={() => showConfirm({ kind: "deleteActivity" })}
             title="Cancella"
             type="button"
           >
@@ -2560,7 +2765,7 @@ export function AdminEventDetailPage() {
                   <button
                     className="camp-ios-card camp-ios-card--committee"
                     key={committee.id}
-                    onClick={() => setSelectedCampCommitteeId(committee.id)}
+                    onClick={() => openCampCommittee(committee.id)}
                     type="button"
                   >
                     <span className="camp-ios-card__icon" aria-hidden="true">
@@ -2636,7 +2841,7 @@ export function AdminEventDetailPage() {
                     <button
                       className="camp-ios-card camp-ios-card--patrol"
                       key={patrol.id}
-                      onClick={() => setSelectedCampPatrolId(patrol.id)}
+                      onClick={() => openCampPatrol(patrol.id)}
                       type="button"
                     >
                       <span className="camp-ios-card__icon" aria-hidden="true">
@@ -3068,7 +3273,13 @@ export function AdminEventDetailPage() {
                       <button
                         className="button button--primary button--small"
                         disabled={busy !== null}
-                        onClick={() => void handleSendConsentCompletion()}
+                        onClick={() =>
+                          showConfirm({
+                            kind: "consentCompletion",
+                            digest: consentCompletion.digest,
+                            total: consentCompletion.total,
+                          })
+                        }
                         type="button"
                       >
                         <AppIcon name="mail" />
@@ -3134,7 +3345,7 @@ export function AdminEventDetailPage() {
                       loading ||
                       legacyApprovedWithoutPdfCount === 0
                     }
-                    onClick={() => void handleBackfillLegacyApprovals()}
+                    onClick={() => showConfirm({ kind: "legacyApprovals" })}
                     type="button"
                   >
                     <AppIcon name="refresh" />
@@ -3560,7 +3771,10 @@ export function AdminEventDetailPage() {
                             className="button button--ghost button--small button--danger"
                             disabled={busy !== null}
                             onClick={() =>
-                              void handleAdminDeleteRegistration(registration)
+                              showConfirm({
+                                kind: "deleteRegistration",
+                                registrationId: registration.id,
+                              })
                             }
                             type="button"
                           >
@@ -3706,7 +3920,12 @@ export function AdminEventDetailPage() {
                         </button>
                         <button
                           className="button button--ghost button--small"
-                          onClick={() => void handleDeleteQuestion(question)}
+                          onClick={() =>
+                            showConfirm({
+                              kind: "deleteQuestion",
+                              questionId: question.id,
+                            })
+                          }
                           type="button"
                         >
                           <AppIcon name="trash" />
@@ -3850,12 +4069,13 @@ export function AdminEventDetailPage() {
           title={`${selectedCampCommittee.emoji} ${selectedCampCommittee.title}`}
           subtitle="Dirigenti e giovani assegnati al comitato"
           size="wide"
-          onClose={() => setSelectedCampCommitteeId(null)}
+          onClose={closeCampModal}
           footer={
             <>
+              <ModalFeedback error={actionError} />
               <button
                 className="button button--ghost"
-                onClick={() => setSelectedCampCommitteeId(null)}
+                onClick={closeCampModal}
                 type="button"
               >
                 {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
@@ -4044,12 +4264,13 @@ export function AdminEventDetailPage() {
           title={selectedCampPatrol.name}
           subtitle="Capo pattuglia, supervisori e membri"
           size="wide"
-          onClose={() => setSelectedCampPatrolId(null)}
+          onClose={closeCampModal}
           footer={
             <>
+              <ModalFeedback error={actionError} />
               <button
                 className="button button--ghost"
-                onClick={() => setSelectedCampPatrolId(null)}
+                onClick={closeCampModal}
                 type="button"
               >
                 {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
@@ -4058,7 +4279,10 @@ export function AdminEventDetailPage() {
                 className="button button--ghost button--danger"
                 disabled={busy === "saveCampManagement" || loading}
                 onClick={() =>
-                  void handleRemovePatrolAndSave(selectedCampPatrol.id)
+                  showConfirm({
+                    kind: "removePatrol",
+                    patrolId: selectedCampPatrol.id,
+                  })
                 }
                 type="button"
               >
@@ -4441,7 +4665,10 @@ export function AdminEventDetailPage() {
                   className="button button--soft button--small"
                   disabled={busy !== null}
                   onClick={() =>
-                    void handleAdminCancelRegistration(registrationModal)
+                    showConfirm({
+                      kind: "cancelRegistration",
+                      registrationId: registrationModal.id,
+                    })
                   }
                   type="button"
                 >
@@ -4458,7 +4685,10 @@ export function AdminEventDetailPage() {
                 className="button button--ghost button--small"
                 disabled={busy !== null}
                 onClick={() =>
-                  void handleAdminDeleteRegistration(registrationModal)
+                  showConfirm({
+                    kind: "deleteRegistration",
+                    registrationId: registrationModal.id,
+                  })
                 }
                 type="button"
               >
@@ -4475,6 +4705,7 @@ export function AdminEventDetailPage() {
               "Annulla" sposta l'iscrizione tra le cancellate (reversibile).
               "Elimina" rimuove definitivamente il documento (irreversibile).
             </p>
+            <ModalFeedback error={actionError} info={actionInfo} />
           </div>
         </AppModal>
       ) : null}
@@ -4498,10 +4729,28 @@ export function AdminEventDetailPage() {
         <RegistrationExcelExportModal
           totalRegistrations={activeRegistrations.length}
           busy={downloadingExcel}
+          error={actionError}
           onClose={() => {
-            if (!downloadingExcel) setExcelExportModalOpen(false);
+            if (downloadingExcel) return;
+            setActionError(null);
+            setExcelExportModalOpen(false);
           }}
           onConfirm={handleDownloadExcel}
+        />
+      ) : null}
+
+      {confirmView ? (
+        <ConfirmSheet
+          body={confirmView.body}
+          busy={confirmView.busy}
+          busyLabel={confirmView.busyLabel}
+          cancelLabel={confirmView.cancelLabel}
+          confirmLabel={confirmView.confirmLabel}
+          error={confirmError}
+          onCancel={() => showConfirm(null)}
+          onConfirm={confirmView.onConfirm}
+          title={confirmView.title}
+          tone="danger"
         />
       ) : null}
     </div>

@@ -1,12 +1,17 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
+import { ADMIN } from "@/copy/admin";
+import { fillCopy } from "@/copy/parole";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { feedService } from "@/services/firestore/feedService";
 import type { FeedPost, FeedPostType } from "@/types";
+import { getAdminActionError } from "@/utils/adminErrors";
+import { withWriteTimeout } from "@/utils/writeTimeout";
 
 export function AdminFeedPage() {
   const { session } = useAuth();
@@ -28,6 +33,25 @@ export function AdminFeedPage() {
   const [pinned, setPinned] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyPostId, setBusyPostId] = useState<string | null>(null);
+  // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
+  const [deleteTarget, setDeleteTarget] = useState<FeedPost | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio chiuso
+  // nel frattempo (o da un altro palo) non tocca quello aperto dopo.
+  const deleteRunRef = useRef(0);
+
+  function showDelete(post: FeedPost | null) {
+    deleteRunRef.current += 1;
+    setDeleteError(null);
+    setDeleteTarget(post);
+  }
+
+  useEffect(() => {
+    showDelete(null);
+  }, [stakeId]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,20 +87,41 @@ export function AdminFeedPage() {
   }
 
   async function handleTogglePublish(post: FeedPost) {
-    await feedService.setPublished(stakeId, post.id, !post.published);
-    setData((prev) =>
-      prev.map((entry) =>
-        entry.id === post.id
-          ? { ...entry, published: !entry.published }
-          : entry,
-      ),
-    );
+    setBusyPostId(post.id);
+    setActionError(null);
+    try {
+      await withWriteTimeout(feedService.setPublished(stakeId, post.id, !post.published));
+      setData((prev) =>
+        prev.map((entry) =>
+          entry.id === post.id
+            ? { ...entry, published: !entry.published }
+            : entry,
+        ),
+      );
+    } catch (caughtError) {
+      setActionError(getAdminActionError(caughtError, ADMIN.errorePubblicaPost));
+    } finally {
+      setBusyPostId(null);
+    }
   }
 
   async function handleDelete(post: FeedPost) {
-    if (!window.confirm("Eliminare il post?")) return;
-    await feedService.deletePost(stakeId, post.id);
-    setData((prev) => prev.filter((entry) => entry.id !== post.id));
+    const run = deleteRunRef.current;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await withWriteTimeout(feedService.deletePost(stakeId, post.id));
+      setData((prev) => prev.filter((entry) => entry.id !== post.id));
+      if (run === deleteRunRef.current) {
+        showDelete(null);
+      }
+    } catch (caughtError) {
+      if (run === deleteRunRef.current) {
+        setDeleteError(getAdminActionError(caughtError, ADMIN.erroreEliminaPost));
+      }
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -90,6 +135,11 @@ export function AdminFeedPage() {
       {feedback ? (
         <div className="notice notice--info">
           <p>{feedback}</p>
+        </div>
+      ) : null}
+      {actionError ? (
+        <div className="notice notice--warning">
+          <p>{actionError}</p>
         </div>
       ) : null}
 
@@ -211,14 +261,15 @@ export function AdminFeedPage() {
                   <button
                     type="button"
                     className="button button--ghost button--small"
-                    onClick={() => handleTogglePublish(post)}
+                    disabled={busyPostId === post.id}
+                    onClick={() => void handleTogglePublish(post)}
                   >
                     {post.published ? "Metti in bozza" : "Pubblica"}
                   </button>
                   <button
                     type="button"
                     className="button button--ghost button--small"
-                    onClick={() => handleDelete(post)}
+                    onClick={() => showDelete(post)}
                   >
                     Elimina
                   </button>
@@ -228,6 +279,21 @@ export function AdminFeedPage() {
           </ul>
         )}
       </SectionCard>
+
+      {deleteTarget ? (
+        <ConfirmSheet
+          body={ADMIN.eliminaPostCorpo}
+          busy={deleting}
+          busyLabel={ADMIN.eliminazione}
+          cancelLabel={ADMIN.tieniPost}
+          confirmLabel={ADMIN.confermaEliminaPost}
+          error={deleteError}
+          onCancel={() => showDelete(null)}
+          onConfirm={() => void handleDelete(deleteTarget)}
+          title={fillCopy(ADMIN.eliminaPostTitolo, { titolo: deleteTarget.title })}
+          tone="danger"
+        />
+      ) : null}
     </div>
   );
 }
