@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-admin-dialoghi
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
 session: 3b5e6431-ed1b-420c-83ed-ae790b460974
-stopped_at: "Codice fatto: 11 dialoghi sostituiti, errori nei modali, catch in AdminSettingsPage; guardia a zero"
-next: "Test di un altro agente, review Codex del diff, collaudo da admin contro emulatori sul mini"
-verified: ""
+stopped_at: "Fatto e mergiato in main; non deployato (prossimo hosting: service worker v30)"
+next: "Deploy hosting con conferma di Paolo, insieme al resto pronto"
+verified: "Test: 1131 sul mini (1121 verdi, 9 skipped, accentApostrophes verde in locale), 140+22 test nuovi scritti da un altro agente con mutazioni di src/. Review: Codex (BLOCKED, 4 punti corretti: doppio decremento mediaCount, guardie di contesto, messaggi delle callable, pulizia Storage dopo timeout) e secondo giro con un altro modello (PASS WITH CONCERNS, navigazione da pagina lasciata corretta in 7a1a3be). Collaudo da admin contro emulatori sul mini (Playwright, 390 e 1280): 494/494 dopo 9ea3cf4, script e screenshot in side-session-notes/local_0456cb35…/qa-admin-dialoghi/. Non provati: cambio account con foglio aperto, 320/430 px, Safari iOS."
 links: []
 done_at:
 ---
@@ -51,4 +51,13 @@ sostituisce insieme a `gugd-admin-iscritti`.
 - decisione; poi un file alla volta, la guardia scende a ogni passo.
 
 ## Verificato
+
+Vedi `verified`. Oltre al perimetro, sistemati nello stesso giro (stessa
+classe): Esc che chiudeva insieme due modali impilati (`isTopLayer`),
+`mediaCount` che scendeva due volte con un "Elimina" ripetuto dopo il timeout
+(anche nella galleria degli utenti: ora transazione), `catch` mancanti su
+cover e ordine dei media, pubblica/bozza dei post, salvataggio di Profilo e
+Moduli senza timeout. Restano: il foglio azioni dei media non sposta il focus
+né ha un nome accessibile (preesistente); una scrittura scaduta offline parte
+comunque al ritorno della rete (ora il foglio lo dice).
 

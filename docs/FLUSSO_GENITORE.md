@@ -652,8 +652,10 @@ Requisiti misurabili, collaudati sul dispositivo prima di dire fatto:
      "Segnala": i fogli prendono Esc e frecce prima (`useSheetKeys`);
    - senza rete le eliminazioni lasciavano il foglio bloccato: timeout delle
      scritture e `PAROLE.erroreRete`.
-   Restano dialoghi del browser solo nell'admin (11 in 4 file), guardati da
-   `tests/browserDialogs.test.mjs`. Etichette della home `/me` a 13 px,
+   Restavano dialoghi del browser solo nell'admin (11 in 4 file): dal
+   2026-10-20 sono fogli anche lì (task `gugd-admin-dialoghi`, scelta di
+   Paolo), e `tests/browserDialogs.test.mjs` non ne ammette più nessuno in
+   `src/`. Etichette della home `/me` a 13 px,
    mono maiuscole con spaziatura 0.08em (variante B, scelta di Paolo il
    2026-10-20). Restano fuori perimetro (task `gugd-etichette-home`): chip e
    tasti da 42-43 px della home e della scheda attività, passi della pagina
