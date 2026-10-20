@@ -267,11 +267,18 @@ Script idempotente con dry-run (`functions/scripts/migrateStakeMembers.js`).
 Un'iscrizione libera non prova l'appartenenza, ma togliere oggi la galleria a
 135 persone durante l'anno sarebbe un costo vero. Proposta:
 
-| Gruppo (2026-10-15) | Quanti | Stato |
-| --- | --- | --- |
-| admin, unit_leader | 31 | `active`, `staffRole` |
-| participant/parent con almeno un'iscrizione non annullata nel palo (propria o di un figlio) | ~104 | `active` con `reviewNeeded: true` |
-| account senza iscrizioni | 45 | `pending`, etichetta "account esistente" |
+| Gruppo | 2026-10-15 | 2026-10-20 | Stato |
+| --- | --- | --- | --- |
+| admin, unit_leader | 31 | 31 (10 admin, 21 dirigenti) | `active`, `staffRole` |
+| participant/parent con almeno un'iscrizione non annullata nel palo (propria, di un figlio, o da ospite poi collegato allo stesso account) | ~104 | 108 (101 participant, 7 parent) | `active` con `reviewNeeded: true` |
+| account senza iscrizioni | 45 | 41 (39 participant, 2 parent) | `pending`, etichetta "account esistente" |
+
+Riletti il 2026-10-20 in sola lettura (solo conteggi): 180 profili, tutti
+`roma-est`; dei 108 con iscrizione, 90 solo con iscrizioni proprie, 6 solo come
+genitore, 1 solo da ospite collegato, 11 misti. 8 participant non hanno
+un'unità nel profilo e una unità con un iscritto non ha dirigenti: quelle
+richieste vanno agli admin. 48 uid hanno iscrizioni ma nessun profilo (sessioni
+ospite): non diventano membri.
 
 Ogni dirigente trova in Persone "Conferma i membri della tua unità": elenco con
 "Lo conosco" (toglie `reviewNeeded`) e "Non lo conosco" (passa in coda, accesso
@@ -312,6 +319,153 @@ ripristina `previous` se `version` non è cambiata; l'annullamento entra nel log
 | Ha già un account membro e ne crea uno nuovo | il nuovo è `pending`; solo lo staff vede la nota "stesso nome e data di un membro attivo" e può rispondere "Ha già un account": all'utente arriva il testo unico di rifiuto più il link "Non ricordi con quale account sei entrato?" (aggiunto a ogni rifiuto, così non rivela niente) |
 | Non sa nulla e aspetta | dopo 48 ore in coda, push agli admin del palo (riuso `adminPushDevices`) |
 | Esce dal palo per sbaglio | "Esci dal palo" chiede conferma; dopo, "Chiedi di entrare" ripassa dalla coda (scelta deliberata: uscire è raro, rientrare deve essere verificato) |
+
+### Contratto di autorizzazione (2026-10-20)
+
+Scritto prima del codice applicativo di S2. Ogni cella ha un test
+nell'emulatore con l'SDK client, utenti veri dell'emulatore Auth e le query
+esatte dell'app di oggi (che per S2 è la "PWA vecchia"):
+`functions/tests/stakeMembershipContractEmulator.test.mjs`. Le rules Firestore
+lo applicano dal branch di S2; le celle Storage valgono dopo la fase B di
+`gugd-storage-eu` (stesse persone, blocco Storage dello stesso test). Le rules
+in `firestore.rules` sono la fonte: se una cella qui e una rule non dicono la
+stessa cosa, è un bug di una delle due.
+
+**Una regola sola.** Galleria, media, like, commenti, contenuti nascosti,
+record aperti, sondaggi e interazioni del feed sono dei **membri del palo**:
+chi ha `stakes/{s}/members/{uid}` con `status == 'active'`, oppure lo staff del
+palo (admin e dirigenti di unità, ruolo nel profilo assegnato da un admin).
+`users.stakeId` non dà più nessun permesso. Una sessione anonima non è mai
+membro, qualunque documento abbia. Lo staff ha sempre anche il proprio
+documento members attivo con `staffRole` (migrazione, trigger sul ruolo); il
+ramo "staff dal profilo" esiste perché un documento mancante non tolga la
+galleria a chi la modera, e i poteri dello staff (cancellare contenuti altrui,
+leggere segnalazioni) restano quelli del ruolo. Rimuovere o bloccare un membro
+dello staff lo riporta a `participant` nella stessa transazione: è la callable
+a garantire che ruolo e appartenenza non divergano.
+
+**Chi.**
+
+| Sigla | Persona | Come si riconosce |
+| --- | --- | --- |
+| V | visitatore senza login | nessun `request.auth` |
+| O | sessione anonima (ospite) | `sign_in_provider == 'anonymous'`, anche con un profilo o un members che puntano al palo |
+| N | account senza documento members nel palo | profilo con `users.stakeId` uguale al palo, nessun `members/{uid}`: account nuovo, o creato dalla PWA vecchia prima che il trigger lo metta in coda |
+| P | in attesa | `status == 'pending'` |
+| M | membro attivo | `status == 'active'`, con o senza `reviewNeeded` |
+| F | fuori | `declined`, `withdrawn`, `removed`, `blocked` |
+| X | membro attivo di un altro palo | members attivo nel palo B, chiede sul palo A |
+| D | dirigente di unità del palo | ruolo `unit_leader` e `users.stakeId` del palo (assegnati da un admin) |
+| A | admin del palo, super admin | ruolo `admin` con `users.stakeId` del palo, o `super_admin` |
+
+**Firestore** (✓ permesso, ✗ negato; "propri" = documenti con il proprio uid).
+
+| Dato e operazione dell'app | V | O | N | P | M | F | X | D | A |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `members/{sé}` get, anche se non esiste | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `members/{altro}` get | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo chi ha dichiarato la sua unità | ✓ |
+| `members` list | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo `where('claimedUnitId','==',<sua unità>)` | ✓ |
+| `members/{uid}/staff/*` (note dello staff) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo la sua unità dichiarata | ✓ |
+| `members` scrittura da client | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| `galleries` `where('activityId','==',a)`, get | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `media` onSnapshot, `orderBy('createdAt','desc')` + `limit`, getDocs | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `media` create in batch con `mediaCount` +1 (finestra aperta, `uploadedBy` = sé) | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `media` delete in batch con `mediaCount` −1 | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
+| like di un media (get proprio, batch con `likeCount` ±1) | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| commenti di un media: list, create | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| commenti di un media: delete | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
+| `hiddenMedia` `where('uploadedBy','==',sé)` / tutti | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
+| `reports` (il client non li legge) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
+| `records` `where('status','==','open')` | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `records` senza filtro (gestione) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
+| `recordEntries` `where('ownerUid','==',sé)` | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `surveyQuestions` `orderBy('order')` | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `surveyResponses` get per id, set della bozza e dell'invio | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `surveyResponses` list (risultati) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| `feedPosts` `where('published','==',true)` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| like di un post: get del proprio | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| like di un post: batch con `likeCount` ±1 | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| commenti di un post (oggi nessun client) | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+
+Righe "incoerenti", provate apposta:
+
+| Caso | Esito |
+| --- | --- |
+| `users.stakeId` del palo, nessun members (N) | negato su tutto ciò che è dei membri: è il cuore di S2 |
+| `galleries/{g}/members/{uid}` o `users/{uid}/unlockedGalleries/{g}` presenti (codici galleria vecchi), nessun members attivo | negato: le rules non leggono mai quei documenti né `gallerySecrets` |
+| sessione anonima con un members `active` scritto per errore | negato |
+| D o A con il proprio members mancante o `removed` | permesso: decide il ruolo, e la callable che rimuove toglie anche il ruolo |
+| members `active` nel palo A, `users.stakeId` già cambiato verso B | permesso in A finché l'appartenenza in A non passa a `withdrawn` |
+| like o `mediaCount` mossi di 2, o senza il proprio documento like/media nello stesso batch | negato |
+
+**Storage** (dopo la fase B di `gugd-storage-eu`). Path
+`protected/stakes/{s}/galleries/{g}/media/{m}/{file}`; stesse persone,
+stessa regola. Membro = `members/{uid}` attivo; staff = `staffRole` su quel
+documento, e solo se il documento manca o non è attivo il profilo (ramo staff).
+Mai più di **due** documenti Firestore per richiesta: `members/{uid}` per
+primo, poi il profilo (solo per chi non è membro attivo) oppure `media/{m}`
+(solo per leggere un file altrui).
+
+| Operazione | V O N P F X | M | D A |
+| --- | --- | --- | --- |
+| get del proprio file prima che esista il doc media (`metadata.uploadedBy` = sé) | ✗ | ✓ | ✓ |
+| get di un file con il doc media | ✗ | ✓ | ✓ |
+| list della cartella del media (nomi senza token) | ✗ | ✓ | ✓ |
+| create di un file nuovo con `uploadedBy` = sé, immagine < 30 MB, video < 300 MB | ✗ | ✓ | ✓ |
+| delete | ✗ | propri | ✓ |
+
+Gli URL con token già distribuiti restano validi dopo una rimozione (vedi sopra
+"URL già distribuiti"); i link dei media nascosti li rigenera la callable.
+
+**Callable.**
+
+| Callable | Contratto |
+| --- | --- |
+| `activityGallery` | `ensure` e `report`: membro, letto da `members/{uid}` e non più dal profilo; `restore` e `delete`: staff (ruolo). Stessa regola delle rules: se una cambia, cambia anche l'altra |
+| `recordNightParticipant` | `context` resta com'è (solo le proprie iscrizioni). `propose` e `challenge`: iscrizione attiva all'attività **e** membro; `edit`, `withdraw`, `restore` dei propri tentativi: come oggi, così chi esce dal palo può ancora ritirarsi. Lo staff (ruolo o elenco dell'admin) non cambia |
+| `stakeMembership` (nuova) | `request` solo per sé, non anonimo, palo esistente, tetti; ritiro e uscita solo per sé; approva, rifiuta e "Non è della mia unità": D per la sua unità dichiarata, A per tutte; rimuovi, blocca, sblocca, riattiva: solo A, mai su sé stesso né sull'ultimo admin; "Lo conosco" / "Non lo conosco": D per la sua unità, A; "Annulla" passa la `version` vista e fallisce se è cambiata |
+| `unlockGalleryWithCode`, `setGallerySecretCode` | live in produzione, sorgente fuori dal repo (codici galleria tolti da Paolo, 2026-10-07). Scrivono solo `galleries/{g}/members`, `users/{uid}/unlockedGalleries` e `gallerySecrets`, che nessuna rule legge per dare accesso: **nessuna delle due apre la galleria a chi non è membro**, oggi e dopo S2 (riga "codici galleria vecchi" sopra). Proposta di cancellarle: scelta S2-1 |
+
+**Chi scrive members** (solo server, Admin SDK): lo script di migrazione; la
+callable `stakeMembership`; un trigger su `users/{uid}` che (1) copia il ruolo
+staff in `staffRole` e attiva chi riceve un ruolo staff da un admin, (2) crea
+la richiesta `pending` quando un profilo completo sceglie un palo in cui non ha
+un documento (copre anche chi si registra con la PWA vecchia, che non chiama
+`request`), (3) al cambio di palo apre la richiesta nel palo nuovo senza
+toccare quella vecchia. `tools/create-stake.mjs` crea anche il members attivo
+del primo admin. Cancellazione account: members e note dello staff del uid in
+ogni palo, nella stessa pulizia (oggi il repo non ha un flusso di
+cancellazione: va costruito con S2).
+
+**PWA vecchia** (bundle in cache, service worker v29): per M, D e A non cambia
+nulla. Per N, P e F (i 41 "account esistente" e chi si registra dopo la
+migrazione) le letture qui sotto passano da permesso a negato finché il client
+nuovo non arriva:
+
+| Dove | Cosa vede chi non è membro, con la PWA vecchia |
+| --- | --- |
+| home `/me`, `/unit`, `/admin`, famiglia | si aprono come prima: ogni lettura colpita ha il suo `catch`, nessun `Promise.all` cade |
+| galleria dell'attività | "Qualcosa non ha caricato" con il messaggio inglese di Firebase e sotto "La galleria si apre all'inizio dell'attività" (motivo sbagliato) |
+| card "foto" nelle home | resta senza miniature e invita a caricare le prime foto, ma il caricamento non parte |
+| post del feed su una galleria | titolo "Galleria" e "non ci sono ancora media"; like senza effetto |
+| commenti di una foto | "Nessun commento ancora"; l'invio mostra il messaggio inglese |
+| Notte dei Record | "Non riesco a caricare i record. Controlla la connessione e riprova." (motivo sbagliato) |
+| sondaggio | messaggio inglese e "Non ci sono ancora domande"; in `/me` la sezione sondaggi sparisce |
+| `activityGallery` `ensure` | finché la callable legge il profilo, crea la galleria anche per loro (senza mostrargliela): va pubblicata con le rules |
+
+Nessuna pagina si rompe, ma i testi danno motivi falsi: il client nuovo
+(banner "in attesa", "Si sbloccano dopo la verifica") deve uscire subito dopo
+rules e callable, e i 41 "account esistente" non hanno iscrizioni, quindi
+difficilmente aprono una galleria nel frattempo.
+
+**Non cambia**: attività e unità pubbliche, iscriversi, le proprie iscrizioni
+e quelle dei figli, consensi, stanze, `recordEntries` proprie, Notte dei Record
+senza account, feed in lettura.
+
+**Ordine di deploy**: migrazione in dry-run → migrazione reale → rules
+Firestore e trigger su `users` nello stesso giro → callable (`activityGallery`,
+`recordNightParticipant`, `stakeMembership`) → client. Rules Storage con la
+fase B di `gugd-storage-eu` o dopo. Ogni passo con conferma di Paolo.
 
 ## Parte C. Primo passo: accesso e registrazione (esce con S3)
 
@@ -371,3 +525,5 @@ per un indirizzo sconosciuto). Il signup rivela comunque se un'email esiste:
 | A2 | Chi approva | a) admin + dirigenti dell'unità dichiarata; b) solo admin | **a**: 21 dirigenti conoscono i ragazzi, 10 admin non tutti |
 | A3 | Migrazione | a) attivi lo staff e chi ha un'iscrizione, ma "da confermare" dal proprio dirigente; 45 senza iscrizione in coda; b) attivi solo i 31 dello staff, tutti gli altri in coda (proposta di Codex); c) tutti attivi | **a**: nessuno perde la galleria dall'oggi al domani, e la verifica si fa comunque, distribuita sui dirigenti |
 | A4 | Pagine pubbliche per chi è in attesa | a) attività e iscrizioni libere, il resto bloccato; b) anche le attività bloccate | **a** |
+| S2-1 | Codici galleria (2026-10-20): `unlockGalleryWithCode` e `setGallerySecretCode` sono live senza sorgente nel repo; il client ha ancora il modulo del codice (irraggiungibile) e il pulsante del codice per le gallerie vecchie; in produzione restano una galleria con `accessMode: code_required`, il suo codice e 30 documenti di sblocco | a) cancellare le due functions, il codice client morto e il pulsante, portare quella galleria ad `open` e cancellare codice e documenti di sblocco, nel deploy di S2 dopo le rules; b) lasciare tutto (non apre niente, ma resta codice live che nessuno legge) | **a** |
+| S2-2 | Notte dei Record per chi è iscritto all'attività ma ancora in attesa di verifica | a) elenco, proposte e sfide solo da membro (come dice la parte B: un'iscrizione libera non prova niente; ritirarsi resta sempre possibile); b) l'iscrizione all'attività basta, cioè l'elenco dei record si apre a chiunque si iscriva | **a** |
