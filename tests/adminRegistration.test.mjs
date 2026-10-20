@@ -138,9 +138,10 @@ const CHIAVI_PAYLOAD = elencoDa(
 const AGGIORNAMENTO_ADMIN = corpoFunzione("validAdminRegistrationUpdate");
 const ADMIN = {
   chiavi: elencoDa(AGGIORNAMENTO_ADMIN, /changed\.hasOnly\(\[([^\]]*)\]\)/u, "la lista admin"),
+  // Le risposte stanno in validAdminAnswersChange, chiamata dietro la guardia.
   risposte: elencoDa(
-    AGGIORNAMENTO_ADMIN,
-    /next\.answers\.diff\(prev\.answers\)\.affectedKeys\(\)\.hasOnly\(\[([^\]]*)\]\)/u,
+    corpoFunzione("validAdminAnswersChange"),
+    /answersChanged\.hasOnly\(\[([^\]]*)\]\)/u,
     "le chiavi ammesse di answers",
   ),
   autorizzazione: elencoDa(
