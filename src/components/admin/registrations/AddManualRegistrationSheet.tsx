@@ -148,6 +148,9 @@ export function AddManualRegistrationSheet({
     }
 
     setBusy(true);
+    // Solo un timeout della scrittura mette la bozza in coda: quello di una
+    // lettura (doppioni, esistenza) non ha scritto niente.
+    let writeStarted = false;
     try {
       if (attemptedRef.current) {
         const exists = await withWriteTimeout(
@@ -186,6 +189,7 @@ export function AddManualRegistrationSheet({
         timestamp,
       });
       attemptedRef.current = true;
+      writeStarted = true;
       await withWriteTimeout(
         registrationsService.adminCreateManualRegistration(stakeId, eventId, registrationId, document),
       );
@@ -200,6 +204,7 @@ export function AddManualRegistrationSheet({
     } catch (caughtError) {
       if (
         mountedRef.current &&
+        writeStarted &&
         (caughtError as { code?: unknown } | null)?.code === WRITE_TIMEOUT_CODE
       ) {
         setQueued(true);
