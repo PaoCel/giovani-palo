@@ -53,6 +53,7 @@ import {
   seedDemo,
 } from "../../tools/lib/demoData.mjs";
 import { buildUserDocument, createStake } from "../../tools/lib/stakes.mjs";
+import { buildManualRegistrationDoc } from "../../src/utils/adminRegistration.ts";
 import { initAdmin, resolveTarget, TargetError } from "../../tools/lib/target.mjs";
 
 const require = createRequire(import.meta.url);
@@ -648,9 +649,28 @@ const RULE_CASES = [
     await listWhere(db, `users/${c.A.parent.uid}/children`, where("stakeId", "==", c.A.id));
   }],
   ["admin A scrive iscrizioni, unità, attività e documento del proprio palo", "adminA", true, async (db, c) => {
-    const registration = doc(db, `stakes/${c.A.id}/activities/pub/registrations/scritta-da-admin`);
-    await setDoc(registration, { fullName: "Scritta da admin" });
-    await updateDoc(registration, { fullName: "Aggiornata da admin" });
+    // L'admin crea solo iscrizioni a mano (manual_, docs/ADMIN_ISCRITTI.md) e ne corregge i dati.
+    const registration = doc(db, `stakes/${c.A.id}/activities/pub/registrations/manual_scritta-da-admin`);
+    await setDoc(
+      registration,
+      buildManualRegistrationDoc({
+        person: {
+          firstName: "Scritta",
+          lastName: "Da Admin",
+          birthDate: "1990-01-01",
+          genderRoleCategory: "dirigente",
+          unitId: c.A.unit1.id,
+          unitName: c.A.unit1.name,
+          email: "",
+          phone: "",
+        },
+        parent: { firstName: "", lastName: "", email: "", phone: "" },
+        requiresParentAuthorization: false,
+        createdBy: c.A.admin.uid,
+        timestamp: iso(),
+      }),
+    );
+    await updateDoc(registration, { phone: "3470000000", updatedAt: iso() });
     await deleteDoc(registration);
     const unit = doc(db, `stakes/${c.A.id}/units/extra`);
     await setDoc(unit, { name: "Extra", type: "rione", isActive: true, createdAt: iso(), updatedAt: iso() });
