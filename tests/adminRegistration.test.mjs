@@ -1255,12 +1255,6 @@ test("modifica riga 3: anche senza l'email del genitore (in attesa senza richies
 
 test(
   "modifica riga 3: in attesa senza data di nascita (le iscrizioni a mano ferme) e la data dice 18 anni o più: torna attiva",
-  {
-    todo:
-      "Bug: la condizione richiede wasMinor (data di prima < 18 anni). Le iscrizioni a mano di ottobre in attesa " +
-      "non hanno data di nascita: scrivendo una data da adulto restano 'in attesa del genitore' senza motivo, " +
-      "con 'Manca l'email del genitore' in scheda e nessuna uscita (Riattiva vale solo per le annullate).",
-  },
   () => {
     const registrazione = iscrizione({ birthDate: "", registrationStatus: ATTESA });
     const piano = planAdminEdit(registrazione, bozza(registrazione, { birthDate: ADULTO }), GENITORE_VUOTO, contesto(registrazione));
@@ -1548,12 +1542,6 @@ test("modifica, annullata: cambiano solo i dati, mai stato, mail o richiesta del
 
 test(
   "modifica: con la data svuotata o non valida il piano non promette niente",
-  {
-    todo:
-      "Bug (lieve): con la data di nascita vuota (campo svuotato nel foglio) il piano tratta la persona come adulta: " +
-      "per un minorenne in attesa propone nextStatus 'active' e mostra 'torna attiva e il link … smette di valere', " +
-      "anche se il salvataggio è bloccato da validateAdminEdit. L'avviso dice cosa farebbe un salvataggio che non può partire.",
-  },
   () => {
     const registrazione = conRichiesta(MAIL_GENITORE, { birthDate: MINORE, registrationStatus: ATTESA });
     for (const vuota of ["", "2008-1", "non-una-data"]) {

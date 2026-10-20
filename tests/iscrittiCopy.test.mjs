@@ -87,6 +87,7 @@ const SEGNAPOSTO_ATTESI = {
   prima: ["valore"],
   modificaOk: ["nome"],
   effettoMenoDi18Mail: ["email"],
+  effettoParteMail: ["email"],
   effettoUnita: ["nuova", "vecchia"],
   effettoUnitaNuova: ["nuova"],
   effettoStanza: ["stanza"],
