@@ -50,6 +50,7 @@ const {
   BrevoError,
 } = require("./brevo");
 const { sanitizeSignaturePng } = require("./signatureImage");
+const { isAdultByAge } = require("./adultAge");
 const {
   CONSENT_TEXT_VERSION,
   validateConsentChoices,
@@ -1056,6 +1057,25 @@ function isCancelledRegistration(registration) {
 }
 
 const ALREADY_AUTHORIZED_MESSAGE = "L'autorizzazione è già stata firmata.";
+const NOT_AWAITING_MESSAGE = "L'iscrizione non è in attesa dell'autorizzazione del genitore.";
+const NOT_NEEDED_MESSAGE =
+  "Per questa iscrizione l'autorizzazione del genitore non serve: ha 18 anni o più, o l'attività non la chiede.";
+
+// L'autorizzazione serve ancora: l'iscrizione è in attesa, oppure chi
+// partecipa ha meno di 18 anni in un'attività che la chiede (i minorenni
+// iscritti prima che l'attività la chiedesse). Il reinvio dell'admin non
+// emette link per un adulto: dopo una correzione della data di nascita il
+// genitore firmerebbe per lui.
+function parentAuthorizationStillNeeded(registration, activity) {
+  if (isAwaitingParentAuthorization(registration)) return true;
+  const birthDate = typeof registration?.birthDate === "string" ? registration.birthDate : "";
+  return (
+    activity?.requiresParentAuthorization === true &&
+    /^\d{4}-\d{2}-\d{2}$/u.test(birthDate) &&
+    !isAdultByAge(birthDate)
+  );
+}
+
 const ALREADY_REJECTED_MESSAGE = "Il genitore ha rifiutato l'autorizzazione.";
 const MISSING_PARENT_DATA_MESSAGE =
   "Mancano i dati del genitore: riapri il modulo di iscrizione e salvalo.";
@@ -1083,6 +1103,14 @@ async function writeIfRegistrationActive(db, registrationRef, data, { token, use
     }
     if (isCancelledRegistration(current.data())) {
       throw new HttpsError("failed-precondition", CANCELLED_REGISTRATION_MESSAGE);
+    }
+    // Il link si rilegge qui: invalidato mentre la firma era in corso (un
+    // admin ha corretto la data di nascita e l'iscrizione non è più in
+    // attesa, o è partito un link nuovo), la firma non si scrive.
+    const tokenSnapshot = await tx.get(db.doc(`parentAuthorizationTokens/${token.hash}`));
+    const tokenStatus = deriveTokenStatus(tokenSnapshot.exists ? tokenSnapshot.data() : null);
+    if (tokenStatus !== "valid") {
+      throw new HttpsError("failed-precondition", `Token non utilizzabile (stato: ${tokenStatus}).`);
     }
     const pendenti = await readPendingTokens(tx, db, {
       stakeId: token.stakeId,
@@ -1300,8 +1328,12 @@ const onRegistrationPendingParentAuth = onDocumentWritten(
     }
 
     // Prima del tetto dei riprovi: la reiscrizione è un gesto della persona,
-    // non un riprovo automatico, e riparte da zero tentativi.
-    if (before && isCancelledRegistration(before)) {
+    // non un riprovo automatico, e riparte da zero tentativi. Vale per ogni
+    // ingresso in attesa da un altro stato (annullata, ma anche attiva dopo
+    // una correzione della data di nascita): un ritorno rapido in attesa,
+    // prima che l'uscita abbia invalidato i link, troverebbe il tokenId
+    // vecchio, magari scaduto, e non manderebbe niente.
+    if (before && (isCancelledRegistration(before) || !isAwaitingParentAuthorization(before))) {
       await restartParentAuthorizationAfterCancellation({
         db: getFirestore(),
         stakeId: event.params.stakeId,
@@ -1434,6 +1466,13 @@ function assertCanIssueOwnToken(registration, uid) {
 
   if (state?.status === "authorized") {
     throw new HttpsError("failed-precondition", ALREADY_AUTHORIZED_MESSAGE);
+  }
+
+  // "Autorizza ora" solo per un'iscrizione in attesa, come mostra Famiglia:
+  // dopo una correzione che la rende attiva (18 anni o più) un link nuovo
+  // farebbe firmare un adulto (docs/ADMIN_ISCRITTI.md).
+  if (!isAwaitingParentAuthorization(registration)) {
+    throw new HttpsError("failed-precondition", NOT_AWAITING_MESSAGE);
   }
 
   const req = readParentAuthorizationRequest(registration);
@@ -2286,6 +2325,10 @@ const parentAuthorizationResend = onCall(
     const activity = await loadActivity(db, stakeId, activityId);
     if (!activity) {
       throw new HttpsError("not-found", "Attività non trovata.");
+    }
+
+    if (!parentAuthorizationStillNeeded(registration, activity)) {
+      throw new HttpsError("failed-precondition", NOT_NEEDED_MESSAGE);
     }
 
     // Nessuna scrittura intermedia con `tokenId: null`: faceva ripartire il
