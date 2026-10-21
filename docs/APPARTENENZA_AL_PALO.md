@@ -313,7 +313,7 @@ ripristina `previous` se `version` non è cambiata; l'annullamento entra nel log
 
 | Caso | Comportamento |
 | --- | --- |
-| Sceglie il palo sbagliato | dal banner "Ho sbagliato palo": scelta del palo, la richiesta vecchia passa a `withdrawn` |
+| Sceglie il palo sbagliato | dal banner "Ho sbagliato palo": scelta del palo, la richiesta vecchia passa a `withdrawn` (arriva con S3: oggi c'è un palo solo e il profilo non ha la scelta del palo) |
 | Dichiara l'unità sbagliata | la richiesta va al dirigente sbagliato, che con "Non è della mia unità" la passa agli admin (non è un rifiuto) |
 | Abbandona a metà registrazione | il profilo incompleto non crea richiesta; al prossimo accesso riparte da "Completa il profilo" (come oggi) |
 | Ha già un account membro e ne crea uno nuovo | il nuovo è `pending`; solo lo staff vede la nota "stesso nome e data di un membro attivo" e può rispondere "Ha già un account": all'utente arriva il testo unico di rifiuto più il link "Non ricordi con quale account sei entrato?" (aggiunto a ogni rifiuto, così non rivela niente) |
@@ -636,7 +636,8 @@ azioni dello staff (`markUnknown`, `unblock`), che non creano doppioni.
   richiesta riaperta non si porta dietro una nota scaduta;
 - calcolo fuori dalla transazione (solo un aiuto, come `registrationHints`),
   scrittura dentro la transazione che apre la richiesta: se la lettura fallisce
-  la richiesta parte senza nota.
+  la richiesta parte senza nota, e una nota di una richiesta precedente si
+  cancella comunque.
 
 **`hasAccount`** ("Ha già un account"): D della unità dichiarata, A; `pending` →
 `declined` con `declineCount + 1`, uscita dello staff come `decline`. Per
@@ -657,7 +658,10 @@ giorni." (una: "1 richiesta aspetta da più di 2 giorni."), link alla coda
 dell'admin (`/admin/persone`). Gli uid avvisati stanno in `stakes/{s}/private/membershipQueue`
 (`remindedUids`, solo server, nessuna rule lo apre), sostituiti a ogni giro
 con l'elenco attuale: una richiesta si ricorda una volta sola, e una che esce
-dalla coda e ci rientra si ricorda di nuovo.
+dalla coda e ci rientra si ricorda di nuovo. Se il push non arriva a nessun
+dispositivo (nessuno registrato, invii falliti) gli uid nuovi non contano come
+avvisati e si riprova al giro dopo. Il push dice il numero di tutte le
+richieste in ritardo, senza tetto.
 
 ### Client della fase 3: superfici, stati e ritorni (2026-10-21)
 
@@ -675,7 +679,7 @@ profilo").
 | Stato | Banner | Azioni → dove si va | Come si torna indietro |
 | --- | --- | --- | --- |
 | nessun documento, profilo completo | come `pending` | il client chiama `request` una volta (il trigger di solito l'ha già fatto) | |
-| `pending` | "Stiamo verificando che tu faccia parte del palo" + chi verifica (dirigenti dell'unità dichiarata o admin) | "Chi verifica?" → foglio informativo; "Ritira la richiesta" → foglio di conferma → `withdrawn`; "Ho sbagliato palo" (solo con più pali attivi) → profilo, scelta del palo | da `withdrawn`, "Chiedi di entrare" (nessun tetto) |
+| `pending` | "Stiamo verificando che tu faccia parte del palo" + chi verifica (dirigenti dell'unità dichiarata o admin) | "Chi verifica?" → foglio informativo; "Ritira la richiesta" → foglio di conferma → `withdrawn`; "Ho sbagliato palo" arriva con S3, insieme alla scelta del palo | da `withdrawn`, "Chiedi di entrare" (nessun tetto) |
 | `declined` | testo unico di rifiuto, mai il motivo; sotto, il link "Non ricordi con quale account sei entrato?" | "Chiedi di nuovo" dal giorno di `retryAt` (prima: "Potrai chiedere di nuovo dal {data}."); dopo 3 rifiuti niente bottone | lo staff può annullare il rifiuto |
 | `withdrawn` | "Non fai parte di nessun palo" | "Chiedi di entrare" → `pending` | "Ritira la richiesta" |
 | `removed`, `blocked` | "Non fai più parte di questo palo" | nessuna (decide lo staff) | lo staff riattiva o sblocca |
@@ -687,11 +691,16 @@ sbloccano dopo la verifica."; fuori (`declined`, `withdrawn`, `removed`,
 `blocked`): "Foto e video sono visibili solo ai membri del palo." (stesso
 schema per record e sondaggi). Le letture non partono: niente errori inglesi.
 
-**Uscire dal palo** (profilo, blocco "Palo", solo `active`): foglio di
-conferma con la scelta sicura per prima ("Resta nel palo"); per lo staff dice
-che perde anche il ruolo. Dopo: banner `withdrawn`, "Chiedi di entrare" passa
-dalla coda (scelta deliberata della spec). Ultimo admin: il foglio mostra
-l'errore `last_admin` in italiano.
+**Uscire dal palo** (profilo di `/me` e `/family`, blocco "Palo", solo
+`active`): foglio di conferma con la scelta sicura per prima ("Resta nel
+palo"); a un admin dice che perde anche il ruolo. Dopo: banner `withdrawn`,
+"Chiedi di entrare" passa dalla coda (scelta deliberata della spec). Ultimo
+admin: il foglio mostra l'errore `last_admin` in italiano. Admin e dirigenti
+non hanno una pagina profilo (le route li portano a `/admin` e `/unit`): la
+loro uscita passa da un admin in S4 (Persone, "Rimuovi"), che toglie anche il
+ruolo. Dopo tre rifiuti, o oltre i 30 giorni della scheda "Rifiutate", in
+questa fase non c'è una strada nella UI: arriva con il codice dello staff (S3)
+e con Persone (S4).
 
 **Staff**, pagina "Persone" (`/admin/persone` e `/unit/persone`, voce di menu
 con il numero delle richieste; S4 ci aggiunge Membri, Staff e Rimossi). Tre
