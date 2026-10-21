@@ -20,6 +20,7 @@ import { HOME } from "../src/copy/home.ts";
 import { INVIATA } from "../src/copy/inviata.ts";
 import { ISCRITTI } from "../src/copy/iscritti.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
+import { PALO } from "../src/copy/palo.ts";
 import { PAROLE, fillCopy } from "../src/copy/parole.ts";
 import { PERCORSO } from "../src/copy/percorso.ts";
 import { PROFILO } from "../src/copy/profilo.ts";
@@ -519,6 +520,7 @@ const COPY = {
   INVIATA,
   ISCRITTI,
   ISCRIZIONE,
+  PALO,
   PERCORSO,
   PROFILO,
   TIPO_ACCOUNT,
