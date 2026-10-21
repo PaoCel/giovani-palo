@@ -70,7 +70,6 @@ export function useActivityGallery(
         // Mai il messaggio dell'SDK (in inglese): il diniego lo traduce la
         // galleria, il resto è la frase di rete.
         setError((subError as { code?: string }).code === "permission-denied" ? GALLERY_DENIED : PAROLE.erroreRete);
-        setGallery(null);
         setLoading(false);
       },
     );
@@ -84,9 +83,11 @@ export function useActivityGallery(
     Boolean(gallery && expected) &&
     gallery!.uploadsWindowSource !== "manual" &&
     (gallery!.uploadsOpenFrom !== expected!.fromMs || gallery!.uploadsOpenUntil !== expected!.untilMs);
+  // Dopo una lettura fallita non si sa se la galleria c'è: niente `ensure`.
   const needsEnsure =
     enabled &&
     !loading &&
+    !error &&
     ((windowOpenByDates && (!gallery || gallery.uploadsOpenUntil === null)) || windowStale);
 
   useEffect(() => {

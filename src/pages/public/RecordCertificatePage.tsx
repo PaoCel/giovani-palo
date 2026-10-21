@@ -296,10 +296,11 @@ export function RecordCertificatePage() {
   const requestedActivityId = searchParams.get("activity") ?? "";
   const profileStakeId = session?.profile.stakeId ?? "";
   const signedIn = Boolean(session?.isAuthenticated && !session.isAnonymous);
-  // I record sono dei membri del palo (e dello staff): per gli altri le
-  // letture non partono e il modulo resta usabile scrivendo il record a mano.
+  // I record sono dei membri del palo e dello staff dell'attività (anche quello
+  // scelto dall'admin, che può non essere membro); i tentativi di tutti solo
+  // dello staff. Per gli altri le letture non partono e il modulo resta usabile
+  // scrivendo il record a mano.
   const { access } = useStakeMembership(requestedStakeId || profileStakeId);
-  const canReadRecords = access === "member";
   const loginPath = `/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
   const { data, loading } = useAsyncData<CertificateData | null>(
@@ -310,15 +311,21 @@ export function RecordCertificatePage() {
       const event =
         events.find((item) => item.id === requestedActivityId && item.recordsEnabled === true) ??
         pickCertificateEvent(events);
-      if (!event || !signedIn || !canReadRecords) {
+      if (!event || !signedIn) {
         return { stakeId, event, records: [], recordsAvailable: false, entries: [] };
       }
 
-      // Senza i permessi giusti le letture falliscono: il modulo resta usabile
-      // scrivendo il record a mano, e la pagina lo dice.
+      // Chi è staff dell'attività lo dice la callable (ruolo o elenco dell'admin).
+      const context = await recordNightService.getContext(stakeId, event.id).catch(() => null);
+      const isStaff = context?.isStaff === true;
+      const canReadRecords = isStaff || access === "member";
+      // Se una lettura fallisce lo stesso il modulo resta usabile scrivendo il
+      // record a mano, e la pagina lo dice.
       const [records, entries] = await Promise.all([
-        recordNightService.listRecords(stakeId, event.id).catch(() => null),
-        recordNightService.listAllEntries(stakeId, event.id).catch(() => [] as RecordNightEntry[]),
+        canReadRecords ? recordNightService.listRecords(stakeId, event.id).catch(() => null) : Promise.resolve(null),
+        isStaff
+          ? recordNightService.listAllEntries(stakeId, event.id).catch(() => [] as RecordNightEntry[])
+          : Promise.resolve([] as RecordNightEntry[]),
       ]);
       return {
         stakeId,
@@ -328,7 +335,7 @@ export function RecordCertificatePage() {
         entries,
       };
     },
-    [requestedStakeId, requestedActivityId, profileStakeId, authLoading, signedIn, access, canReadRecords],
+    [requestedStakeId, requestedActivityId, profileStakeId, authLoading, signedIn, access],
     null,
   );
 

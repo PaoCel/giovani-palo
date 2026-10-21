@@ -58,6 +58,10 @@ export function HomeFeed(_: HomeFeedProps) {
   const [lightbox, setLightbox] = useState<
     { galleryId: string; media: GalleryMedia[]; index: number } | null
   >(null);
+  // Alla revoca il visualizzatore si chiude e dimentica i media già aperti.
+  useEffect(() => {
+    if (!isMember) setLightbox(null);
+  }, [isMember]);
 
   const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!stakeId || !uid) {

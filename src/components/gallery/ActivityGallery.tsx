@@ -393,7 +393,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
             />
           ))}
         </div>
-      ) : !gallery ? (
+      ) : !gallery && galleryError ? null : !gallery ? (
         <div className="ag-empty">
           <AppIcon name="camera" />
           <p>
