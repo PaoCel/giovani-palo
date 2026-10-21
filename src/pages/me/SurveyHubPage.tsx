@@ -15,8 +15,9 @@ export function SurveyHubPage() {
   const { access } = useStakeMembership(session?.profile.stakeId ?? "");
   // I sondaggi sono dei membri: chi è in coda o fuori ha la sua frase e niente
   // elenco; finché il documento members non arriva non si mostra nulla.
-  const locked = access === "waiting" || access === "out";
-  const canList = access === "member" || access === "guest";
+  // Senza account personale (ospite) vale come fuori: i sondaggi sono dei membri.
+  const locked = access === "waiting" || access === "out" || access === "guest";
+  const canList = access === "member";
   const [items, setItems] = useState<Awaited<
     ReturnType<typeof userActivitiesService.listStakeActivityFeed>
   >>([]);
@@ -51,7 +52,7 @@ export function SurveyHubPage() {
 
       {locked ? (
         <SectionCard title="Sondaggi non disponibili">
-          <MemberLockedNote access={access} kind="sondaggi" />
+          <MemberLockedNote access={access === "guest" ? "out" : access} kind="sondaggi" />
           <Link className="button button--ghost" to="/me">
             Torna alla dashboard
           </Link>

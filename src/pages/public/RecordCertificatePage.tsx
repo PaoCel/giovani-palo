@@ -6,6 +6,7 @@ import "@/styles/recordCertificate.css";
 import { AppIcon } from "@/components/AppIcon";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { eventsService } from "@/services/firestore/eventsService";
 import { recordNightService } from "@/services/firestore/recordNightService";
 import type { Event, RecordNightEntry, RecordNightRecord } from "@/types";
@@ -295,17 +296,21 @@ export function RecordCertificatePage() {
   const requestedActivityId = searchParams.get("activity") ?? "";
   const profileStakeId = session?.profile.stakeId ?? "";
   const signedIn = Boolean(session?.isAuthenticated && !session.isAnonymous);
+  // I record sono dei membri del palo (e dello staff): per gli altri le
+  // letture non partono e il modulo resta usabile scrivendo il record a mano.
+  const { access } = useStakeMembership(requestedStakeId || profileStakeId);
+  const canReadRecords = access === "member";
   const loginPath = `/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
   const { data, loading } = useAsyncData<CertificateData | null>(
     async () => {
-      if (authLoading) return null;
+      if (authLoading || access === "loading") return null;
       const stakeId = await resolvePublicStakeId(requestedStakeId || profileStakeId || undefined);
       const events = await eventsService.listPublicEvents(stakeId);
       const event =
         events.find((item) => item.id === requestedActivityId && item.recordsEnabled === true) ??
         pickCertificateEvent(events);
-      if (!event || !signedIn) {
+      if (!event || !signedIn || !canReadRecords) {
         return { stakeId, event, records: [], recordsAvailable: false, entries: [] };
       }
 
@@ -323,7 +328,7 @@ export function RecordCertificatePage() {
         entries,
       };
     },
-    [requestedStakeId, requestedActivityId, profileStakeId, authLoading, signedIn],
+    [requestedStakeId, requestedActivityId, profileStakeId, authLoading, signedIn, access, canReadRecords],
     null,
   );
 

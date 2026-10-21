@@ -321,7 +321,9 @@ describe("membershipBannerOf: fuori dal palo", () => {
     assert.equal(PALO.chiediDiEntrare, "Chiedi di entrare");
     assert.equal(PALO.chiediDiNuovo, "Chiedi di nuovo");
     assert.equal(PALO.ritiraRichiesta, "Ritira la richiesta");
-    assert.equal(PALO.hoSbagliatoPalo, "Ho sbagliato palo");
+    // "Ho sbagliato palo" arriva con la scelta del palo (S3): oggi il profilo
+    // non la offre e il bottone porterebbe in un vicolo cieco.
+    assert.equal("hoSbagliatoPalo" in PALO, false);
     assert.equal(PALO.chiVerifica, "Chi verifica?");
     assert.doesNotMatch(PALO.rifiutoCorpo, /nome|data di nascita|account/iu, "il motivo interno non arriva al richiedente");
   });

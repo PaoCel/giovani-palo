@@ -10,7 +10,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useEnsureMembershipRequest, useStakeMembership } from "@/hooks/useStakeMembership";
 import { organizationService } from "@/services/firestore/organizationService";
-import { stakesService } from "@/services/firestore/stakesService";
 import { stakeMembersService } from "@/services/firestore/stakeMembersService";
 import { needsProfileCompletion } from "@/utils/profileCompletion";
 import { fromDateLabel, membershipBannerOf, membershipErrorMessage } from "@/utils/stakeMembership";
@@ -41,12 +40,6 @@ export function MembershipBanner() {
     () => (showsSupport && stakeId ? organizationService.getProfile(stakeId) : Promise.resolve(null)),
     [showsSupport, stakeId],
     null,
-  );
-  // "Ho sbagliato palo" ha senso solo con più pali tra cui scegliere.
-  const { data: activeStakes } = useAsyncData(
-    () => (banner?.kind === "pending" ? stakesService.listActiveStakes() : Promise.resolve([])),
-    [banner?.kind],
-    [],
   );
 
   if (!banner) return null;
@@ -104,11 +97,6 @@ export function MembershipBanner() {
           {member?.status === "pending" ? (
             <button className="mship-btn mship-btn--ghost" onClick={() => setSheet("withdraw")} type="button">
               {PALO.ritiraRichiesta}
-            </button>
-          ) : null}
-          {activeStakes.length > 1 ? (
-            <button className="mship-btn mship-btn--ghost" onClick={() => navigate(session?.isParent ? "/family/profile" : "/me/profile")} type="button">
-              {PALO.hoSbagliatoPalo}
             </button>
           ) : null}
         </div>

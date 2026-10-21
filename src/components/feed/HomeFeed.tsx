@@ -376,7 +376,7 @@ export function HomeFeed(_: HomeFeedProps) {
         </div>
       </div>
 
-      {lightbox ? (
+      {lightbox && isMember ? (
         <MediaLightbox
           media={lightbox.media}
           initialIndex={lightbox.index}

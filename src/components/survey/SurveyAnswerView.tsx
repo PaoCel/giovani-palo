@@ -127,8 +127,9 @@ export function SurveyAnswerView({
   const { access } = useStakeMembership(stakeId);
   // Chi è in coda o fuori dal palo non legge le domande: la lettura non parte.
   // Mentre il documento members non è arrivato non parte nemmeno per gli altri.
-  const locked = access === "waiting" || access === "out";
-  const canLoad = access === "member" || access === "guest";
+  // Senza account personale (ospite) vale come fuori: i sondaggi sono dei membri.
+  const locked = access === "waiting" || access === "out" || access === "guest";
+  const canLoad = access === "member";
   const [event, setEvent] = useState<Event | null>(null);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, SurveyAnswerEntry>>({});
@@ -308,7 +309,7 @@ export function SurveyAnswerView({
 
       {locked ? (
         <SectionCard title="Sondaggio non disponibile">
-          <MemberLockedNote access={access} kind="sondaggi" />
+          <MemberLockedNote access={access === "guest" ? "out" : access} kind="sondaggi" />
           <Link className="button button--ghost" to={backHref}>
             {backLabel}
           </Link>

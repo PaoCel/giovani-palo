@@ -4,7 +4,12 @@ import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery } from "@/types";
 import { computeActivityUploadWindow, isGalleryUploadOpen } from "@/utils/galleryWindow";
+import { getAdminActionError } from "@/utils/adminErrors";
 import type { MemberAccess } from "@/utils/stakeMembership";
+import { PALO } from "@/copy/palo";
+import { PAROLE } from "@/copy/parole";
+
+const GALLERY_DENIED = PALO.soloMembriFoto;
 
 export interface ActivityGalleryAccess {
   /** Membro attivo del palo (o staff): vede e, a finestra aperta, carica. */
@@ -62,7 +67,10 @@ export function useActivityGallery(
         setLoading(false);
       },
       (subError) => {
-        setError(subError.message || "Impossibile caricare la galleria.");
+        // Mai il messaggio dell'SDK (in inglese): il diniego lo traduce la
+        // galleria, il resto è la frase di rete.
+        setError((subError as { code?: string }).code === "permission-denied" ? GALLERY_DENIED : PAROLE.erroreRete);
+        setGallery(null);
         setLoading(false);
       },
     );
@@ -87,11 +95,8 @@ export function useActivityGallery(
     if (ensuredRef.current === key) return;
     ensuredRef.current = key;
     galleriesService.ensureActivityGallery(stakeId, eventId).catch((ensureError: unknown) => {
-      setError(
-        ensureError instanceof Error && ensureError.message
-          ? ensureError.message
-          : "Impossibile aprire la galleria.",
-      );
+      // La callable risponde in italiano; i codici generici dell'SDK no.
+      setError(getAdminActionError(ensureError, "Impossibile aprire la galleria."));
     });
   }, [needsEnsure, stakeId, eventId]);
 

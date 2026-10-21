@@ -118,11 +118,10 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
         setMediaLoading(false);
       },
       (subError) => {
-        setError(
-          (subError as { code?: string }).code === "permission-denied"
-            ? PALO.soloMembriFoto
-            : PAROLE.erroreRete,
-        );
+        const denied = (subError as { code?: string }).code === "permission-denied";
+        setError(denied ? PALO.soloMembriFoto : PAROLE.erroreRete);
+        // Un diniego (rimosso mentre guardava) toglie anche quello già a schermo.
+        if (denied) setMedia([]);
         setMediaLoading(false);
       },
     );

@@ -18,7 +18,6 @@ export const PALO = {
   chiVerifica: "Chi verifica?",
   chiVerificaCorpo:
     "Un dirigente della tua unità o un admin del palo conferma che ti conosce: da quel momento vedi foto, record e sondaggi. Se aspetti da qualche giorno, parlane con un dirigente alla prossima attività.",
-  hoSbagliatoPalo: "Ho sbagliato palo",
   ritiraRichiesta: "Ritira la richiesta",
   ritiraTitolo: "Ritirare la richiesta?",
   ritiraCorpo: "Non sarai più in coda per entrare nel palo. Potrai chiedere di nuovo quando vuoi.",
@@ -129,7 +128,7 @@ export const PALO = {
   toastPassata: "Hai passato {nome} agli admin",
   toastConfermato: "Hai confermato {nome}",
   toastInCoda: "{nome} torna in coda",
-  toastAnnullato: "Fatto: tutto com'era prima.",
+  toastAnnullato: "Azione annullata.",
 
   // Dashboard dello staff.
   richiesteTitolo: "Richieste di accesso",
