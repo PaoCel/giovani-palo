@@ -300,13 +300,20 @@ export function RecordCertificatePage() {
   // scelto dall'admin, che può non essere membro); i tentativi di tutti solo
   // dello staff. Per gli altri le letture non partono e il modulo resta usabile
   // scrivendo il record a mano.
-  const { access } = useStakeMembership(requestedStakeId || profileStakeId);
+  // L'appartenenza si guarda sul palo risolto (il resolver può ripiegare su un
+  // altro palo quando né l'indirizzo né il profilo ne indicano uno).
+  const { data: resolvedStakeId } = useAsyncData(
+    () => resolvePublicStakeId(requestedStakeId || profileStakeId || undefined),
+    [requestedStakeId, profileStakeId],
+    "",
+  );
+  const { access } = useStakeMembership(resolvedStakeId);
   const loginPath = `/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
   const { data, loading } = useAsyncData<CertificateData | null>(
     async () => {
-      if (authLoading || access === "loading") return null;
-      const stakeId = await resolvePublicStakeId(requestedStakeId || profileStakeId || undefined);
+      if (authLoading || !resolvedStakeId || access === "loading") return null;
+      const stakeId = resolvedStakeId;
       const events = await eventsService.listPublicEvents(stakeId);
       const event =
         events.find((item) => item.id === requestedActivityId && item.recordsEnabled === true) ??
@@ -335,7 +342,7 @@ export function RecordCertificatePage() {
         entries,
       };
     },
-    [requestedStakeId, requestedActivityId, profileStakeId, authLoading, signedIn, access],
+    [resolvedStakeId, requestedActivityId, authLoading, signedIn, access],
     null,
   );
 

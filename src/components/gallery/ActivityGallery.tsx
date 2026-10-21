@@ -108,6 +108,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
       setMediaLoading(false);
       return undefined;
     }
+    setMedia([]);
     setMediaLoading(true);
     setError(null);
     return galleriesService.subscribeMedia(

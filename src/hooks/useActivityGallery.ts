@@ -57,6 +57,9 @@ export function useActivityGallery(
       setLoading(false);
       return undefined;
     }
+    // Attività nuova: via la galleria di prima, così un errore della lettura
+    // nuova non lascia a schermo (e come destinazione dei caricamenti) quella vecchia.
+    setGallery(null);
     setLoading(true);
     setError(null);
     return galleriesService.subscribeGalleryByActivity(
