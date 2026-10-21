@@ -3,6 +3,7 @@ const { getFirestore } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const webpush = require("web-push");
 
 initializeApp();
@@ -476,6 +477,28 @@ exports.sendAdminPushForNewRegistration = onDocumentCreated(
       payload,
       logContext: { activityId, registrationId },
     });
+  },
+);
+
+// Richieste di accesso al palo in coda da più di 48 ore: un promemoria al
+// giorno agli admin, solo se c'è una richiesta mai ricordata
+// (docs/APPARTENENZA_AL_PALO.md, «Aggiunte server della fase 3»).
+exports.stakeMembershipQueueReminder = onSchedule(
+  {
+    schedule: "0 18 * * *",
+    timeZone: "Europe/Rome",
+    region: "europe-west1",
+    secrets: [WEB_PUSH_PRIVATE_KEY],
+  },
+  async () => {
+    const result = await stakeMembership.runStakeMembershipQueueReminder({
+      db,
+      sendPush: async ({ stakeId, payload }) => {
+        const devicesSnapshot = await db.collection(`stakes/${stakeId}/adminPushDevices`).get();
+        await sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logContext: { kind: "membership-queue" } });
+      },
+    });
+    logger.info("Promemoria della coda di accesso.", result);
   },
 );
 

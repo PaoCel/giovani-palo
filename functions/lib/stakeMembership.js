@@ -197,8 +197,18 @@ const PREVIOUS_FIELDS = Object.freeze([
 
 // Azioni dello staff: le sole che "Annulla" ripristina. Il dirigente di unità
 // fa solo le prime cinque, e solo per chi ha dichiarato la sua unità.
-const UNIT_LEADER_ACTIONS = Object.freeze(["approve", "decline", "notMyUnit", "confirmKnown", "markUnknown"]);
-const ADMIN_ACTIONS = Object.freeze(["approve", "decline", "confirmKnown", "markUnknown", "remove", "block", "unblock", "reactivate"]);
+const UNIT_LEADER_ACTIONS = Object.freeze(["approve", "decline", "hasAccount", "notMyUnit", "confirmKnown", "markUnknown"]);
+const ADMIN_ACTIONS = Object.freeze([
+  "approve",
+  "decline",
+  "hasAccount",
+  "confirmKnown",
+  "markUnknown",
+  "remove",
+  "block",
+  "unblock",
+  "reactivate",
+]);
 const STAFF_ACTIONS = Object.freeze([...new Set([...UNIT_LEADER_ACTIONS, ...ADMIN_ACTIONS])]);
 const SELF_ACTIONS = Object.freeze(["request", "withdraw", "leave"]);
 const ACTIONS = Object.freeze([...SELF_ACTIONS, ...STAFF_ACTIONS, "undo"]);
@@ -304,6 +314,31 @@ function canUndo(previous, authority, callerUid) {
   return previous.by === callerUid && UNIT_LEADER_ACTIONS.includes(previous.action) ? "ok" : "denied";
 }
 
+// Nome confrontabile: minuscole, senza accenti e senza spazi doppi.
+function normalizePersonName(value) {
+  return cleanString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLowerCase()
+    .replace(/\s+/gu, " ");
+}
+
+function personNameOf(profile) {
+  const p = profile || {};
+  return normalizePersonName(
+    cleanString(p.fullName) || [cleanString(p.firstName), cleanString(p.lastName)].filter(Boolean).join(" "),
+  );
+}
+
+// Nota dello staff "stesso nome e data" (fase 3): stesso nome normalizzato e
+// stessa data di nascita completa. Senza data (genitori) mai.
+function isSameNameAndBirth(profile, other) {
+  const birthDate = cleanString(profile && profile.birthDate);
+  if (!birthYearOf(birthDate) || cleanString(other && other.birthDate) !== birthDate) return false;
+  const name = personNameOf(profile);
+  return Boolean(name) && personNameOf(other) === name;
+}
+
 // Campi della richiesta presi dal profilo (unità, nome, anno).
 function requestFieldsFromProfile(profile) {
   const p = profile || {};
@@ -334,6 +369,9 @@ module.exports = {
   previousOf,
   canUndo,
   requestFieldsFromProfile,
+  normalizePersonName,
+  personNameOf,
+  isSameNameAndBirth,
   buildRegistrationHints,
   MEMBER_STATUSES,
   STAFF_ROLES,

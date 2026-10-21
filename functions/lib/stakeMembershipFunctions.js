@@ -24,6 +24,11 @@ const STAFF_LIST_DOCS = Object.freeze(["campStaff", "recordNight"]);
 const STAFF_PROFILE_ROLES = Object.freeze(["admin", "unit_leader", "super_admin"]);
 // Stesso tetto degli elenchi di campeggio e Notte dei Record (MAX_STAFF).
 const MAX_STAFF_LIST = 100;
+// Nota "stesso nome e data": profili letti al massimo per una richiesta.
+const MAX_NOTE_CANDIDATES = 30;
+// Promemoria agli admin: richieste in coda da più di 48 ore.
+const QUEUE_REMINDER_AFTER_MS = 48 * 60 * 60 * 1000;
+const MAX_REMINDED_UIDS = 500;
 
 function cleanId(value, field) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -88,6 +93,51 @@ async function computeRegistrationHints(db, stakeId, uid) {
   }
 }
 
+function staffNoteRef(db, stakeId, uid) {
+  return memberRef(db, stakeId, uid).collection("staff").doc("note");
+}
+
+/**
+ * Nota dello staff "stesso nome e data di un membro attivo" (fase 3): membri
+ * attivi del palo con lo stesso anno, poi i loro profili. Restituisce la nota,
+ * `null` se non c'è corrispondenza, `undefined` se la lettura fallisce (la
+ * richiesta parte senza toccare la nota).
+ */
+async function computeStaffNote(db, stakeId, uid, profile) {
+  try {
+    const year = core.birthYearOf(profile && profile.birthDate);
+    if (!year || !core.personNameOf(profile)) return null;
+    const actives = await db
+      .collection(`stakes/${stakeId}/members`)
+      .where("status", "==", "active")
+      .where("birthYear", "==", year)
+      .select()
+      .limit(MAX_NOTE_CANDIDATES + 1)
+      .get();
+    const uids = actives.docs.map((doc) => doc.id).filter((id) => id !== uid).slice(0, MAX_NOTE_CANDIDATES);
+    if (!uids.length) return null;
+    const profiles = await db.getAll(...uids.map((id) => db.doc(`users/${id}`)));
+    const matches = profiles.filter((snap) => snap.exists && core.isSameNameAndBirth(profile, snap.data())).length;
+    return matches ? { kind: "same_name_birth", matches } : null;
+  } catch (error) {
+    logger.warn("Nota dello staff non calcolata.", {
+      stakeId,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
+// Dentro la transazione che apre la richiesta. C'è un solo tipo di nota, quindi
+// senza corrispondenze il documento si cancella: una richiesta riaperta non si
+// porta dietro una nota scaduta.
+function writeStaffNote(tx, db, stakeId, uid, note) {
+  if (note === undefined) return;
+  const ref = staffNoteRef(db, stakeId, uid);
+  if (note) tx.set(ref, { ...note, at: FieldValue.serverTimestamp() });
+  else tx.delete(ref);
+}
+
 function newMemberDoc({ status, profile, sources, staffRole, hints, decidedBy }) {
   const active = status === "active";
   return {
@@ -121,7 +171,13 @@ function withSource(sources, source) {
  * salva in `previous` lo stato di prima (per "Annulla"), salvo `previous`
  * esplicito nel patch; `version` sale di uno. Restituisce la nuova versione.
  */
-function writeMember(tx, ref, current, patch, { action, by, nowMs, role = null, staffLists = null, moved = null }) {
+function writeMember(
+  tx,
+  ref,
+  current,
+  patch,
+  { action, by, nowMs, role = null, staffLists = null, moved = null, historyAction = action },
+) {
   const version = (current ? Number(current.version || 0) : 0) + 1;
   if (!current) {
     tx.set(ref, { ...patch, version });
@@ -133,7 +189,7 @@ function writeMember(tx, ref, current, patch, { action, by, nowMs, role = null, 
     tx.update(ref, { ...patch, previous, version });
   }
   tx.set(ref.collection("history").doc(), {
-    action,
+    action: historyAction,
     by,
     at: FieldValue.serverTimestamp(),
     fromStatus: current ? current.status ?? null : null,
@@ -230,7 +286,7 @@ function demoteStaff(tx, db, uid, profile, stakeId, nowMs) {
 }
 
 async function actionRequest(ctx) {
-  const { tx, db, stakeId, uid, member, targetProfile: profile, stakeIds, hints, nowMs } = ctx;
+  const { tx, db, stakeId, uid, member, targetProfile: profile, stakeIds, hints, note, nowMs } = ctx;
   if (!profile) throw precondition("profile_incomplete", "Completa il profilo prima di chiedere di entrare.");
   if (profile.stakeId !== stakeId) {
     throw precondition("stake_not_chosen", "Scegli prima questo palo nel profilo.");
@@ -301,6 +357,7 @@ async function actionRequest(ctx) {
           by: uid,
           nowMs,
         });
+    writeStaffNote(tx, db, stakeId, uid, note);
   }
   // Una richiesta aperta alla volta: quella del palo scelto.
   others.forEach((snap) => {
@@ -399,7 +456,7 @@ async function actionApprove(ctx) {
 
 // Rifiuto, "Non lo conosco", rimozione e blocco: escono dall'appartenenza (o
 // la sospendono). Chi ha un ruolo staff del palo torna `participant`.
-async function exitTransition(ctx, { action, status, extra = {}, staffLists = false }) {
+async function exitTransition(ctx, { action, status, extra = {}, staffLists = false, historyAction = action }) {
   const { tx, db, stakeId, uid, callerUid, member, targetProfile, nowMs } = ctx;
   if (core.isAdminOf(targetProfile, stakeId)) await assertNotLastAdmin(tx, db, stakeId, uid);
   const listSnaps = staffLists ? await readStaffLists(tx, db, stakeId) : [];
@@ -410,7 +467,7 @@ async function exitTransition(ctx, { action, status, extra = {}, staffLists = fa
     staffRole: null,
     ...extra,
     ...decided(callerUid),
-  }, { action, by: callerUid, nowMs, role, staffLists: removedFrom });
+  }, { action, by: callerUid, nowMs, role, staffLists: removedFrom, historyAction });
   return { status, version, changed: true };
 }
 
@@ -420,6 +477,21 @@ async function actionDecline(ctx) {
   if (member.status !== "pending") throw invalidState(member.status);
   return exitTransition(ctx, {
     action: "decline",
+    status: "declined",
+    extra: { declineCount: Number(member.declineCount || 0) + 1 },
+  });
+}
+
+// "Ha già un account": per chi l'ha chiesto è un rifiuto e basta. Il
+// richiedente legge `previous` del proprio documento, quindi lì l'azione resta
+// `decline`; il motivo vive solo nella storia, che nessuna rule apre.
+async function actionHasAccount(ctx) {
+  const { member } = ctx;
+  if (member.status === "declined") return { status: "declined", version: member.version, changed: false };
+  if (member.status !== "pending") throw invalidState(member.status);
+  return exitTransition(ctx, {
+    action: "decline",
+    historyAction: "hasAccount",
     status: "declined",
     extra: { declineCount: Number(member.declineCount || 0) + 1 },
   });
@@ -601,6 +673,7 @@ const ACTION_HANDLERS = Object.freeze({
   leave: actionLeave,
   approve: actionApprove,
   decline: actionDecline,
+  hasAccount: actionHasAccount,
   notMyUnit: actionNotMyUnit,
   confirmKnown: actionConfirmKnown,
   markUnknown: actionMarkUnknown,
@@ -638,13 +711,17 @@ const CROSS_STAKE_ACTIONS = Object.freeze(["request", "approve"]);
 // Il contesto per chi approva (diverse letture) si calcola solo se `request`
 // aprirà davvero una richiesta: una chiamata ripetuta da chi è già in coda o
 // già dentro costa poche letture.
+// Restituisce il profilo se la richiesta si aprirà, altrimenti null.
 async function opensRequest(db, stakeId, uid) {
   const [profileSnap, memberSnap] = await db.getAll(db.doc(`users/${uid}`), memberRef(db, stakeId, uid));
   const profile = profileSnap.exists ? profileSnap.data() : null;
-  if (!profile || profile.stakeId !== stakeId || core.needsProfileCompletion(profile)) return false;
-  if (core.staffRoleForStake(profile, stakeId)) return false;
+  if (!profile || profile.stakeId !== stakeId || core.needsProfileCompletion(profile)) return null;
+  if (core.staffRoleForStake(profile, stakeId)) return null;
   // Una richiesta che i tetti respingono non paga le letture del contesto.
-  return !memberSnap.exists || (["withdrawn", "declined"].includes(memberSnap.data().status) && !core.requestBlockOf(memberSnap.data(), Date.now()));
+  const opens =
+    !memberSnap.exists ||
+    (["withdrawn", "declined"].includes(memberSnap.data().status) && !core.requestBlockOf(memberSnap.data(), Date.now()));
+  return opens ? profile : null;
 }
 
 function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
@@ -660,12 +737,16 @@ function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
     if (!stakeSnap.exists) throw new HttpsError("not-found", "Palo non trovato.");
     // Altri pali: servono solo a chi apre una richiesta o approva.
     const stakeIds = CROSS_STAKE_ACTIONS.includes(input.action) ? await listStakeIds(firestore) : [input.stakeId];
-    const hints = input.action === "request" && (await opensRequest(firestore, input.stakeId, callerUid))
-      ? await computeRegistrationHints(firestore, input.stakeId, callerUid)
-      : [];
+    const opening = input.action === "request" ? await opensRequest(firestore, input.stakeId, callerUid) : null;
+    const [hints, note] = opening
+      ? await Promise.all([
+          computeRegistrationHints(firestore, input.stakeId, callerUid),
+          computeStaffNote(firestore, input.stakeId, callerUid, opening),
+        ])
+      : [[], undefined];
     const nowMs = clock();
     const result = await runTransactionWithRetry(firestore, (tx) =>
-      runAction(tx, firestore, { ...input, callerUid, stakeIds, hints, nowMs }),
+      runAction(tx, firestore, { ...input, callerUid, stakeIds, hints, note, nowMs }),
     );
     logger.info("Appartenenza al palo.", {
       action: input.action,
@@ -710,6 +791,7 @@ async function reconcileUserMembership(db, uid, { nowMs = Date.now(), auth = get
   // Contesto della richiesta fuori dalla transazione (solo un aiuto).
   const preProfile = pre.data() || {};
   let hints = [];
+  let note;
   let hintsStake = null;
   if (
     stakeIds.includes(preProfile.stakeId) &&
@@ -717,7 +799,10 @@ async function reconcileUserMembership(db, uid, { nowMs = Date.now(), auth = get
     !core.needsProfileCompletion(preProfile) &&
     !(await memberRef(db, preProfile.stakeId, uid).get()).exists
   ) {
-    hints = await computeRegistrationHints(db, preProfile.stakeId, uid);
+    [hints, note] = await Promise.all([
+      computeRegistrationHints(db, preProfile.stakeId, uid),
+      computeStaffNote(db, preProfile.stakeId, uid, preProfile),
+    ]);
     hintsStake = preProfile.stakeId;
   }
 
@@ -772,6 +857,7 @@ async function reconcileUserMembership(db, uid, { nowMs = Date.now(), auth = get
             }),
             "request",
           );
+          if (hintsStake === stakeId) writeStaffNote(tx, db, stakeId, uid, note);
         }
         return;
       }
@@ -798,7 +884,54 @@ const onUserStakeMembership = onDocumentWritten({ document: "users/{uid}", regio
   }
 });
 
+// ---------------------------------------------------------------------------
+// Promemoria agli admin (fase 3): richieste in coda da più di 48 ore
+// ---------------------------------------------------------------------------
+
+function queueReminderPayload(count) {
+  return JSON.stringify({
+    title: "Richieste di accesso in attesa",
+    body: count === 1 ? "1 richiesta aspetta da più di 2 giorni." : `${count} richieste aspettano da più di 2 giorni.`,
+    tag: "membership-queue",
+    url: "/admin/persone",
+    eventId: null,
+  });
+}
+
+/**
+ * Un giro del promemoria: per ogni palo, le richieste `pending` più vecchie di
+ * 48 ore. Push solo se fra queste c'è un uid non ancora avvisato; gli avvisati
+ * si sostituiscono a ogni giro con l'elenco attuale, così una richiesta si
+ * ricorda una volta sola e una che rientra in coda si ricorda di nuovo.
+ * `sendPush({ stakeId, payload })` è iniettato (test).
+ */
+async function runStakeMembershipQueueReminder({ db, nowMs = Date.now(), sendPush }) {
+  const stakes = [];
+  for (const stakeId of await listStakeIds(db)) {
+    const pending = await db.collection(`stakes/${stakeId}/members`).where("status", "==", "pending").get();
+    const stale = pending.docs
+      .filter((doc) => {
+        const at = core.timestampMs(doc.get("requestedAt"));
+        return at !== null && nowMs - at >= QUEUE_REMINDER_AFTER_MS;
+      })
+      .map((doc) => doc.id)
+      .sort()
+      .slice(0, MAX_REMINDED_UIDS);
+    const stateRef = db.doc(`stakes/${stakeId}/private/membershipQueue`);
+    const state = await stateRef.get();
+    const reminded = new Set(state.exists && Array.isArray(state.get("remindedUids")) ? state.get("remindedUids") : []);
+    const notified = stale.some((uid) => !reminded.has(uid));
+    if (notified) await sendPush({ stakeId, payload: queueReminderPayload(stale.length) });
+    const unchanged = reminded.size === stale.length && stale.every((uid) => reminded.has(uid));
+    if (!unchanged) await stateRef.set({ remindedUids: stale, updatedAt: FieldValue.serverTimestamp() });
+    stakes.push({ stakeId, stale: stale.length, notified });
+  }
+  return { stakes };
+}
+
 module.exports = {
+  runStakeMembershipQueueReminder,
+  queueReminderPayload,
   stakeMembership,
   onUserStakeMembership,
   createStakeMembershipHandler,
