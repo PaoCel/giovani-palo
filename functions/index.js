@@ -299,13 +299,16 @@ exports.propagateUnitNameChange = onDocumentUpdated(
   },
 );
 
+// Restituisce quanti dispositivi hanno ricevuto il push (0 senza dispositivi o
+// con la configurazione incompleta): il promemoria della coda lo usa per non
+// segnare come avvisato chi non ha ricevuto niente.
 async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logContext }) {
   if (devicesSnapshot.empty) {
     logger.info("No admin push devices registered for stake.", {
       stakeId,
       ...logContext,
     });
-    return;
+    return 0;
   }
 
   let webPushIdentity;
@@ -318,7 +321,7 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
       ...logContext,
       detail: error.message,
     });
-    return;
+    return 0;
   }
 
   webpush.setVapidDetails(
@@ -329,6 +332,7 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
 
   const deliveryTimestamp = nowIso();
   const staleDeviceIds = [];
+  let delivered = 0;
 
   await Promise.allSettled(
     devicesSnapshot.docs.map(async (deviceDocument) => {
@@ -347,6 +351,7 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
           TTL: 60 * 60,
           urgency: "high",
         });
+        delivered += 1;
 
         await deviceDocument.ref.set(
           {
@@ -408,6 +413,8 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
 
     await batch.commit();
   }
+
+  return delivered;
 }
 
 exports.sendAdminPushForNewRegistration = onDocumentCreated(
@@ -495,7 +502,13 @@ exports.stakeMembershipQueueReminder = onSchedule(
       db,
       sendPush: async ({ stakeId, payload }) => {
         const devicesSnapshot = await db.collection(`stakes/${stakeId}/adminPushDevices`).get();
-        await sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logContext: { kind: "membership-queue" } });
+        const delivered = await sendPushToAdminDevices({
+          stakeId,
+          devicesSnapshot,
+          payload,
+          logContext: { kind: "membership-queue" },
+        });
+        return delivered > 0;
       },
     });
     logger.info("Promemoria della coda di accesso.", result);

@@ -28,7 +28,6 @@ const MAX_STAFF_LIST = 100;
 const MAX_NOTE_CANDIDATES = 30;
 // Promemoria agli admin: richieste in coda da più di 48 ore.
 const QUEUE_REMINDER_AFTER_MS = 48 * 60 * 60 * 1000;
-const MAX_REMINDED_UIDS = 500;
 
 function cleanId(value, field) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -129,10 +128,9 @@ async function computeStaffNote(db, stakeId, uid, profile) {
 }
 
 // Dentro la transazione che apre la richiesta. C'è un solo tipo di nota, quindi
-// senza corrispondenze il documento si cancella: una richiesta riaperta non si
-// porta dietro una nota scaduta.
+// senza corrispondenze, o se il confronto non è riuscito, il documento si
+// cancella: una richiesta riaperta non si porta mai dietro una nota vecchia.
 function writeStaffNote(tx, db, stakeId, uid, note) {
-  if (note === undefined) return;
   const ref = staffNoteRef(db, stakeId, uid);
   if (note) tx.set(ref, { ...note, at: FieldValue.serverTimestamp() });
   else tx.delete(ref);
@@ -902,7 +900,9 @@ function queueReminderPayload(count) {
  * Un giro del promemoria: per ogni palo, le richieste `pending` più vecchie di
  * 48 ore. Push solo se fra queste c'è un uid non ancora avvisato; gli avvisati
  * si sostituiscono a ogni giro con l'elenco attuale, così una richiesta si
- * ricorda una volta sola e una che rientra in coda si ricorda di nuovo.
+ * ricorda una volta sola e una che rientra in coda si ricorda di nuovo. Se il
+ * push non arriva a nessun dispositivo (`sendPush` restituisce false) gli uid
+ * nuovi non contano come avvisati: si riprova al giro dopo.
  * `sendPush({ stakeId, payload })` è iniettato (test).
  */
 async function runStakeMembershipQueueReminder({ db, nowMs = Date.now(), sendPush }) {
@@ -915,16 +915,18 @@ async function runStakeMembershipQueueReminder({ db, nowMs = Date.now(), sendPus
         return at !== null && nowMs - at >= QUEUE_REMINDER_AFTER_MS;
       })
       .map((doc) => doc.id)
-      .sort()
-      .slice(0, MAX_REMINDED_UIDS);
+      .sort();
     const stateRef = db.doc(`stakes/${stakeId}/private/membershipQueue`);
     const state = await stateRef.get();
     const reminded = new Set(state.exists && Array.isArray(state.get("remindedUids")) ? state.get("remindedUids") : []);
     const notified = stale.some((uid) => !reminded.has(uid));
-    if (notified) await sendPush({ stakeId, payload: queueReminderPayload(stale.length) });
-    const unchanged = reminded.size === stale.length && stale.every((uid) => reminded.has(uid));
-    if (!unchanged) await stateRef.set({ remindedUids: stale, updatedAt: FieldValue.serverTimestamp() });
-    stakes.push({ stakeId, stale: stale.length, notified });
+    const delivered = notified ? (await sendPush({ stakeId, payload: queueReminderPayload(stale.length) })) !== false : false;
+    // Consegnato: avvisati sono tutti quelli in coda ora. Non consegnato: restano
+    // avvisati solo quelli di prima ancora in coda.
+    const next = delivered ? stale : stale.filter((uid) => reminded.has(uid));
+    const unchanged = reminded.size === next.length && next.every((uid) => reminded.has(uid));
+    if (!unchanged) await stateRef.set({ remindedUids: next, updatedAt: FieldValue.serverTimestamp() });
+    stakes.push({ stakeId, stale: stale.length, notified: delivered });
   }
   return { stakes };
 }
