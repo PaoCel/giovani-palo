@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/kind-rosalind-0307da
 session: c7c7a22a-2ea7-445c-83f3-8f6620283c8a
-stopped_at: "Fase 2 chiusa e main unito nel branch (092e7e6): budget delle iscrizioni rimisurato, batteria completa verde; niente deployato"
-next: "Fase 3: client (banner in attesa, coda Richieste in admin e /unit, membro da members in useGalleryAccess, testi) e nota dello staff"
-verified: "2026-10-20 sul mini dopo il merge di main (092e7e6, codice a 7faa832): 35 file emulatore a 0 fail (adminRegistrationCallables 39/39 col comando del doc, con Storage), contratto 1724/0, 107 test della fase, budget iscrizioni 48/48 con massimo reale 914→924 (margine 76) e sonda 954 invariata, rules py 5/5, puri functions 409/409, client 1289/1290 (accenti senza git, locale 55/55), build ok; all'indietro 5/13 rossi con galleria e record di main; review Fable e Codex recepite; niente in produzione"
+stopped_at: "Fase 3 (client e aggiunte server) chiusa sul branch a 99aa915: test e batteria verdi, review Codex recepita; niente deployato"
+next: "Risposta di Paolo sulla scelta 3 (Non lo conosco del dirigente su un migrato), poi rilascio nell'ordine della spec con conferma fresca per ogni passo"
+verified: "2026-10-21 sul mini: batteria su 6935f79 (server e rules finali) 37 file di emulatore a 0 fail, 3973 pass (contratto 1724/0, fase 3 server 28/0, query esatte del client 93/0), puri functions 409/409, client 1383/1384 (accenti senza git; in locale 55/55), build ok, rules py ok; su 99aa915 (solo client) tsc, client e build verdi; collaudo Playwright contro emulatori 91/91 a 320/390/430 (stati utente, Persone, Annulla, revoca con foto aperta); review Codex BLOCKED (7 punti) recepita, due verifiche successive, ultima PASS WITH CONCERNS (solo statica); niente in produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -63,13 +63,38 @@ conosco"/"Non lo conosco", rimuovi, blocca, sblocca, riattiva, Annulla con
 branch (client senza codici galleria, script `cleanupGalleryCodes.js`).
 Niente deployato.
 
+Fase 3 (fatta il 2026-10-21, sessione nata dalla "top" nel worktree
+`kind-rosalind-0307da`): `main` unito (`2a1fa42`, service worker v30) e
+batteria verde; stati e ritorni del client e aggiunte server scritti nella spec
+prima del codice («Aggiunte server della fase 3», «Client della fase 3»);
+mockup mostrato a Paolo (cartella note del gruppo, `mockups/01-fase3.png`).
+Server: nota "stesso nome e data" in `members/{uid}/staff/note`, azione
+`hasAccount` (per il richiedente resta `decline`), promemoria
+`stakeMembershipQueueReminder` (ogni giorno alle 18, solo se consegnato).
+Client: "membro" da `members/{uid}` con un ascolto condiviso
+(`useStakeMembership`), banner in `/me` e `/family`, superfici dei membri
+chiuse senza letture negate (galleria, card in home, record, sondaggi,
+commenti, like, campeggio, certificato), uscita dal palo nel profilo, pagina
+Persone (`/admin/persone`, `/unit/persone`: Richieste, Da confermare,
+Rifiutate) con toast "Annulla", numero nel menu e card in dashboard. Test di
+Fable dalla spec; review Codex BLOCKED (7 punti), recepita; verifica Codex
+sulle correzioni. Niente deployato.
+
+Scelte di prodotto proposte a Paolo il 2026-10-21 (costruite con la proposta,
+reversibili): 1) niente "Hai un codice?" e "chiedi un codice" finché i codici
+non esistono (S3), al loro posto "parlane con un dirigente della tua unità";
+2) contatto = `supportContact` del palo (risolta: il campo esiste); 3) **da
+decidere**: "Non lo conosco" del dirigente su un migrato da confermare oggi lo
+rimette in coda nella stessa unità (spec); proposta: passa agli admin come "Non
+è della mia unità"; 4) illustrazione della porta di "Iscrizione inviata" nel
+banner; 5) voce "Persone" nel menu di admin e dirigenti.
+
 Prossime fasi:
 
-- client: banner in attesa, coda nell'admin e in `/unit`, "membro" dal
-  documento members e non da `users.stakeId` (`useGalleryAccess`), testi al
-  posto dei messaggi inglesi della tabella "PWA vecchia", push dopo 48 ore;
-- nota dello staff "stesso nome e data di un membro attivo" e risposta "Ha già
-  un account" (spec, «Utente che sbaglia»): non ancora nella callable;
+- risposta di Paolo sulla scelta 3 (se "agli admin": `markUnknown` del
+  dirigente svuota `claimedUnitId`, test e spec);
+- "Ho sbagliato palo" e "Hai un codice?" con S3; uscita dello staff, dopo tre
+  rifiuti e oltre i 30 giorni con S4 (Persone);
 - cleanup di `members` (con `history` e `staff`) alla cancellazione account
   (nel repo non c'è ancora un flusso di cancellazione);
 - rules Storage dopo la fase B di `gugd-storage-eu` (celle già scritte, si
@@ -77,7 +102,8 @@ Prossime fasi:
 - rilascio nell'ordine della spec, ogni passo con conferma di Paolo: dry-run
   della migrazione con `--report` contro 31/108/41, `--apply`, rules Firestore
   e trigger, callable (`activityGallery`, `recordNightParticipant`,
-  `stakeMembership`), client. Per S2-1 nello stesso rilascio: dry-run di
+  `stakeMembership`) e `stakeMembershipQueueReminder` (crea un job di Cloud
+  Scheduler: API attiva sul progetto), client con il service worker a v31. Per S2-1 nello stesso rilascio: dry-run di
   `cleanupGalleryCodes.js` (atteso 1 galleria), `--apply --expect-galleries
   --expect-deletes`, poi `firebase functions:delete unlockGalleryWithCode
   setGallerySecretCode` per nome. Prima del deploy, in sola lettura su prod, la
