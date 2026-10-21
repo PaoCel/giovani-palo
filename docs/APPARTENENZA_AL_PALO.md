@@ -614,6 +614,104 @@ salvare il profilo, poi ci pensa il trigger); `block` anche da `pending`,
 riallinea unità e nome di una richiesta già aperta (il dirigente sbagliato usa
 "Non è della mia unità").
 
+### Aggiunte server della fase 3 (2026-10-21)
+
+Scritte prima del codice, come l'interfaccia della fase 2.
+
+**Nota dello staff "stesso nome e data"** (`stakes/{s}/members/{uid}/staff/note`,
+solo server; la leggono l'admin e il dirigente dell'unità dichiarata, mai il
+richiedente). Si calcola quando si apre una richiesta per iniziativa
+dell'utente: `request` che porta a `pending` e regola 3 del trigger. Mai sulle
+azioni dello staff (`markUnknown`, `unblock`), che non creano doppioni.
+
+- confronto: membri `active` dello stesso palo con lo stesso `birthYear`
+  (query di sole uguaglianze, nessun indice composto), poi i loro profili:
+  c'è nota se uno ha lo stesso nome normalizzato (minuscole, senza accenti e
+  spazi doppi, `fullName` o nome + cognome) **e** la stessa `birthDate`. Chi non
+  ha data di nascita (genitori) non riceve nota. Massimo 30 profili letti: oltre,
+  si confrontano i primi 30;
+- documento: `{ kind: "same_name_birth", matches: <n>, at }`; il testo lo
+  scrive il client ("Stesso nome e data di nascita di un membro attivo.").
+  Senza corrispondenze una nota vecchia dello stesso tipo si cancella, così una
+  richiesta riaperta non si porta dietro una nota scaduta;
+- calcolo fuori dalla transazione (solo un aiuto, come `registrationHints`),
+  scrittura dentro la transazione che apre la richiesta: se la lettura fallisce
+  la richiesta parte senza nota.
+
+**`hasAccount`** ("Ha già un account"): D della unità dichiarata, A; `pending` →
+`declined` con `declineCount + 1`, uscita dello staff come `decline`. Per
+l'utente è identico a un rifiuto (stesso testo unico e stesso link "Non ricordi
+con quale account sei entrato?", presente in ogni rifiuto) anche nei dati che
+può leggere: il richiedente legge il proprio documento members, `previous`
+compreso, quindi lì l'azione resta `decline`. Il motivo vive solo nella riga di
+storia (`action: "hasAccount"`, che nessuna rule apre). "Annulla" come un
+rifiuto.
+
+**Promemoria dopo 48 ore** (`stakeMembershipQueueReminder`, `onSchedule` ogni
+giorno alle 18:00 Europe/Rome, `europe-west1`). Per ogni palo: `members` con
+`status == 'pending'` e `requestedAt` più vecchio di 48 ore. Se fra queste c'è
+almeno un uid non ancora avvisato, un push agli admin del palo (stessi
+dispositivi e stesso invio di `sendAdminPushForNewRegistration`): titolo
+"Richieste di accesso in attesa", corpo "{n} richieste aspettano da più di 2
+giorni." (una: "1 richiesta aspetta da più di 2 giorni."), link alla coda
+dell'admin (`/admin/persone`). Gli uid avvisati stanno in `stakes/{s}/private/membershipQueue`
+(`remindedUids`, solo server, nessuna rule lo apre), sostituiti a ogni giro
+con l'elenco attuale: una richiesta si ricorda una volta sola, e una che esce
+dalla coda e ci rientra si ricorda di nuovo.
+
+### Client della fase 3: superfici, stati e ritorni (2026-10-21)
+
+Il client decide "membro" da `stakes/{s}/members/{uid}` (ascolto in tempo
+reale, uno per palo e utente condiviso da tutta l'app), mai da
+`users.stakeId`. Staff = ruolo del profilo nel palo (stesso ramo delle rules).
+Finché il documento non è arrivato le superfici dei membri non mostrano né il
+contenuto né il lucchetto (niente lampi di "si sbloccano").
+
+**Utente**, banner in cima a `/me` e alla home famiglia (`/family`), sotto il
+saluto. Palo = quello scelto nel profilo. Nessun banner per staff, membri
+attivi (anche da confermare) e profili incompleti (c'è già "Completa il
+profilo").
+
+| Stato | Banner | Azioni → dove si va | Come si torna indietro |
+| --- | --- | --- | --- |
+| nessun documento, profilo completo | come `pending` | il client chiama `request` una volta (il trigger di solito l'ha già fatto) | |
+| `pending` | "Stiamo verificando che tu faccia parte del palo" + chi verifica (dirigenti dell'unità dichiarata o admin) | "Chi verifica?" → foglio informativo; "Ritira la richiesta" → foglio di conferma → `withdrawn`; "Ho sbagliato palo" (solo con più pali attivi) → profilo, scelta del palo | da `withdrawn`, "Chiedi di entrare" (nessun tetto) |
+| `declined` | testo unico di rifiuto, mai il motivo; sotto, il link "Non ricordi con quale account sei entrato?" | "Chiedi di nuovo" dal giorno di `retryAt` (prima: "Potrai chiedere di nuovo dal {data}."); dopo 3 rifiuti niente bottone | lo staff può annullare il rifiuto |
+| `withdrawn` | "Non fai parte di nessun palo" | "Chiedi di entrare" → `pending` | "Ritira la richiesta" |
+| `removed`, `blocked` | "Non fai più parte di questo palo" | nessuna (decide lo staff) | lo staff riattiva o sblocca |
+
+Superfici dei membri per chi non è membro (al posto dei testi falsi della PWA
+vecchia): card e pagina "Foto e video", "In evidenza" della home, Notte dei
+Record, sondaggi, commenti, like del feed. `pending` o nessun documento: "Si
+sbloccano dopo la verifica."; fuori (`declined`, `withdrawn`, `removed`,
+`blocked`): "Foto e video sono visibili solo ai membri del palo." (stesso
+schema per record e sondaggi). Le letture non partono: niente errori inglesi.
+
+**Uscire dal palo** (profilo, blocco "Palo", solo `active`): foglio di
+conferma con la scelta sicura per prima ("Resta nel palo"); per lo staff dice
+che perde anche il ruolo. Dopo: banner `withdrawn`, "Chiedi di entrare" passa
+dalla coda (scelta deliberata della spec). Ultimo admin: il foglio mostra
+l'errore `last_admin` in italiano.
+
+**Staff**, pagina "Persone" (`/admin/persone` e `/unit/persone`, voce di menu
+con il numero delle richieste; S4 ci aggiunge Membri, Staff e Rimossi). Tre
+schede, aggiornate in tempo reale:
+
+| Scheda | Cosa c'è (admin: tutto il palo; dirigente: `claimedUnitId` = sua unità) | Azioni | Dopo l'azione, e come si annulla |
+| --- | --- | --- | --- |
+| Richieste | `pending`, dal più vecchio: nome, unità dichiarata, anno, da quanto aspetta, attività a cui è iscritto (`registrationHints`), "Account esistente" (migrazione), "Passata dal dirigente" (`previous.action == notMyUnit`), nota "Stesso nome e data di nascita di un membro attivo." | "Approva"; "Non lo conosco" (rifiuto); menu: "Non è della mia unità" (solo dirigente), "Ha già un account" | toast 5 s con "Annulla" (`undo` con la `version` della risposta); `version_conflict` → "Nel frattempo qualcuno ha cambiato questa persona." |
+| Da confermare | `active` con `reviewNeeded` (migrati); per l'admin in cima chi aspetta da più di 30 giorni | "Lo conosco"; "Non lo conosco" (torna in coda, accesso sospeso) | toast con "Annulla" |
+| Rifiutate | `declined` degli ultimi 30 giorni | "Annulla rifiuto" (solo admin, o il dirigente che ha rifiutato) → torna `pending` | rifiutare di nuovo dalla coda |
+
+Approvare, rifiutare, confermare non chiedono conferma: il toast "Annulla" e la
+scheda "Rifiutate" sono la strada indietro (un foglio coprirebbe il toast).
+Rimuovere, bloccare, sbloccare e riattivare restano a S4 (Persone).
+
+Query (sole uguaglianze, nessun indice composto; il dirigente filtra sempre per
+`claimedUnitId`): `where('status','==','pending')`,
+`where('status','==','declined')`, `where('reviewNeeded','==',true)`; la nota
+dello staff con un `get` per persona in coda.
+
 ## Parte C. Primo passo: accesso e registrazione (esce con S3)
 
 Una sola schermata d'ingresso, raggiunta da "Accedi", da "Iscriviti" su
