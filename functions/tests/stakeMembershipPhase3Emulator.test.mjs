@@ -40,8 +40,15 @@
 //  - il promemoria conta come in ritardo ogni `pending` con `requestedAt` più
 //    vecchio di 48 ore (47 ore no, 49 sì; il confine esatto non si prova);
 //    `sendPush` finto: una chiamata per palo e per giro, `payload` è la stringa
-//    JSON con `title`, `body`, `tag`, `url`; il valore di ritorno
-//    `{ stakes: [{ stakeId, stale, notified }] }` si legge solo se c'è.
+//    JSON con `title`, `body`, `tag`, `url`; restituisce `false` quando il push
+//    non arriva a nessun dispositivo (allora gli uid nuovi non contano come
+//    avvisati e si riprova al giro dopo); il valore di ritorno
+//    `{ stakes: [{ stakeId, stale, notified }] }` si legge solo se c'è;
+//  - «se la lettura fallisce la richiesta parte senza nota, e una nota di una
+//    richiesta precedente si cancella comunque» non si prova da fuori: il
+//    confronto legge solo dall'emulatore (query sui members e profili), che
+//    non fallisce mai in modo selettivo, e i dati sono tutti ripuliti prima
+//    del confronto; servirebbe un lettore iniettabile nel codice server.
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -774,17 +781,23 @@ describe("promemoria dopo 48 ore (runStakeMembershipQueueReminder)", () => {
     await adminDb.doc(memberPath(stake, uid)).set({ ...base, requestedAt: Timestamp.fromMillis(nowMs - hoursAgo * HOUR), ...extra });
   }
 
-  /** Invio del push finto: registra le chiamate, con il payload decodificato. */
-  function fakePush() {
+  /**
+   * Invio del push finto: registra le chiamate. `deliver` dice se il push è
+   * arrivato a qualche dispositivo (`false` = nessuno registrato o invii falliti).
+   */
+  function fakePush({ deliver = true } = {}) {
     const calls = [];
-    return {
+    const push = {
       calls,
+      deliver,
       sendPush: async ({ stakeId, payload }) => {
         calls.push({ stakeId, payload });
+        return push.deliver;
       },
       forStake: (stake) => calls.filter((call) => call.stakeId === stake),
       reset: () => calls.splice(0, calls.length),
     };
+    return push;
   }
 
   function payloadOf(call, label = "") {
@@ -793,8 +806,7 @@ describe("promemoria dopo 48 ore (runStakeMembershipQueueReminder)", () => {
     assert.equal(payload.title, REMINDER_TITLE, `${label}: title`);
     assert.equal(typeof payload.tag, "string", `${label}: tag`);
     assert.ok(payload.tag.length > 0, `${label}: tag vuoto`);
-    assert.equal(typeof payload.url, "string", `${label}: url`);
-    assert.ok(payload.url.startsWith("/admin"), `${label}: url alla coda dell'admin (${payload.url})`);
+    assert.equal(payload.url, "/admin/persone", `${label}: url alla coda dell'admin`);
     return payload;
   }
 
@@ -913,6 +925,100 @@ describe("promemoria dopo 48 ore (runStakeMembershipQueueReminder)", () => {
     await runReminder({ db: adminDb, nowMs: nowMs + 4 * DAY, sendPush: push.sendPush });
     expectOnePush(push, stake, 2, "rientrata e di nuovo in ritardo");
     await expectRemindedUids(stake, [a, b], "ultimo giro");
+  });
+
+  test("push non consegnato (sendPush false): nessun uid conta come avvisato e notified è false; si riprova al giro dopo, e alla consegna riuscita gli uid entrano in remindedUids", async () => {
+    const nowMs = Date.now();
+    const stake = await newStake("promemoria-fallito");
+    const [a, b] = [staleUid("fa"), staleUid("fb")];
+    await Promise.all([seedQueued(stake, a, { nowMs, hoursAgo: 49 }), seedQueued(stake, b, { nowMs, hoursAgo: 60 })]);
+    const push = fakePush({ deliver: false });
+
+    const first = await runReminder({ db: adminDb, nowMs, sendPush: push.sendPush });
+    expectOnePush(push, stake, 2, "primo tentativo, fallito");
+    await expectRemindedUids(stake, [], "nessun avvisato dopo un invio fallito");
+    const entry = stakeResult(first, stake);
+    if (entry) {
+      assert.equal(entry.stale, 2);
+      assert.equal(entry.notified, false, "notified solo se consegnato");
+    }
+    push.reset();
+
+    await runReminder({ db: adminDb, nowMs: nowMs + DAY, sendPush: push.sendPush });
+    expectOnePush(push, stake, 2, "secondo tentativo, ancora fallito");
+    await expectRemindedUids(stake, [], "ancora nessun avvisato");
+    push.reset();
+
+    push.deliver = true;
+    const third = await runReminder({ db: adminDb, nowMs: nowMs + 2 * DAY, sendPush: push.sendPush });
+    expectOnePush(push, stake, 2, "consegna riuscita");
+    await expectRemindedUids(stake, [a, b], "avvisati dopo la consegna");
+    const delivered = stakeResult(third, stake);
+    if (delivered) assert.equal(delivered.notified, true);
+    push.reset();
+
+    await runReminder({ db: adminDb, nowMs: nowMs + 3 * DAY, sendPush: push.sendPush });
+    assert.equal(push.forStake(stake).length, 0, "una volta consegnato non si ripete");
+  });
+
+  test("consegna fallita con uid già avvisati: restano avvisati solo quelli di prima ancora in coda, i nuovi no; alla consegna riuscita entrano tutti", async () => {
+    const nowMs = Date.now();
+    const stake = await newStake("promemoria-parziale");
+    const [a, b, c] = [staleUid("pa"), staleUid("pb"), staleUid("pc")];
+    await seedQueued(stake, a, { nowMs, hoursAgo: 49 });
+    const push = fakePush();
+    await runReminder({ db: adminDb, nowMs, sendPush: push.sendPush });
+    expectOnePush(push, stake, 1, "primo giro");
+    await expectRemindedUids(stake, [a], "primo giro");
+    push.reset();
+
+    // Arriva `b`, la consegna fallisce: `a` resta avvisata, `b` no.
+    await seedQueued(stake, b, { nowMs: nowMs + DAY, hoursAgo: 49 });
+    push.deliver = false;
+    await runReminder({ db: adminDb, nowMs: nowMs + DAY, sendPush: push.sendPush });
+    expectOnePush(push, stake, 2, "uid nuovo, consegna fallita");
+    await expectRemindedUids(stake, [a], "il nuovo non conta come avvisato");
+    push.reset();
+
+    // `a` esce dalla coda (approvata, Admin SDK sui members) e arriva `c`; la consegna fallisce ancora:
+    // nessuno degli avvisati di prima è più in coda, i nuovi non sono mai stati consegnati.
+    await adminDb.doc(memberPath(stake, a)).update({ status: "active", decidedBy: "staff-di-prova", decidedAt: Timestamp.fromMillis(nowMs + DAY) });
+    await seedQueued(stake, c, { nowMs: nowMs + 2 * DAY, hoursAgo: 49 });
+    await runReminder({ db: adminDb, nowMs: nowMs + 2 * DAY, sendPush: push.sendPush });
+    expectOnePush(push, stake, 2, "consegna fallita con un'uscita");
+    await expectRemindedUids(stake, [], "`a` è uscita, `b` e `c` non sono mai state consegnate");
+    push.reset();
+
+    push.deliver = true;
+    await runReminder({ db: adminDb, nowMs: nowMs + 3 * DAY, sendPush: push.sendPush });
+    expectOnePush(push, stake, 2, "consegna riuscita");
+    await expectRemindedUids(stake, [b, c], "tutti gli uid in ritardo sono avvisati");
+    push.reset();
+
+    await runReminder({ db: adminDb, nowMs: nowMs + 4 * DAY, sendPush: push.sendPush });
+    assert.equal(push.forStake(stake).length, 0, "nessun uid nuovo: nessun push");
+  });
+
+  test("senza tetto: con 501 richieste in ritardo il push le conta tutte e remindedUids le tiene tutte", async () => {
+    const nowMs = Date.now();
+    const stake = await newStake("promemoria-cinquecento");
+    const uids = Array.from({ length: 501 }, (_, index) => staleUid(`m${String(index).padStart(3, "0")}`));
+    for (let start = 0; start < uids.length; start += 400) {
+      const batch = adminDb.batch();
+      for (const uid of uids.slice(start, start + 400)) {
+        batch.set(adminDb.doc(memberPath(stake, uid)), { ...pendingData(UNIT1), requestedAt: Timestamp.fromMillis(nowMs - 49 * HOUR) });
+      }
+      await batch.commit();
+    }
+    const push = fakePush();
+    const result = await runReminder({ db: adminDb, nowMs, sendPush: push.sendPush });
+    expectOnePush(push, stake, 501, "501 in ritardo");
+    await expectRemindedUids(stake, uids, "tutti gli uid");
+    const entry = stakeResult(result, stake);
+    if (entry) assert.equal(entry.stale, 501);
+    push.reset();
+    await runReminder({ db: adminDb, nowMs: nowMs + DAY, sendPush: push.sendPush });
+    assert.equal(push.forStake(stake).length, 0, "tutti già avvisati");
   });
 
   test("palo con soli pending giovani: nessun push e nessun uid ricordato; un giro senza nulla in ritardo non inventa pali", async () => {
