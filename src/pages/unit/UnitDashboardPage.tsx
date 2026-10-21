@@ -5,6 +5,7 @@ import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighli
 import { FamilyHomeSection } from "@/components/family/FamilyHomeSection";
 import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
+import { MembershipQueueCards } from "@/components/membership/MembershipQueueCards";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { unitLeaderService, type UnitActivitySummary } from "@/services/firestore/unitLeaderService";
@@ -93,6 +94,10 @@ export function UnitDashboardPage() {
           </div>
         </div>
       </section>
+
+      {unitId ? (
+        <MembershipQueueCards peoplePath="/unit/persone" stakeId={stakeId} unitId={unitId} />
+      ) : null}
 
       {!unitId ? (
         <div className="notice notice--warning">

@@ -10,6 +10,7 @@ import {
   type ConsentChoicesValue,
 } from "@/components/ConsentChoices";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
+import { MembershipBanner } from "@/components/membership/MembershipBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FAMIGLIA } from "@/copy/famiglia";
@@ -574,6 +575,8 @@ export function FamilyDashboardPage() {
 
   return (
     <div className="page page--user-dashboard page--family">
+      <MembershipBanner />
+
       <ActivityMediaHighlight />
 
       <section className="user-dashboard-section">

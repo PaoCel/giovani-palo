@@ -18,6 +18,8 @@ export interface LayoutLink {
   label: string;
   end?: boolean;
   icon?: AppIconName;
+  /** Numero da mostrare accanto alla voce (es. richieste di accesso in attesa). */
+  badge?: number;
 }
 
 interface ShellLayoutProps {
@@ -345,6 +347,7 @@ export function ShellLayout({
                   }
                 >
                   {link.label}
+                  {link.badge ? <span className="nav-badge">{link.badge}</span> : null}
                 </NavLink>
               ))}
             </nav>
@@ -534,6 +537,11 @@ export function ShellLayout({
             >
               {link.icon ? <AppIcon name={link.icon} /> : null}
               {link.icon ? <span className="sr-only">{link.label}</span> : link.label}
+              {link.badge ? (
+                <span aria-hidden="true" className="nav-badge nav-badge--corner">
+                  {link.badge}
+                </span>
+              ) : null}
             </NavLink>
           ))}
           {actionLink ? (

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
+import { PALO } from "@/copy/palo";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { eventsService } from "@/services/firestore/eventsService";
 import {
   generateSurveyResponseId,
@@ -44,6 +47,16 @@ function buildEmptyAnswers(
     }
   }
   return next;
+}
+
+const LOAD_ERROR = "Non riesco a caricare il sondaggio. Controlla la connessione e riprova.";
+const SEND_ERROR = "Non sono riuscito a inviare le risposte. Riprova.";
+
+// Gli errori dell'SDK sono in inglese: un diniego (membro appena uscito, o
+// ospite) ha la frase del palo, il resto quella di rete o di invio.
+function surveyErrorMessage(error: unknown, fallback: string) {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === "permission-denied" ? PALO.soloMembriSondaggi : fallback;
 }
 
 function idKey(stakeId: string, eventId: string) {
@@ -111,6 +124,11 @@ export function SurveyAnswerView({
   backLabel = "Torna alla dashboard",
 }: SurveyAnswerViewProps) {
   const { session } = useAuth();
+  const { access } = useStakeMembership(stakeId);
+  // Chi è in coda o fuori dal palo non legge le domande: la lettura non parte.
+  // Mentre il documento members non è arrivato non parte nemmeno per gli altri.
+  const locked = access === "waiting" || access === "out";
+  const canLoad = access === "member" || access === "guest";
   const [event, setEvent] = useState<Event | null>(null);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, SurveyAnswerEntry>>({});
@@ -125,7 +143,7 @@ export function SurveyAnswerView({
     session?.profile.genderRoleCategory ?? "";
 
   useEffect(() => {
-    if (!eventId || !stakeId) return;
+    if (!eventId || !stakeId || !canLoad) return undefined;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -169,7 +187,7 @@ export function SurveyAnswerView({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Errore caricamento sondaggio.");
+          setError(surveyErrorMessage(err, LOAD_ERROR));
         }
       })
       .finally(() => {
@@ -178,7 +196,7 @@ export function SurveyAnswerView({
     return () => {
       cancelled = true;
     };
-  }, [eventId, stakeId]);
+  }, [eventId, stakeId, canLoad]);
 
   const hasContent = useMemo(() => {
     return Object.values(answers).some((entry) => {
@@ -255,7 +273,7 @@ export function SurveyAnswerView({
       setSubmitted(true);
       setSavedAt(new Date().toISOString());
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Errore invio.");
+      setError(surveyErrorMessage(err, SEND_ERROR));
     } finally {
       setSubmitting(false);
     }
@@ -288,10 +306,19 @@ export function SurveyAnswerView({
         />
       ) : null}
 
-      {loading ? <p className="subtle-text">Caricamento...</p> : null}
-      {error ? <p className="field-error">{error}</p> : null}
+      {locked ? (
+        <SectionCard title="Sondaggio non disponibile">
+          <MemberLockedNote access={access} kind="sondaggi" />
+          <Link className="button button--ghost" to={backHref}>
+            {backLabel}
+          </Link>
+        </SectionCard>
+      ) : null}
 
-      {!loading && questions.length === 0 ? (
+      {!locked && loading ? <p className="subtle-text">Caricamento...</p> : null}
+      {!locked && error ? <p className="field-error">{error}</p> : null}
+
+      {!locked && !loading && questions.length === 0 ? (
         <SectionCard title="Sondaggio non disponibile">
           <p>Non ci sono ancora domande per questa attività.</p>
           <Link className="button button--ghost" to={backHref}>
@@ -300,7 +327,7 @@ export function SurveyAnswerView({
         </SectionCard>
       ) : null}
 
-      {!loading && submitted ? (
+      {!locked && !loading && submitted ? (
         <SectionCard title="Risposte inviate, grazie!">
           <p>Le tue risposte sono state registrate. Grazie per il feedback.</p>
           <button type="button" className="button button--ghost" onClick={resetLocalDraft}>
@@ -309,7 +336,7 @@ export function SurveyAnswerView({
         </SectionCard>
       ) : null}
 
-      {!loading && !submitted && questions.length > 0 ? (
+      {!locked && !loading && !submitted && questions.length > 0 ? (
         <SectionCard
           title="Domande"
           description="Le risposte si salvano in automatico mentre compili. Il sondaggio è anonimo."

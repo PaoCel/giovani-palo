@@ -1,29 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery } from "@/types";
 import { computeActivityUploadWindow, isGalleryUploadOpen } from "@/utils/galleryWindow";
+import type { MemberAccess } from "@/utils/stakeMembership";
 
 export interface ActivityGalleryAccess {
-  /** Utente con account nel palo: può vedere e (a finestra aperta) caricare. */
+  /** Membro attivo del palo (o staff): vede e, a finestra aperta, carica. */
   isMember: boolean;
   /** Admin o dirigente di unità del palo: toglie e modera. */
   isStaff: boolean;
   uid: string;
+  /** Perché non è membro: `waiting` e `out` hanno il loro testo, `loading` nessuno. */
+  access: MemberAccess;
 }
 
+// "Membro" viene da `stakes/{s}/members/{uid}` (docs/APPARTENENZA_AL_PALO.md,
+// «Client della fase 3»), mai da `users.stakeId`: stessa regola delle rules.
 export function useGalleryAccess(stakeId: string): ActivityGalleryAccess {
-  const { session } = useAuth();
-  const uid = session?.firebaseUser.uid ?? "";
-  if (!session?.isAuthenticated || session.isAnonymous || !stakeId) {
-    return { isMember: false, isStaff: false, uid };
-  }
-  const isSuperAdmin = session.profile.role === "super_admin";
-  const sameStake = session.profile.stakeId === stakeId;
-  const isMember = isSuperAdmin || sameStake;
-  const isStaff = isSuperAdmin || (sameStake && (session.isAdmin || session.isUnitLeader));
-  return { isMember, isStaff, uid };
+  const { access, isStaff, uid } = useStakeMembership(stakeId);
+  return { isMember: access === "member", isStaff, uid, access };
 }
 
 interface ActivityGalleryState {

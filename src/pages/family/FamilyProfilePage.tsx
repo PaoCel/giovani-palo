@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
 import { SectionCard } from "@/components/SectionCard";
 import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
@@ -126,6 +127,10 @@ export function FamilyProfilePage() {
             </button>
           </div>
         </form>
+      </SectionCard>
+
+      <SectionCard title="Palo" description={session.profile.stakeName || "Non definito"}>
+        <StakeMembershipStatus stakeName={session.profile.stakeName} />
       </SectionCard>
 
       <SectionCard

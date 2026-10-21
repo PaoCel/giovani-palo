@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import "@/styles/activityGallery.css";
 
 import { AppIcon } from "@/components/AppIcon";
+import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { galleriesService } from "@/services/firestore/galleriesService";
@@ -52,7 +53,7 @@ interface ActivityMediaCardProps {
  */
 export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCardProps) {
   const navigate = useNavigate();
-  const { isMember } = useGalleryAccess(stakeId);
+  const { isMember, access } = useGalleryAccess(stakeId);
   const { pickMedia } = useUploadApi();
   const { gallery, loading, uploadOpen } = useActivityGallery(stakeId, event, isMember);
   const latest = useLatestMedia(stakeId, gallery?.id ?? "", 5);
@@ -65,18 +66,25 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
   const rootClass = `ag-card${className ? ` ${className}` : ""}`;
   const galleryHref = activityMediaPath(event.id);
 
+  // Finché il documento members non arriva né contenuto né lucchetto.
+  if (access === "loading") return null;
+
   if (!isMember) {
     return (
       <section className={rootClass}>
         <div className="ag-card__head">
           <h3>Foto e video</h3>
         </div>
-        <Link
-          className="ag-btn ag-btn--primary"
-          to={`/login?redirect=${encodeURIComponent(galleryHref)}`}
-        >
-          Accedi per vedere foto e video
-        </Link>
+        {access === "guest" ? (
+          <Link
+            className="ag-btn ag-btn--primary"
+            to={`/login?redirect=${encodeURIComponent(galleryHref)}`}
+          >
+            Accedi per vedere foto e video
+          </Link>
+        ) : (
+          <MemberLockedNote access={access} kind="foto" />
+        )}
       </section>
     );
   }

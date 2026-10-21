@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
+import { MembershipQueueCards } from "@/components/membership/MembershipQueueCards";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
@@ -110,6 +111,8 @@ export function AdminDashboardPage() {
           </button>
         </div>
       </header>
+
+      <MembershipQueueCards peoplePath="/admin/persone" stakeId={stakeId} unitId={null} />
 
       {error ? (
         <div className="notice notice--warning">

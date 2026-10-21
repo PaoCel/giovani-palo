@@ -11,6 +11,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { LikeButton } from "@/components/feed/LikeButton";
 import { GalleryConfirmSheet, getDeleteMediaCopy } from "@/components/gallery/GalleryConfirmSheet";
 import { GALLERIA } from "@/copy/galleria";
+import { useGalleryAccess } from "@/hooks/useActivityGallery";
 import { useAuth } from "@/hooks/useAuth";
 import { galleryCommentsService } from "@/services/firestore/galleryCommentsService";
 import type { GalleryComment, GalleryMedia } from "@/types";
@@ -31,6 +32,8 @@ interface MediaLightboxProps {
   /** Like e commenti spenti (contenuti nascosti visti dallo staff). */
   readOnly?: boolean;
 }
+
+const COMMENT_ERROR = "Non sono riuscito a inviare il commento. Riprova.";
 
 const SWIPE_THRESHOLD = 50;
 const SWIPE_VERTICAL_TOLERANCE = 80;
@@ -128,6 +131,9 @@ export function MediaLightbox({
   }, [sessionUid]);
 
   const current = media[index];
+  // Commenti: letti e scritti solo dai membri del palo (e dallo staff). Chi
+  // non lo è non vede la sezione e nessuna lettura parte.
+  const { isMember: canComment } = useGalleryAccess(current?.stakeId ?? media[0]?.stakeId ?? "");
 
   const goNext = useCallback(() => {
     setIndex((value) => {
@@ -162,7 +168,7 @@ export function MediaLightbox({
   }, [goNext, goPrev, onClose]);
 
   useEffect(() => {
-    if (!current || readOnly) return;
+    if (!current || readOnly || !canComment) return;
     if (comments[current.id]) return;
     let active = true;
     setLoadingComments(true);
@@ -182,7 +188,7 @@ export function MediaLightbox({
     return () => {
       active = false;
     };
-  }, [current, comments, readOnly]);
+  }, [current, comments, readOnly, canComment]);
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -226,8 +232,17 @@ export function MediaLightbox({
       }));
       setCommentInput("");
     } catch (caughtError) {
+      // Gli errori dell'SDK hanno un codice e sono in inglese; i controlli del
+      // servizio ("Commento vuoto.") sono già in italiano.
+      const hasCode = typeof (caughtError as { code?: unknown } | null)?.code === "string";
       setCommentError(
-        caughtError instanceof Error ? caughtError.message : "Errore invio commento.",
+        hasCode
+          ? isConnectionError(caughtError)
+            ? GALLERIA.erroreRete
+            : COMMENT_ERROR
+          : caughtError instanceof Error
+            ? caughtError.message
+            : "Errore invio commento.",
       );
     } finally {
       setSubmittingComment(false);
@@ -414,7 +429,7 @@ export function MediaLightbox({
           {renderExtraActions ? renderExtraActions(current) : null}
         </div>
 
-        {readOnly ? null : (
+        {readOnly || !canComment ? null : (
         <section className="media-comments">
           <header className="media-comments__head">
             <h4>Commenti</h4>

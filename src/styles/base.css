@@ -444,7 +444,31 @@ button {
   transform: translateY(calc(100% + 1.25rem));
 }
 
+/* Numero accanto a una voce di menu (richieste di accesso in attesa). */
+.nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e8a857;
+  color: #2a1d0c;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.nav-badge--corner {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  margin-left: 0;
+}
+
 .bottom-nav__item {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;

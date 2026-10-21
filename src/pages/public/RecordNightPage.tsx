@@ -30,6 +30,8 @@ import {
 } from "@/components/recordNight/hooks";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
+import { PALO } from "@/copy/palo";
 import { eventsService } from "@/services/firestore/eventsService";
 import {
   getRecordNightErrorMessage,
@@ -55,6 +57,7 @@ import {
   isRecordVisibleToParticipants,
 } from "@/utils/recordNight";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
+import { lockedMessageOf } from "@/utils/stakeMembership";
 
 interface BaseData {
   // false finché non c'è stata una lettura vera (anche durante l'avvio
@@ -169,7 +172,14 @@ export function RecordNightPage() {
 
   const { stakeId, event } = base.data;
   const enabled = event?.recordsEnabled === true;
-  const recordsKey = enabled && uid && stakeId ? `${stakeId}/${eventId}/${uid}` : "";
+  // Elenco, proposte e sfide sono dei membri del palo (docs/APPARTENENZA_AL_PALO.md,
+  // S2-2): chi è in coda o fuori non legge i record. Le proprie iscrizioni e il
+  // contesto restano leggibili, così ritirarsi è sempre possibile. Finché il
+  // documento members non arriva non parte nessuna lettura.
+  const { access } = useStakeMembership(stakeId);
+  const canReadList = access === "member";
+  const recordsKey =
+    enabled && uid && stakeId && access !== "loading" ? `${stakeId}/${eventId}/${uid}` : "";
 
   // Record, tentativi (propri e dei figli) e contesto: letture server-first,
   // rifatte dopo ogni azione.
@@ -183,7 +193,9 @@ export function RecordNightPage() {
     // l'elenco dei record si mostra lo stesso.
     const [lists, contextResult] = await Promise.allSettled([
       Promise.all([
-        recordNightService.listRecords(stakeId, eventId),
+        canReadList
+          ? recordNightService.listRecords(stakeId, eventId)
+          : Promise.resolve([] as RecordNightRecord[]),
         recordNightService.listOwnEntries(stakeId, eventId, uid),
       ]),
       recordNightService.getContext(stakeId, eventId),
@@ -205,7 +217,9 @@ export function RecordNightPage() {
           contextResult.status === "fulfilled" ? contextResult.value : (previous?.context ?? null),
         error:
           lists.status === "rejected"
-            ? "Non riesco a caricare i record. Controlla la connessione e riprova."
+            ? isPermissionDenied(lists.reason)
+              ? PALO.soloMembriRecord
+              : "Non riesco a caricare i record. Controlla la connessione e riprova."
             : null,
         contextError:
           contextResult.status === "rejected"
@@ -214,7 +228,7 @@ export function RecordNightPage() {
         listsLoaded: lists.status === "fulfilled" || previous?.listsLoaded === true,
       };
     });
-  }, [eventId, recordsKey, stakeId, uid]);
+  }, [canReadList, eventId, recordsKey, stakeId, uid]);
 
   useEffect(() => {
     void loadRecords();
@@ -484,6 +498,13 @@ export function RecordNightPage() {
   const registrationPath = getActivityRegistrationPath(event.id, stakeId);
   const managePath = `/activities/${event.id}/record/gestisci${stakeId ? `?stake=${encodeURIComponent(stakeId)}` : ""}`;
   const hasSelf = people.some((item) => item.isSelf);
+  // Chi non è membro: la frase al posto dell'elenco e, finché le iscrizioni
+  // sono aperte, i tentativi già fatti da ritirare (ritirarsi resta sempre
+  // possibile, anche dopo essere usciti dal palo).
+  const lockedMessage = canReadList ? null : lockedMessageOf(access, "record");
+  const ownActiveEntries = (current?.entries ?? []).filter(
+    (entry) => entry.status === "approved" || entry.status === "pending",
+  );
 
   function renderJoinInvite() {
     // Nessuna persona per cui agire. Dopo la chiusura non serve; lo staff
@@ -569,7 +590,45 @@ export function RecordNightPage() {
 
       {recordsLoading ? <RecordNightLoading label="Sto caricando i record..." /> : null}
 
-      {current?.listsLoaded ? (
+      {current?.listsLoaded && !canReadList ? (
+        <>
+          {lockedMessage ? (
+            <div className="rn-notice" role="status">
+              <RecordNightIcon name="lock" />
+              <span>{lockedMessage}</span>
+            </div>
+          ) : null}
+          {recordWindow === "open" && ownActiveEntries.length > 0 ? (
+            <section className="rn-section">
+              <div className="rn-section__head">
+                <h2 className="rn-h2">I tuoi record</h2>
+              </div>
+              <div className="rn-withdrawn">
+                <ul>
+                  {ownActiveEntries.map((entry) => (
+                    <li className="rn-withdrawn__row" key={entry.id}>
+                      <span className="rn-withdrawn__label">
+                        {getEntryLabel(entry, recordsById)}
+                      </span>
+                      <button
+                        className="rn-btn rn-btn--sm"
+                        disabled={busy}
+                        onClick={() => handleWithdraw(entry)}
+                        type="button"
+                      >
+                        <RecordNightIcon name="x" />
+                        Ritira
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {current?.listsLoaded && canReadList ? (
         <>
           {person ? (
             <MyRecords

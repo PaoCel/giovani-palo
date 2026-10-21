@@ -26,6 +26,8 @@ export const PAROLE = {
   eliminazione: "Eliminazione...",
   // Pulsante "Salva" mentre la scrittura è in corso.
   salvataggio: "Salvataggio...",
+  // Pulsante che invia (email, richieste) mentre la chiamata è in corso.
+  invio: "Invio...",
 } as const;
 
 // "Ciao {nome}" + { nome: "Marco" } → "Ciao Marco". Un segnaposto senza valore
