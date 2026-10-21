@@ -700,8 +700,12 @@ schede, aggiornate in tempo reale:
 | Scheda | Cosa c'è (admin: tutto il palo; dirigente: `claimedUnitId` = sua unità) | Azioni | Dopo l'azione, e come si annulla |
 | --- | --- | --- | --- |
 | Richieste | `pending`, dal più vecchio: nome, unità dichiarata, anno, da quanto aspetta, attività a cui è iscritto (`registrationHints`), "Account esistente" (migrazione), "Passata dal dirigente" (`previous.action == notMyUnit`), nota "Stesso nome e data di nascita di un membro attivo." | "Approva"; "Non lo conosco" (rifiuto); menu: "Non è della mia unità" (solo dirigente), "Ha già un account" | toast 5 s con "Annulla" (`undo` con la `version` della risposta); `version_conflict` → "Nel frattempo qualcuno ha cambiato questa persona." |
-| Da confermare | `active` con `reviewNeeded` (migrati); per l'admin in cima chi aspetta da più di 30 giorni | "Lo conosco"; "Non lo conosco" (torna in coda, accesso sospeso) | toast con "Annulla" |
+| Da confermare | `active` con `reviewNeeded` (migrati); per l'admin in cima chi aspetta da più di 30 giorni (da `decidedAt`, il giorno della migrazione) | "Lo conosco"; "Non lo conosco" (torna in coda, accesso sospeso) | toast con "Annulla" |
 | Rifiutate | `declined` degli ultimi 30 giorni | "Annulla rifiuto" (solo admin, o il dirigente che ha rifiutato) → torna `pending` | rifiutare di nuovo dalla coda |
+
+Fuori dalle pagine dei membri, la card "Foto e video" della home durante
+un'attività resta visibile a chi è in coda o fuori, chiusa e con il motivo (le
+attività pubbliche le legge chiunque; la galleria no).
 
 Approvare, rifiutare, confermare non chiedono conferma: il toast "Annulla" e la
 scheda "Rifiutate" sono la strada indietro (un foglio coprirebbe il toast).
