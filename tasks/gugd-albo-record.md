@@ -1,7 +1,7 @@
 ---
 id: gugd-albo-record
 title: Albo dei risultati della Notte dei Record
-status: needs-paolo
+status: done
 impact: 2
 urgency: 3
 effort: S
@@ -12,15 +12,15 @@ opened: 2026-10-22
 started_at: 2026-10-22
 touched: 2026-10-22
 due:
-blocked_by: ["decisione: conferma deploy hosting"]
+blocked_by: []
 branch: main
 worktree:
 session: 01a16532-d1ef-7180-9935-8ed72e8712aa
-stopped_at: "Sondaggio pubblicato, quattro risultati salvati, albo implementato e verificato; manca il deploy hosting autorizzato."
-next: "Conferma fresca di Paolo, deploy solo hosting da main pulito e verifica asset live."
+stopped_at: Albo in produzione dopo conferma di Paolo; correzione del conteggio riletta e asset live identici alla build.
+next: Nessuna attività residua.
 verified: "1305 test e build sul mini; 31 controlli di rules e browser a 320/390/430 con partecipante, genitore e dirigente; invio sondaggio sugli emulatori. Guest live senza nomi, query non autenticata 403. Quattro risultati riletti, secondo dry-run zero modifiche."
 links: []
-done_at:
+done_at: 2026-10-22
 ---
 
 ## Contesto
@@ -38,8 +38,7 @@ Sondaggio del viaggio di ottobre pubblicato con le otto domande esistenti.
 
 ## Da fare
 
-- Conferma e deploy solo hosting, service worker v31.
-- Verifica degli asset live e chiusura del task.
+- Nessuna attività residua.
 
 ## Verificato
 
@@ -56,3 +55,8 @@ dry-run senza modifiche. Callable ospite live: 11 record, nessun winnerName;
 query record senza autenticazione: HTTP 403. Nessuna risposta di prova scritta
 in produzione. Dettagli e screenshot privati in .claude/ops/albo-record/ e
 .claude/mockups/albo-record/.
+
+Deploy hosting autorizzato ed eseguito il 22 ottobre 2026 dal commit 9ff5ccf.
+Service worker v31; index, SW e chunk della pagina record identici alla build
+su gugditalia.it e giovani-palo.web.app. Correzione del conteggio richiesta
+da Paolo applicata con precondizione e backup, poi riletta in produzione.
