@@ -18,6 +18,7 @@ import {
   reviewQueue,
   waitingLabel,
   wasPassedByUnitLeader,
+  wasUnknownToUnitLeader,
   type StakeMember,
 } from "@/utils/stakeMembership";
 
@@ -138,7 +139,8 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
     setBusyUid(member.uid);
     try {
       const result = await stakeMembersService.run({ action, stakeId, uid: member.uid });
-      const template = TOAST_BY_ACTION[action];
+      // "Non lo conosco" del dirigente passa la richiesta agli admin (S2-3).
+      const template = action === "markUnknown" && !isAdmin ? PALO.toastPassata : TOAST_BY_ACTION[action];
       if (template) {
         showToast({
           kind: "undo",
@@ -206,7 +208,8 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
     const busy = busyUid === member.uid;
     const hints = member.registrationHints.map((hint) => hint.title).filter(Boolean);
     const note = notes[`${member.uid}:${member.version}`];
-    const passed = wasPassedByUnitLeader(member);
+    const unknown = wasUnknownToUnitLeader(member);
+    const passed = wasPassedByUnitLeader(member) || unknown;
     const withoutUnit = isAdmin && !member.claimedUnitId;
     return (
       <li className="mship-card" key={member.uid}>
@@ -215,7 +218,8 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
           <AppIcon aria-hidden="true" name="calendar" />
           <span>{hints.length ? fillCopy(PALO.iscrizioni, { attivita: hints.join(", ") }) : PALO.nessunaIscrizione}</span>
           {isMigratedAccount(member) ? <span className="mship-tag">{PALO.accountEsistente}</span> : null}
-          {passed ? <span className="mship-tag mship-tag--blue">{PALO.passataDalDirigente}</span> : null}
+          {unknown ? <span className="mship-tag">{PALO.nonLoConosceIlDirigente}</span> : null}
+          {passed && !unknown ? <span className="mship-tag mship-tag--blue">{PALO.passataDalDirigente}</span> : null}
           {withoutUnit && !passed ? <span className="mship-tag mship-tag--blue">{PALO.senzaUnita}</span> : null}
         </div>
         {note === "same_name_birth" ? (
@@ -339,7 +343,7 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   } else if (tab === "da-confermare") {
     body = (
       <>
-        <p className="mship-page__lead">{PALO.daConfermareSpiega}</p>
+        <p className="mship-page__lead">{isAdmin ? PALO.daConfermareSpiega : PALO.daConfermareSpiegaDirigente}</p>
         {review.length ? (
           <ul className="mship-list">{review.map(renderReview)}</ul>
         ) : (

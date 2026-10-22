@@ -105,10 +105,14 @@ export const PALO = {
   accountEsistente: "Account esistente",
   senzaUnita: "Senza unità",
   passataDalDirigente: "Passata dal dirigente",
+  // Membro migrato segnato "Non lo conosco" dal dirigente (scelta S2-3).
+  nonLoConosceIlDirigente: "Il dirigente non lo conosce",
   unitaDichiarata: "Unità dichiarata: {unita}",
   notaStessoNome: "Stesso nome e data di nascita di un membro attivo.",
   daConfermareSpiega:
     "Erano già nel palo prima della verifica. Conferma chi conosci: chi non conosci torna in coda e non vede più foto e record finché qualcuno lo approva.",
+  daConfermareSpiegaDirigente:
+    "Erano già nel palo prima della verifica. Conferma chi conosci: chi non conosci passa agli admin e non vede più foto e record finché un admin lo approva.",
   daConfermareDaTempo: "Da confermare da più di 30 giorni",
   rifiutateSpiega: "Le richieste rifiutate negli ultimi 30 giorni. «Annulla rifiuto» la rimette in coda.",
   vuotoRichiesteTitolo: "Nessuna richiesta in attesa",

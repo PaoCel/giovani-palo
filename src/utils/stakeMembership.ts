@@ -287,6 +287,14 @@ export function wasPassedByUnitLeader(member: StakeMember) {
   return member.status === "pending" && member.previous?.action === "notMyUnit";
 }
 
+/**
+ * Membro migrato che il dirigente ha segnato "Non lo conosco": accesso sospeso
+ * e richiesta passata agli admin (scelta S2-3), con l'unità svuotata.
+ */
+export function wasUnknownToUnitLeader(member: StakeMember) {
+  return member.status === "pending" && member.previous?.action === "markUnknown" && !member.claimedUnitId;
+}
+
 export function isMigratedAccount(member: StakeMember) {
   return member.sourceKinds.includes("migration");
 }
