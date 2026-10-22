@@ -281,8 +281,8 @@ richieste vanno agli admin. 48 uid hanno iscrizioni ma nessun profilo (sessioni
 ospite): non diventano membri.
 
 Ogni dirigente trova in Persone "Conferma i membri della tua unità": elenco con
-"Lo conosco" (toglie `reviewNeeded`) e "Non lo conosco" (passa in coda, accesso
-sospeso). Dopo 30 giorni, chi è ancora da confermare compare agli admin in
+"Lo conosco" (toglie `reviewNeeded`) e "Non lo conosco" (accesso sospeso, la
+richiesta passa agli admin: scelta S2-3). Dopo 30 giorni, chi è ancora da confermare compare agli admin in
 evidenza. Ordine di deploy: script in dry-run, script reale, **poi** rules
 (altrimenti per qualche minuto nessuno vede la galleria), poi callable e client.
 
@@ -527,7 +527,7 @@ altro palo) con `action` e `by`, e aggiunge una riga a
 | `decline` | D della unità dichiarata, A | `pending` → `declined` | `declineCount + 1` |
 | `notMyUnit` | D della unità dichiarata | `pending` → `pending` con `claimedUnitId: ""` (la vedono gli admin) | `claimedUnitName` resta |
 | `confirmKnown` ("Lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `reviewNeeded: false` | |
-| `markUnknown` ("Non lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `pending`, `reviewNeeded: false` | |
+| `markUnknown` ("Non lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `pending`, `reviewNeeded: false` | dal dirigente: anche `claimedUnitId: ""` (la richiesta passa agli admin, come "Non è della mia unità"; `claimedUnitName` resta); dall'admin l'unità non cambia (scelta S2-3) |
 | `remove` | A | `active` → `removed` | uscita dello staff, elenchi dello staff |
 | `block` | A | ogni stato tranne `blocked` → `blocked` | uscita dello staff, elenchi dello staff |
 | `unblock` | A | `blocked` → `pending` | |
@@ -708,8 +708,8 @@ schede, aggiornate in tempo reale:
 
 | Scheda | Cosa c'è (admin: tutto il palo; dirigente: `claimedUnitId` = sua unità) | Azioni | Dopo l'azione, e come si annulla |
 | --- | --- | --- | --- |
-| Richieste | `pending`, dal più vecchio: nome, unità dichiarata, anno, da quanto aspetta, attività a cui è iscritto (`registrationHints`), "Account esistente" (migrazione), "Passata dal dirigente" (`previous.action == notMyUnit`), nota "Stesso nome e data di nascita di un membro attivo." | "Approva"; "Non lo conosco" (rifiuto); menu: "Non è della mia unità" (solo dirigente), "Ha già un account" | toast 5 s con "Annulla" (`undo` con la `version` della risposta); `version_conflict` → "Nel frattempo qualcuno ha cambiato questa persona." |
-| Da confermare | `active` con `reviewNeeded` (migrati); per l'admin in cima chi aspetta da più di 30 giorni (da `decidedAt`, il giorno della migrazione) | "Lo conosco"; "Non lo conosco" (torna in coda, accesso sospeso) | toast con "Annulla" |
+| Richieste | `pending`, dal più vecchio: nome, unità dichiarata, anno, da quanto aspetta, attività a cui è iscritto (`registrationHints`), "Account esistente" (migrazione), "Passata dal dirigente" (`previous.action == notMyUnit`), "Il dirigente non lo conosce" (`previous.action == markUnknown` e unità svuotata), nota "Stesso nome e data di nascita di un membro attivo." | "Approva"; "Non lo conosco" (rifiuto); menu: "Non è della mia unità" (solo dirigente), "Ha già un account" | toast 5 s con "Annulla" (`undo` con la `version` della risposta); `version_conflict` → "Nel frattempo qualcuno ha cambiato questa persona." |
+| Da confermare | `active` con `reviewNeeded` (migrati); per l'admin in cima chi aspetta da più di 30 giorni (da `decidedAt`, il giorno della migrazione) | "Lo conosco"; "Non lo conosco": accesso sospeso; dal dirigente la richiesta passa agli admin e lui non la rivede, dall'admin torna nella coda | toast con "Annulla" (ripristina anche l'unità) |
 | Rifiutate | `declined` degli ultimi 30 giorni | "Annulla rifiuto" (solo admin, o il dirigente che ha rifiutato) → torna `pending` | rifiutare di nuovo dalla coda |
 
 Fuori dalle pagine dei membri, la card "Foto e video" della home durante
@@ -785,3 +785,4 @@ per un indirizzo sconosciuto). Il signup rivela comunque se un'email esiste:
 | A4 | Pagine pubbliche per chi è in attesa | a) attività e iscrizioni libere, il resto bloccato; b) anche le attività bloccate | **a** |
 | S2-1 | Codici galleria (2026-10-20): `unlockGalleryWithCode` e `setGallerySecretCode` sono live senza sorgente nel repo; il client ha ancora il modulo del codice (irraggiungibile) e il pulsante del codice per le gallerie vecchie; in produzione restano una galleria con `accessMode: code_required`, il suo codice e 30 documenti di sblocco | a) cancellare le due functions, il codice client morto e il pulsante, portare quella galleria ad `open` e cancellare codice e documenti di sblocco, nel deploy di S2 dopo le rules; b) lasciare tutto (non apre niente, ma resta codice live che nessuno legge) | **a**, approvata il 2026-10-20 |
 | S2-2 | Notte dei Record per chi è iscritto all'attività ma ancora in attesa di verifica | a) elenco, proposte e sfide solo da membro (come dice la parte B: un'iscrizione libera non prova niente; ritirarsi resta sempre possibile); b) l'iscrizione all'attività basta, cioè l'elenco dei record si apre a chiunque si iscriva | **a**, approvata il 2026-10-20 |
+| S2-3 | "Non lo conosco" del dirigente su un membro migrato da confermare (2026-10-21) | a) torna in coda nella stessa unità, e il dirigente se lo ritrova come richiesta; b) passa agli admin come "Non è della mia unità", accesso sospeso | **b**, scelta da Paolo il 2026-10-22; dall'admin resta a |
