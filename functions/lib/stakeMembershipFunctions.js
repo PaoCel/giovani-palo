@@ -164,10 +164,28 @@ function withSource(sources, source) {
   return list.some((item) => item && item.kind === source.kind && item.ref === source.ref) ? list : [...list, source];
 }
 
+// Stato di prima per "Annulla" e "Riattiva": in un documento dello staff, non
+// sul documento members che il richiedente legge (ultima azione e uid di chi
+// l'ha fatta restano interni; docs/APPARTENENZA_AL_PALO.md, «Cosa legge il
+// richiedente»).
+function previousRefOf(ref) {
+  return ref.collection("staff").doc("previous");
+}
+
+// Documento members con il suo stato di prima: dal documento dello staff, o dal
+// campo vecchio sul documento members (scritture di prima del 2026-10-22).
+function withPrevious(memberSnap, previousSnap) {
+  if (!memberSnap || !memberSnap.exists) return null;
+  const data = memberSnap.data();
+  const previous = previousSnap && previousSnap.exists ? previousSnap.data() : data.previous ?? null;
+  return { ...data, previous };
+}
+
 /**
  * Scrive il documento members e la riga di storia. Su un documento esistente
- * salva in `previous` lo stato di prima (per "Annulla"), salvo `previous`
- * esplicito nel patch; `version` sale di uno. Restituisce la nuova versione.
+ * salva in `staff/previous` lo stato di prima (per "Annulla"), salvo `previous`
+ * esplicito nel patch (null lo cancella); sul documento members `previous`
+ * resta null. `version` sale di uno. Restituisce la nuova versione.
  */
 function writeMember(
   tx,
@@ -177,15 +195,16 @@ function writeMember(
   { action, by, nowMs, role = null, staffLists = null, moved = null, historyAction = action },
 ) {
   const version = (current ? Number(current.version || 0) : 0) + 1;
-  if (!current) {
-    tx.set(ref, { ...patch, version });
-  } else {
-    const previous =
-      "previous" in patch
-        ? patch.previous
-        : core.previousOf(current, { action, by, at: Timestamp.fromMillis(nowMs), role, staffLists, moved });
-    tx.update(ref, { ...patch, previous, version });
-  }
+  const { previous: explicit, ...fields } = patch;
+  const previous = !current
+    ? null
+    : "previous" in patch
+      ? explicit
+      : core.previousOf(current, { action, by, at: Timestamp.fromMillis(nowMs), role, staffLists, moved });
+  if (!current) tx.set(ref, { ...fields, previous: null, version });
+  else tx.update(ref, { ...fields, previous: null, version });
+  if (previous) tx.set(previousRefOf(ref), previous);
+  else tx.delete(previousRefOf(ref));
   tx.set(ref.collection("history").doc(), {
     action: historyAction,
     by,
@@ -624,7 +643,9 @@ async function actionUndo(ctx) {
     db.doc(`stakes/${stakeId}/activities/${item.activityId}/management/${item.doc}`),
   );
   const listSnaps = await readDocs(tx, listRefs);
-  const movedSnaps = await readDocs(tx, (prev.moved || []).map((item) => memberRef(db, item.stakeId, uid)));
+  const movedRefs = (prev.moved || []).map((item) => memberRef(db, item.stakeId, uid));
+  const movedSnaps = await readDocs(tx, movedRefs);
+  const movedPreviousSnaps = await readDocs(tx, movedRefs.map(previousRefOf));
 
   if (nextRole && nextRole !== targetProfile.role) {
     tx.update(db.doc(`users/${uid}`), { role: nextRole, updatedAt: new Date(nowMs).toISOString() });
@@ -645,7 +666,7 @@ async function actionUndo(ctx) {
   movedSnaps.forEach((snap, index) => {
     const recorded = prev.moved[index];
     if (!snap.exists || Number(snap.data().version || 0) !== recorded.version) return;
-    const other = snap.data();
+    const other = withPrevious(snap, movedPreviousSnaps[index]);
     const otherPrev = other.previous;
     if (!otherPrev || otherPrev.action !== "moved") return;
     const restore = { previous: null, movedToStakeId: FieldValue.delete() };
@@ -690,10 +711,12 @@ const ACTION_HANDLERS = Object.freeze({
 
 async function runAction(tx, db, input) {
   const { action, stakeId, uid, callerUid } = input;
-  const [callerSnap, targetSnap, memberSnap] = await readDocs(tx, [
+  const ref = memberRef(db, stakeId, uid);
+  const [callerSnap, targetSnap, memberSnap, previousSnap] = await readDocs(tx, [
     db.doc(`users/${callerUid}`),
     db.doc(`users/${uid}`),
-    memberRef(db, stakeId, uid),
+    ref,
+    previousRefOf(ref),
   ]);
   const ctx = {
     ...input,
@@ -701,7 +724,7 @@ async function runAction(tx, db, input) {
     db,
     callerProfile: callerSnap.exists ? callerSnap.data() : null,
     targetProfile: targetSnap.exists ? targetSnap.data() : null,
-    member: memberSnap.exists ? memberSnap.data() : null,
+    member: withPrevious(memberSnap, previousSnap),
   };
   if (!core.SELF_ACTIONS.includes(action)) {
     ctx.authority = core.staffAuthorityOf(ctx.callerProfile, stakeId);
