@@ -17,6 +17,8 @@ export interface StakeMemberPrevious {
   action: string;
   by: string;
   status: MemberStatus | null;
+  /** Unità dichiarata prima dell'azione ("" se non c'era). */
+  claimedUnitId: string;
 }
 
 export interface StakeMember {
@@ -95,7 +97,12 @@ export function mapStakeMember(stakeId: string, uid: string, data: Record<string
       .map((source) => (source && typeof source === "object" ? text((source as { kind?: unknown }).kind) : ""))
       .filter(Boolean),
     previous: previousRaw
-      ? { action: text(previousRaw.action), by: text(previousRaw.by), status: previousStatus }
+      ? {
+          action: text(previousRaw.action),
+          by: text(previousRaw.by),
+          status: previousStatus,
+          claimedUnitId: text(previousRaw.claimedUnitId),
+        }
       : null,
   };
 }
@@ -156,7 +163,12 @@ export function lockedMessageOf(access: MemberAccess, kind: "foto" | "record" | 
 // ---------------------------------------------------------------------------
 
 export type MembershipBanner =
-  | { kind: "pending"; unitName: string }
+  /**
+   * `unitName`: unità che la verifica (vuota se non c'è); `toAdmins`: la
+   * richiesta non ha un'unità (passata agli admin o profilo senza unità), quindi
+   * la conferma un admin.
+   */
+  | { kind: "pending"; unitName: string; toAdmins: boolean }
   | { kind: "declined"; retryAtMs: number | null; canRetry: boolean; tooMany: boolean }
   | { kind: "withdrawn" }
   | { kind: "removed" };
@@ -171,7 +183,10 @@ export interface MembershipBannerInput {
 export function membershipBannerOf(input: MembershipBannerInput): MembershipBanner | null {
   const { access, member } = input;
   if (!input.profileComplete || access === "guest" || access === "loading" || access === "member") return null;
-  if (access === "waiting") return { kind: "pending", unitName: member?.claimedUnitName ?? "" };
+  if (access === "waiting") {
+    const toAdmins = Boolean(member && member.status === "pending" && !member.claimedUnitId);
+    return { kind: "pending", unitName: member?.claimedUnitId ? member.claimedUnitName : "", toAdmins };
+  }
   if (!member) return null;
   if (member.status === "declined") {
     const tooMany = member.declineCount >= MAX_DECLINES;
@@ -292,7 +307,14 @@ export function wasPassedByUnitLeader(member: StakeMember) {
  * e richiesta passata agli admin (scelta S2-3), con l'unità svuotata.
  */
 export function wasUnknownToUnitLeader(member: StakeMember) {
-  return member.status === "pending" && member.previous?.action === "markUnknown" && !member.claimedUnitId;
+  // L'unità c'era ed è sparita con l'azione: l'admin non la svuota mai, quindi
+  // è stato il dirigente (un migrato già senza unità non prende l'etichetta).
+  return (
+    member.status === "pending" &&
+    member.previous?.action === "markUnknown" &&
+    Boolean(member.previous.claimedUnitId) &&
+    !member.claimedUnitId
+  );
 }
 
 export function isMigratedAccount(member: StakeMember) {

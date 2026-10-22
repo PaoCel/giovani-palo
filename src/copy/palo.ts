@@ -15,9 +15,13 @@ export const PALO = {
   attesaTitolo: "Stiamo verificando che tu faccia parte del palo",
   attesaCorpoUnita: "Lo conferma un dirigente di {unita} o un admin del palo. Intanto puoi iscriverti alle attività.",
   attesaCorpo: "Lo conferma un dirigente della tua unità o un admin del palo. Intanto puoi iscriverti alle attività.",
+  // Richiesta senza unità (passata agli admin, o profilo senza unità).
+  attesaCorpoAdmin: "Lo conferma un admin del palo. Intanto puoi iscriverti alle attività.",
   chiVerifica: "Chi verifica?",
   chiVerificaCorpo:
     "Un dirigente della tua unità o un admin del palo conferma che ti conosce: da quel momento vedi foto, record e sondaggi. Se aspetti da qualche giorno, parlane con un dirigente alla prossima attività.",
+  chiVerificaCorpoAdmin:
+    "Un admin del palo conferma che ti conosce: da quel momento vedi foto, record e sondaggi. Se aspetti da qualche giorno, parlane con un dirigente alla prossima attività.",
   ritiraRichiesta: "Ritira la richiesta",
   ritiraTitolo: "Ritirare la richiesta?",
   ritiraCorpo: "Non sarai più in coda per entrare nel palo. Potrai chiedere di nuovo quando vuoi.",

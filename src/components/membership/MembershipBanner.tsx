@@ -85,7 +85,11 @@ export function MembershipBanner() {
           <div>
             <h2 className="mship-banner__title">{PALO.attesaTitolo}</h2>
             <p className="mship-banner__body">
-              {banner.unitName ? fillCopy(PALO.attesaCorpoUnita, { unita: banner.unitName }) : PALO.attesaCorpo}
+              {banner.toAdmins
+                ? PALO.attesaCorpoAdmin
+                : banner.unitName
+                  ? fillCopy(PALO.attesaCorpoUnita, { unita: banner.unitName })
+                  : PALO.attesaCorpo}
             </p>
           </div>
         </div>
@@ -175,7 +179,9 @@ export function MembershipBanner() {
           size="compact"
           title={PALO.chiVerifica}
         >
-          <p className="mship-sheet__body">{PALO.chiVerificaCorpo}</p>
+          <p className="mship-sheet__body">
+            {banner.kind === "pending" && banner.toAdmins ? PALO.chiVerificaCorpoAdmin : PALO.chiVerificaCorpo}
+          </p>
         </AppModal>
       ) : null}
       {sheet === "account" ? (
