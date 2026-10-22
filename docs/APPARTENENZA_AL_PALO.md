@@ -170,7 +170,7 @@ Firestore e Storage devono leggere per sapere se qualcuno è dentro.
 | --- | --- | --- |
 | `status` | `pending` \| `active` \| `declined` \| `withdrawn` \| `removed` \| `blocked` | `withdrawn` = richiesta ritirata dall'utente o uscita volontaria; `blocked` = rimozione per sicurezza, che nessun codice o invito riattiva (solo un admin) |
 | `sources` | array di `{kind, ref, at}` | tutti i motivi indipendenti di appartenenza: `migration`, `link_code`, `parent_link`, `manual_registration`, `staff_approval`, `staff_invite`. Togliere un motivo (es. "Scollega") non tocca gli altri |
-| `previous` | map \| null | stato e motivi prima dell'ultima azione, per "Annulla" |
+| `previous` | sempre `null` | dal 2026-10-22 lo stato di prima vive in `members/{uid}/staff/previous`, leggibile solo dallo staff (vedi «Cosa legge il richiedente») |
 | `staffRole` | `admin` \| `unit_leader` \| null | copia server del ruolo, così Storage non deve leggere anche il profilo |
 | `claimedUnitId`, `claimedUnitName` | string | unità dichiarata, per instradare la richiesta |
 | `displayName`, `birthYear` | string, int \| null | copie per la coda, niente data completa |
@@ -189,7 +189,7 @@ vuole entrare e cosa mostrano le pagine pubbliche. Non dà più nessun permesso.
 
 | Dato | Utente (sé) | Membro attivo | Dirigente di unità del palo | Admin del palo | Super admin |
 | --- | --- | --- | --- | --- | --- |
-| `members/{uid}` proprio | legge (senza `staffNote`: il campo vive in `members/{uid}/staff/note`, leggibile solo dallo staff) | legge | legge | legge | legge |
+| `members/{uid}` proprio | legge (senza `staffNote` né lo stato di prima: vivono in `members/{uid}/staff/note` e `staff/previous`, leggibili solo dallo staff) | legge | legge | legge | legge |
 | `members` del palo (list) | no | no | solo `claimedUnitId == ` la propria unità (la query deve filtrare per unità) | tutti | tutti |
 | Creare la richiesta | callable `request`, solo per sé, palo esistente, non anonimo, tetti | | | | |
 | Ritirare la richiesta, uscire dal palo | callable, per sé | | | | |
@@ -507,7 +507,7 @@ staff, assente nelle azioni per sé. Ogni azione è una transazione che rilegge
 chi chiama, e ricalcola tutto da lì: due chiamate insieme o ripetute non
 cambiano l'esito. Risposta `{ ok: true, action, status, version, changed }`;
 `changed: false` quando lo stato era già quello (nessuna scrittura, `version`
-invariata). Ogni scrittura incrementa `version`, mette in `previous` lo stato
+invariata). Ogni scrittura incrementa `version`, mette in `members/{uid}/staff/previous` (solo staff; sul documento members `previous` resta `null`) lo stato
 di prima (`status`, `sources`, `staffRole`, `reviewNeeded`, `claimedUnitId`,
 `claimedUnitName`, `declineCount`, `decidedAt`, `decidedBy`, più `role` (il
 ruolo di prima), `roleAfter` (quello lasciato dall'azione) e `roleUnitId`
@@ -642,9 +642,8 @@ azioni dello staff (`markUnknown`, `unblock`), che non creano doppioni.
 **`hasAccount`** ("Ha già un account"): D della unità dichiarata, A; `pending` →
 `declined` con `declineCount + 1`, uscita dello staff come `decline`. Per
 l'utente è identico a un rifiuto (stesso testo unico e stesso link "Non ricordi
-con quale account sei entrato?", presente in ogni rifiuto) anche nei dati che
-può leggere: il richiedente legge il proprio documento members, `previous`
-compreso, quindi lì l'azione resta `decline`. Il motivo vive solo nella riga di
+con quale account sei entrato?", presente in ogni rifiuto). In
+`staff/previous` l'azione resta `decline`; il motivo vive solo nella riga di
 storia (`action: "hasAccount"`, che nessuna rule apre). "Annulla" come un
 rifiuto.
 
@@ -721,12 +720,17 @@ Chi è in coda senza unità (passato agli admin con "Non è della mia unità" o
 admin del palo.", non più il dirigente dell'unità dichiarata.
 
 **Cosa legge il richiedente nel proprio documento** (review del 2026-10-22,
-punto aperto): le rules gli aprono tutto `members/{uid}`, `previous` compreso,
-quindi con gli strumenti del browser vede l'ultima azione (`notMyUnit`,
-`markUnknown`, `decline`) e l'uid di chi l'ha fatta. La UI non lo mostra mai e
-`hasAccount` resta `decline`. Toglierlo vuol dire spostare `previous` in un
-documento dello staff (`members/{uid}/staff/previous`) e far leggere l'"Annulla"
-da lì: da decidere prima del rilascio.
+deciso lo stesso giorno: "procedi"): le rules gli aprono tutto `members/{uid}`,
+quindi lo stato di prima, con l'ultima azione (`notMyUnit`, `markUnknown`,
+`decline`) e l'uid di chi l'ha fatta, sta in `members/{uid}/staff/previous`
+(rules di `staff/*`: admin e dirigente dell'unità dichiarata, mai il
+richiedente). Il server lo scrive nella stessa transazione del documento e lo
+rilegge per "Annulla" e "Riattiva"; senza stato di prima il documento si
+cancella. Sul documento members `previous` resta `null` (un valore vecchio non
+nullo vale ancora come stato di prima, finché la scrittura dopo lo azzera). La
+pagina Persone legge `staff/previous` per ogni richiesta e rifiutata (etichette
+"Passata dal dirigente" e "Il dirigente non lo conosce", "Annulla rifiuto" del
+dirigente solo sui propri rifiuti), come la nota dello staff.
 
 Approvare, rifiutare, confermare non chiedono conferma: il toast "Annulla" e la
 scheda "Rifiutate" sono la strada indietro (un foglio coprirebbe il toast).
