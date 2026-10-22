@@ -516,11 +516,17 @@ async function actionConfirmKnown({ tx, db, stakeId, uid, callerUid, member, now
   return { status: "active", version, changed: true };
 }
 
+// "Non lo conosco" su un membro migrato da confermare: accesso sospeso. Dal
+// dirigente la richiesta passa agli admin (unità svuotata, come "Non è della
+// mia unità"), così non se la ritrova come richiesta della sua unità; dall'admin
+// resta dov'è (scelta S2-3). "Annulla" rimette l'unità da `previous`.
 async function actionMarkUnknown(ctx) {
-  const { member } = ctx;
+  const { member, authority } = ctx;
   if (member.status === "pending") return { status: "pending", version: member.version, changed: false };
   if (member.status !== "active" || member.reviewNeeded !== true) throw invalidState(member.status);
-  return exitTransition(ctx, { action: "markUnknown", status: "pending", extra: { reviewNeeded: false } });
+  const extra = { reviewNeeded: false };
+  if (authority && authority.level === "unit_leader") extra.claimedUnitId = "";
+  return exitTransition(ctx, { action: "markUnknown", status: "pending", extra });
 }
 
 async function actionRemove(ctx) {
