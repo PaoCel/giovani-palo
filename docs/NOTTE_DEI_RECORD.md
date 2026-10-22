@@ -161,6 +161,35 @@ la stampa PDF di Chrome: una pagina, colore e scala di grigi.
 
 ## Dati
 
+### Albo dei risultati (22 ottobre 2026)
+
+L'albo sostituisce la vista di iscrizione quando l'attività è terminata e
+almeno un record `open` ha un risultato valido. Mostra soltanto le prove con
+risultato: nessun vincitore è dedotto dagli iscritti e non si presume che le
+altre prove siano state disputate. Senza risultati resta il flusso esistente;
+una data di fine assente o invalida non apre l'albo. Il link di ritorno porta
+all'attività. È una vista di lettura, senza nuove azioni o conferme.
+
+Sul documento `records/{recordId}` il campo facoltativo `result` contiene
+`winnerName` (stringa non vuota, massimo 100 caratteri) e `value` (numero
+finito positivo, secondi per `longest_time`/`fastest_time`, conteggio o unità
+del record per le altre misure). `resultRecordedAt` è un timestamp server;
+`resultRecordedBy` identifica l'operazione dello staff. I risultati si
+inseriscono dallo script amministrativo, con dry-run, backup e precondizioni;
+non dai client. Correzione: stesso script con nuovo valore e precondizione
+sul risultato attuale, mai ripubblicazione dei dati di iscrizione.
+
+Ownership: solo Admin SDK scrive, come già previsto dalle rules dei record.
+Visibilità: account non anonimo con `users.stakeId` dello stesso palo oppure
+staff; non è una verifica dell'iscrizione individuale all'attività. La query
+resta `records.where('status', '==', 'open')`, senza nuovi indici. La callable
+ospite conserva la sua proiezione esplicita e non restituisce `result` né i
+nomi dei vincitori. Nessun dato reale o nominativo entra nel repository.
+
+I risultati restano nei record dell'attività e vengono rimossi con il cleanup
+già previsto alla cancellazione dell'attività. Non viene creata una copia
+pubblica o indicizzabile dei nominativi.
+
 ### Attività `stakes/{s}/activities/{a}`
 
 | Campo | Tipo | Note |

@@ -1816,8 +1816,9 @@ service cloud.firestore {
         // leggono solo i record `open` e devono interrogare con
         // `where('status', '==', 'open')`; lo staff (admin, dirigenti di unità,
         // uid in elenco) legge tutto. Il client mostra poi solo quelli con
-        // `challengerCount > 0` o `featured` ("idea dello staff"); i nomi non
-        // stanno qui.
+        // `challengerCount > 0` o `featured` ("idea dello staff"). L'albo
+        // mostra anche i risultati confermati dallo staff a zero iscritti;
+        // `result` contiene solo il nome del vincitore, mai l'elenco iscritti.
         match /records/{recordId} {
           allow get, list: if (
               isNonAnonymousSignedIn()
