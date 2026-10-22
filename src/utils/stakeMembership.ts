@@ -63,16 +63,24 @@ function millis(value: unknown): number | null {
   return null;
 }
 
+/** Stato di prima (`members/{uid}/staff/previous`, o il campo vecchio). */
+export function mapStakePrevious(value: unknown): StakeMemberPrevious | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  return {
+    action: text(raw.action),
+    by: text(raw.by),
+    status: MEMBER_STATUSES.includes(raw.status as MemberStatus) ? (raw.status as MemberStatus) : null,
+    claimedUnitId: text(raw.claimedUnitId),
+  };
+}
+
 export function mapStakeMember(stakeId: string, uid: string, data: Record<string, unknown>): StakeMember | null {
   const status = data.status as MemberStatus;
   if (!MEMBER_STATUSES.includes(status)) return null;
   const staffRole = data.staffRole === "admin" || data.staffRole === "unit_leader" ? data.staffRole : null;
   const hints = Array.isArray(data.registrationHints) ? data.registrationHints : [];
   const sources = Array.isArray(data.sources) ? data.sources : [];
-  const previousRaw = data.previous && typeof data.previous === "object" ? (data.previous as Record<string, unknown>) : null;
-  const previousStatus = previousRaw && MEMBER_STATUSES.includes(previousRaw.status as MemberStatus)
-    ? (previousRaw.status as MemberStatus)
-    : null;
   return {
     uid,
     stakeId,
@@ -96,14 +104,9 @@ export function mapStakeMember(stakeId: string, uid: string, data: Record<string
     sourceKinds: sources
       .map((source) => (source && typeof source === "object" ? text((source as { kind?: unknown }).kind) : ""))
       .filter(Boolean),
-    previous: previousRaw
-      ? {
-          action: text(previousRaw.action),
-          by: text(previousRaw.by),
-          status: previousStatus,
-          claimedUnitId: text(previousRaw.claimedUnitId),
-        }
-      : null,
+    // Dal 2026-10-22 il server lo tiene in `staff/previous` (solo staff): qui
+    // resta null, salvo documenti scritti prima. La pagina Persone lo legge a parte.
+    previous: mapStakePrevious(data.previous),
   };
 }
 

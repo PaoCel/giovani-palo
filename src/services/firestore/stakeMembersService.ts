@@ -11,7 +11,13 @@ import {
 import { httpsCallable } from "firebase/functions";
 
 import { db, functions } from "@/services/firebase/app";
-import { mapStakeMember, type MemberStatus, type StakeMember } from "@/utils/stakeMembership";
+import {
+  mapStakeMember,
+  mapStakePrevious,
+  type MemberStatus,
+  type StakeMember,
+  type StakeMemberPrevious,
+} from "@/utils/stakeMembership";
 
 // Appartenenza al palo (docs/APPARTENENZA_AL_PALO.md, parte B). Il documento
 // `stakes/{s}/members/{uid}` lo scrive solo il server: il client legge e
@@ -109,6 +115,15 @@ export const stakeMembersService = {
     if (!snapshot.exists()) return null;
     const kind = snapshot.get("kind");
     return typeof kind === "string" ? kind : null;
+  },
+
+  /**
+   * Stato di prima dell'ultima azione (azione, chi, unità): vive in un
+   * documento dello staff, mai leggibile dal richiedente.
+   */
+  async getStaffPrevious(stakeId: string, uid: string): Promise<StakeMemberPrevious | null> {
+    const snapshot = await getDoc(doc(db, "stakes", stakeId, "members", uid, "staff", "previous"));
+    return snapshot.exists() ? mapStakePrevious(snapshot.data()) : null;
   },
 
   async run(input: { action: StakeMembershipAction; stakeId: string; uid?: string; version?: number }) {

@@ -20,6 +20,7 @@ import {
   wasPassedByUnitLeader,
   wasUnknownToUnitLeader,
   type StakeMember,
+  type StakeMemberPrevious,
 } from "@/utils/stakeMembership";
 
 import "@/styles/membership.css";
@@ -45,6 +46,15 @@ const TOAST_BY_ACTION: Partial<Record<StakeMembershipAction, string>> = {
   markUnknown: PALO.toastInCoda,
 };
 
+interface StaffDetails {
+  note: string | null;
+  previous: StakeMemberPrevious | null;
+}
+
+function detailKey(member: StakeMember) {
+  return `${member.uid}:${member.version}`;
+}
+
 function avatarTone(uid: string) {
   let hash = 0;
   for (const char of uid) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
@@ -69,35 +79,53 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   const [busyUid, setBusyUid] = useState<string | null>(null);
   const [menuUid, setMenuUid] = useState<string | null>(null);
   const [toast, setToast] = useState<UndoToastState | null>(null);
-  const [notes, setNotes] = useState<Record<string, string | null>>({});
+  const [details, setDetails] = useState<Record<string, StaffDetails>>({});
   const toastId = useRef(0);
   // Un istante per apertura: etichette "da 3 giorni" e finestre di 30 giorni.
   const [nowMs] = useState(() => Date.now());
 
-  const pending = useMemo(() => pendingQueue(queue.pending), [queue.pending]);
+  const pendingRaw = useMemo(() => pendingQueue(queue.pending), [queue.pending]);
   const review = useMemo(() => reviewQueue(queue.review, nowMs, isAdmin), [queue.review, nowMs, isAdmin]);
-  const declined = useMemo(() => recentDeclined(queue.declined, nowMs), [queue.declined, nowMs]);
+  const declinedRaw = useMemo(() => recentDeclined(queue.declined, nowMs), [queue.declined, nowMs]);
 
-  // Nota dello staff ("stesso nome e data"), una lettura per richiesta. La
-  // chiave comprende la versione: una richiesta riaperta rilegge la nota.
-  const noteKeys = pending.map((member) => `${member.uid}:${member.version}`).join(",");
+  // Documenti dello staff di ogni richiesta e rifiutata: la nota "stesso nome e
+  // data" e lo stato di prima (chi ha agito e come, per etichette e "Annulla
+  // rifiuto"), mai leggibili dal richiedente. Due letture per persona; la chiave
+  // comprende la versione, così una persona cambiata si rilegge.
+  const detailMembers = useMemo(() => [...pendingRaw, ...declinedRaw], [pendingRaw, declinedRaw]);
+  const detailKeys = detailMembers.map(detailKey).join(",");
   useEffect(() => {
     let active = true;
-    const missing = pending.filter((member) => !(`${member.uid}:${member.version}` in notes));
+    const missing = detailMembers.filter((member) => !(detailKey(member) in details));
     if (!missing.length) return undefined;
     void Promise.all(
       missing.map(async (member) => {
-        const kind = await stakeMembersService.getStaffNoteKind(stakeId, member.uid).catch(() => null);
-        return [`${member.uid}:${member.version}`, kind] as const;
+        const [note, previous] = await Promise.all([
+          member.status === "pending"
+            ? stakeMembersService.getStaffNoteKind(stakeId, member.uid).catch(() => null)
+            : Promise.resolve(null),
+          stakeMembersService.getStaffPrevious(stakeId, member.uid).catch(() => null),
+        ]);
+        return [detailKey(member), { note, previous }] as const;
       }),
     ).then((entries) => {
-      if (active) setNotes((current) => ({ ...current, ...Object.fromEntries(entries) }));
+      if (active) setDetails((current) => ({ ...current, ...Object.fromEntries(entries) }));
     });
     return () => {
       active = false;
     };
-    // `notes` resta fuori di proposito: la lettura parte solo quando cambia la coda.
-  }, [noteKeys, stakeId]);
+    // `details` resta fuori di proposito: la lettura parte solo quando cambia la coda.
+  }, [detailKeys, stakeId]);
+
+  const withDetails = useCallback(
+    (member: StakeMember): StakeMember => {
+      const found = details[detailKey(member)];
+      return found ? { ...member, previous: found.previous ?? member.previous } : member;
+    },
+    [details],
+  );
+  const pending = useMemo(() => pendingRaw.map(withDetails), [pendingRaw, withDetails]);
+  const declined = useMemo(() => declinedRaw.map(withDetails), [declinedRaw, withDetails]);
 
   // Il menu "Altre azioni" si chiude toccando fuori o con Esc.
   useEffect(() => {
@@ -207,7 +235,7 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   function renderRequest(member: StakeMember) {
     const busy = busyUid === member.uid;
     const hints = member.registrationHints.map((hint) => hint.title).filter(Boolean);
-    const note = notes[`${member.uid}:${member.version}`];
+    const note = details[detailKey(member)]?.note;
     const unknown = wasUnknownToUnitLeader(member);
     const passed = wasPassedByUnitLeader(member) || unknown;
     const withoutUnit = isAdmin && !member.claimedUnitId;
