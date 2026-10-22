@@ -83,16 +83,17 @@ sulle correzioni. Niente deployato.
 Scelte di prodotto proposte a Paolo il 2026-10-21 (costruite con la proposta,
 reversibili): 1) niente "Hai un codice?" e "chiedi un codice" finché i codici
 non esistono (S3), al loro posto "parlane con un dirigente della tua unità";
-2) contatto = `supportContact` del palo (risolta: il campo esiste); 3) **da
-decidere**: "Non lo conosco" del dirigente su un migrato da confermare oggi lo
-rimette in coda nella stessa unità (spec); proposta: passa agli admin come "Non
-è della mia unità"; 4) illustrazione della porta di "Iscrizione inviata" nel
+2) contatto = `supportContact` del palo (risolta: il campo esiste); 3) "Non lo conosco" del dirigente su un migrato da confermare passa la
+richiesta agli admin come "Non è della mia unità" (scelta S2-3, Paolo il
+2026-10-22: `markUnknown` del dirigente svuota `claimedUnitId`, l'admin lo vede
+con "Il dirigente non lo conosce", "Annulla" rimette l'unità); 4) illustrazione della porta di "Iscrizione inviata" nel
 banner; 5) voce "Persone" nel menu di admin e dirigenti.
 
 Prossime fasi:
 
-- risposta di Paolo sulla scelta 3 (se "agli admin": `markUnknown` del
-  dirigente svuota `claimedUnitId`, test e spec);
+- da decidere prima del rilascio (review Codex del 2026-10-22): il richiedente
+  legge `previous` del proprio members (ultima azione e uid di chi l'ha fatta);
+  proposta: spostarlo in `members/{uid}/staff/previous`, solo staff;
 - "Ho sbagliato palo" e "Hai un codice?" con S3; uscita dello staff, dopo tre
   rifiuti e oltre i 30 giorni con S4 (Persone);
 - cleanup di `members` (con `history` e `staff`) alla cancellazione account

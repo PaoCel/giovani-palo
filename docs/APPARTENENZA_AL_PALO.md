@@ -716,6 +716,18 @@ Fuori dalle pagine dei membri, la card "Foto e video" della home durante
 un'attività resta visibile a chi è in coda o fuori, chiusa e con il motivo (le
 attività pubbliche le legge chiunque; la galleria no).
 
+Chi è in coda senza unità (passato agli admin con "Non è della mia unità" o
+"Non lo conosco", o con il profilo senza unità) legge nel banner "Lo conferma un
+admin del palo.", non più il dirigente dell'unità dichiarata.
+
+**Cosa legge il richiedente nel proprio documento** (review del 2026-10-22,
+punto aperto): le rules gli aprono tutto `members/{uid}`, `previous` compreso,
+quindi con gli strumenti del browser vede l'ultima azione (`notMyUnit`,
+`markUnknown`, `decline`) e l'uid di chi l'ha fatta. La UI non lo mostra mai e
+`hasAccount` resta `decline`. Toglierlo vuol dire spostare `previous` in un
+documento dello staff (`members/{uid}/staff/previous`) e far leggere l'"Annulla"
+da lì: da decidere prima del rilascio.
+
 Approvare, rifiutare, confermare non chiedono conferma: il toast "Annulla" e la
 scheda "Rifiutate" sono la strada indietro (un foglio coprirebbe il toast).
 Rimuovere, bloccare, sbloccare e riattivare restano a S4 (Persone).
