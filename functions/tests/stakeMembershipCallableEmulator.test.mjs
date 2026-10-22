@@ -74,7 +74,17 @@ import {
   getAuth,
   signInAnonymously,
 } from "firebase/auth";
-import { connectFirestoreEmulator, doc, getDocFromServer, getFirestore, setDoc } from "firebase/firestore";
+import {
+  collection,
+  connectFirestoreEmulator,
+  doc,
+  getDocFromServer,
+  getDocsFromServer,
+  getFirestore,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 
 const require = createRequire(import.meta.url);
@@ -968,6 +978,18 @@ describe("approve, decline, notMyUnit", () => {
 describe("confirmKnown e markUnknown", () => {
   const review = (unit = UNIT1) => ({ status: "active", reviewNeeded: true, claimedUnitId: unit.id, claimedUnitName: unit.name });
 
+  // Le letture della pagina Persone con l'SDK client (le rules valgono): il
+  // dirigente filtra sempre per la sua unità dichiarata, l'admin vede il palo.
+  const memberDocOf = (person, target) => getDocFromServer(doc(person.db, memberPath(STAKE_A, target.uid)));
+  const pendingUidsOf = (person, unitId = null) =>
+    getDocsFromServer(query(
+      collection(person.db, `stakes/${STAKE_A}/members`),
+      ...(unitId ? [where("claimedUnitId", "==", unitId)] : []),
+      where("status", "==", "pending"),
+    )).then((snap) => snap.docs.map((item) => item.id));
+  const expectRulesDenied = (promise, label) =>
+    assert.rejects(promise, (error) => error?.code === "permission-denied", `${label}: atteso permission-denied dalle rules`);
+
   test("confirmKnown: D della unità e A; reviewNeeded false, active, version +1; D2 permission-denied", async () => {
     const [one, two] = await fresh([{ label: "lo-conosco", member: review() }, { label: "lo-conosco-a", member: review(UNIT2) }]);
     await expectDenied(onUid(P.D2, "confirmKnown", one));
@@ -981,15 +1003,136 @@ describe("confirmKnown e markUnknown", () => {
     assertChanged(await onUid(P.A, "confirmKnown", two), { action: "confirmKnown", status: "active", version: 2 });
   });
 
-  test("markUnknown: active con reviewNeeded → pending, reviewNeeded false", async () => {
+  // Scelta S2-3 (2026-10-22): "Non lo conosco" del dirigente passa la richiesta
+  // agli admin come "Non è della mia unità" (claimedUnitId vuoto, nome
+  // conservato, previous con l'unità di prima); dall'admin l'unità non cambia.
+  test("markUnknown del dirigente: pending, reviewNeeded false e unità svuotata (passa agli admin); claimedUnitName e previous.claimedUnitId restano", async () => {
     const [target] = await fresh([{ label: "non-lo-conosco", member: review() }]);
     await expectDenied(onUid(P.D2, "markUnknown", target));
+    await expectDenied(onUid(P.M, "markUnknown", target));
+    // Prima dell'azione il dirigente la legge: è della sua unità.
+    assert.equal((await memberDocOf(P.D, target)).data()?.status, "active", "prima: il dirigente la vede");
     assertChanged(await onUid(P.D, "markUnknown", target), { action: "markUnknown", status: "pending", version: 2 });
     const data = await memberOf(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.reviewNeeded, false);
+    assert.equal(data.claimedUnitId, "", "l'unità dichiarata si svuota: la richiesta passa agli admin");
+    assert.equal(data.claimedUnitName, UNIT1.name, "il nome dichiarato resta per chi approva");
+    assert.equal(data.staffRole, null);
     assertPrevious(data.previous, { status: "active", action: "markUnknown", by: P.D.uid });
+    assert.equal(data.previous.reviewNeeded, true, "previous.reviewNeeded: era da confermare");
+    assert.equal(data.previous.claimedUnitId, UNIT1.id, "previous tiene l'unità di prima, per «Annulla»");
+    assert.equal(data.previous.claimedUnitName, UNIT1.name);
     await expectHistoryRow(STAKE_A, target.uid, { action: "markUnknown", by: P.D.uid, fromStatus: "active", toStatus: "pending", version: 2 });
+
+    // Dopo, con l'SDK client: il dirigente non la legge più e non la trova
+    // nella coda della sua unità; l'admin la trova fra le richieste del palo.
+    await expectRulesDenied(memberDocOf(P.D, target), "get del dirigente dopo markUnknown");
+    assert.equal((await pendingUidsOf(P.D, UNIT1.id)).includes(target.uid), false, "non è più nella coda del dirigente");
+    assert.equal((await pendingUidsOf(P.A)).includes(target.uid), true, "è fra le richieste dell'admin");
+    // E dalla callable il dirigente non ci agisce più, come dopo «Non è della mia unità»; l'admin sì.
+    await expectDenied(onUid(P.D, "approve", target));
+    await expectDenied(onUid(P.D, "decline", target));
+    assert.equal((await memberOf(STAKE_A, target.uid)).version, 2, "i tentativi negati non scrivono");
+  });
+
+  test("markUnknown dell'admin: pending e reviewNeeded false, ma l'unità non cambia (resta nella coda del dirigente); «Annulla» dell'admin la rimette da confermare", async () => {
+    const [target] = await fresh([{ label: "non-lo-conosco-a", member: review() }]);
+    const marked = await onUid(P.A, "markUnknown", target);
+    assertChanged(marked, { action: "markUnknown", status: "pending", version: 2 });
+    const data = await memberOf(STAKE_A, target.uid);
+    assert.equal(data.status, "pending");
+    assert.equal(data.reviewNeeded, false);
+    assert.equal(data.claimedUnitId, UNIT1.id, "dall'admin l'unità dichiarata resta");
+    assert.equal(data.claimedUnitName, UNIT1.name);
+    assertPrevious(data.previous, { status: "active", action: "markUnknown", by: P.A.uid });
+    assert.equal(data.previous.reviewNeeded, true);
+    assert.equal(data.previous.claimedUnitId, UNIT1.id);
+    await expectHistoryRow(STAKE_A, target.uid, { action: "markUnknown", by: P.A.uid, fromStatus: "active", toStatus: "pending", version: 2 });
+    // Il dirigente della unità la legge e se la ritrova in coda; l'admin pure.
+    assert.equal((await memberDocOf(P.D, target)).data()?.status, "pending", "il dirigente la vede ancora");
+    assert.equal((await pendingUidsOf(P.D, UNIT1.id)).includes(target.uid), true, "è nella coda del dirigente");
+    assert.equal((await pendingUidsOf(P.A)).includes(target.uid), true, "è fra le richieste dell'admin");
+
+    assertChanged(await undo(P.A, target, marked.version), { action: "undo", status: "active", version: 3 });
+    const restored = await memberOf(STAKE_A, target.uid);
+    assert.equal(restored.status, "active");
+    assert.equal(restored.reviewNeeded, true, "torna da confermare");
+    assert.equal(restored.claimedUnitId, UNIT1.id);
+    assert.equal(restored.claimedUnitName, UNIT1.name);
+    assert.equal(restored.staffRole, null);
+    assert.equal(restored.previous, null);
+    await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.A.uid, fromStatus: "pending", toStatus: "active", version: 3 });
+  });
+
+  test("markUnknown dell'admin su un migrato già senza unità (profilo senza unità): l'unità resta vuota e previous.claimedUnitId è vuoto; la vede solo l'admin; «Annulla» la rimette da confermare", async () => {
+    const [target] = await fresh([{ label: "senza-unita-non-lo-conosco", unit: null, member: { status: "active", reviewNeeded: true, claimedUnitId: "", claimedUnitName: "" } }]);
+    await expectDenied(onUid(P.D, "markUnknown", target));
+    const marked = await onUid(P.A, "markUnknown", target);
+    assertChanged(marked, { action: "markUnknown", status: "pending", version: 2 });
+    const data = await memberOf(STAKE_A, target.uid);
+    assert.equal(data.status, "pending");
+    assert.equal(data.reviewNeeded, false);
+    assert.equal(data.claimedUnitId, "", "non c'era un'unità: resta vuota");
+    assert.equal(data.claimedUnitName, "");
+    assertPrevious(data.previous, { status: "active", action: "markUnknown", by: P.A.uid });
+    assert.equal(data.previous.claimedUnitId, "", "nessuna unità svuotata: il client non mette l'etichetta del dirigente");
+    await expectHistoryRow(STAKE_A, target.uid, { action: "markUnknown", by: P.A.uid, fromStatus: "active", toStatus: "pending", version: 2 });
+    await expectRulesDenied(memberDocOf(P.D, target), "get del dirigente su una richiesta senza unità");
+    assert.equal((await pendingUidsOf(P.D, UNIT1.id)).includes(target.uid), false);
+    assert.equal((await pendingUidsOf(P.A)).includes(target.uid), true, "è fra le richieste dell'admin");
+
+    assertChanged(await undo(P.A, target, marked.version), { action: "undo", status: "active", version: 3 });
+    const restored = await memberOf(STAKE_A, target.uid);
+    assert.equal(restored.status, "active");
+    assert.equal(restored.reviewNeeded, true);
+    assert.equal(restored.claimedUnitId, "");
+    assert.equal(restored.claimedUnitName, "");
+    assert.equal(restored.previous, null);
+  });
+
+  test("«Annulla» del dirigente con la version restituita: torna active da confermare con la sua unità; previous null, version +1, history; poi la rivede", async () => {
+    const [target] = await fresh([{ label: "annulla-non-lo-conosco", member: review() }]);
+    const marked = await onUid(P.D, "markUnknown", target);
+    assertChanged(marked, { action: "markUnknown", status: "pending", version: 2 });
+    assert.equal((await memberOf(STAKE_A, target.uid)).claimedUnitId, "");
+    const undone = await undo(P.D, target, marked.version);
+    assertChanged(undone, { action: "undo", status: "active", version: 3 });
+    assert.equal(undone.undone, "markUnknown", "la risposta dice cosa è stato annullato");
+    const data = await memberOf(STAKE_A, target.uid);
+    assert.equal(data.status, "active");
+    assert.equal(data.reviewNeeded, true, "torna da confermare, non confermato");
+    assert.equal(data.claimedUnitId, UNIT1.id, "l'unità dichiarata torna");
+    assert.equal(data.claimedUnitName, UNIT1.name);
+    assert.equal(data.staffRole, null);
+    assert.equal(data.previous, null, "dopo l'annullamento non c'è più nulla da annullare");
+    await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.D.uid, fromStatus: "pending", toStatus: "active", version: 3 });
+    // Con l'unità tornata, il dirigente la legge di nuovo (rules) e può confermarla.
+    assert.equal((await memberDocOf(P.D, target)).data()?.reviewNeeded, true, "il dirigente la rivede fra quelli da confermare");
+    await expectError(undo(P.D, target, undone.version), "failed-precondition", "nothing_to_undo");
+    assertChanged(await onUid(P.D, "confirmKnown", target), { action: "confirmKnown", status: "active", version: 4 });
+  });
+
+  test("«Annulla» del markUnknown del dirigente: version vecchia → version_conflict senza scrittura; D2 permission-denied; l'admin annulla l'azione del dirigente e l'unità torna", async () => {
+    const [target] = await fresh([{ label: "annulla-non-lo-conosco-a", member: review() }]);
+    const marked = await onUid(P.D, "markUnknown", target);
+    assertChanged(marked, { action: "markUnknown", status: "pending", version: 2 });
+    const before = await memberMeta(STAKE_A, target.uid);
+    await expectError(undo(P.D, target, 1), "failed-precondition", "version_conflict");
+    await expectError(undo(P.A, target, 99), "failed-precondition", "version_conflict");
+    await expectDenied(undo(P.D2, target, marked.version));
+    assert.deepEqual(await memberMeta(STAKE_A, target.uid), before, "nessuna scrittura dai tentativi falliti");
+    assert.equal(before.data.claimedUnitId, "", "intanto resta agli admin");
+
+    assertChanged(await undo(P.A, target, marked.version), { action: "undo", status: "active", version: 3 });
+    const data = await memberOf(STAKE_A, target.uid);
+    assert.equal(data.status, "active");
+    assert.equal(data.reviewNeeded, true);
+    assert.equal(data.claimedUnitId, UNIT1.id, "l'unità dichiarata torna anche se annulla l'admin");
+    assert.equal(data.claimedUnitName, UNIT1.name);
+    assert.equal(data.previous, null);
+    await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.A.uid, fromStatus: "pending", toStatus: "active", version: 3 });
+    assert.equal((await pendingUidsOf(P.A)).includes(target.uid), false, "non è più fra le richieste");
   });
 
   test("active già confermato: confirmKnown changed false, markUnknown invalid_state; pending: confirmKnown invalid_state, markUnknown changed false", async () => {

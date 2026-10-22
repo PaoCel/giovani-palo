@@ -16,6 +16,9 @@
 //  - le date in italiano ("dal 28 ottobre", "dall'8 ottobre", "il 1° novembre");
 //  - la coda dello staff: ordine, finestra di 30 giorni, "da confermare da
 //    tempo" solo per l'admin, "Annulla rifiuto" solo admin o chi ha rifiutato;
+//  - le etichette della coda: "Passata dal dirigente" (notMyUnit) e "Il
+//    dirigente non lo conosce" (markUnknown del dirigente, unità svuotata:
+//    scelta S2-3), con i loro testi;
 //  - la lettura del documento (`mapStakeMember`) e i messaggi per ogni
 //    `details.reason` della callable, mai in inglese.
 //
@@ -48,6 +51,7 @@ import {
   reviewQueue,
   waitingLabel,
   wasPassedByUnitLeader,
+  wasUnknownToUnitLeader,
 } from "../src/utils/stakeMembership.ts";
 
 const STAKE = "roma-est";
@@ -257,16 +261,34 @@ describe("membershipBannerOf: quando non c'è banner", () => {
 });
 
 describe("membershipBannerOf: in attesa", () => {
-  test("pending con l'unità dichiarata: banner pending con il nome dell'unità", () => {
-    assert.deepEqual(banner({ member: memberWith("pending") }), { kind: "pending", unitName: UNIT.name });
+  test("pending con l'unità dichiarata: banner pending con il nome dell'unità, non agli admin", () => {
+    assert.deepEqual(banner({ member: memberWith("pending") }), { kind: "pending", unitName: UNIT.name, toAdmins: false });
   });
 
-  test("pending senza unità (passata agli admin, o senza unità nel profilo): unitName vuoto", () => {
-    assert.deepEqual(banner({ member: memberWith("pending", { claimedUnitId: "", claimedUnitName: "" }) }), { kind: "pending", unitName: "" });
+  test("pending senza unità (passata agli admin con notMyUnit o markUnknown, o senza unità nel profilo): unitName vuoto e toAdmins", () => {
+    assert.deepEqual(banner({ member: memberWith("pending", { claimedUnitId: "", claimedUnitName: "" }) }), { kind: "pending", unitName: "", toAdmins: true });
+    // Passata dal dirigente: il nome dichiarato resta nel documento, ma a verificare è un admin.
+    const passed = memberWith("pending", { claimedUnitId: "", previous: { action: "notMyUnit", by: "uid-dirigente", status: "pending", claimedUnitId: UNIT.id } });
+    assert.deepEqual(banner({ member: passed }), { kind: "pending", unitName: "", toAdmins: true });
+    const unknown = memberWith("pending", { claimedUnitId: "", previous: { action: "markUnknown", by: "uid-dirigente", status: "active", claimedUnitId: UNIT.id } });
+    assert.deepEqual(banner({ member: unknown }), { kind: "pending", unitName: "", toAdmins: true });
   });
 
-  test("nessun documento con il profilo completo: come pending (il client chiama request)", () => {
-    assert.deepEqual(banner({ member: null }), { kind: "pending", unitName: "" });
+  test("markUnknown dell'admin: l'unità resta e il banner nomina ancora l'unità", () => {
+    const byAdmin = memberWith("pending", { previous: { action: "markUnknown", by: "uid-admin", status: "active", claimedUnitId: UNIT.id } });
+    assert.deepEqual(banner({ member: byAdmin }), { kind: "pending", unitName: UNIT.name, toAdmins: false });
+  });
+
+  test("nessun documento con il profilo completo: come pending, senza unità ma non agli admin (il client chiama request)", () => {
+    assert.deepEqual(banner({ member: null }), { kind: "pending", unitName: "", toAdmins: false });
+  });
+
+  test("toAdmins vale solo per pending: un documento fuori dal palo senza unità non è «agli admin»", () => {
+    for (const status of OUT_STATUSES) {
+      const result = banner({ access: "out", member: memberWith(status, { claimedUnitId: "", claimedUnitName: "" }) });
+      assert.notEqual(result?.kind, "pending", status);
+      assert.equal("toAdmins" in (result ?? {}), false, status);
+    }
   });
 });
 
@@ -326,6 +348,18 @@ describe("membershipBannerOf: fuori dal palo", () => {
     assert.equal("hoSbagliatoPalo" in PALO, false);
     assert.equal(PALO.chiVerifica, "Chi verifica?");
     assert.doesNotMatch(PALO.rifiutoCorpo, /nome|data di nascita|account/iu, "il motivo interno non arriva al richiedente");
+  });
+
+  test("in coda senza unità: «Lo conferma un admin del palo.», senza un dirigente che verifica", () => {
+    assert.equal(PALO.attesaCorpoAdmin, "Lo conferma un admin del palo. Intanto puoi iscriverti alle attività.");
+    assert.doesNotMatch(PALO.attesaCorpoAdmin, /dirigente/u, "senza unità non c'è un dirigente che verifica");
+    assert.match(PALO.chiVerificaCorpoAdmin, /^Un admin del palo conferma che ti conosce/u);
+    assert.match(PALO.chiVerificaCorpo, /^Un dirigente della tua unità o un admin del palo/u);
+    assert.notEqual(PALO.chiVerificaCorpoAdmin, PALO.chiVerificaCorpo);
+    for (const key of ["attesaCorpoAdmin", "chiVerificaCorpoAdmin"]) {
+      assert.doesNotMatch(PALO[key], ENGLISH, key);
+      assert.doesNotMatch(PALO[key], /[a-z]'(?=\s|$)/u, `${key}: apostrofo al posto dell'accento`);
+    }
   });
 });
 
@@ -521,6 +555,57 @@ describe("etichette della coda", () => {
     assert.equal(wasPassedByUnitLeader(memberWith("active", { previous: { action: "notMyUnit", by: "uid-dirigente", status: "pending" } })), false);
   });
 
+  // Scelta S2-3 (2026-10-22): "Non lo conosco" del dirigente passa la richiesta
+  // agli admin con l'unità svuotata; dall'admin l'unità resta e non c'è etichetta.
+  // Review del 2026-10-22: l'etichetta vuole anche che l'unità ci fosse
+  // (`previous.claimedUnitId` pieno), così un migrato già senza unità segnato
+  // dall'admin non passa per "il dirigente non lo conosce".
+  const unknownByLeader = (status = "pending", extra = {}) =>
+    memberWith(status, { claimedUnitId: "", previous: { action: "markUnknown", by: "uid-dirigente", status: "active", claimedUnitId: UNIT.id }, ...extra });
+  const unknownByAdmin = (extra = {}) =>
+    memberWith("pending", { previous: { action: "markUnknown", by: "uid-admin", status: "active", claimedUnitId: UNIT.id }, ...extra });
+
+  test("wasUnknownToUnitLeader: solo pending con previous.action markUnknown, unità svuotata e previous.claimedUnitId pieno", () => {
+    assert.equal(wasUnknownToUnitLeader(unknownByLeader()), true);
+    // Dall'admin l'unità resta: la richiesta torna nella coda del dirigente senza etichetta.
+    assert.equal(wasUnknownToUnitLeader(unknownByAdmin()), false);
+    assert.equal(wasUnknownToUnitLeader(unknownByLeader("pending", { claimedUnitId: UNIT.id })), false);
+    // Migrato già senza unità segnato dall'admin: l'unità non c'era, nessuno l'ha svuotata.
+    assert.equal(wasUnknownToUnitLeader(unknownByAdmin({ claimedUnitId: "", claimedUnitName: "", previous: { action: "markUnknown", by: "uid-admin", status: "active", claimedUnitId: "" } })), false);
+    assert.equal(wasUnknownToUnitLeader(unknownByLeader("pending", { previous: { action: "markUnknown", by: "uid-dirigente", status: "active", claimedUnitId: "" } })), false);
+    // «Non è della mia unità» ha la sua etichetta, non questa.
+    assert.equal(wasUnknownToUnitLeader(memberWith("pending", { claimedUnitId: "", previous: { action: "notMyUnit", by: "uid-dirigente", status: "pending", claimedUnitId: UNIT.id } })), false);
+    // Solo in coda: dopo «Annulla» (active) o un rifiuto (declined) niente etichetta.
+    assert.equal(wasUnknownToUnitLeader(unknownByLeader("active")), false);
+    assert.equal(wasUnknownToUnitLeader(unknownByLeader("declined")), false);
+    for (const status of OUT_STATUSES) assert.equal(wasUnknownToUnitLeader(unknownByLeader(status)), false, status);
+    // Unità vuota per altri motivi (profilo senza unità) o nessuna azione precedente.
+    assert.equal(wasUnknownToUnitLeader(memberWith("pending", { claimedUnitId: "" })), false);
+    assert.equal(wasUnknownToUnitLeader(memberWith("pending", { claimedUnitId: "", previous: { action: "decline", by: "uid-admin", status: "declined", claimedUnitId: UNIT.id } })), false);
+    assert.equal(wasUnknownToUnitLeader(memberWith("pending")), false);
+  });
+
+  test("le due etichette non si sovrappongono: markUnknown non è «Passata dal dirigente», notMyUnit non è «Il dirigente non lo conosce»", () => {
+    const passed = memberWith("pending", { claimedUnitId: "", previous: { action: "notMyUnit", by: "uid-dirigente", status: "pending", claimedUnitId: UNIT.id } });
+    assert.equal(wasPassedByUnitLeader(unknownByLeader()), false);
+    assert.equal(wasPassedByUnitLeader(unknownByAdmin()), false);
+    assert.equal(wasUnknownToUnitLeader(passed), false);
+    assert.equal(wasPassedByUnitLeader(passed), true);
+  });
+
+  test("i testi di S2-3: «Il dirigente non lo conosce» e la spiegazione per il dirigente dice che passa agli admin", () => {
+    assert.equal(PALO.nonLoConosceIlDirigente, "Il dirigente non lo conosce");
+    assert.equal(PALO.passataDalDirigente, "Passata dal dirigente");
+    assert.equal(typeof PALO.daConfermareSpiegaDirigente, "string");
+    assert.match(PALO.daConfermareSpiegaDirigente, /passa agli admin/u, "dal dirigente la richiesta passa agli admin");
+    assert.match(PALO.daConfermareSpiega, /torna in coda/u, "dall'admin resta in coda");
+    assert.notEqual(PALO.daConfermareSpiegaDirigente, PALO.daConfermareSpiega, "due testi: dirigente e admin");
+    for (const key of ["nonLoConosceIlDirigente", "daConfermareSpiegaDirigente", "daConfermareSpiega", "passataDalDirigente"]) {
+      assert.doesNotMatch(PALO[key], ENGLISH, key);
+      assert.doesNotMatch(PALO[key], /[a-z]'(?=\s|$)/u, `${key}: apostrofo al posto dell'accento`);
+    }
+  });
+
   test("isMigratedAccount: «Account esistente» dal motivo migration", () => {
     assert.equal(isMigratedAccount(memberWith("pending", { sourceKinds: ["migration"] })), true);
     assert.equal(isMigratedAccount(memberWith("active", { sourceKinds: ["staff_approval", "migration"] })), true);
@@ -591,7 +676,7 @@ describe("mapStakeMember", () => {
       declineCount: 0,
       version: 4,
       sourceKinds: ["migration", "parent_link"],
-      previous: { action: "notMyUnit", by: "uid-dirigente", status: "pending" },
+      previous: { action: "notMyUnit", by: "uid-dirigente", status: "pending", claimedUnitId: "" },
     });
   });
 
@@ -626,9 +711,15 @@ describe("mapStakeMember", () => {
     assert.equal(member.decidedAtMs, null);
   });
 
-  test("previous: azione, autore e stato; stato sconosciuto diventa null; assente resta null", () => {
-    assert.deepEqual(mapStakeMember(STAKE, "u", { ...full(), previous: { action: "decline", by: "uid-admin", status: "pending" } }).previous, { action: "decline", by: "uid-admin", status: "pending" });
-    assert.deepEqual(mapStakeMember(STAKE, "u", { ...full(), previous: { action: "decline", by: "uid-admin", status: "boh" } }).previous, { action: "decline", by: "uid-admin", status: null });
+  test("previous: azione, autore, stato e unità di prima; stato sconosciuto diventa null; assente resta null", () => {
+    assert.deepEqual(mapStakeMember(STAKE, "u", { ...full(), previous: { action: "decline", by: "uid-admin", status: "pending" } }).previous, { action: "decline", by: "uid-admin", status: "pending", claimedUnitId: "" });
+    assert.deepEqual(mapStakeMember(STAKE, "u", { ...full(), previous: { action: "decline", by: "uid-admin", status: "boh" } }).previous, { action: "decline", by: "uid-admin", status: null, claimedUnitId: "" });
+    // L'unità di prima serve all'etichetta "Il dirigente non lo conosce" (review S2-3).
+    assert.deepEqual(
+      mapStakeMember(STAKE, "u", { ...full(), claimedUnitId: "", previous: { action: "markUnknown", by: "uid-dirigente", status: "active", claimedUnitId: UNIT.id } }).previous,
+      { action: "markUnknown", by: "uid-dirigente", status: "active", claimedUnitId: UNIT.id },
+    );
+    assert.equal(mapStakeMember(STAKE, "u", { ...full(), previous: { action: "markUnknown", by: "uid-admin", status: "active", claimedUnitId: 7 } }).previous.claimedUnitId, "", "un valore non stringa vale come vuoto");
     assert.equal(mapStakeMember(STAKE, "u", { ...full(), previous: null }).previous, null);
     const { previous: _previous, ...withoutPrevious } = full();
     assert.equal(mapStakeMember(STAKE, "u", withoutPrevious).previous, null);
