@@ -10,15 +10,15 @@ surface: [web, rules, functions, storage]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-20
-touched: 2026-10-21
+touched: 2026-10-22
 due:
 blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/kind-rosalind-0307da
 session: c7c7a22a-2ea7-445c-83f3-8f6620283c8a
-stopped_at: "Fase 3 (client e aggiunte server) chiusa sul branch a 99aa915: test e batteria verdi, review Codex recepita; niente deployato"
-next: "Risposta di Paolo sulla scelta 3 (Non lo conosco del dirigente su un migrato), poi rilascio nell'ordine della spec con conferma fresca per ogni passo"
-verified: "2026-10-21 sul mini: batteria su 6935f79 (server e rules finali) 37 file di emulatore a 0 fail, 3973 pass (contratto 1724/0, fase 3 server 28/0, query esatte del client 93/0), puri functions 409/409, client 1383/1384 (accenti senza git; in locale 55/55), build ok, rules py ok; su 99aa915 (solo client) tsc, client e build verdi; collaudo Playwright contro emulatori 91/91 a 320/390/430 (stati utente, Persone, Annulla, revoca con foto aperta); review Codex BLOCKED (7 punti) recepita, due verifiche successive, ultima PASS WITH CONCERNS (solo statica); niente in produzione"
+stopped_at: "Scelta S2-3 (Non lo conosco del dirigente agli admin) costruita sul branch a eb1d4fd: test e batteria verdi, verifica Codex; niente deployato"
+next: "Decisione di Paolo sul punto aperto: previous leggibile dal richiedente (proposta: spostarlo in members/{uid}/staff/previous); poi rilascio nell'ordine della spec con conferma fresca per ogni passo"
+verified: "2026-10-22 sul mini, eb1d4fd (S2-3): batteria dei file toccati verde (callable 70/0, trigger 18/0, fase 3 server 28/0, accesso 16/0, query del client 93/0, contratto 1724/0), puri functions 409/409, client 1389/1390 (accenti senza git; in locale 55/55), tsc e build ok; collaudo Playwright 103/103 (S2-3: dirigente, Annulla che rimette l'unità, coda dell'admin, banner senza unità); Codex PASS WITH CONCERNS sulla scelta e sulle correzioni (resta aperto previous leggibile). 2026-10-21, 6935f79: batteria completa 37 file a 0 fail, 3973 pass. Niente in produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
