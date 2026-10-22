@@ -6,13 +6,14 @@ import {
 } from "@/utils/recordNight";
 
 interface RecordNightHeroProps {
+  hasResults?: boolean;
   eventTitle: string;
   // "venerdì 16 ottobre" e "venerdì", dall'inizio dell'attività.
   dayLabel: string;
   weekday: string;
 }
 
-export function RecordNightHero({ eventTitle, dayLabel, weekday }: RecordNightHeroProps) {
+export function RecordNightHero({ eventTitle, dayLabel, weekday, hasResults = false }: RecordNightHeroProps) {
   const kicker = [eventTitle, dayLabel].filter(Boolean).join(" · ");
   const evening = weekday ? `${weekday} sera` : "la sera";
 
@@ -31,8 +32,10 @@ export function RecordNightHero({ eventTitle, dayLabel, weekday }: RecordNightHe
         </span>
       </h1>
       <p className="rn-lede">
-        Una prova da un minuto, {evening}. Iscriviti a uno o due di questi record, oppure proponine
-        uno nuovo.
+        {hasResults ? "I risultati della serata, confermati dallo staff." : <>
+          Una prova da un minuto, {evening}. Iscriviti a uno o due di questi record, oppure proponine
+          uno nuovo.
+        </>}
       </p>
     </section>
   );

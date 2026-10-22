@@ -6,6 +6,8 @@ import "@/styles/recordNight.css";
 import { RecordNightGuestView } from "@/components/recordNight/GuestRecordNight";
 import { MyRecords, getEntryLabel, getJoinedLabel } from "@/components/recordNight/MyRecords";
 import { OpenRecords } from "@/components/recordNight/OpenRecords";
+import { RecordNightResults } from "@/components/recordNight/RecordNightResults";
+import { getRecordNightResultRecords } from "@/utils/recordNightResults";
 import { PersonPicker } from "@/components/recordNight/PersonPicker";
 import { ProposalSheet } from "@/components/recordNight/ProposalSheet";
 import {
@@ -484,6 +486,8 @@ export function RecordNightPage() {
   const registrationPath = getActivityRegistrationPath(event.id, stakeId);
   const managePath = `/activities/${event.id}/record/gestisci${stakeId ? `?stake=${encodeURIComponent(stakeId)}` : ""}`;
   const hasSelf = people.some((item) => item.isSelf);
+  const resultRecords = getRecordNightResultRecords(records, event.endDate, now.getTime());
+  const hasResults = resultRecords.length > 0;
 
   function renderJoinInvite() {
     // Nessuna persona per cui agire. Dopo la chiusura non serve; lo staff
@@ -521,8 +525,8 @@ export function RecordNightPage() {
 
   return (
     <div className="rn">
-      <RecordNightHero dayLabel={dayLabel} eventTitle={event.title} weekday={weekday} />
-      <RecordNightBoard closeAt={closeAt} closed={closed} now={now} weekday={weekday} />
+      <RecordNightHero dayLabel={dayLabel} eventTitle={event.title} weekday={weekday} hasResults={hasResults} />
+      {!hasResults ? <RecordNightBoard closeAt={closeAt} closed={closed} now={now} weekday={weekday} /> : null}
 
       {isStaff ? (
         <Link className="rn-manage" to={managePath}>
@@ -540,7 +544,7 @@ export function RecordNightPage() {
         </Link>
       ) : null}
 
-      <RecordNightRules />
+      {!hasResults ? <RecordNightRules /> : null}
 
       {current?.error ? (
         <div className="rn-notice rn-notice--error" role="alert">
@@ -571,7 +575,8 @@ export function RecordNightPage() {
 
       {current?.listsLoaded ? (
         <>
-          {person ? (
+          {hasResults ? <RecordNightResults records={resultRecords} /> : null}
+          {!hasResults && person ? (
             <MyRecords
               activeCount={activeCount}
               busy={busy}
@@ -595,11 +600,11 @@ export function RecordNightPage() {
               }
               recordsById={recordsById}
             />
-          ) : context ? (
+          ) : !hasResults && context ? (
             renderJoinInvite()
           ) : null}
 
-          <OpenRecords
+          {!hasResults ? <OpenRecords
             atLimit={atLimit}
             busy={busy}
             canAct={canAct}
@@ -608,7 +613,7 @@ export function RecordNightPage() {
             onChallenge={handleChallenge}
             personName={personName}
             records={visibleRecords}
-          />
+          /> : null}
         </>
       ) : null}
 

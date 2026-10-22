@@ -900,6 +900,8 @@ export type RecordNightEntryKind = "proposal" | "challenge";
 export type RecordNightEntryStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 export interface RecordNightRecord {
+  // Staff-confirmed result. Absent on records that were not played.
+  result?: { winnerName: string; value: number } | null;
   id: string;
   title: string;
   category: RecordNightCategory;
