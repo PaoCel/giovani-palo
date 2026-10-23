@@ -245,6 +245,23 @@ service cloud.firestore {
         && isPublicActivityDoc(get(activityDocPath(stakeId, activityId)).data);
     }
 
+    function canUseGuestSurvey(stakeId, activityId) {
+      return isSignedIn()
+        && !isNonAnonymousSignedIn()
+        && isPublicActivity(stakeId, activityId)
+        && get(activityDocPath(stakeId, activityId)).data.surveyGuestEnabled == true;
+    }
+
+    function validGuestSurveyResponse() {
+      return request.resource.data.keys().hasOnly([
+          'eventId', 'stakeId', 'isDraft', 'category', 'answers',
+          'submittedAt', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.category == ''
+        && request.resource.data.isDraft is bool
+        && request.resource.data.answers is map;
+    }
+
     function isPublicLegacyEvent(eventId) {
       return exists(legacyEventDocPath(eventId))
         && isPublicActivityDoc(get(legacyEventDocPath(eventId)).data);
@@ -1778,7 +1795,8 @@ service cloud.firestore {
         }
 
         match /surveyQuestions/{questionId} {
-          allow get, list: if isStakeAdmin(stakeId) || isSignedIn();
+          allow get, list: if isStakeAdmin(stakeId) || isNonAnonymousSignedIn()
+            || (canUseGuestSurvey(stakeId, activityId) && resource.data.status == 'active');
           allow create, update, delete: if isStakeAdmin(stakeId);
         }
 
@@ -1786,9 +1804,11 @@ service cloud.firestore {
           // get aperto ai signed-in: serve a riprendere/aggiornare la propria
           // bozza sondaggio (id casuale memorizzato in localStorage). Le risposte
           // sono anonime (no userId/anonymousUid). list resta solo admin.
-          allow get: if isStakeAdmin(stakeId) || isSignedIn();
+          allow get: if isStakeAdmin(stakeId) || isNonAnonymousSignedIn()
+            || canUseGuestSurvey(stakeId, activityId);
           allow list: if isStakeAdmin(stakeId);
-          allow create: if isSignedIn()
+          allow create: if (isNonAnonymousSignedIn()
+              || (canUseGuestSurvey(stakeId, activityId) && validGuestSurveyResponse()))
             && request.resource.data.eventId == activityId
             && request.resource.data.stakeId == stakeId
             && validGenderRoleCategory(request.resource.data.category)
@@ -1799,7 +1819,8 @@ service cloud.firestore {
           // così nessun altro loggato può distruggere un invio definitivo
           // conoscendone l'id casuale. L'anonimato resta intatto (nessuna
           // identità è tracciata sul documento).
-          allow update: if isSignedIn()
+          allow update: if (isNonAnonymousSignedIn()
+              || (canUseGuestSurvey(stakeId, activityId) && validGuestSurveyResponse()))
             && resource.data.isDraft == true
             && request.resource.data.eventId == activityId
             && request.resource.data.stakeId == stakeId
