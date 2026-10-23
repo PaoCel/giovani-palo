@@ -69,4 +69,8 @@ bozza, invio e refresh senza risposte duplicate; account dei quattro ruoli
 senza iscrizione all'attività; tre link legacy, slug ignoto e flag spento.
 I campi sono disabilitati durante l'invio definitivo; il salvataggio attende
 le bozze in corso e cancella quello pianificato, senza scrivere dopo l'invio.
-La produzione non ha ricevuto risposte di prova né modifiche al flag.
+Prima del deploy la produzione non aveva ricevuto modifiche al flag.
+Il 23 ottobre 2026, dopo conferma esplicita, sono stati pubblicati rules e
+hosting (SW v32), poi verificati gli asset e le rules live. Flag attivato solo
+sul viaggio richiesto. Una sessione anonima reale ha aperto le otto domande;
+nessun campo compilato e nessuna risposta di prova in produzione.
