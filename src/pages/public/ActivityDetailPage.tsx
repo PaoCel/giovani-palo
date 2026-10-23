@@ -1,3 +1,4 @@
+import { getSurveyHref } from "@/utils/surveyLinks";
 import { Suspense, lazy } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 
@@ -434,7 +435,7 @@ export function ActivityDetailPage() {
           title="Sondaggio post-evento"
           description="Hai partecipato? Lasciaci un feedback (anonimo)."
         >
-          <Link className="button button--ghost" to={`/me/sondaggi/${event.id}`}>
+          <Link className="button button--ghost" to={getSurveyHref(event.id)}>
             Apri il sondaggio
           </Link>
         </SectionCard>

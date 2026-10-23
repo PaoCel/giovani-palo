@@ -167,6 +167,7 @@ function mapEvent(
         ? data.recordsCloseAt
         : null,
     recordsGuestEnabled: data.recordsGuestEnabled === true,
+    surveyGuestEnabled: data.surveyGuestEnabled === true,
     requiresParentalConsent: data.requiresParentalConsent === true,
     requiresPhotoRelease: data.requiresPhotoRelease === true,
     createdBy: typeof data.createdBy === "string" ? data.createdBy : "",

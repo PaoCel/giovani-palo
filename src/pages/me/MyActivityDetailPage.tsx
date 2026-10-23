@@ -1,3 +1,4 @@
+import { getSurveyHref } from "@/utils/surveyLinks";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -972,7 +973,7 @@ export function MyActivityDetailPage() {
                   </p>
                   <Link
                     className="camp-join-btn"
-                    to={`/campeggio/${data.event.id}?tab=sondaggio`}
+                    to={getSurveyHref(data.event.id)}
                   >
                     Vai al sondaggio
                   </Link>

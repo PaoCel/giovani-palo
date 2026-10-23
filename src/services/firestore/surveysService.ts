@@ -6,6 +6,7 @@ import {
   orderBy,
   query,
   setDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
@@ -139,8 +140,11 @@ export const surveysService = {
   },
 
   async listActiveQuestions(stakeId: string, eventId: string): Promise<SurveyQuestion[]> {
-    const all = await this.listQuestions(stakeId, eventId);
-    return all.filter((question) => question.status === "active");
+    const snapshot = await getDocsCacheFirst(
+      query(getQuestionsCollection(stakeId, eventId), where("status", "==", "active")),
+    );
+    return snapshot.docs.map(document => mapQuestion(stakeId, eventId, document.id, document.data()))
+      .sort((left, right) => left.order - right.order);
   },
 
   async upsertQuestion(

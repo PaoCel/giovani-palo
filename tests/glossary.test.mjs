@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { ACCEDI } from "../src/copy/accedi.ts";
+import { SONDAGGIO } from "../src/copy/sondaggio.ts";
 import { ADMIN } from "../src/copy/admin.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
 import { ATTIVITA } from "../src/copy/attivita.ts";
@@ -502,6 +503,7 @@ test("in src/ non compare nessuna forma vietata dal glossario", () => {
 // --- Testi in src/copy/ -----------------------------------------------------
 
 const COPY = {
+  SONDAGGIO,
   PAROLE,
   ACCEDI,
   ADMIN,

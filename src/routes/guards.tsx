@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
 import { campManagementService } from "@/services/firestore/campManagementService";
 import { canManageFamily, getAccountHomePath } from "@/utils/family";
+import { getSurveyHref } from "@/utils/surveyLinks";
 
 function isCampManagementAdminPath(pathname: string) {
   return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
@@ -77,6 +78,12 @@ function CampStaffGate({ session, pathname }: {
 export function ProtectedRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
+
+  const surveyId = /^\/me\/sondaggi\/([^/]+)\/?$/.exec(location.pathname)?.[1];
+  if (surveyId) {
+    const href = getSurveyHref(surveyId);
+    if (href.startsWith("/sondaggio/")) return <Navigate replace to={href} />;
+  }
 
   if (loading) {
     return <AppLoader label="Verifica sessione..." />;
@@ -191,6 +198,12 @@ export function UnitLeaderRoute() {
 export function CampRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
+
+  const legacyEventId = /^\/campeggio\/([^/]+)\/?$/.exec(location.pathname)?.[1];
+  if (legacyEventId && new URLSearchParams(location.search).get("tab") === "sondaggio") {
+    const href = getSurveyHref(legacyEventId);
+    if (href.startsWith("/sondaggio/")) return <Navigate replace to={href} />;
+  }
 
   if (loading) {
     return <AppLoader label="Apertura campeggio..." />;

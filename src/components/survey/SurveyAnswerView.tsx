@@ -114,21 +114,25 @@ export function SurveyAnswerView({
   const [event, setEvent] = useState<Event | null>(null);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, SurveyAnswerEntry>>({});
-  const [responseId, setResponseId] = useState<string | null>(null);
+  const responseId = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const saveTimer = useRef<number | null>(null);
+  const savePending = useRef<Promise<void>>(Promise.resolve());
+  const submitLock = useRef(false);
   const category: GenderRoleCategory | "" =
-    session?.profile.genderRoleCategory ?? "";
+    session?.isAnonymous ? "" : session?.profile.genderRoleCategory ?? "";
 
   useEffect(() => {
     if (!eventId || !stakeId) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setSubmitted(false);
+    responseId.current = null;
     Promise.all([
       eventsService.getEventById(stakeId, eventId),
       surveysService.listActiveQuestions(stakeId, eventId),
@@ -164,8 +168,9 @@ export function SurveyAnswerView({
           }
         }
 
+        if (cancelled) return;
         setAnswers(initialAnswers);
-        setResponseId(activeId);
+        responseId.current = activeId;
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -177,6 +182,7 @@ export function SurveyAnswerView({
       });
     return () => {
       cancelled = true;
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
   }, [eventId, stakeId]);
 
@@ -203,16 +209,21 @@ export function SurveyAnswerView({
 
   async function persistDraft(nextAnswers: Record<string, SurveyAnswerEntry>) {
     if (!eventId) return;
-    try {
-      const targetId = responseId ?? generateSurveyResponseId();
+    const save = async () => {
+      if (submitLock.current) return;
+      const targetId = responseId.current ?? generateSurveyResponseId();
+      responseId.current = targetId;
       await surveysService.saveResponse(stakeId, eventId, targetId, {
         isDraft: true,
         category,
         answers: nextAnswers,
       });
       writeStoredResponseId(stakeId, eventId, targetId);
-      setResponseId(targetId);
       setSavedAt(new Date().toISOString());
+    };
+    try {
+      savePending.current = savePending.current.then(save, save);
+      await savePending.current;
     } catch (err) {
       // soft-fail: localStorage already saved
       console.warn("Errore salvataggio bozza sondaggio", err);
@@ -236,27 +247,31 @@ export function SurveyAnswerView({
   }
 
   async function submitFinal() {
-    if (!eventId) return;
+    if (!eventId || submitLock.current || submitted) return;
     if (!hasContent) {
       setError("Compila almeno una risposta prima di inviare.");
       return;
     }
     setSubmitting(true);
+    submitLock.current = true;
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
     setError(null);
     try {
-      const targetId = responseId ?? generateSurveyResponseId();
+      await savePending.current.catch(() => undefined);
+      const targetId = responseId.current ?? generateSurveyResponseId();
+      responseId.current = targetId;
       await surveysService.saveResponse(stakeId, eventId, targetId, {
         isDraft: false,
         category,
         answers,
       });
       writeStoredResponseId(stakeId, eventId, targetId);
-      setResponseId(targetId);
       setSubmitted(true);
       setSavedAt(new Date().toISOString());
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Errore invio.");
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -270,7 +285,7 @@ export function SurveyAnswerView({
       // ignored
     }
     setAnswers(buildEmptyAnswers(questions));
-    setResponseId(null);
+    responseId.current = null;
     setSubmitted(false);
   }
 
@@ -315,6 +330,7 @@ export function SurveyAnswerView({
           description="Le risposte si salvano in automatico mentre compili. Il sondaggio è anonimo."
         >
           <div className="form-stack">
+            <fieldset disabled={submitting} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} className="form-stack">
             {questions.map((question) => (
               <SurveyQuestionField
                 key={question.id}
@@ -323,6 +339,7 @@ export function SurveyAnswerView({
                 onChange={(value) => setAnswerValue(question.id, value)}
               />
             ))}
+            </fieldset>
 
             <div className="chip-row">
               <button

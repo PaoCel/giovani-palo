@@ -320,6 +320,7 @@ export interface Event {
   // Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md): chiude solo
   // l'invio, spento di default. Il client lo legge dal contesto pubblico.
   recordsGuestEnabled?: boolean;
+  surveyGuestEnabled?: boolean;
   requiresParentalConsent: boolean;
   requiresPhotoRelease: boolean;
   createdBy: string;

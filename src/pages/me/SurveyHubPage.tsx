@@ -1,3 +1,4 @@
+import { getSurveyHref } from "@/utils/surveyLinks";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -57,7 +58,7 @@ export function SurveyHubPage() {
           <article key={event.id} className="surface-panel surface-panel--subtle">
             <strong>{event.title}</strong>
             <p className="subtle-text">{formatEventWindow(event)}</p>
-            <Link className="button button--ghost" to={`/me/sondaggi/${event.id}`}>
+            <Link className="button button--ghost" to={getSurveyHref(event.id)}>
               Compila il sondaggio
             </Link>
           </article>

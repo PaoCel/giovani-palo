@@ -1,5 +1,6 @@
 import { Suspense, lazy, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
+import { getSurveyHref } from "@/utils/surveyLinks";
 
 import { AppLoader } from "@/components/AppLoader";
 import { RouteErrorPanel } from "@/components/RouteErrorPanel";
@@ -39,7 +40,17 @@ function LegacyActivityGalleryRedirect() {
   return <Navigate replace to={`/activities/${eventId}/foto`} />;
 }
 
+function LegacySurveyRedirect() {
+  const { eventId = "" } = useParams();
+  return <Navigate replace to={getSurveyHref(eventId)} />;
+}
+
 export const router = createBrowserRouter([
+  {
+    path: "/sondaggio/:surveySlug",
+    element: lazyPage(() => import("@/pages/public/SurveyPage"), "SurveyPage"),
+    errorElement: <RouteErrorPanel />,
+  },
   // Certificato della Notte dei Record da stampare: senza shell, così in
   // stampa esce solo il foglio.
   {
@@ -113,7 +124,7 @@ export const router = createBrowserRouter([
         element: lazyPage(() => import("@/pages/auth/PasswordResetPage"), "PasswordResetPage"),
       },
       { path: "/sondaggi", element: <Navigate replace to="/me/sondaggi" /> },
-      { path: "/sondaggi/:eventId", element: <Navigate replace to="/me/sondaggi" /> },
+      { path: "/sondaggi/:eventId", element: <LegacySurveyRedirect /> },
       { path: "/galleria", element: <Navigate replace to="/me" /> },
       { path: "/galleria/:galleryId", element: <Navigate replace to="/me" /> },
       { path: "*", element: <NotFoundPage /> },

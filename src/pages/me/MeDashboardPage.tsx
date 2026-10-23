@@ -1,3 +1,4 @@
+import { getSurveyHref } from "@/utils/surveyLinks";
 import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -229,7 +230,7 @@ export function MeDashboardPage() {
                 </div>
                 <Link
                   className="button button--soft button--small"
-                  to={`/me/sondaggi/${event.id}`}
+                  to={getSurveyHref(event.id)}
                 >
                   Compila
                 </Link>

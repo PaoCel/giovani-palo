@@ -10,6 +10,7 @@ import {
 
 import { AppIcon } from "@/components/AppIcon";
 import { ACCEDI } from "@/copy/accedi";
+import { SONDAGGIO } from "@/copy/sondaggio";
 import { useAuth } from "@/hooks/useAuth";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
@@ -23,6 +24,9 @@ interface AuthFieldErrors {
 }
 
 interface AuthCredentialsFormProps {
+  compactLogin?: boolean;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   initialMode: AuthMode;
   // Le due schede alla pari, nell'ordine in cui compaiono: in Accedi prima
   // "Accedi", dentro l'iscrizione prima "Crea un account".
@@ -77,6 +81,9 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Google" in tutte e due (docs/FLUSSO_GENITORE.md, C e I). Non decide dove
 // andare dopo: chi lo usa guarda la sessione.
 export function AuthCredentialsForm({
+  compactLogin = false,
+  disabled = false,
+  onBusyChange,
   initialMode,
   tabOrder = ["login", "signup"],
   titles,
@@ -96,7 +103,7 @@ export function AuthCredentialsForm({
   const panelId = `${authIds}-panel`;
   const tabIds = { login: `${authIds}-tab-login`, signup: `${authIds}-tab-signup` };
   const keyboardOpen = useKeyboardOpen();
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [mode, setMode] = useState<AuthMode>(compactLogin ? "login" : initialMode);
   const messageRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const [email, setEmail] = useState("");
@@ -105,9 +112,13 @@ export function AuthCredentialsForm({
   const [showPasswords, setShowPasswords] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setBusy] = useState(false);
+  const busy = pending || disabled;
+  const [emailExpanded, setEmailExpanded] = useState(false);
+  const Title = compactLogin ? "h2" : "h1";
   const [error, setError] = useState<string | null>(null);
   const isSignup = mode === "signup";
+  useEffect(() => { onBusyChange?.(pending); }, [pending, onBusyChange]);
 
   // L'esito arriva dopo il tocco sulla CTA in fondo: il messaggio va in vista,
   // sopra il piede fisso (scroll-margin nel CSS), non sotto.
@@ -277,15 +288,15 @@ export function AuthCredentialsForm({
   }
 
   return (
-    <section className="auth-screen">
+    <section className={compactLogin ? "auth-screen auth-screen--compact" : "auth-screen"}>
       <div className="auth-screen__copy">
-        <h1 className="auth-screen__title" ref={titleRef} tabIndex={-1}>
+        <Title className="auth-screen__title" id={`${authIds}-title`} ref={titleRef} tabIndex={-1}>
           {titles[mode]}
-        </h1>
+        </Title>
         <p className="auth-screen__lead">{leads[mode]}</p>
       </div>
 
-      <div aria-label={ACCEDI.schede} className="auth-tabs" role="tablist">
+      {!compactLogin ? <div aria-label={ACCEDI.schede} className="auth-tabs" role="tablist">
         {tabOrder.map((tabMode) => (
           <button
             aria-controls={panelId}
@@ -302,13 +313,13 @@ export function AuthCredentialsForm({
             {tabMode === "login" ? ACCEDI.schedaAccedi : ACCEDI.schedaCrea}
           </button>
         ))}
-      </div>
+      </div> : null}
 
       {anonymousNote ? (
         <p className="auth-screen__note auth-screen__note--emphasis">{anonymousNote}</p>
       ) : null}
 
-      <div aria-labelledby={tabIds[mode]} className="auth-panel" id={panelId} role="tabpanel">
+      <div aria-labelledby={compactLogin ? `${authIds}-title` : tabIds[mode]} className="auth-panel" id={panelId} role={compactLogin ? undefined : "tabpanel"}>
         <button
           className="auth-google-button"
           disabled={busy}
@@ -321,11 +332,14 @@ export function AuthCredentialsForm({
           <span>{ACCEDI.google}</span>
         </button>
 
-        <div className="auth-divider">
+        {compactLogin ? <button type="button" className="survey-email-choice" disabled={busy}
+          aria-expanded={emailExpanded} aria-controls={formId} onClick={() => setEmailExpanded(!emailExpanded)}>
+          {emailExpanded ? SONDAGGIO.altriAccessi : SONDAGGIO.email}
+        </button> : <div className="auth-divider">
           <span>{ACCEDI.oppureConEmail}</span>
-        </div>
+        </div>}
 
-        <form className="auth-panel__form" id={formId} noValidate onSubmit={handleEmailAuth}>
+        {!compactLogin || emailExpanded ? <form className="auth-panel__form" id={formId} noValidate onSubmit={handleEmailAuth}>
           <label className="field">
             <span>{ACCEDI.email}</span>
             <input
@@ -409,7 +423,7 @@ export function AuthCredentialsForm({
               {ACCEDI.passwordDimenticata}
             </button>
           )}
-        </form>
+        </form> : null}
 
         {isSignup && signupNote ? <p className="auth-screen__note">{signupNote}</p> : null}
 
@@ -432,7 +446,7 @@ export function AuthCredentialsForm({
         {afterExtra}
       </div>
 
-      <div className={keyboardOpen ? "auth-foot auth-foot--inline" : "auth-foot"}>
+      {!compactLogin || emailExpanded ? <div className={compactLogin || keyboardOpen ? "auth-foot auth-foot--inline" : "auth-foot"}>
         <button
           className="button button--primary button--large"
           disabled={busy}
@@ -441,10 +455,10 @@ export function AuthCredentialsForm({
         >
           {busy ? ACCEDI.attendi : isSignup ? ACCEDI.inviaCrea : ACCEDI.inviaAccedi}
         </button>
-        <p className="auth-foot__note">
+        {!compactLogin ? <p className="auth-foot__note">
           {footNotes?.[mode] ?? (isSignup ? ACCEDI.notaCrea : ACCEDI.notaAccedi)}
-        </p>
-      </div>
+        </p> : null}
+      </div> : null}
     </section>
   );
 }
