@@ -126,6 +126,7 @@ export const PALO = {
   vuotoRifiutateTitolo: "Nessuna richiesta rifiutata",
   vuotoRifiutateCorpo: "Qui trovi le richieste rifiutate negli ultimi 30 giorni.",
   erroreCoda: "Non riesco a caricare le richieste. Controlla la connessione e riprova.",
+  riprova: ISCRIZIONE.riprova,
   caricamentoCoda: "Sto caricando le richieste...",
   senzaNome: "Senza nome",
   senzaUnitaProfilo: "Il tuo profilo non ha un'unità: le richieste della tua unità arriveranno quando un admin te la assegna.",

@@ -62,7 +62,15 @@
 //    `participant` e `staffRole` resta null (il ruolo non torna, e `staffRole`
 //    ne è la copia);
 //  - una scrittura della callable (es. `users.role` dopo `leave`) fa partire il
-//    trigger, che deve essere un no-op: `version` non cambia dopo la quiete.
+//    trigger, che deve essere un no-op: `version` non cambia dopo la quiete;
+//  - dal 2026-10-22 («Cosa legge il richiedente nel proprio documento») lo
+//    stato di prima vive in `members/{uid}/staff/previous`: ogni scrittura del
+//    server lascia `previous: null` sul documento members e scrive (o cancella,
+//    quando non c'è nulla da annullare) il documento dello staff; `memberOf`
+//    legge il solo documento, `memberWithPrevious` lo unisce a `staff/previous`
+//    e pretende `previous` null sul documento. Un documento vecchio con
+//    `previous` non nullo e senza `staff/previous` vale ancora come stato di
+//    prima, finché la scrittura dopo lo azzera.
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -221,6 +229,20 @@ const adminData = async (path) => {
 };
 const memberOf = (stake, uid) => adminData(memberPath(stake, uid));
 const userOf = (uid) => adminData(`users/${uid}`);
+const previousPath = (stake, uid) => `${memberPath(stake, uid)}/staff/previous`;
+/** Lo stato di prima scritto dal server: `members/{uid}/staff/previous` (null se non c'è nulla da annullare). */
+const previousOf = (stake, uid) => adminData(previousPath(stake, uid));
+/**
+ * Documento members unito al suo stato di prima letto da `staff/previous`.
+ * Dopo ogni scrittura del server sul documento members `previous` è null:
+ * qui si pretende, così nessun caso legge per sbaglio il campo vecchio.
+ */
+async function memberWithPrevious(stake, uid) {
+  const [data, previous] = await Promise.all([memberOf(stake, uid), previousOf(stake, uid)]);
+  if (!data) return null;
+  assert.equal(data.previous, null, `${stake}/${uid}: sul documento members previous deve restare null (lo stato di prima vive in staff/previous)`);
+  return { ...data, previous };
+}
 async function memberMeta(stake, uid) {
   const snap = await adminDb.doc(memberPath(stake, uid)).get();
   return snap.exists ? { data: snap.data(), updateTime: snap.updateTime.toMillis() } : null;
@@ -606,14 +628,22 @@ describe("request", () => {
 
     const result = await forSelf(who, "request");
     assertChanged(result, { action: "request", status: "pending", version: before.version + 1 });
-    const a = await memberOf(STAKE_A, who.uid);
+    const a = await memberWithPrevious(STAKE_A, who.uid);
     assert.equal(a.status, "pending");
     assert.equal(a.claimedUnitId, UNIT1.id);
     assert.equal(a.reviewNeeded, false);
     assertPrevious(a.previous, { status: "withdrawn", action: "request", by: who.uid });
-    const b = await memberOf(STAKE_B, who.uid);
+    const b = await memberWithPrevious(STAKE_B, who.uid);
     assert.equal(b.status, "withdrawn", "l'altra richiesta aperta si chiude");
     assert.equal(b.version, 4, "anche l'altro documento incrementa version");
+    // Il trigger del profilo può arrivare dopo la quiete (anche un no-op non
+    // cambia i members): entrambi i percorsi chiudono la richiesta di B.
+    assert.ok(
+      (b.previous.action === "request" && b.previous.by === who.uid) ||
+      (b.previous.action === "stake_changed" && b.previous.by === "system"),
+      "la richiesta dell'altro palo è chiusa dalla callable o dal trigger",
+    );
+    assertPrevious(b.previous, { status: "pending", action: b.previous.action, by: b.previous.by });
     await expectHistoryRow(STAKE_A, who.uid, { action: "request", by: who.uid, fromStatus: "withdrawn", toStatus: "pending", version: before.version + 1 });
   });
 
@@ -804,7 +834,7 @@ describe("withdraw e leave", () => {
   test("withdraw: pending → withdrawn per sé; da withdrawn changed false; da active invalid_state", async () => {
     const [who] = await fresh([{ label: "ritiro", member: pendingData() }]);
     assertChanged(await forSelf(who, "withdraw"), { action: "withdraw", status: "withdrawn", version: 2 });
-    const data = await memberOf(STAKE_A, who.uid);
+    const data = await memberWithPrevious(STAKE_A, who.uid);
     assert.equal(data.status, "withdrawn");
     assertPrevious(data.previous, { status: "pending", action: "withdraw", by: who.uid });
     await expectHistoryRow(STAKE_A, who.uid, { action: "withdraw", by: who.uid, fromStatus: "pending", toStatus: "withdrawn", version: 2 });
@@ -826,7 +856,7 @@ describe("withdraw e leave", () => {
     const [leader] = await fresh([{ label: "dirigente-esce", role: "unit_leader", member: { status: "active", staffRole: "unit_leader", claimedUnitId: UNIT1.id } }]);
     assert.equal((await userOf(leader.uid)).role, "unit_leader");
     assertChanged(await forSelf(leader, "leave"), { action: "leave", status: "withdrawn", version: 2 });
-    const [data, profile] = await Promise.all([memberOf(STAKE_A, leader.uid), userOf(leader.uid)]);
+    const [data, profile] = await Promise.all([memberWithPrevious(STAKE_A, leader.uid), userOf(leader.uid)]);
     assert.equal(data.status, "withdrawn");
     assert.equal(data.staffRole, null);
     assert.equal(profile.role, "participant", "il ruolo del profilo cade con l'uscita");
@@ -880,7 +910,7 @@ describe("approve, decline, notMyUnit", () => {
     const [target] = await fresh([{ label: "approvato-d", member: pendingData(UNIT1) }]);
     const result = await onUid(P.D, "approve", target);
     assertChanged(result, { action: "approve", status: "active", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "active");
     assert.equal(data.reviewNeeded, false);
     assert.equal(data.decidedBy, P.D.uid);
@@ -920,12 +950,15 @@ describe("approve, decline, notMyUnit", () => {
     const [mover] = await fresh([{ label: "cambia-palo", members: [{ stake: STAKE_B, status: "active", version: 5 }, { stake: STAKE_A, ...pendingData(UNIT1) }] }]);
     assert.equal((await memberOf(STAKE_B, mover.uid)).status, "active", "l'attivo nel palo vecchio resta finché il nuovo non è approvato");
     assertChanged(await onUid(P.A, "approve", mover), { action: "approve", status: "active", version: 2 });
-    const [a, b] = await Promise.all([memberOf(STAKE_A, mover.uid), memberOf(STAKE_B, mover.uid)]);
+    const [a, b] = await Promise.all([memberWithPrevious(STAKE_A, mover.uid), memberWithPrevious(STAKE_B, mover.uid)]);
     assert.equal(a.status, "active");
-    assert.ok("moved" in a.previous, "previous.moved registra lo spostamento");
+    assertPrevious(a.previous, { status: "pending", action: "approve", by: P.A.uid });
+    assert.deepEqual(a.previous.moved, [{ stakeId: STAKE_B, version: 6 }], "previous.moved registra lo spostamento");
     assert.equal(b.status, "withdrawn");
     assert.equal(b.movedToStakeId, STAKE_A);
     assert.equal(b.version, 6);
+    // Anche lo stato di prima dell'altro palo vive nel suo staff/previous.
+    assertPrevious(b.previous, { status: "active", action: "moved", by: P.A.uid });
   });
 
   test("decline: solo D della unità e A; declined con declineCount +1; da active invalid_state", async () => {
@@ -955,7 +988,7 @@ describe("approve, decline, notMyUnit", () => {
     await expectDenied(onUid(P.D2, "notMyUnit", target));
     await expectDenied(onUid(P.A, "notMyUnit", target));
     assertChanged(await onUid(P.D, "notMyUnit", target), { action: "notMyUnit", status: "pending", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.claimedUnitId, "");
     assert.equal(data.claimedUnitName, UNIT1.name, "il nome dichiarato resta per chi approva");
@@ -995,9 +1028,10 @@ describe("confirmKnown e markUnknown", () => {
     await expectDenied(onUid(P.D2, "confirmKnown", one));
     await expectDenied(onUid(P.M, "confirmKnown", one));
     assertChanged(await onUid(P.D, "confirmKnown", one), { action: "confirmKnown", status: "active", version: 2 });
-    const data = await memberOf(STAKE_A, one.uid);
+    const data = await memberWithPrevious(STAKE_A, one.uid);
     assert.equal(data.status, "active");
     assert.equal(data.reviewNeeded, false);
+    assertPrevious(data.previous, { status: "active", action: "confirmKnown", by: P.D.uid });
     assert.equal(data.previous.reviewNeeded, true);
     await expectHistoryRow(STAKE_A, one.uid, { action: "confirmKnown", by: P.D.uid, fromStatus: "active", toStatus: "active", version: 2 });
     assertChanged(await onUid(P.A, "confirmKnown", two), { action: "confirmKnown", status: "active", version: 2 });
@@ -1013,7 +1047,7 @@ describe("confirmKnown e markUnknown", () => {
     // Prima dell'azione il dirigente la legge: è della sua unità.
     assert.equal((await memberDocOf(P.D, target)).data()?.status, "active", "prima: il dirigente la vede");
     assertChanged(await onUid(P.D, "markUnknown", target), { action: "markUnknown", status: "pending", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.reviewNeeded, false);
     assert.equal(data.claimedUnitId, "", "l'unità dichiarata si svuota: la richiesta passa agli admin");
@@ -1040,7 +1074,7 @@ describe("confirmKnown e markUnknown", () => {
     const [target] = await fresh([{ label: "non-lo-conosco-a", member: review() }]);
     const marked = await onUid(P.A, "markUnknown", target);
     assertChanged(marked, { action: "markUnknown", status: "pending", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.reviewNeeded, false);
     assert.equal(data.claimedUnitId, UNIT1.id, "dall'admin l'unità dichiarata resta");
@@ -1055,7 +1089,7 @@ describe("confirmKnown e markUnknown", () => {
     assert.equal((await pendingUidsOf(P.A)).includes(target.uid), true, "è fra le richieste dell'admin");
 
     assertChanged(await undo(P.A, target, marked.version), { action: "undo", status: "active", version: 3 });
-    const restored = await memberOf(STAKE_A, target.uid);
+    const restored = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(restored.status, "active");
     assert.equal(restored.reviewNeeded, true, "torna da confermare");
     assert.equal(restored.claimedUnitId, UNIT1.id);
@@ -1070,7 +1104,7 @@ describe("confirmKnown e markUnknown", () => {
     await expectDenied(onUid(P.D, "markUnknown", target));
     const marked = await onUid(P.A, "markUnknown", target);
     assertChanged(marked, { action: "markUnknown", status: "pending", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.reviewNeeded, false);
     assert.equal(data.claimedUnitId, "", "non c'era un'unità: resta vuota");
@@ -1083,7 +1117,7 @@ describe("confirmKnown e markUnknown", () => {
     assert.equal((await pendingUidsOf(P.A)).includes(target.uid), true, "è fra le richieste dell'admin");
 
     assertChanged(await undo(P.A, target, marked.version), { action: "undo", status: "active", version: 3 });
-    const restored = await memberOf(STAKE_A, target.uid);
+    const restored = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(restored.status, "active");
     assert.equal(restored.reviewNeeded, true);
     assert.equal(restored.claimedUnitId, "");
@@ -1099,7 +1133,7 @@ describe("confirmKnown e markUnknown", () => {
     const undone = await undo(P.D, target, marked.version);
     assertChanged(undone, { action: "undo", status: "active", version: 3 });
     assert.equal(undone.undone, "markUnknown", "la risposta dice cosa è stato annullato");
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "active");
     assert.equal(data.reviewNeeded, true, "torna da confermare, non confermato");
     assert.equal(data.claimedUnitId, UNIT1.id, "l'unità dichiarata torna");
@@ -1125,7 +1159,7 @@ describe("confirmKnown e markUnknown", () => {
     assert.equal(before.data.claimedUnitId, "", "intanto resta agli admin");
 
     assertChanged(await undo(P.A, target, marked.version), { action: "undo", status: "active", version: 3 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "active");
     assert.equal(data.reviewNeeded, true);
     assert.equal(data.claimedUnitId, UNIT1.id, "l'unità dichiarata torna anche se annulla l'admin");
@@ -1154,7 +1188,7 @@ describe("remove, block, unblock, reactivate", () => {
     for (const person of [P.D, P.M, P.P, P.AB, P.N]) await expectDenied(onUid(person, "remove", target));
     assert.equal((await memberOf(STAKE_A, target.uid)).version, 1);
     assertChanged(await onUid(P.A, "remove", target), { action: "remove", status: "removed", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "removed");
     assert.equal(data.decidedBy, P.A.uid);
     assertPrevious(data.previous, { status: "active", action: "remove", by: P.A.uid });
@@ -1176,7 +1210,7 @@ describe("remove, block, unblock, reactivate", () => {
     await seedStaffLists(STAKE_B, actB, [leader.uid]);
 
     assertChanged(await onUid(P.A, "remove", leader), { action: "remove", status: "removed", version: 2 });
-    const [data, profile] = await Promise.all([memberOf(STAKE_A, leader.uid), userOf(leader.uid)]);
+    const [data, profile] = await Promise.all([memberWithPrevious(STAKE_A, leader.uid), userOf(leader.uid)]);
     assert.equal(data.status, "removed");
     assert.equal(data.staffRole, null);
     assert.equal(profile.role, "participant");
@@ -1206,7 +1240,7 @@ describe("remove, block, unblock, reactivate", () => {
         continue;
       }
       assertChanged(await onUid(P.A, "block", person), { action: "block", status: "blocked", version: 2 });
-      const data = await memberOf(STAKE_A, person.uid);
+      const data = await memberWithPrevious(STAKE_A, person.uid);
       assert.equal(data.status, "blocked", status);
       assertPrevious(data.previous, { status, action: "block", by: P.A.uid });
       await expectHistoryRow(STAKE_A, person.uid, { action: "block", by: P.A.uid, fromStatus: status, toStatus: "blocked", version: 2 });
@@ -1227,7 +1261,7 @@ describe("remove, block, unblock, reactivate", () => {
     const [target] = await fresh([{ label: "da-sbloccare", member: { status: "blocked", claimedUnitId: UNIT1.id, claimedUnitName: UNIT1.name } }]);
     await expectDenied(onUid(P.D, "unblock", target));
     assertChanged(await onUid(P.A, "unblock", target), { action: "unblock", status: "pending", version: 2 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending", "va riverificato");
     assert.equal(data.reviewNeeded, false);
     assertPrevious(data.previous, { status: "blocked", action: "unblock", by: P.A.uid });
@@ -1241,7 +1275,7 @@ describe("remove, block, unblock, reactivate", () => {
     assertChanged(await onUid(P.A, "remove", target), { action: "remove", status: "removed", version: 2 });
     await expectDenied(onUid(P.D, "reactivate", target));
     assertChanged(await onUid(P.A, "reactivate", target), { action: "reactivate", status: "active", version: 3 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "active");
     assert.deepEqual(data.sources.map((source) => [source.kind, source.ref]), [["link_code", "codice-1"]], "i motivi di prima tornano");
     assert.equal(data.staffRole, null);
@@ -1307,16 +1341,21 @@ describe("remove, block, unblock, reactivate", () => {
       const profile = await userOf(person.uid);
       assert.equal(profile.unitId, "", `${person.name}: premessa`);
       assert.equal(profile.role, "participant", `${person.name}: premessa`);
+      // Documento vecchio: lo stato di prima sta ancora sul documento members, senza staff/previous.
       assert.equal("roleUnitId" in (await memberOf(STAKE_A, person.uid)).previous, false, `${person.name}: premessa`);
+      assert.equal(await previousOf(STAKE_A, person.uid), null, `${person.name}: premessa, nessun staff/previous`);
     }
     assertChanged(await onUid(P.A, "reactivate", viaReactivate), { action: "reactivate", status: "active", version: 4 });
     assertChanged(await undo(P.A, viaUndo, 3), { action: "undo", status: "active", version: 4 });
     for (const person of [viaReactivate, viaUndo]) {
-      const [data, profile] = await Promise.all([memberOf(STAKE_A, person.uid), userOf(person.uid)]);
+      // La scrittura dopo azzera il campo vecchio (memberWithPrevious lo pretende).
+      const [data, profile] = await Promise.all([memberWithPrevious(STAKE_A, person.uid), userOf(person.uid)]);
       assert.equal(data.status, "active", person.name);
       assert.equal(data.staffRole, null, `${person.name}: staffRole`);
       assert.equal(profile.role, "participant", `${person.name}: il ruolo non torna senza l'unità di allora`);
     }
+    assertPrevious((await memberWithPrevious(STAKE_A, viaReactivate.uid)).previous, { status: "removed", action: "reactivate", by: P.A.uid });
+    assert.equal((await memberWithPrevious(STAKE_A, viaUndo.uid)).previous, null, "dopo l'annullamento non c'è più nulla da annullare");
   });
 
   test("reactivate senza un previous attivo (documento removed nato così): active con staffRole null", async () => {
@@ -1373,11 +1412,11 @@ describe("undo", () => {
     assertChanged(approved, { action: "approve", status: "active", version: 2 });
     const undone = await undo(P.D, target, approved.version);
     assertChanged(undone, { action: "undo", status: "pending", version: 3 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.reviewNeeded, false);
     assert.equal(data.claimedUnitId, UNIT1.id);
-    assert.equal(data.previous, null, "dopo l'annullamento non c'è più nulla da annullare");
+    assert.equal(data.previous, null, "dopo l'annullamento non c'è più nulla da annullare: staff/previous cancellato");
     assert.equal(data.sources.some((source) => source.kind === "staff_approval"), false, "il motivo dell'approvazione sparisce");
     await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.D.uid, fromStatus: "active", toStatus: "pending", version: 3 });
     await expectError(undo(P.D, target, 3), "failed-precondition", "nothing_to_undo");
@@ -1430,7 +1469,7 @@ describe("undo", () => {
     assert.equal(ko.length, 1);
     assert.equal(ko[0]?.code, "functions/failed-precondition", `${ko[0]?.code}: ${ko[0]?.message}`);
     assert.ok(["version_conflict", "nothing_to_undo"].includes(ko[0]?.details?.reason), JSON.stringify(ko[0]?.details ?? null));
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.status, "pending");
     assert.equal(data.version, 3, "una sola scrittura in più");
     assert.equal(data.previous, null);
@@ -1447,7 +1486,7 @@ describe("undo", () => {
     assert.deepEqual(await staffLists(STAKE_A, act), { camp: [other.uid], night: [other.uid] });
     await settleAll();
     assertChanged(await undo(P.A, leader, removed.version), { action: "undo", status: "active", version: 3 });
-    const [data, profile, lists] = await Promise.all([memberOf(STAKE_A, leader.uid), userOf(leader.uid), staffLists(STAKE_A, act)]);
+    const [data, profile, lists] = await Promise.all([memberWithPrevious(STAKE_A, leader.uid), userOf(leader.uid), staffLists(STAKE_A, act)]);
     assert.equal(data.status, "active");
     assert.equal(data.staffRole, "unit_leader");
     assert.equal(data.previous, null);
@@ -1462,12 +1501,16 @@ describe("undo", () => {
     const [mover] = await fresh([{ label: "undo-spostamento", members: [{ stake: STAKE_B, status: "active", version: 2 }, { stake: STAKE_A, ...pendingData(UNIT1) }] }]);
     const approved = await onUid(P.A, "approve", mover);
     assert.equal((await memberOf(STAKE_B, mover.uid)).status, "withdrawn");
+    // Lo stato di prima dell'altro palo è nel suo staff/previous: «Annulla» lo rilegge da lì.
+    assertPrevious(await previousOf(STAKE_B, mover.uid), { status: "active", action: "moved", by: P.A.uid });
     assertChanged(await undo(P.A, mover, approved.version), { action: "undo", status: "pending", version: 3 });
-    const [a, b] = await Promise.all([memberOf(STAKE_A, mover.uid), memberOf(STAKE_B, mover.uid)]);
+    const [a, b] = await Promise.all([memberWithPrevious(STAKE_A, mover.uid), memberWithPrevious(STAKE_B, mover.uid)]);
     assert.equal(a.status, "pending");
+    assert.equal(a.previous, null);
     assert.equal(b.status, "active", "l'appartenenza spostata torna");
     assert.ok(!b.movedToStakeId, "movedToStakeId sparisce");
     assert.equal(b.version, 4);
+    assert.equal(b.previous, null, "anche nell'altro palo non resta nulla da annullare");
   });
 
   test("undo di un approve con appartenenza spostata: l'altro documento non si tocca se è cambiato (version diversa); se torna, torna senza staffRole", async () => {
@@ -1486,14 +1529,16 @@ describe("undo", () => {
     assertChanged(await undo(P.A, changed, approvedChanged.version), { action: "undo", status: "pending", version: 3 });
     assert.equal((await memberOf(STAKE_A, changed.uid)).status, "pending");
     assert.deepEqual(await memberMeta(STAKE_B, changed.uid), bBefore, "il documento cambiato nell'altro palo non si tocca");
+    assertPrevious(await previousOf(STAKE_B, changed.uid), { status: "active", action: "moved", by: P.A.uid });
 
     const approvedWithRole = await onUid(P.A, "approve", withRole);
     assert.equal((await memberOf(STAKE_B, withRole.uid)).status, "withdrawn");
     assertChanged(await undo(P.A, withRole, approvedWithRole.version), { action: "undo", status: "pending", version: 3 });
-    const b = await memberOf(STAKE_B, withRole.uid);
+    const b = await memberWithPrevious(STAKE_B, withRole.uid);
     assert.equal(b.status, "active", "l'appartenenza spostata torna");
     assert.equal(b.staffRole, null, "il ruolo vale solo nel palo scelto: torna senza staffRole");
     assert.ok(!b.movedToStakeId);
+    assert.equal(b.previous, null);
   });
 
   test("undo della riattivazione di un admin rimosso: il ruolo torna participant", async () => {
@@ -1509,10 +1554,10 @@ describe("undo", () => {
     const reactivated = await act("reactivate", ax);
     assertChanged(reactivated, { action: "reactivate", status: "active", version: 3 });
     assert.equal((await userOf(ax.uid)).role, "admin");
-    assert.equal((await memberOf(stake, ax.uid)).previous.roleAfter, "admin");
+    assert.equal((await memberWithPrevious(stake, ax.uid)).previous.roleAfter, "admin");
     await settleAll();
     assertChanged(await act("undo", ax, { version: reactivated.version }), { action: "undo", status: "removed", version: 4 });
-    const [data, profile] = await Promise.all([memberOf(stake, ax.uid), userOf(ax.uid)]);
+    const [data, profile] = await Promise.all([memberWithPrevious(stake, ax.uid), userOf(ax.uid)]);
     assert.equal(data.status, "removed");
     assert.equal(data.staffRole, null);
     assert.equal(data.previous, null);
@@ -1553,7 +1598,7 @@ describe("undo", () => {
     for (const [index, [label, action, change]] of cases.entries()) {
       const leader = people[index];
       const removed = await onUid(P.A, "remove", leader);
-      const afterRemove = await memberOf(STAKE_A, leader.uid);
+      const afterRemove = await memberWithPrevious(STAKE_A, leader.uid);
       assert.equal(afterRemove.previous.role, "unit_leader", label);
       assert.equal(afterRemove.previous.roleUnitId, UNIT1.id, label);
       assert.equal((await userOf(leader.uid)).role, "participant", label);
@@ -1646,11 +1691,139 @@ describe("undo", () => {
     assert.equal((await memberOf(STAKE_A, target.uid)).claimedUnitId, "");
     await expectDenied(undo(P.D2, target, passed.version));
     assertChanged(await undo(P.D, target, passed.version), { action: "undo", status: "pending", version: 3 });
-    const data = await memberOf(STAKE_A, target.uid);
+    const data = await memberWithPrevious(STAKE_A, target.uid);
     assert.equal(data.claimedUnitId, UNIT1.id, "l'unità dichiarata torna");
     assert.equal(data.claimedUnitName, UNIT1.name);
     assert.equal(data.previous, null);
     await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.D.uid, fromStatus: "pending", toStatus: "pending", version: 3 });
+  });
+});
+
+// ===========================================================================
+// Lo stato di prima in members/{uid}/staff/previous (2026-10-22)
+// ===========================================================================
+describe("stato di prima in staff/previous", () => {
+  test("documento nuovo: previous null e nessun staff/previous; dopo un'azione dello staff il documento c'è, dopo «Annulla» non c'è più", async () => {
+    const n = await freshN("prima-nuovo");
+    assertChanged(await forSelf(n, "request"), { action: "request", status: "pending", version: 1 });
+    const created = await memberWithPrevious(STAKE_A, n.uid);
+    assert.equal(created.status, "pending");
+    assert.equal(created.previous, null, "un documento nuovo non ha uno stato di prima");
+    const approved = await onUid(P.D, "approve", n);
+    assertPrevious((await memberWithPrevious(STAKE_A, n.uid)).previous, { status: "pending", action: "approve", by: P.D.uid });
+    assertChanged(await undo(P.D, n, approved.version), { action: "undo", status: "pending", version: 3 });
+    assert.equal(await previousOf(STAKE_A, n.uid), null, "dopo «Annulla» il documento staff/previous è cancellato");
+    assert.equal((await memberOf(STAKE_A, n.uid)).previous, null);
+    await expectError(undo(P.D, n, 3), "failed-precondition", "nothing_to_undo");
+  });
+
+  test("documento vecchio con previous sul documento members e senza staff/previous: «Annulla» lo legge da lì; la scrittura dopo azzera il campo e cancella staff/previous", async () => {
+    // Rifiuto del dirigente registrato prima del 2026-10-22: lo stato di prima è ancora sul documento.
+    const legacyDecline = {
+      status: "pending",
+      sources: [],
+      staffRole: null,
+      reviewNeeded: false,
+      claimedUnitId: UNIT1.id,
+      claimedUnitName: UNIT1.name,
+      declineCount: 0,
+      decidedAt: null,
+      decidedBy: null,
+      action: "decline",
+      by: P.D.uid,
+      at: Timestamp.now(),
+    };
+    const [target] = await fresh([{ label: "vecchio-rifiuto", member: { ...declinedData(1, 1), decidedBy: P.D.uid, previous: legacyDecline, version: 2 } }]);
+    assert.equal((await memberOf(STAKE_A, target.uid)).previous.action, "decline", "premessa: previous sul documento");
+    assert.equal(await previousOf(STAKE_A, target.uid), null, "premessa: nessun staff/previous");
+    // Un altro dirigente non annulla il rifiuto di D nemmeno dal campo vecchio.
+    await expectDenied(undo(P.D2, target, 2));
+    assertChanged(await undo(P.D, target, 2), { action: "undo", status: "pending", version: 3 });
+    const data = await memberWithPrevious(STAKE_A, target.uid);
+    assert.equal(data.status, "pending");
+    assert.equal(data.declineCount, 0, "il rifiuto annullato non conta");
+    assert.equal(data.claimedUnitId, UNIT1.id);
+    assert.equal(data.previous, null, "campo azzerato e nessun staff/previous");
+    await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.D.uid, fromStatus: "declined", toStatus: "pending", version: 3 });
+  });
+
+  test("documento vecchio removed con previous sul documento: «Riattiva» ripristina motivi e unità da lì; dopo, previous null e staff/previous con l'azione reactivate", async () => {
+    const legacyRemove = {
+      status: "active",
+      sources: [{ kind: "link_code", ref: "codice-vecchio", at: Timestamp.now() }],
+      staffRole: null,
+      reviewNeeded: false,
+      claimedUnitId: UNIT2.id,
+      claimedUnitName: UNIT2.name,
+      declineCount: 0,
+      decidedAt: Timestamp.now(),
+      decidedBy: "system",
+      action: "remove",
+      by: P.A.uid,
+      at: Timestamp.now(),
+    };
+    const [target] = await fresh([{ label: "vecchio-rimosso", member: { status: "removed", sources: [], claimedUnitId: "", claimedUnitName: "", decidedBy: P.A.uid, previous: legacyRemove, version: 2 } }]);
+    assert.equal(await previousOf(STAKE_A, target.uid), null, "premessa: nessun staff/previous");
+    assertChanged(await onUid(P.A, "reactivate", target), { action: "reactivate", status: "active", version: 3 });
+    const data = await memberWithPrevious(STAKE_A, target.uid);
+    assert.equal(data.status, "active");
+    assert.deepEqual(data.sources.map((source) => [source.kind, source.ref]), [["link_code", "codice-vecchio"]], "i motivi di prima tornano dal campo vecchio");
+    assert.equal(data.claimedUnitId, UNIT2.id, "l'unità di prima torna dal campo vecchio");
+    assert.equal(data.claimedUnitName, UNIT2.name);
+    assert.equal(data.staffRole, null);
+    assertPrevious(data.previous, { status: "removed", action: "reactivate", by: P.A.uid });
+    assert.equal(data.previous.claimedUnitId, "", "lo stato di prima nuovo è quello del documento removed");
+  });
+
+  test("spostamento registrato alla vecchia maniera (previous sui due documenti, nessun staff/previous): «Annulla» riporta l'altro palo ad active e azzera entrambi", async () => {
+    const at = Timestamp.now();
+    const movedPrevious = {
+      status: "active",
+      sources: [{ kind: "migration", ref: "a3-2026-10", at }],
+      staffRole: null,
+      reviewNeeded: false,
+      claimedUnitId: "",
+      claimedUnitName: "",
+      declineCount: 0,
+      decidedAt: at,
+      decidedBy: "system",
+      action: "moved",
+      by: P.A.uid,
+      at,
+    };
+    const approvePrevious = {
+      status: "pending",
+      sources: [],
+      staffRole: null,
+      reviewNeeded: false,
+      claimedUnitId: UNIT1.id,
+      claimedUnitName: UNIT1.name,
+      declineCount: 0,
+      decidedAt: null,
+      decidedBy: null,
+      action: "approve",
+      by: P.A.uid,
+      at,
+      moved: [{ stakeId: STAKE_B, version: 6 }],
+    };
+    const [mover] = await fresh([{
+      label: "vecchio-spostamento",
+      members: [
+        { stake: STAKE_B, status: "withdrawn", sources: [], movedToStakeId: STAKE_A, decidedBy: P.A.uid, previous: movedPrevious, version: 6 },
+        { stake: STAKE_A, status: "active", claimedUnitId: UNIT1.id, claimedUnitName: UNIT1.name, decidedBy: P.A.uid, sources: [{ kind: "staff_approval", ref: P.A.uid, at }], previous: approvePrevious, version: 2 },
+      ],
+    }]);
+    assert.equal(await previousOf(STAKE_A, mover.uid), null, "premessa");
+    assert.equal(await previousOf(STAKE_B, mover.uid), null, "premessa");
+    assertChanged(await undo(P.A, mover, 2), { action: "undo", status: "pending", version: 3 });
+    const [a, b] = await Promise.all([memberWithPrevious(STAKE_A, mover.uid), memberWithPrevious(STAKE_B, mover.uid)]);
+    assert.equal(a.status, "pending");
+    assert.equal(a.claimedUnitId, UNIT1.id);
+    assert.equal(a.previous, null);
+    assert.equal(b.status, "active", "l'appartenenza spostata torna dal campo vecchio");
+    assert.ok(!b.movedToStakeId, "movedToStakeId sparisce");
+    assert.equal(b.version, 7);
+    assert.equal(b.previous, null);
   });
 });
 

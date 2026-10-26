@@ -732,6 +732,11 @@ pagina Persone legge `staff/previous` per ogni richiesta e rifiutata (etichette
 "Passata dal dirigente" e "Il dirigente non lo conosce", "Annulla rifiuto" del
 dirigente solo sui propri rifiuti), come la nota dello staff.
 
+I dettagli dello staff sono memorizzati per palo, uid e versione. Una lettura
+fallita mostra l'errore della coda con "Riprova": la coda resta visibile, il
+nuovo tentativo rilegge i soli dettagli mancanti e ripristina etichette e
+azioni. Cambiare scheda o lasciare Persone non modifica alcuna richiesta.
+
 Approvare, rifiutare, confermare non chiedono conferma: il toast "Annulla" e la
 scheda "Rifiutate" sono la strada indietro (un foglio coprirebbe il toast).
 Rimuovere, bloccare, sbloccare e riattivare restano a S4 (Persone).

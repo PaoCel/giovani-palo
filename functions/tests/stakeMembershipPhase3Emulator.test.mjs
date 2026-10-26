@@ -34,9 +34,10 @@
 //    essere `changed: false`, oppure `invalid_state` (la tabella dice solo
 //    `pending` → `declined`); in entrambi i casi il documento non si riscrive.
 //    Da `active`, `withdrawn` e `blocked` è `invalid_state`;
-//  - il richiedente legge il proprio members, `previous` compreso: dopo
-//    `hasAccount` lì l'azione è `decline` (chiarimento del 2026-10-21), e solo
-//    la riga di history dice `hasAccount`;
+//  - il richiedente legge il proprio members con `previous: null`; lo stato di
+//    prima vive in `staff/previous`, solo per lo staff dell'unità dichiarata o
+//    del palo (chiarimento del 2026-10-22). Dopo `hasAccount` lì l'azione resta
+//    `decline`, e solo la riga di history dice `hasAccount`;
 //  - il promemoria conta come in ritardo ogni `pending` con `requestedAt` più
 //    vecchio di 48 ore (47 ore no, 49 sì; il confine esatto non si prova);
 //    `sendPush` finto: una chiamata per palo e per giro, `payload` è la stringa
@@ -161,6 +162,7 @@ const STAKE_CAP = await newStake("tetto");
 // ---------------------------------------------------------------------------
 const memberPath = (stake, uid) => `stakes/${stake}/members/${uid}`;
 const notePath = (stake, uid) => `${memberPath(stake, uid)}/staff/note`;
+const previousPath = (stake, uid) => `${memberPath(stake, uid)}/staff/previous`;
 const queueStatePath = (stake) => `stakes/${stake}/private/membershipQueue`;
 const memberData = (extra = {}) => ({
   status: "active",
@@ -234,6 +236,7 @@ const adminData = async (path) => {
 const memberOf = (stake, uid) => adminData(memberPath(stake, uid));
 const userOf = (uid) => adminData(`users/${uid}`);
 const noteOf = (stake, uid) => adminData(notePath(stake, uid));
+const previousOf = (stake, uid) => adminData(previousPath(stake, uid));
 const queueStateOf = (stake) => adminData(queueStatePath(stake));
 async function memberMeta(stake, uid) {
   const snap = await adminDb.doc(memberPath(stake, uid)).get();
@@ -646,7 +649,7 @@ describe("rules: staff/note e private/membershipQueue", () => {
 // hasAccount ("Ha già un account")
 // ===========================================================================
 describe("hasAccount", () => {
-  test("D della unità dichiarata: pending → declined, declineCount +1, history action hasAccount; per il richiedente è un rifiuto (previous.action decline, nulla dice hasAccount)", async () => {
+  test("D della unità dichiarata: hasAccount è un rifiuto; previous resta solo allo staff autorizzato", async () => {
     const [target] = await fresh([{ label: "ha-account-d", member: pendingData(UNIT1) }]);
     assertChanged(await onUid(P.D, "hasAccount", target), { action: "hasAccount", status: "declined", version: 2 });
     const data = await memberOf(STAKE_A, target.uid);
@@ -654,15 +657,27 @@ describe("hasAccount", () => {
     assert.equal(data.declineCount, 1);
     assert.equal(data.decidedBy, P.D.uid);
     assert.ok(data.decidedAt instanceof Timestamp, "decidedAt dal server");
-    assertPrevious(data.previous, { status: "pending", action: "decline", by: P.D.uid });
+    assert.equal(data.previous, null, "lo stato di prima non vive sul documento members");
+    const previous = await previousOf(STAKE_A, target.uid);
+    assertPrevious(previous, { status: "pending", action: "decline", by: P.D.uid });
     await expectHistoryRow(STAKE_A, target.uid, { action: "hasAccount", by: P.D.uid, fromStatus: "pending", toStatus: "declined", version: 2 });
 
     // Quello che il richiedente può leggere (SDK client, rules): identico a un rifiuto.
     const seen = await clientGet(target, memberPath(STAKE_A, target.uid));
     assert.equal(seen?.status, "declined");
     assert.equal(seen?.declineCount, 1);
-    assert.equal(seen?.previous?.action, "decline", "nel documento letto dal richiedente l'azione è un rifiuto");
+    assert.equal(seen?.previous, null, "il richiedente non legge lo stato di prima");
     assert.equal(JSON.stringify(seen).includes("hasAccount"), false, `nulla di leggibile dice hasAccount: ${JSON.stringify(seen)}`);
+    for (const staff of [P.D, P.A]) {
+      const readable = await clientGet(staff, previousPath(STAKE_A, target.uid));
+      assert.equal(readable?.action, "decline");
+      assert.equal(readable?.by, P.D.uid);
+      assert.equal(readable?.status, "pending");
+    }
+    for (const person of [target, P.M, P.P, P.D2, P.AB]) {
+      await expectRuleDenied(clientGet(person, previousPath(STAKE_A, target.uid)), `staff/previous di ${target.uid} letto da ${person.name}`);
+      await expectRuleDenied(clientList(person, `${memberPath(STAKE_A, target.uid)}/staff`), `list staff di ${target.uid} da ${person.name}`);
+    }
     await expectRuleDenied(clientList(target, `${memberPath(STAKE_A, target.uid)}/history`), "history del richiedente");
     await expectRuleDenied(clientGet(target, `${memberPath(STAKE_A, target.uid)}/history/x`), "riga di history del richiedente");
   });
@@ -733,6 +748,8 @@ describe("hasAccount", () => {
     assert.equal(data.declineCount, 0, "il rifiuto annullato non conta");
     assert.equal(data.claimedUnitId, UNIT1.id);
     assert.equal(data.previous, null, "dopo l'annullamento non c'è più nulla da annullare");
+    assert.equal(await previousOf(STAKE_A, target.uid), null, "Annulla cancella staff/previous");
+    assert.equal(await clientGet(P.D, previousPath(STAKE_A, target.uid)), null, "lo staff vede la cancellazione dello stato di prima");
     await expectHistoryRow(STAKE_A, target.uid, { action: "undo", by: P.D.uid, fromStatus: "declined", toStatus: "pending", version: 3 });
     await expectError(undo(P.D, target, 3), "failed-precondition", "nothing_to_undo");
     // Dopo l'annullamento la persona può essere rifiutata di nuovo, come dopo un decline annullato.
@@ -760,9 +777,12 @@ describe("hasAccount", () => {
     assert.equal(data.status, "declined");
     assert.equal(data.staffRole, null);
     assert.equal(profile.role, "participant", "il ruolo del profilo cade con il rifiuto");
-    assertPrevious(data.previous, { status: "pending", action: "decline", by: P.A.uid, extraKeys: ["role", "roleAfter", "roleUnitId"] });
-    assert.equal(data.previous.role, "unit_leader");
-    assert.equal(data.previous.roleAfter, "participant");
+    assert.equal(data.previous, null);
+    const previous = await previousOf(STAKE_A, leader.uid);
+    assertPrevious(previous, { status: "pending", action: "decline", by: P.A.uid, extraKeys: ["role", "roleAfter", "roleUnitId"] });
+    assert.equal(previous.role, "unit_leader");
+    assert.equal(previous.roleAfter, "participant");
+    await expectRuleDenied(clientGet(leader, previousPath(STAKE_A, leader.uid)), "il dirigente declassato non legge il proprio stato di prima");
     await expectHistoryRow(STAKE_A, leader.uid, { action: "hasAccount", by: P.A.uid, fromStatus: "pending", toStatus: "declined", version: 2 });
     await settleAll();
     assert.equal((await memberOf(STAKE_A, leader.uid)).version, 2, "il trigger sul cambio di ruolo non riscrive il documento");

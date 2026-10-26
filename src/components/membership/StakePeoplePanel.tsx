@@ -52,7 +52,7 @@ interface StaffDetails {
 }
 
 function detailKey(member: StakeMember) {
-  return `${member.uid}:${member.version}`;
+  return `${member.stakeId}:${member.uid}:${member.version}`;
 }
 
 function avatarTone(uid: string) {
@@ -80,13 +80,17 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   const [menuUid, setMenuUid] = useState<string | null>(null);
   const [toast, setToast] = useState<UndoToastState | null>(null);
   const [details, setDetails] = useState<Record<string, StaffDetails>>({});
+  const [detailsError, setDetailsError] = useState(false);
+  const [detailsRetry, setDetailsRetry] = useState(0);
   const toastId = useRef(0);
   // Un istante per apertura: etichette "da 3 giorni" e finestre di 30 giorni.
   const [nowMs] = useState(() => Date.now());
 
-  const pendingRaw = useMemo(() => pendingQueue(queue.pending), [queue.pending]);
-  const review = useMemo(() => reviewQueue(queue.review, nowMs, isAdmin), [queue.review, nowMs, isAdmin]);
-  const declinedRaw = useMemo(() => recentDeclined(queue.declined, nowMs), [queue.declined, nowMs]);
+  // Al cambio palo l'ascolto si riallinea in un effetto: fino a quel momento
+  // non mostrare né caricare dettagli delle righe rimaste dal palo precedente.
+  const pendingRaw = useMemo(() => pendingQueue(queue.pending.filter((member) => member.stakeId === stakeId)), [queue.pending, stakeId]);
+  const review = useMemo(() => reviewQueue(queue.review.filter((member) => member.stakeId === stakeId), nowMs, isAdmin), [queue.review, nowMs, isAdmin, stakeId]);
+  const declinedRaw = useMemo(() => recentDeclined(queue.declined.filter((member) => member.stakeId === stakeId), nowMs), [queue.declined, nowMs, stakeId]);
 
   // Documenti dello staff di ogni richiesta e rifiutata: la nota "stesso nome e
   // data" e lo stato di prima (chi ha agito e come, per etichette e "Annulla
@@ -96,26 +100,32 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   const detailKeys = detailMembers.map(detailKey).join(",");
   useEffect(() => {
     let active = true;
+    setDetailsError(false);
     const missing = detailMembers.filter((member) => !(detailKey(member) in details));
     if (!missing.length) return undefined;
-    void Promise.all(
+    void Promise.allSettled(
       missing.map(async (member) => {
         const [note, previous] = await Promise.all([
           member.status === "pending"
-            ? stakeMembersService.getStaffNoteKind(stakeId, member.uid).catch(() => null)
+            ? stakeMembersService.getStaffNoteKind(stakeId, member.uid)
             : Promise.resolve(null),
-          stakeMembersService.getStaffPrevious(stakeId, member.uid).catch(() => null),
+          stakeMembersService.getStaffPrevious(stakeId, member.uid),
         ]);
         return [detailKey(member), { note, previous }] as const;
       }),
-    ).then((entries) => {
-      if (active) setDetails((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    ).then((results) => {
+      if (!active) return;
+      const entries = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      setDetails((current) => ({ ...current, ...Object.fromEntries(entries) }));
+      // Un errore non è un documento assente: non entra in cache e il nuovo
+      // tentativo rilegge soltanto i dettagli mancanti.
+      setDetailsError(results.some((result) => result.status === "rejected"));
     });
     return () => {
       active = false;
     };
     // `details` resta fuori di proposito: la lettura parte solo quando cambia la coda.
-  }, [detailKeys, stakeId]);
+  }, [detailKeys, stakeId, detailsRetry]);
 
   const withDetails = useCallback(
     (member: StakeMember): StakeMember => {
@@ -410,10 +420,15 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
           </button>
         ))}
       </div>
-      {queue.error ? (
+      {queue.error || detailsError ? (
         <p className="form-error" role="alert">
           {PALO.erroreCoda}
         </p>
+      ) : null}
+      {detailsError ? (
+        <button className="mship-btn mship-btn--out" onClick={() => setDetailsRetry((current) => current + 1)} type="button">
+          {PALO.riprova}
+        </button>
       ) : null}
       {body}
       <UndoToast onDismiss={dismissToast} toast={toast} />

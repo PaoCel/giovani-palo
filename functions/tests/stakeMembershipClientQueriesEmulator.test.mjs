@@ -17,6 +17,10 @@
 //  - la nota dello staff `members/{uid}/staff/note` (getStaffNoteKind), un
 //    get per persona in coda: admin e dirigente dell'unità dichiarata, mai il
 //    richiedente.
+//  - lo stato di prima `members/{uid}/staff/previous` (getStaffPrevious), con
+//    gli stessi permessi della nota, anche per le rifiutate. Il campo legacy
+//    `members.previous` rimane leggibile dove presente; le scritture nuove lo
+//    lasciano null. Il server soltanto scrive i documenti dello staff.
 // Solo rules: utenti VERI dell'Auth emulator e SDK client; l'Admin SDK semina
 // e basta (ignora le rules). Niente Functions emulator di proposito: il
 // trigger su `users` riscriverebbe i members seminati.
@@ -35,12 +39,15 @@ import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth, signInAno
 import {
   collection,
   connectFirestoreEmulator,
+  deleteDoc,
   doc,
   getDocFromServer,
   getDocsFromServer,
   getFirestore,
   onSnapshot,
   query,
+  setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -80,6 +87,7 @@ const DAY = 24 * 3600 * 1000;
 const iso = (ms = Date.now()) => new Date(ms).toISOString();
 const MEMBERS = `stakes/${STAKE_A}/members`;
 const NOTE = { kind: "same_name_birth", matches: 1, at: Timestamp.now() };
+const PREVIOUS = { action: "decline", by: "uid-dirigente-u", status: "pending", claimedUnitId: UNIT_U.id, at: Timestamp.now() };
 
 // ---------------------------------------------------------------------------
 // Persone (ognuna un'app client con il proprio uid)
@@ -111,6 +119,7 @@ const PERSONS = [
     memberStake: STAKE_B,
     member: { status: "active", staffRole: "unit_leader", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name },
   },
+  { key: "admin di un altro palo", role: "admin", profileStake: STAKE_B, memberStake: STAKE_B, member: { status: "active", staffRole: "admin" } },
   { key: "membro attivo", role: "participant", profileStake: STAKE_A, member: { status: "active", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name } },
   {
     key: "in attesa",
@@ -118,6 +127,7 @@ const PERSONS = [
     profileStake: STAKE_A,
     member: { status: "pending", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name, requestedAt: Timestamp.fromMillis(Date.now() - DAY) },
     note: true,
+    staffPrevious: PREVIOUS,
   },
   { key: "senza documento", role: "participant", profileStake: STAKE_A },
   // Sessione anonima con un profilo da admin e un members attivo da admin,
@@ -128,8 +138,8 @@ for (const def of PERSONS) def.mode ??= "password";
 
 // Documenti bersaglio nel palo A (uid finti: nessuna di queste persone esiste in Auth).
 const TARGETS = {
-  "p-u-vecchia": { status: "pending", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name, requestedAt: Timestamp.fromMillis(Date.now() - 3 * DAY), note: true },
-  "p-v": { status: "pending", claimedUnitId: UNIT_V.id, claimedUnitName: UNIT_V.name, note: true },
+  "p-u-vecchia": { status: "pending", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name, requestedAt: Timestamp.fromMillis(Date.now() - 3 * DAY), note: true, staffPrevious: { ...PREVIOUS, action: "request" } },
+  "p-v": { status: "pending", claimedUnitId: UNIT_V.id, claimedUnitName: UNIT_V.name, note: true, staffPrevious: { ...PREVIOUS, action: "request", claimedUnitId: UNIT_V.id } },
   // "Non è della mia unità": claimedUnitId svuotato, il nome resta, la vedono solo gli admin.
   "p-passata": {
     status: "pending",
@@ -138,8 +148,8 @@ const TARGETS = {
     previous: { action: "notMyUnit", by: "uid-dirigente-u", status: "pending" },
     note: true,
   },
-  "d-u": { status: "declined", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name, declineCount: 1, decidedAt: Timestamp.fromMillis(Date.now() - DAY), decidedBy: "uid-dirigente-u" },
-  "d-v": { status: "declined", claimedUnitId: UNIT_V.id, claimedUnitName: UNIT_V.name, declineCount: 1, decidedAt: Timestamp.fromMillis(Date.now() - DAY), decidedBy: "uid-admin" },
+  "d-u": { status: "declined", claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name, declineCount: 1, decidedAt: Timestamp.fromMillis(Date.now() - DAY), decidedBy: "uid-dirigente-u", staffPrevious: PREVIOUS },
+  "d-v": { status: "declined", claimedUnitId: UNIT_V.id, claimedUnitName: UNIT_V.name, declineCount: 1, decidedAt: Timestamp.fromMillis(Date.now() - DAY), decidedBy: "uid-admin", staffPrevious: { ...PREVIOUS, by: "uid-admin", claimedUnitId: UNIT_V.id } },
   "r-u": { status: "active", reviewNeeded: true, claimedUnitId: UNIT_U.id, claimedUnitName: UNIT_U.name },
   "r-v": { status: "active", reviewNeeded: true, claimedUnitId: UNIT_V.id, claimedUnitName: UNIT_V.name },
   // Migrato senza unità nel profilo: solo gli admin lo vedono.
@@ -165,7 +175,7 @@ async function makeActor(def, index) {
 }
 
 const memberData = (extra = {}) => {
-  const { note: _note, ...fields } = extra;
+  const { note: _note, staffPrevious: _staffPrevious, ...fields } = extra;
   return {
     status: "active",
     sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }],
@@ -209,11 +219,13 @@ before(async () => {
       const stake = p.memberStake ?? STAKE_A;
       await adminDb.doc(`stakes/${stake}/members/${p.uid}`).set(memberData(p.member));
       if (p.note) await adminDb.doc(`stakes/${stake}/members/${p.uid}/staff/note`).set(NOTE);
+      if (p.staffPrevious) await adminDb.doc(`stakes/${stake}/members/${p.uid}/staff/previous`).set(p.staffPrevious);
     }
   }));
   await Promise.all(Object.entries(TARGETS).map(async ([id, fields]) => {
     await adminDb.doc(`${MEMBERS}/${id}`).set(memberData(fields));
     if (fields.note) await adminDb.doc(`${MEMBERS}/${id}/staff/note`).set(NOTE);
+    if (fields.staffPrevious) await adminDb.doc(`${MEMBERS}/${id}/staff/previous`).set(fields.staffPrevious);
   }));
 });
 
@@ -263,6 +275,7 @@ function firstServerSnapshot(reference) {
 }
 const ownDoc = (p) => doc(p.db, `${MEMBERS}/${p.uid}`);
 const noteDoc = (p, uid) => doc(p.db, `${MEMBERS}/${uid}/staff/note`);
+const previousDoc = (p, uid) => doc(p.db, `${MEMBERS}/${uid}/staff/previous`);
 
 async function expectDenied(attempt, label = "") {
   await assert.rejects(attempt, (error) => {
@@ -495,5 +508,82 @@ describe("nota dello staff: get per persona in coda", () => {
 
   test("le note non si elencano (list su staff): dirigente negato", async () => {
     await expectDenied(getDocsFromServer(collection(P["dirigente di U"].db, `${MEMBERS}/p-u-vecchia/staff`)), "list staff");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stato di prima: members/{uid}/staff/previous, stessa lettura di getStaffPrevious
+// ---------------------------------------------------------------------------
+describe("stato di prima riservato allo staff", () => {
+  const cells = [
+    ["admin del palo", "p-u-vecchia", true, true],
+    ["admin del palo", "p-v", true, true],
+    ["admin del palo", "d-u", true, true],
+    ["admin del palo", "d-v", true, true],
+    ["admin del palo", "p-passata", true, false],
+    ["dirigente di U", "p-u-vecchia", true, true],
+    ["dirigente di U", "d-u", true, true],
+    ["dirigente di U", "p-v", false],
+    ["dirigente di U", "d-v", false],
+    ["dirigente di U", "p-passata", false],
+    ["dirigente di V", "p-v", true, true],
+    ["dirigente di V", "d-v", true, true],
+    ["dirigente di V", "d-u", false],
+    ["dirigente di un altro palo", "p-u-vecchia", false],
+    ["admin di un altro palo", "d-u", false],
+    ["membro attivo", "p-u-vecchia", false],
+    ["in attesa", "p-u-vecchia", false],
+    ["senza documento", "p-u-vecchia", false],
+    ["anonimo", "p-u-vecchia", false],
+  ];
+  for (const [who, uid, allow, exists] of cells) {
+    test(`${who} legge staff/previous di ${uid}: ${allow ? "permesso" : "negato"}`, async () => {
+      const reference = previousDoc(P[who], uid);
+      if (!allow) {
+        await expectDenied(getDocFromServer(reference), `${who}, previous di ${uid}`);
+        return;
+      }
+      const snapshot = await getDocFromServer(reference);
+      assert.equal(snapshot.exists(), exists);
+      if (exists) {
+        assert.equal(snapshot.get("action"), TARGETS[uid].staffPrevious.action);
+        assert.equal(snapshot.get("by"), TARGETS[uid].staffPrevious.by);
+        assert.equal(snapshot.get("claimedUnitId"), TARGETS[uid].staffPrevious.claimedUnitId);
+        assert.equal((await getDocFromServer(doc(P[who].db, `${MEMBERS}/${uid}`))).get("previous"), null, "sul members non rimangono i dettagli dello staff");
+      }
+    });
+  }
+
+  test("il richiedente legge previous null sul proprio members ma non legge né elenca il proprio staff/previous", async () => {
+    const owner = P["in attesa"];
+    const stored = await adminDb.doc(`${MEMBERS}/${owner.uid}/staff/previous`).get();
+    assert.equal(stored.exists, true, "premessa: lo stato di prima esiste davvero");
+    assert.equal((await getDocFromServer(ownDoc(owner))).get("previous"), null);
+    await expectDenied(getDocFromServer(previousDoc(owner, owner.uid)), "previous del titolare");
+    await expectDenied(getDocsFromServer(collection(owner.db, `${MEMBERS}/${owner.uid}/staff`)), "list staff del titolare");
+    for (const who of ["admin del palo", "dirigente di U"]) {
+      const snapshot = await getDocFromServer(previousDoc(P[who], owner.uid));
+      assert.equal(snapshot.get("by"), PREVIOUS.by);
+      assert.equal(snapshot.get("action"), PREVIOUS.action);
+    }
+  });
+
+  test("il documento legacy conserva previous sul members e non richiede staff/previous", async () => {
+    const p = P["admin del palo"];
+    const snapshot = await getDocFromServer(doc(p.db, `${MEMBERS}/p-passata`));
+    assert.deepEqual(snapshot.get("previous"), TARGETS["p-passata"].previous);
+    assert.equal((await getDocFromServer(previousDoc(p, "p-passata"))).exists(), false);
+  });
+
+  test("solo il server scrive previous: create, update e delete negati anche ad admin e dirigente autorizzati alla lettura", async () => {
+    for (const who of ["admin del palo", "dirigente di U", "admin di un altro palo", "membro attivo", "in attesa", "anonimo"]) {
+      const p = P[who];
+      // Il Timestamp dell'Admin SDK è solo per il seed: il client vuole una Date.
+      await expectDenied(setDoc(previousDoc(p, "a-u"), { ...PREVIOUS, at: new Date() }), `${who}: create`);
+      await expectDenied(updateDoc(previousDoc(p, "d-u"), { by: p.uid }), `${who}: update`);
+      await expectDenied(deleteDoc(previousDoc(p, "d-u")), `${who}: delete`);
+    }
+    assert.equal((await adminDb.doc(`${MEMBERS}/d-u/staff/previous`).get()).get("by"), PREVIOUS.by, "nessuna azione client ha cambiato lo stato di prima");
+    assert.equal((await adminDb.doc(`${MEMBERS}/a-u/staff/previous`).get()).exists, false);
   });
 });

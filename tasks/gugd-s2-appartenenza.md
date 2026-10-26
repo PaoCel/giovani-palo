@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: in-progress
+status: blocked
 impact: 2
 urgency: 2
 effort: L
@@ -10,15 +10,15 @@ surface: [web, rules, functions, storage]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-20
-touched: 2026-10-22
+touched: 2026-10-26
 due:
-blocked_by: []
+blocked_by: [gugd-storage-eu, "decisione: cleanup account prima del rilascio"]
 branch: task/gugd-s2-appartenenza
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/kind-rosalind-0307da
-session: c7c7a22a-2ea7-445c-83f3-8f6620283c8a
-stopped_at: "Scelta S2-3 (Non lo conosco del dirigente agli admin) costruita sul branch a eb1d4fd: test e batteria verdi, verifica Codex; niente deployato"
-next: "Decisione di Paolo sul punto aperto: previous leggibile dal richiedente (proposta: spostarlo in members/{uid}/staff/previous); poi rilascio nell'ordine della spec con conferma fresca per ogni passo"
-verified: "2026-10-22 sul mini, eb1d4fd (S2-3): batteria dei file toccati verde (callable 70/0, trigger 18/0, fase 3 server 28/0, accesso 16/0, query del client 93/0, contratto 1724/0), puri functions 409/409, client 1389/1390 (accenti senza git; in locale 55/55), tsc e build ok; collaudo Playwright 103/103 (S2-3: dirigente, Annulla che rimette l'unità, coda dell'admin, banner senza unità); Codex PASS WITH CONCERNS sulla scelta e sulle correzioni (resta aperto previous leggibile). 2026-10-21, 6935f79: batteria completa 37 file a 0 fail, 3973 pass. Niente in produzione"
+session: 01a177a4-48cb-7dc3-8758-36da754ad032
+stopped_at: "Fix previous recuperato e verificato su base 475ac0a: test legacy, query SDK e fase 3 aggiornati; corretti cache per palo e retry in Persone con guardia browser permanente. Review indipendente e seconda review di altro modello senza modifiche obbligatorie. Nessun merge su main né deploy"
+next: "Coordinamento: integrare il branch e riverificare main aggiornato, completare Storage e risolvere il criterio cleanup account; eseguire il piano di rilascio sotto con conferma fresca per ciascuna operazione in produzione"
+verified: "2026-10-26 sul mini in QA dedicata: callable 74/74, fase 3 server 28/28, trigger 18/18, accesso 16/16, query SDK 115/115, contratto Firestore 1724/1724 (164 Storage saltati), puri Functions 409/409, client 1390/1390, TypeScript e build verdi. Browser app sintetico 28/28 a 320/390/430; guardia indipendente permanente cache/retry/legacy 5/5. Review separata e gpt-6-astra PASS WITH CONCERNS limitato alla verifica statica, nessun difetto obbligatorio residuo; runtime poi verificato. Dry-run produzione: 180 profili e 180 members da creare, 31 staff/108 da confermare/41 in coda, 0 members esistenti; codici: 1 galleria, 31 documenti da cancellare. SW live e origin/main v32. Nessuna scrittura o verifica con account reale in produzione; nessun deploy"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -91,24 +91,46 @@ banner; 5) voce "Persone" nel menu di admin e dirigenti.
 
 Prossime fasi:
 
-- da decidere prima del rilascio (review Codex del 2026-10-22): il richiedente
-  legge `previous` del proprio members (ultima azione e uid di chi l'ha fatta);
-  proposta: spostarlo in `members/{uid}/staff/previous`, solo staff;
+- decisione del 2026-10-22 già implementata in `0fa5d59`/`bf0963a`/`475ac0a`:
+  lo stato di prima è in `members/{uid}/staff/previous`, solo staff. Sul
+  documento members resta `previous: null`; Annulla e Riattiva supportano il
+  campo legacy. Recupero e verifica finale del 2026-10-26, senza riproporre
+  la decisione;
 - "Ho sbagliato palo" e "Hai un codice?" con S3; uscita dello staff, dopo tre
   rifiuti e oltre i 30 giorni con S4 (Persone);
 - cleanup di `members` (con `history` e `staff`) alla cancellazione account
-  (nel repo non c'è ancora un flusso di cancellazione);
+  (nel repo non c'è ancora un flusso di cancellazione, ricontrollato il
+  2026-10-26): prerequisito ancora aperto del criterio di completamento,
+  nessun modulo nuovo costruito durante il recupero;
 - rules Storage dopo la fase B di `gugd-storage-eu` (celle già scritte, si
   sbloccano con `S2_STORAGE_CONTRACT=1`);
-- rilascio nell'ordine della spec, ogni passo con conferma di Paolo: dry-run
-  della migrazione con `--report` contro 31/108/41, `--apply`, rules Firestore
-  e trigger, callable (`activityGallery`, `recordNightParticipant`,
-  `stakeMembership`) e `stakeMembershipQueueReminder` (crea un job di Cloud
-  Scheduler: API attiva sul progetto), client con il service worker a v31. Per S2-1 nello stesso rilascio: dry-run di
-  `cleanupGalleryCodes.js` (atteso 1 galleria), `--apply --expect-galleries
-  --expect-deletes`, poi `firebase functions:delete unlockGalleryWithCode
-  setGallerySecretCode` per nome. Prima del deploy, in sola lettura su prod, la
-  query dell'ultimo admin (`users` con `stakeId` e `role == admin`);
+- rilascio, ogni passo con conferma fresca di Paolo. Letture di produzione
+  fatte il 2026-10-26 (dry-run in sola lettura, dal mini con le credenziali applicative):
+  dry-run della migrazione 180 profili, 31 staff, 108 da confermare, 41 in coda,
+  180 da creare, 0 members esistenti, 348 iscrizioni lette; dry-run di
+  `cleanupGalleryCodes.js` 1 galleria, 31 cancellazioni (1 secret, 15 membri
+  galleria, 15 sblocchi). Query dell'ultimo admin e API/rilievo functions del
+  2026-10-22 da ricontrollare al rilascio. Service worker live e `origin/main`
+  a v32 il 2026-10-26: al rilascio scegliere una versione superiore a quella
+  live e a quella di main, mai il vecchio v31. Ordine (un passo alla volta):
+  0. il coordinamento integra il branch in `main`, risolve le differenze
+     successive al branch e completa le verifiche sul risultato unito; da una
+     copia pulita di quel commit ricontrolla dry-run, query ultimo admin,
+     API Scheduler/Pub/Sub e presenza delle callable vecchie. Il recupero
+     S2 non modifica il checkout principale e non esegue questo merge;
+  1. `node scripts/migrateStakeMembers.js --stake roma-est --apply
+     --expect-create 180` (dal mini, cartella functions, credenziali
+     applicative, progetto giovani-palo);
+  2. `firebase deploy --project giovani-palo --only firestore:rules`
+     e `--only functions:onUserStakeMembership` nello stesso giro;
+  3. `--only functions:stakeMembership,functions:activityGallery,functions:recordNightParticipant,functions:stakeMembershipQueueReminder`;
+  4. `node scripts/cleanupGalleryCodes.js --apply --expect-galleries 1
+     --expect-deletes 31`, poi `firebase functions:delete
+     unlockGalleryWithCode setGallerySecretCode --region europe-west1`;
+  5. bump monotonico del service worker, build, `firebase deploy --project
+     giovani-palo --only hosting`;
+  6. verifica: ruleset live uguale a git, functions in elenco, banner e coda
+     con un account vero, conteggi `members` in sola lettura;
 - dopo che la PWA vecchia è uscita dalle cache: togliere dalle rules i match
   di `galleries/{g}/members`, `users/{uid}/unlockedGalleries` e
   `gallerySecrets`.
@@ -143,3 +165,43 @@ una gara di tempi in `familyAnyAdultRulesEmulator`, corretti. Review: Fable
 PASS WITH CONCERNS (9 punti, recepiti 1-7 e 9; l'8 sono residui pianificati),
 poi Codex sulle correzioni PASS WITH CONCERNS (3 punti, recepiti). Non
 provato: niente in produzione, nessun account vero, rules Storage.
+
+Recupero del 2026-10-26, sulla base `475ac0a` e sul diff preesistente:
+
+- QA distinta sul mini in `~/qa/giovani-palo-s2-recupero-20261026`, porte
+  Auth/Firestore/Functions 9649/8649/5649, Vite 5349; query e contratto senza
+  Functions su 9669/8669 (websocket 9169). Solo progetto `demo-*` e dati
+  sintetici per le prove; produzione usata soltanto dai due dry-run;
+- risultati finali nel campo `verified`. Test dei permessi con SDK client:
+  il titolare legge `previous: null` e riceve `permission-denied` su
+  `staff/previous`; admin e dirigente autorizzato leggono; altri pali/unità
+  e tutte le scritture client sono negati. Legacy, spostamenti e Annulla
+  provati dal test callable recuperato;
+- guardia browser scritta da un agente indipendente, salvata in
+  `tests/browser/stakeMembershipDetails.mjs` con fixture in
+  `tests/browser/fixtures/`. Con Vite in modalità emulatori/demo:
+  `QA_DETAILS_BASE_URL=http://127.0.0.1:5349
+  PLAYWRIGHT_MODULE=/percorso/playwright-core/index.mjs node
+  tests/browser/stakeMembershipDetails.mjs`. Cinque scenari: stesso
+  uid/versione in due pali senza rimontare, errore parziale e Riprova,
+  documento assente, legacy, risposta tardiva;
+- errori dei giri preliminari e correzioni: callable
+  `expected: request, actual: stake_changed` nell'altro palo (entrambi i
+  percorsi previsti, ora si verificano le coppie azione/autore esatte);
+  query `invalid-argument: Unsupported field value: a custom Timestamp
+  object` (il nuovo payload client del test usa `Date`, poi le rules
+  restituiscono il diniego atteso); client `fatal: not a git repository`
+  (copia QA iniziale senza git, accenti 55/55 nel worktree; creata nella sola
+  QA un'index dei file tracciati presenti, client finale 1390/1390);
+- la fixture browser ha prima segnalato il blocco del font Google come
+  backend, poi `lettura B conclusa: 2 !== 1`: corretta la guardia font del
+  test e corretto il render della coda precedente nel client, senza
+  indebolire l'asserzione sulla singola lettura. Esito permanente 5/5;
+- review indipendente: due P2 del client (cache senza palo, errori trattati
+  come assenza), entrambi corretti e riverificati. Seconda review di
+  `gpt-6-astra` sui commit e sul diff, più controllo del filtro al cambio
+  palo: nessuna modifica obbligatoria residua. Il giudizio statico non
+  sostituisce gli esiti runtime registrati sopra;
+- Storage (164 celle), integrazione delle modifiche successive di main,
+  cleanup account e account vero in produzione restano non verificati.
+  Nessuna migrazione, cancellazione, merge su main o pubblicazione eseguita.
