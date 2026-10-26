@@ -414,7 +414,8 @@ Righe "incoerenti", provate apposta:
 | ruolo `admin` o `unit_leader` assegnato da client a chi è `declined`, `withdrawn`, `removed` o `blocked` | negato |
 | query del dirigente su `members` senza il filtro della sua unità, con `in`, `!=`, `not-in`, `count()` senza filtro, `collectionGroup('members')` | negato |
 
-**Storage** (dopo la fase B di `gugd-storage-eu`). Path
+**Storage** (rilascio dopo la fase B di `gugd-storage-eu`; implementazione e
+prove nell'emulatore indipendenti dal bucket di produzione). Path
 `protected/stakes/{s}/galleries/{g}/media/{m}/{file}`; stesse persone,
 stessa regola. Membro = `members/{uid}` attivo; staff = `staffRole` su quel
 documento, e solo se il documento manca o non è attivo il profilo (ramo staff).

@@ -1486,7 +1486,7 @@ const STORAGE_ROWS = [
 
 describe("Storage: stesse persone, stessa regola", () => {
   for (const r of STORAGE_ROWS) {
-    for (const def of [...MATRIX_PERSONS, ...INCOHERENT_PERSONS]) {
+    for (const def of [...MATRIX_PERSONS, ...INCOHERENT_PERSONS, ...ANON_STAFF_PERSONS]) {
       if (r.classes && !r.classes.includes(def.cls)) continue;
       if (r.only && !r.only.includes(def.key)) continue;
       const allowed = r.allow.includes(def.cls);

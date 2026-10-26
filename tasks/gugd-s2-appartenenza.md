@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: blocked
+status: ready
 impact: 2
 urgency: 2
 effort: L
@@ -12,12 +12,12 @@ opened: 2026-10-20
 started_at: 2026-10-20
 touched: 2026-10-26
 due:
-blocked_by: [gugd-storage-eu, "decisione: cleanup account prima del rilascio"]
+blocked_by: []
 branch: task/gugd-s2-appartenenza
-worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/kind-rosalind-0307da
+worktree: .claude/worktrees/kind-rosalind-0307da
 session: 01a177a4-48cb-7dc3-8758-36da754ad032
-stopped_at: "Fix previous recuperato e verificato su base 475ac0a: test legacy, query SDK e fase 3 aggiornati; corretti cache per palo e retry in Persone con guardia browser permanente. Review indipendente e seconda review di altro modello senza modifiche obbligatorie. Nessun merge su main né deploy"
-next: "Coordinamento: integrare il branch e riverificare main aggiornato, completare Storage e risolvere il criterio cleanup account; eseguire il piano di rilascio sotto con conferma fresca per ciascuna operazione in produzione"
+stopped_at: "Storage S2 implementato e rivisto: 1902 celle Firestore/Storage verdi, zero salti; codice bucket UE invariato. Nessun merge su main né deploy"
+next: "Implementare cleanup idempotente members/history/staff nella procedura di cancellazione account, con guardie anti-ricreazione e test separati; poi integrazione su main e piano di rilascio con conferma fresca"
 verified: "2026-10-26 sul mini in QA dedicata: callable 74/74, fase 3 server 28/28, trigger 18/18, accesso 16/16, query SDK 115/115, contratto Firestore 1724/1724 (164 Storage saltati), puri Functions 409/409, client 1390/1390, TypeScript e build verdi. Browser app sintetico 28/28 a 320/390/430; guardia indipendente permanente cache/retry/legacy 5/5. Review separata e gpt-6-astra PASS WITH CONCERNS limitato alla verifica statica, nessun difetto obbligatorio residuo; runtime poi verificato. Dry-run produzione: 180 profili e 180 members da creare, 31 staff/108 da confermare/41 in coda, 0 members esistenti; codici: 1 galleria, 31 documenti da cancellare. SW live e origin/main v32. Nessuna scrittura o verifica con account reale in produzione; nessun deploy"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
@@ -142,6 +142,28 @@ in produzione resta un passo del rilascio, con conferma fresca); Notte dei
 Record solo da membro (`propose`/`challenge`), ritirarsi sempre.
 
 ## Verificato
+
+Integrazione Storage del 26 ottobre: rules dalla membership e staffRole,
+senza modifiche alla configurazione del bucket. Test di contratto già scritti
+da altri e ampliati dal coordinamento ai due attori anonimi con profilo staff:
+1902/1902, zero errori e zero salti (1724 Firestore, 178 Storage), compresi
+upload reali da 300 MB nell'emulatore. Review indipendente di altro modello:
+PASS WITH CONCERNS, nessuna modifica obbligatoria residua; budget due documenti
+rispettato nel contratto e nelle prove.
+QA dedicata sul mini via SSH LAN con EXIT verificato in banda, perché il wrapper
+mini è bloccato nel mount della cache SSD; nessun lavoro pesante sull'Air.
+Log conservati nella QA s2-storage del 26 ottobre, contract-anon-staff.log.
+
+Il cleanup è lavoro tecnico ancora eseguibile autonomamente, non una decisione
+di prodotto mancante: l'informativa prevede già assistenza via email. Percorso
+minimo da implementare: cancellazione ricorsiva idempotente in tutti i pali,
+anche con root members assente; trigger sulla cancellazione del profilo e
+script operativo con dry-run e guardie account/profilo assenti; protezione
+contro ricreazioni concorrenti. Il solo trigger del profilo non copre una
+cancellazione esclusivamente Auth: documentare la procedura completa.
+Conferma fresca necessaria per ogni applicazione reale e deploy, non per
+scrivere helper, script e test. Storage UE resta coordinato nel piano di
+rilascio, senza impedire preparazione e test delle rules.
 
 2026-10-20, sul mini, branch a `aba2cd2`: test del contratto 1724 pass, 0 fail,
 164 Storage saltati; migrazione 54 pura + 13 nell'emulatore (con `--apply`
