@@ -124,6 +124,102 @@ Un admin sintetico di un secondo palo, da telefono e senza console/script:
 ## Verifiche attuali
 
 26 ottobre: recuperati task, spec, editor e documentazione comitati/stanze.
-Nel codice l'editor pubblica una nuova attività al salvataggio del modulo
-(`AdminEventEditorModal.handleSaveForm`): da sostituire nel blocco 2 con
-pubblicazione esplicita. Nessun flusso nuovo di questa spec è già collaudato.
+L'audit iniziale ha trovato la pubblicazione automatica al salvataggio del
+modulo (`AdminEventEditorModal.handleSaveForm`). Il primo incremento qui sotto
+la sostituisce con anteprima e pubblicazione esplicita; gli altri moduli
+restano da implementare.
+
+## Primo incremento: creazione e pubblicazione (26 ottobre)
+
+Stati e ritorni definiti prima del layout:
+
+| Superficie / stato | Azione | Ritorno e recupero |
+| --- | --- | --- |
+| Nuova attività, non salvata | Nome, tipo, inizio/fine, luogo; Crea bozza | Chiudi chiede se scartare; Continua a modificare conserva tutti i campi |
+| Creazione in corso | Un solo invio, id mantenuto anche al retry | Chiusura bloccata durante la scrittura; errore nel foglio e dati conservati |
+| Bozza salvata, riepilogo | Personalizza, Modulo d'iscrizione, Controlla e pubblica | Esci dalla bozza apre la scheda; stessa attività ritrovabile nell'elenco admin |
+| Personalizzazioni non salvate | Editor esistente, facoltativo anche subito | Indietro/Chiudi chiede scarto; annulla conserva la sessione; salva torna al riepilogo |
+| Modulo non salvato | Configura solo se serve | Salva torna al riepilogo, resta bozza; uscita chiede scarto, nessuna pubblicazione |
+| Anteprima | Descrizione e finestra iscrizioni ancora mancanti, riepilogo pubblico, requisiti | Torna alla bozza senza scritture; chiudi conserva la bozza salvata |
+| Pubblicazione in corso / errore | Pubblica attività dopo riepilogo | Invio unico; errore nello stesso foglio, retry; niente effetti di salvataggio modulo |
+| Pubblicata / modifica | Salva mantiene visibilità e stato | Nessuna riapertura implicita di attività concluse o annullate |
+
+Audit minimo: il client normalizza stringhe vuote per descrizione e finestra
+iscrizioni; le rules di activities/config autorizzano gli admin del palo senza
+richiedere questi valori per una bozza. Nessuna nuova collection, campo o query.
+La bozza usa date reali scelte dall'admin e stringhe vuote per le informazioni
+rimandate. Pubblicare richiede descrizione e finestra iscrizioni esplicite.
+La creazione attuale prepara già un modulo dai valori del palo: si mantiene
+questo comportamento e lo si riassume prima di pubblicare; nessun nuovo backend
+modulare. Lettura bozza: admin e dirigenti secondo le rules esistenti; non
+pubblica per partecipanti/ospiti. La restrizione ai soli organizzatori richiede
+un blocco rules separato, da coordinare con S2 prima del rilascio.
+
+Finitura: token blu/sabbia e Fraunces/Manrope esistenti, logo originale;
+controlli da 44 px, campi 16 px, un solo scroll nel foglio, nessun overflow a
+320/390/430. Anteprima informativa nel foglio, nessun link pubblico per la bozza.
+
+### Consegna del primo incremento
+
+Implementazione sul branch `codex/gugd-creazione-essenziale`, da integrare con
+S2; nessun deploy. La creazione richiede solo i cinque dati essenziali;
+descrizione, pubblico, programma e finestra iscrizioni si possono aggiungere
+subito o in seguito. Il modulo predefinito del palo viene preparato insieme
+alla bozza, senza passaggi obbligatori di configurazione.
+
+- «Salva modulo» conserva lo stato dell'attività; «Pubblica attività» compare
+  dopo un riepilogo di informazioni pubbliche, modulo e requisiti.
+- Bozza e modulo vengono creati nello stesso batch; anche i salvataggi del
+  modulo sono atomici e aggiornano la revisione dell'attività. La pubblicazione
+  ricontrolla quella revisione in transazione. Un altro admin che modifica i
+  dati o il modulo dopo l'anteprima obbliga a rivederla.
+- Il retry dopo timeout attende la stessa richiesta; la creazione mantiene
+  lo stesso id. Cambiare account o attività scarta gli esiti della sessione
+  precedente. L'uscita con modifiche non salvate chiede se scartarle.
+- Il file della locandina salvata resta valido se si scartano le modifiche;
+  vengono rimossi solo i nuovi upload abbandonati, preservando quelli inclusi
+  in una scrittura ancora in attesa.
+- Una bozza con finestra iscrizioni vuota si riapre senza errori; corretto
+  anche l'overflow della hero della scheda admin che disallineava il modale
+  a 320 px. Le note pubbliche distinte dal programma e le opzioni del modulo
+  restano separate nei salvataggi successivi.
+
+Compatibilità: lo stato memorizzato dopo la pubblicazione resta
+`registrations_open`, come richiesto dalle rules e dal percorso d'iscrizione
+attuali; disponibilità e badge tengono conto della finestra scelta. Non
+introdurre `registrations_closed` per un'apertura futura senza adattare tutto
+quel contratto. Il fallback di lettura `/events/{id}` resta; questo incremento
+non migra eventuali attività presenti solo nel percorso legacy.
+
+Verifica del 26 ottobre: suite client, build, browser sintetico con secondo
+palo su Auth/Firestore emulati a 320/390/430, confronto con mockup e screenshot
+prima/dopo. Prove separate di atomicità, locandina con servizio simulato,
+rete assente, timeout, doppio tocco, cambio account e modifiche concorrenti.
+Review indipendente del diff; nessuna prova con account/dati di produzione.
+Artefatti locali ignorati: `.claude/qa-creazione/`.
+
+### Verifica d'integrazione del primo incremento
+
+Durante l'integrazione sono stati corretti due rilievi della review:
+un editor con dati vecchi non può più riportare in bozza un'attività pubblicata
+da un altro admin, e il cambio fra tipi non standard conserva i requisiti già
+personalizzati. Attività e modulo si salvano nella stessa transazione con
+verifica della revisione; il modulo mantiene allineate le opzioni di accesso
+già presenti sull'attività. La revisione ISO esistente cresce anche con
+salvataggi nello stesso millisecondo o con clock del client arretrato.
+
+Apertura dell'editor e recupero dopo conflitto rileggono dal server, prima
+l'attività e poi il modulo: le letture cache-first restano per la consultazione.
+Una prova di recupero aveva trovato la revisione vecchia in cache dopo la
+modifica del modulo; risolto senza indebolire l'asserzione sui dati concorrenti.
+
+Verifiche sul mini in QA isolata: 1372 test client, build TypeScript/Vite,
+66 controlli del percorso UI a 320/390/430 e 4 scenari permanenti con servizi
+reali su Auth/Firestore emulati. Tutti verdi. Test correttivi scritti da
+un agente diverso dall'autore; review indipendente delle correzioni senza
+rilievi obbligatori. Nessun test usa dati o backend di produzione.
+
+Errori iniziali corretti: build con TS2345/TS2349 sulle firme dei tipi;
+primo runner concorrente con «L'attività è cambiata durante la modifica»
+alla rilettura cache-first. Esiti finali build e runner: EXIT=0. Prove,
+log e screenshot conservati in `.claude/qa-integrazione-creazione/`.

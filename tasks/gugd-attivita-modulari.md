@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: in-progress
+status: ready
 impact: 2
 urgency: 2
 effort: L
@@ -13,12 +13,12 @@ started_at: 2026-10-26
 touched: 2026-10-26
 due:
 blocked_by: []
-branch: codex/gugd-creazione-essenziale
+branch:
 worktree:
-session: 01a177a4-ce16-72d3-aedf-38c33a576cc0
-stopped_at: "Spec e review registrate; prima implementazione avviata in chat e worktree isolati, S2 e home in chat separate"
-next: "Completare e collaudare il primo incremento della creazione essenziale, poi integrare il branch e procedere con i moduli"
-verified: "26 ottobre: confronto con editor/spec e secondo parere indipendente di prodotto PASS WITH CONCERNS, recepito nella spec; nessun nuovo flusso implementato o collaudato"
+session: 01a17799-4984-7af2-857e-2a02f5b4db11
+stopped_at: "Primo incremento integrato dal branch 1226ad7, nessun deploy; contratto e implementazione dei moduli successivi ancora aperti"
+next: "Completare il contratto dei moduli programma/gruppi/comitati/alloggi e la delega; verificare i prerequisiti di S2 prima del rilascio coordinato"
+verified: "26 ottobre, integrazione: 1372 test client, build e 70 controlli browser/emulatore (66 percorso UI a 320/390/430, 4 conflitti di salvataggio) verdi; test correttivi separati e review indipendente, nessun dato di produzione"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -53,4 +53,25 @@ WIP globale; nessun altro task è stato parcheggiato automaticamente.
 
 ## Verificato
 
-Analisi del codice e delle spec, 26 ottobre. Collaudo funzionale da eseguire.
+Integrazione: corretti salvataggi concorrenti di attività/modulo e preservate
+le personalizzazioni tra tipi non standard. Test correttivi permanenti in
+tests/eventCreationConcurrency.test.mjs e tests/browser/eventCreationConcurrency.mjs.
+Risultato finale sul mini: 1372 test, build e 70 controlli browser verdi,
+review indipendente senza difetti obbligatori residui. Rilettura server prima
+di modificare e dopo conflitto, nessun campo o collection nuovi. Il lavoro
+complessivo resta aperto: programma modulare, gruppi/comitati/alloggi, delega
+e rilascio non sono completati da questo incremento.
+
+Primo incremento: 1343 test client verdi e build riuscita sul Mac mini.
+76 verifiche browser/emulatore su secondo palo sintetico: 66 sul percorso
+mobile, 2 atomicità, 2 locandina con servizio simulato, 3 rete/timeout/account
+e 3 sui controlli fissi di anteprima.
+Test di logica scritti separatamente dall'implementazione; review indipendente
+del commit `68be40e` (PASS WITH CONCERNS: visibilità bozze e limite legacy già
+documentati), con correzione dei rilievi. Mockup, screenshot prima/dopo e confronti
+in `.claude/qa-creazione/` (ignorati). Nessuna nuova collection, campo, rule o indice.
+
+Rimangono il controllo della visibilità delle bozze con S2 (le rules attuali
+ammettono anche i dirigenti), il limite legacy-only del percorso precedente,
+il deploy con conferma fresca. I moduli successivi della
+roadmap restano aperti in questo stesso task; nessun secondo task duplicato.

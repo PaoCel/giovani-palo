@@ -4,9 +4,10 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   query,
-  setDoc,
+  runTransaction,
   updateDoc,
   where,
   writeBatch,
@@ -24,6 +25,7 @@ import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys } from "@/utils/formFields";
 import { eventSpansMultipleCalendarDays, sanitizeEventAudience } from "@/utils/events";
 import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
+import { assertEventRevision, getPublicationIssues, nextEventRevision } from "@/utils/eventCreation";
 import { slugify } from "@/utils/slugify";
 import { LEGACY_DATA_STAKE_ID } from "@/config/app";
 
@@ -323,10 +325,11 @@ export const eventsService = {
       .sort((left, right) => left.startDate.localeCompare(right.startDate));
   },
 
-  async getEventById(stakeId: string, eventId: string) {
-    // Cache-first: le mutazioni (update/publish) aggiornano il doc locale prima
-    // dell'ack server, quindi i `return this.getEventById()` restano corretti.
-    const snapshot = await getDocCacheFirst(doc(db, "stakes", stakeId, "activities", eventId));
+  async getEventById(stakeId: string, eventId: string, serverOnly = false) {
+    // Display reads may use cache; editing and conflict recovery must reread
+    // the server revision, including updates committed in another context.
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    const snapshot = serverOnly ? await getDocFromServer(reference) : await getDocCacheFirst(reference);
 
     if (snapshot.exists()) {
       return mapEvent(snapshot.id, snapshot.data(), stakeId);
@@ -349,8 +352,8 @@ export const eventsService = {
     return event;
   },
 
-  async createEvent(stakeId: string, input: EventWriteInput, createdBy: string) {
-    const eventReference = doc(getActivityCollection(stakeId));
+  async createEvent(stakeId: string, input: EventWriteInput, createdBy: string, eventId?: string) {
+    const eventReference = eventId ? doc(getActivityCollection(stakeId), eventId) : doc(getActivityCollection(stakeId));
     const timestamp = nowIso();
     const data = normalizeEventInput(input);
     const organization = await organizationService.getProfile(stakeId);
@@ -364,7 +367,8 @@ export const eventsService = {
       updatedAt: timestamp,
     };
 
-    await setDoc(eventReference, {
+    const batch = writeBatch(db);
+    batch.set(eventReference, {
       ...data,
       activityId: eventReference.id,
       createdBy,
@@ -394,38 +398,43 @@ export const eventsService = {
           ).concat(data.audience !== "congiunta" ? ["genderRoleCategory"] : []),
         ),
       },
+      undefined,
+      { batch, updatedAt: timestamp },
     );
+    await batch.commit();
 
     return event;
   },
 
-  async updateEvent(stakeId: string, eventId: string, input: EventWriteInput) {
+  async updateEvent(stakeId: string, eventId: string, input: EventWriteInput, expectedUpdatedAt?: string) {
     const data = normalizeEventInput(input);
-
-    await updateDoc(doc(db, "stakes", stakeId, "activities", eventId), {
-      ...data,
-      updatedAt: nowIso(),
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    const currentFormConfig = await eventFormsService.getFormConfig(stakeId, eventId, true);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error("Attività non disponibile.");
+      const previousRevision = snapshot.data().updatedAt;
+      assertEventRevision(previousRevision, expectedUpdatedAt);
+      const updatedAt = nextEventRevision(typeof previousRevision === "string" ? previousRevision : undefined);
+      await eventFormsService.saveFormConfig(stakeId, eventId, {
+        ...currentFormConfig,
+        allowGuestRegistration:
+          input.allowGuestRegistration ?? currentFormConfig.allowGuestRegistration,
+        requireLoginForEdit:
+          input.requireLoginForEdit ?? currentFormConfig.requireLoginForEdit,
+        enabledStandardFields: normalizeStandardFieldKeys(
+          (
+            data.overnight
+              ? currentFormConfig.enabledStandardFields
+              : removeRoomStandardFieldKeys(currentFormConfig.enabledStandardFields)
+          ).concat(data.audience !== "congiunta" ? ["genderRoleCategory"] : []),
+        ),
+      }, undefined, { batch: transaction, updatedAt });
+      transaction.update(reference, { ...data, updatedAt });
     });
     invalidateCache("events:public");
-
-    const currentFormConfig = await eventFormsService.getFormConfig(stakeId, eventId);
-
-    await eventFormsService.saveFormConfig(stakeId, eventId, {
-      ...currentFormConfig,
-      allowGuestRegistration:
-        input.allowGuestRegistration ?? currentFormConfig.allowGuestRegistration,
-      requireLoginForEdit:
-        input.requireLoginForEdit ?? currentFormConfig.requireLoginForEdit,
-      enabledStandardFields: normalizeStandardFieldKeys(
-        (
-          data.overnight
-            ? currentFormConfig.enabledStandardFields
-            : removeRoomStandardFieldKeys(currentFormConfig.enabledStandardFields)
-        ).concat(data.audience !== "congiunta" ? ["genderRoleCategory"] : []),
-      ),
-    });
-
-    return this.getEventById(stakeId, eventId);
+    const saved = await getDoc(reference);
+    return saved.exists() ? mapEvent(saved.id, saved.data(), stakeId) : null;
   },
 
   async updateEventStatus(stakeId: string, eventId: string, status: EventStatus) {
@@ -438,19 +447,24 @@ export const eventsService = {
     return this.getEventById(stakeId, eventId);
   },
 
-  async publishEvent(stakeId: string, eventId: string) {
-    // isVisible viaggia insieme a isPublic nel filtro di listPublicEvents:
-    // se resta false da un salvataggio bozza precedente, l'attività
-    // sparisce dai feed pubblici anche dopo questa pubblicazione.
-    await updateDoc(doc(db, "stakes", stakeId, "activities", eventId), {
-      status: "registrations_open",
-      isPublic: true,
-      isVisible: true,
-      updatedAt: nowIso(),
+  async publishEvent(stakeId: string, eventId: string, expectedUpdatedAt?: string) {
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error("Attività non disponibile.");
+      const event = mapEvent(snapshot.id, snapshot.data(), stakeId);
+      // A repeated acknowledgement is harmless; another admin's edits must
+      // be reviewed before making them public.
+      if (event.isPublic) return;
+      assertEventRevision(snapshot.data().updatedAt, expectedUpdatedAt);
+      const issues = getPublicationIssues(event);
+      if (issues.length) throw new Error(issues.join(" "));
+      transaction.update(reference, {
+        status: "registrations_open", isPublic: true, isVisible: true, updatedAt: nextEventRevision(event.updatedAt),
+      });
     });
     invalidateCache("events:public");
-
-    return this.getEventById(stakeId, eventId);
+    return this.getEventById(stakeId, eventId, true);
   },
 
   async deleteEvent(stakeId: string, eventId: string) {

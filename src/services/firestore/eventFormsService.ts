@@ -1,9 +1,14 @@
 import {
   collection,
-  deleteDoc,
   doc,
+  getDocFromServer,
   getDocs,
-  setDoc,
+  getDocsFromServer,
+  runTransaction,
+  type DocumentData,
+  type DocumentReference,
+  type Transaction,
+  type WriteBatch,
 } from "firebase/firestore";
 
 import { db } from "@/services/firebase/app";
@@ -21,6 +26,17 @@ import {
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
 import { LEGACY_DATA_STAKE_ID } from "@/config/app";
+import { assertEventRevision, nextEventRevision } from "@/utils/eventCreation";
+
+type FormWriteOptions =
+  | { batch: WriteBatch | Transaction; updatedAt: string }
+  | { expectedUpdatedAt: string };
+
+interface FormWriter {
+  set(reference: DocumentReference, data: DocumentData): unknown;
+  delete(reference: DocumentReference): unknown;
+  update(reference: DocumentReference, data: DocumentData): unknown;
+}
 
 const defaultEnabledStandardFields: StandardFieldKey[] = [
   "birthDate",
@@ -113,14 +129,15 @@ function mapFormConfig(
 }
 
 export const eventFormsService = {
-  async getFormConfig(stakeId: string, eventId: string): Promise<EventFormConfig> {
+  async getFormConfig(stakeId: string, eventId: string, serverOnly = false): Promise<EventFormConfig> {
     const [settingsSnapshot, fieldsSnapshot] = await Promise.all([
-      getDocCacheFirst(getSettingsReference(stakeId, eventId)),
-      getDocsCacheFirst(getFieldsCollection(stakeId, eventId)),
+      serverOnly ? getDocFromServer(getSettingsReference(stakeId, eventId)) : getDocCacheFirst(getSettingsReference(stakeId, eventId)),
+      serverOnly ? getDocsFromServer(getFieldsCollection(stakeId, eventId)) : getDocsCacheFirst(getFieldsCollection(stakeId, eventId)),
     ]);
 
     if (!settingsSnapshot.exists() && fieldsSnapshot.empty && stakeId === LEGACY_DATA_STAKE_ID) {
-      const legacySnapshot = await getDocCacheFirst(doc(db, "events", eventId, "config", "form"));
+      const legacyReference = doc(db, "events", eventId, "config", "form");
+      const legacySnapshot = serverOnly ? await getDocFromServer(legacyReference) : await getDocCacheFirst(legacyReference);
 
       if (legacySnapshot.exists()) {
         const data = legacySnapshot.data();
@@ -160,6 +177,7 @@ export const eventFormsService = {
     eventId: string,
     formConfig: EventFormConfig,
     standardFieldDefinitions?: StandardFieldDefinition[],
+    options?: FormWriteOptions,
   ) {
     const normalizedConfig: EventFormConfig = {
       allowGuestRegistration: formConfig.allowGuestRegistration,
@@ -207,24 +225,45 @@ export const eventFormsService = {
     }));
     const allFields = [...standardFields, ...customFields];
 
-    await setDoc(settingsReference, {
-      allowGuestRegistration: normalizedConfig.allowGuestRegistration,
-      requireLoginForEdit: normalizedConfig.requireLoginForEdit,
-    });
+    const activityReference = doc(db, "stakes", stakeId, "activities", eventId);
+    function queueWrites(writes: FormWriter, updatedAt: string) {
+      writes.set(settingsReference, {
+        allowGuestRegistration: normalizedConfig.allowGuestRegistration,
+        requireLoginForEdit: normalizedConfig.requireLoginForEdit,
+      });
 
-    for (const field of allFields) {
-      nextFieldIds.add(field.id);
-      await setDoc(doc(fieldsCollection, field.id), field);
-    }
-
-    for (const existingField of existingFields.docs) {
-      if (nextFieldIds.has(existingField.id)) {
-        continue;
+      for (const field of allFields) {
+        nextFieldIds.add(field.id);
+        writes.set(doc(fieldsCollection, field.id), field);
       }
 
-      await deleteDoc(existingField.ref);
-    }
+      for (const existingField of existingFields.docs) {
+        if (nextFieldIds.has(existingField.id)) {
+          continue;
+        }
 
+        writes.delete(existingField.ref);
+      }
+
+      // The activity revision also covers its form. A preview made before a
+      // second admin changed the form must be reviewed again before publishing.
+      writes.update(activityReference, {
+        updatedAt,
+        allowGuestRegistration: normalizedConfig.allowGuestRegistration,
+        requireLoginForEdit: normalizedConfig.requireLoginForEdit,
+      });
+    }
+    if (options && "batch" in options) {
+      queueWrites(options.batch, options.updatedAt);
+    } else {
+      await runTransaction(db, async (transaction) => {
+        const activity = await transaction.get(activityReference);
+        if (!activity.exists()) throw new Error("Attività non disponibile.");
+        const revision = activity.data().updatedAt;
+        assertEventRevision(revision, options?.expectedUpdatedAt);
+        queueWrites(transaction, nextEventRevision(typeof revision === "string" ? revision : undefined));
+      });
+    }
     return normalizedConfig;
   },
 };

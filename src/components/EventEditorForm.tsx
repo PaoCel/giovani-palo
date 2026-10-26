@@ -67,6 +67,7 @@ interface EventEditorFormProps {
   busy?: boolean;
   submitLabel: string;
   compact?: boolean;
+  onDirtyChange?: () => void;
   statusMode?: "full" | "simplified";
   secondaryAction?: {
     label: string;
@@ -217,6 +218,7 @@ export function EventEditorForm({
   busy,
   submitLabel,
   compact = false,
+  onDirtyChange,
   statusMode = "full",
   secondaryAction,
   onSubmit,
@@ -243,6 +245,7 @@ export function EventEditorForm({
   const isLastStep = currentStepIndex === eventEditorSteps.length - 1;
   const progress = ((currentStepIndex + 1) / eventEditorSteps.length) * 100;
   const isSimplifiedStatusMode = statusMode === "simplified";
+  const editingDraft = isSimplifiedStatusMode && !initialEvent?.isPublic;
   const recordsCloseAtTooLate =
     values.recordsEnabled &&
     isRecordsCloseAfterEnd(values.recordsCloseAt, values.endDate);
@@ -287,6 +290,7 @@ export function EventEditorForm({
     key: Key,
     value: EventEditorValues[Key],
   ) {
+    onDirtyChange?.();
     clearFieldError(key);
     setValues((current) => ({
       ...current,
@@ -295,6 +299,7 @@ export function EventEditorForm({
   }
 
   function handleActivityTypeChange(nextType: ActivityType) {
+    onDirtyChange?.();
     clearFieldError("activityType");
     setValues((current) => {
       const wasStrong = isStrongAuthActivity(current.activityType);
@@ -363,7 +368,7 @@ export function EventEditorForm({
         errors.title = true;
       }
 
-      if (!values.description.trim()) {
+      if (!editingDraft && !values.description.trim()) {
         errors.description = true;
       }
 
@@ -385,11 +390,11 @@ export function EventEditorForm({
         errors.location = true;
       }
 
-      if (!values.registrationOpen) {
+      if (!editingDraft && !values.registrationOpen) {
         errors.registrationOpen = true;
       }
 
-      if (!values.registrationClose) {
+      if (!editingDraft && !values.registrationClose) {
         errors.registrationClose = true;
       }
     }
@@ -470,28 +475,16 @@ export function EventEditorForm({
       if (forceDraft) {
         nextStatus = "draft";
         nextIsPublic = false;
-      } else if (values.status === "cancelled") {
-        nextStatus = "cancelled";
+      } else if (values.status === "cancelled" || values.status === "completed") {
+        nextStatus = values.status;
         nextIsPublic = initialEvent?.isPublic ?? false;
       } else if (!(initialEvent?.isPublic ?? false)) {
         nextStatus = "draft";
         nextIsPublic = false;
       } else {
-        const now = Date.now();
-        const opensAt = new Date(
-          fromDatetimeLocalValue(values.registrationOpen),
-        ).getTime();
-        const closesAt = new Date(
-          fromDatetimeLocalValue(values.registrationClose),
-        ).getTime();
-
-        nextStatus =
-          !Number.isNaN(opensAt) &&
-          !Number.isNaN(closesAt) &&
-          now >= opensAt &&
-          now <= closesAt
-            ? "registrations_open"
-            : "registrations_closed";
+        // Dates gate availability in the client. The existing rules require
+        // registrations_open even for a future publication.
+        nextStatus = "registrations_open";
         nextIsPublic = true;
       }
     } else if (forceDraft) {
@@ -508,7 +501,7 @@ export function EventEditorForm({
       endDate: fromDatetimeLocalValue(values.endDate),
       location: values.location.trim(),
       program: values.program.trim(),
-      publicNotes: values.program.trim(),
+      publicNotes: initialEvent?.publicNotes ?? "",
       organizerNotes: values.organizerNotes.trim(),
       menuInfo: values.menuInfo.trim(),
       allergiesInfo: values.allergiesInfo.trim(),
@@ -518,6 +511,7 @@ export function EventEditorForm({
       heroImagePath: values.heroImagePath.trim(),
       status: nextStatus,
       isPublic: nextIsPublic,
+      isVisible: initialEvent?.isVisible ?? nextIsPublic,
       registrationOpen: fromDatetimeLocalValue(values.registrationOpen),
       registrationClose: fromDatetimeLocalValue(values.registrationClose),
       maxParticipants: values.maxParticipants
@@ -694,7 +688,7 @@ export function EventEditorForm({
               </label>
 
               <label className="field">
-                {renderFieldLabel("Descrizione", "description", true)}
+                {renderFieldLabel("Descrizione", "description", !editingDraft)}
                 <textarea
                   className={
                     fieldErrors.description
@@ -759,7 +753,7 @@ export function EventEditorForm({
                   {renderFieldLabel(
                     "Apertura iscrizioni",
                     "registrationOpen",
-                    true,
+                    !editingDraft,
                   )}
                   <input
                     className={getInputClass("registrationOpen")}
@@ -776,7 +770,7 @@ export function EventEditorForm({
                   {renderFieldLabel(
                     "Chiusura iscrizioni",
                     "registrationClose",
-                    true,
+                    !editingDraft,
                   )}
                   <input
                     className={getInputClass("registrationClose")}

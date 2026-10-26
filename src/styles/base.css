@@ -6057,7 +6057,7 @@ p.admin-person-fields__note {
   }
 
   .page--admin-activity-detail .activity-ios-hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "image"
       "content"
@@ -6068,6 +6068,9 @@ p.admin-person-fields__note {
 
   .page--admin-activity-detail .activity-ios-hero__image {
     min-height: 8.2rem;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .page--admin-activity-detail .activity-ios-actions {

@@ -392,6 +392,7 @@ export function AdminEventDetailPage() {
   const isCampManagerOnly = isCampManagementTab && Boolean(session && !session.isAdmin);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editorInitialStep, setEditorInitialStep] = useState<"overview" | "preview">("overview");
   const [busy, setBusy] = useState<
     | null
     | "publish"
@@ -1451,30 +1452,15 @@ export function AdminEventDetailPage() {
     setSelectedCampPatrolId(null);
   }
 
-  async function handlePublish() {
+  function handlePublish() {
     setActionError(null);
-
+    setActionInfo(null);
     if (resolvedEvent.isPublic) {
       setActionInfo("L'attività è già pubblica.");
       return;
     }
-
-    setBusy("publish");
-    setActionInfo(null);
-
-    try {
-      await eventsService.publishEvent(stakeId, resolvedEventId);
-      setActionInfo("Attività resa pubblica.");
-      setRefreshKey((current) => current + 1);
-    } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile pubblicare l'attività.",
-      );
-    } finally {
-      setBusy(null);
-    }
+    setEditorInitialStep("preview");
+    setEditModalOpen(true);
   }
 
   async function handleDelete() {
@@ -2264,6 +2250,7 @@ export function AdminEventDetailPage() {
             className="activity-ios-action"
             onClick={() => {
               setActionInfo(null);
+              setEditorInitialStep("overview");
               setEditModalOpen(true);
             }}
             title="Modifica"
@@ -2496,11 +2483,11 @@ export function AdminEventDetailPage() {
               </div>
               <div>
                 <dt>Apertura iscrizioni</dt>
-                <dd>{formatDateTime(resolvedEvent.registrationOpen)}</dd>
+                <dd>{resolvedEvent.registrationOpen ? formatDateTime(resolvedEvent.registrationOpen) : "Da scegliere"}</dd>
               </div>
               <div>
                 <dt>Chiusura iscrizioni</dt>
-                <dd>{formatDateTime(resolvedEvent.registrationClose)}</dd>
+                <dd>{resolvedEvent.registrationClose ? formatDateTime(resolvedEvent.registrationClose) : "Da scegliere"}</dd>
               </div>
               <div>
                 <dt>Pernottamento</dt>
@@ -4463,6 +4450,7 @@ export function AdminEventDetailPage() {
       {editModalOpen && data?.organization && session ? (
         <AdminEventEditorModal
           initialEvent={resolvedEvent}
+          initialStep={editorInitialStep}
           initialFormConfig={formConfig}
           organization={data.organization}
           sessionUid={session.firebaseUser.uid}
