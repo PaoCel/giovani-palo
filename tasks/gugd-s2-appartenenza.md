@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: ready
+status: in-progress
 impact: 2
 urgency: 2
 effort: L
@@ -15,9 +15,9 @@ due:
 blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: .claude/worktrees/kind-rosalind-0307da
-session: 01a177a4-48cb-7dc3-8758-36da754ad032
-stopped_at: "Storage S2 implementato e rivisto: 1902 celle Firestore/Storage verdi, zero salti; codice bucket UE invariato. Nessun merge su main né deploy"
-next: "Implementare cleanup idempotente members/history/staff nella procedura di cancellazione account, con guardie anti-ricreazione e test separati; poi integrazione su main e piano di rilascio con conferma fresca"
+session: 01a17799-4984-7af2-857e-2a02f5b4db11
+stopped_at: "Ripreso il cleanup account: implementazione e test affidati a due agenti separati attivi"
+next: "Verificare il contratto e completare helper, script operativo, guardie anti-ricreazione e test su emulatori; review prima del commit del codice"
 verified: "26 ottobre: contratto completo 1902/1902 (1724 Firestore e 178 Storage, upload 300 MB, zero salti), review indipendente PASS WITH CONCERNS senza difetti obbligatori; sul recupero precedente callable 74, fase 3 28, trigger 18, accesso 16, query 115, client 1390, puri Functions 409, browser 33 e build verdi. Storage UE non migrato, cleanup account non implementato, nessun deploy o scrittura di produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
