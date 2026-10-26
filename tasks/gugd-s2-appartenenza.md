@@ -18,7 +18,7 @@ worktree: .claude/worktrees/kind-rosalind-0307da
 session: 01a177a4-48cb-7dc3-8758-36da754ad032
 stopped_at: "Storage S2 implementato e rivisto: 1902 celle Firestore/Storage verdi, zero salti; codice bucket UE invariato. Nessun merge su main né deploy"
 next: "Implementare cleanup idempotente members/history/staff nella procedura di cancellazione account, con guardie anti-ricreazione e test separati; poi integrazione su main e piano di rilascio con conferma fresca"
-verified: "2026-10-26 sul mini in QA dedicata: callable 74/74, fase 3 server 28/28, trigger 18/18, accesso 16/16, query SDK 115/115, contratto Firestore 1724/1724 (164 Storage saltati), puri Functions 409/409, client 1390/1390, TypeScript e build verdi. Browser app sintetico 28/28 a 320/390/430; guardia indipendente permanente cache/retry/legacy 5/5. Review separata e gpt-6-astra PASS WITH CONCERNS limitato alla verifica statica, nessun difetto obbligatorio residuo; runtime poi verificato. Dry-run produzione: 180 profili e 180 members da creare, 31 staff/108 da confermare/41 in coda, 0 members esistenti; codici: 1 galleria, 31 documenti da cancellare. SW live e origin/main v32. Nessuna scrittura o verifica con account reale in produzione; nessun deploy"
+verified: "26 ottobre: contratto completo 1902/1902 (1724 Firestore e 178 Storage, upload 300 MB, zero salti), review indipendente PASS WITH CONCERNS senza difetti obbligatori; sul recupero precedente callable 74, fase 3 28, trigger 18, accesso 16, query 115, client 1390, puri Functions 409, browser 33 e build verdi. Storage UE non migrato, cleanup account non implementato, nessun deploy o scrittura di produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
