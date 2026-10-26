@@ -10,7 +10,7 @@ surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
 started_at:
-touched: 2026-10-20
+touched: 2026-10-26
 due:
 blocked_by: [gugd-s2-appartenenza]
 branch:
@@ -24,6 +24,12 @@ done_at:
 ---
 
 ## Contesto
+
+Il 26 ottobre Paolo conferma che la home dei giovani deve essere un feed
+attrattivo come un social. La progettazione può partire in parallelo alla
+verifica S2; il rilascio continua a dipendere dall'appartenenza verificata.
+Non è ancora una decisione di abilitare post liberi dei ragazzi. Raccordo
+con l'organizzazione delle attività: docs/ATTIVITA_MODULARI.md.
 
 Paolo (2026-10-20): dopo la gestione admin, una home "tipo Facebook". La base
 c'è già: `stakes/{s}/feedPosts` (annuncio, promemoria, galleria), like sui post
