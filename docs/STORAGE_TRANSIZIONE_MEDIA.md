@@ -107,16 +107,21 @@ La configurazione separata della fase A continua a indicare soltanto EU.
 
 ## Verifiche del 26 ottobre
 
-40 test puri indipendenti helper/sync passano senza salti; rieseguiti anche
-dall'autore del codice sul mini. La suite diretta conta 26 scenari su
-Firestore/Auth/Storage emulati: primo giro 24 PASS e due finding, uno sul
-codice di ritorno restore/delete (corretto), uno sulla precondizione CAS che
-l'emulatore non applica correttamente. Il riesame completo resta registrato
-nel task di rilascio, senza equiparare il comportamento emulato alla
-protezione GCS reale.
+40 test puri indipendenti helper/sync e 28 scenari diretti su
+Firestore/Auth/Storage emulati passano senza salti. I puri sono stati
+rieseguiti anche dall'autore del codice sul mini. Gli scenari diretti
+comprendono ruoli SDK, retry e concorrenza, firme/PDF nuovi e copiati,
+CLI reale per tombstone dest-only, dry-run, tetto cancellazioni,
+verifica dei residui e ripetizione idempotente.
 
-La verifica indipendente del coordinatore su soli file sintetici staging
-conferma invece la revoca dei vecchi token e il rifiuto GCS delle scritture
-con precondizione superata. Questa prova non è un deploy di produzione.
-Review indipendente del codice server: finding obbligatori chiusi; verifiche
-integrate S2/home/camp e browser in corso al momento di questo commit.
+Il controllo di protocollo rileva `CAS_ENFORCED=false` nell'emulatore
+Storage: non prova l'efficacia delle precondizioni in produzione. La
+verifica indipendente del coordinatore su soli file sintetici staging
+conferma invece vecchi token 403, nuovi token 206 in entrambi i bucket,
+worker superato bloccato e token più recente conservato. Questa prova non
+è un deploy di produzione.
+
+Review indipendente del codice server: finding obbligatori chiusi;
+verifiche integrate S2/home/camp e browser in corso al momento di questo
+aggiornamento. La verifica dell'intero pacchetto e il deploy B restano
+separati dall'accettazione di questo incremento.
