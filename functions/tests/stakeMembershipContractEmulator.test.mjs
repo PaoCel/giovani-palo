@@ -926,14 +926,20 @@ row({
 
 // --- feed --------------------------------------------------------------------
 row({
-  name: "feedPosts where published == true",
-  allow: ALL,
+  name: "feedPosts legacy published-only: solo gestione admin (contratto Home social)",
+  allow: "A",
   run: (p) => readDocs(p, feedPath, where("published", "==", true)),
   check: (_p, _ctx, snap) => assert.ok(snap.size >= 1),
 });
 row({
+  name: "feedPosts query Home published + visibility",
+  allow: "MDA",
+  run: (p) => readDocs(p, feedPath, where("published", "==", true), where("visibility", "in", ["all_authenticated", "gallery_members"])),
+  check: (_p, _ctx, snap) => assert.ok(snap.size >= 1),
+});
+row({
   name: "like di un post: get del proprio",
-  allow: "ONPMFXDA",
+  allow: "MDA",
   run: (p) => getDocFromServer(doc(p.db, `${feedPath}/${FEED_MAIN}/likes/${p.who}`)),
   check: (_p, _ctx, snap) => assert.equal(snap.exists(), false),
 });

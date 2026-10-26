@@ -111,7 +111,8 @@ export const feedService = {
   async listPublishedPosts(stakeId: string): Promise<FeedPost[]> {
     if (!stakeId) return [];
     const snapshot = await getDocsCacheFirst(
-      query(feedPostsCollection(stakeId), where("published", "==", true)),
+      query(feedPostsCollection(stakeId), where("published", "==", true),
+        where("visibility", "in", ["all_authenticated", "gallery_members"])),
     );
     return snapshot.docs
       .map((d) => mapFeedPost(stakeId, d.id, d.data()))
