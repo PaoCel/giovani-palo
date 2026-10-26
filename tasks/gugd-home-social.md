@@ -9,17 +9,17 @@ delivery: deploy
 surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
-started_at:
+started_at: 2026-10-26
 touched: 2026-10-26
 due:
 blocked_by: [gugd-s2-appartenenza]
 branch:
 worktree:
-session:
-stopped_at: ""
-next: "Dopo S2: spec con chi pubblica, chi commenta e chi vede, stati e ritorni, mockup con i token reali, secondo parere di un altro modello sulle scelte"
-verified: ""
-links: [src/types/feed.ts, docs/GALLERIA_ATTIVITA.md]
+session: 01a17799-4984-7af2-857e-2a02f5b4db11
+stopped_at: "Spec e prototipo sintetico integrati dal branch 8fbcaf9; nessuna implementazione della nuova home nel client né deploy"
+next: "Dopo S2: implementare il primo incremento del feed preservando autori, filtro gallerie e permessi esistenti; confrontare con il prototipo e completare le superfici successive"
+verified: "Review spec gpt-6-astra PASS; QA indipendente Playwright sul mini 68/68, 29 PNG, build tsc+Vite verde; rules/S2/produzione non verificati in questo blocco"
+links: [docs/HOME_SOCIAL.md, docs/HOME_SOCIAL_REVIEW.md, docs/prototypes/home-social/index.html, docs/GALLERIA_ATTIVITA.md]
 done_at:
 ---
 
@@ -55,6 +55,17 @@ entrare, e un feed con foto e commenti di minori non può dipendere da questo.
 
 ## Da fare
 
-- dettaglio dopo S2.
+- Primo blocco autorizzato il 26 ottobre: spec, stati e ritorni, prototipo
+  isolato, review indipendente, render mobile 320/390/430 e desktop.
+- Ratificare le tre proposte P1/P2/P3 della spec.
+- Dopo S2: riconciliare il contratto effettivo di visibilità e le query,
+  implementare per piccoli blocchi con test indipendenti e collaudo reale.
+- Il primo blocco non chiude il task completo e non autorizza il rilascio.
 
 ## Verificato
+
+Primo blocco del 26 ottobre: `docs/HOME_SOCIAL_REVIEW.md`. Review indipendente
+della spec, test del prototipo scritti da un altro agente, esecuzione sul mini
+68/68 e verifica visiva dei PNG. Tutti i dati e la fotografia sono sintetici.
+Gemini tentato ma accesso rifiutato con `UNSUPPORTED_CLIENT`; secondo parere
+ottenuto da gpt-6-astra. Task complessivo ancora aperto, rilascio dopo S2.
