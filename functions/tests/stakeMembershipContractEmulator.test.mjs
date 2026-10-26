@@ -1396,13 +1396,18 @@ const STORAGE_ROWS = [
   {
     name: "storage create di un file nuovo con uploadedBy = sé",
     allow: "MDA",
+    // Storage EU transition: active member + lifecycle marker must fit the
+    // two-document rules budget. Profile-only staff retain read/moderation,
+    // but uploads require active membership (including super-admin).
+    requiresActiveMembership: true,
     setup: () => freshMedia(),
     run: (p, { path }) => upload(p, path),
     check: async (_p, { path }) => assert.equal(await fileExists(path), true),
     untouched: async (_p, { path }) => assert.equal(await fileExists(path), false),
   },
   {
-    // L'admin scrive qualunque file: il vincolo su uploadedBy vale per M e D.
+    // Author metadata is checked here for M/D. Active admins retain the
+    // historical moderation bypass; the upload client still marks its owner.
     name: "storage create con uploadedBy di un altro",
     allow: "",
     classes: "MD",
@@ -1433,6 +1438,7 @@ const STORAGE_ROWS = [
   {
     name: "storage create di un'immagine da 30 MB - 1 byte",
     allow: "MD",
+    requiresActiveMembership: true,
     classes: "MD",
     only: ["M", "D"],
     setup: () => freshMedia(),
@@ -1495,7 +1501,8 @@ describe("Storage: stesse persone, stessa regola", () => {
     for (const def of [...MATRIX_PERSONS, ...INCOHERENT_PERSONS, ...ANON_STAFF_PERSONS]) {
       if (r.classes && !r.classes.includes(def.cls)) continue;
       if (r.only && !r.only.includes(def.key)) continue;
-      const allowed = r.allow.includes(def.cls);
+      const allowed = r.allow.includes(def.cls) && (!r.requiresActiveMembership
+        || (def.mode !== "anonymous" && def.member?.stake === STAKE_A && def.member.status === "active"));
       const skip = r.bigUpload && process.env.GALLERY_BIG_UPLOAD !== "1"
         ? "salta: serve caricare 300 MB veri; rilancia con GALLERY_BIG_UPLOAD=1"
         : STORAGE_SKIP;

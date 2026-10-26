@@ -19,4 +19,5 @@ export const GALLERIA = {
   eliminazione: PAROLE.eliminazione,
   erroreElimina: "Non sono riuscito a eliminarlo. Riprova.",
   erroreRete: PAROLE.erroreRete,
+  appartenenzaCaricamento: "Per aggiungere foto o video serve un’appartenenza attiva a questo palo.",
 } as const;

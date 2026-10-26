@@ -20,6 +20,7 @@ import { PAROLE } from "@/copy/parole";
 import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { deleteMediaFolder } from "@/services/firebase/galleryUploadService";
+import { isGalleryUploadOpen } from "@/utils/galleryWindow";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, GalleryMedia, HiddenGalleryMedia } from "@/types";
@@ -54,7 +55,7 @@ function previewOf(item: GalleryMedia) {
 }
 
 export function ActivityGallery({ stakeId, event, initialView }: ActivityGalleryProps) {
-  const { isMember, isStaff, uid, access } = useGalleryAccess(stakeId);
+  const { isMember, canUpload, isStaff, uid, access } = useGalleryAccess(stakeId);
   const location = useLocation();
   const { pickMedia } = useUploadApi();
   const { gallery, loading: galleryLoading, error: galleryError, uploadOpen } =
@@ -101,6 +102,10 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const galleryId = gallery?.id ?? "";
+  const uploadContext = `${uid}:${stakeId}:${event?.id ?? ""}:${galleryId}:${canUpload}:${uploadOpen}`;
+  const uploadContextRef = useRef(uploadContext);
+  uploadContextRef.current = uploadContext;
+  const pickerContext = useRef<string | null>(null);
 
   useEffect(() => {
     if (!stakeId || !galleryId) {
@@ -272,7 +277,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   function onPick(changeEvent: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(changeEvent.target.files ?? []);
     changeEvent.target.value = "";
-    if (gallery && files.length > 0) {
+    if (gallery && canUpload && isGalleryUploadOpen(event, gallery) && navigator.onLine && pickerContext.current === uploadContextRef.current && files.length > 0) {
       pickMedia(files, gallery, media.length);
       setNotice(null);
     }
@@ -407,7 +412,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
           <AppIcon name="camera" />
           <p>
             {counts.all === 0
-              ? uploadOpen
+              ? canUpload && uploadOpen
                 ? "Ancora nessuna foto. Carica tu la prima."
                 : "Nessuna foto o video in questa galleria."
               : filter === "mine"
@@ -460,17 +465,17 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
       )}
 
       {gallery && !viewingHidden ? (
-        uploadOpen ? (
+        canUpload && uploadOpen ? (
           <button
             type="button"
             className="ag-fab"
-            onClick={() => inputRef.current?.click()}
+            onClick={() => { pickerContext.current = uploadContext; inputRef.current?.click(); }}
           >
             <AppIcon name="plus" />
             Aggiungi
           </button>
         ) : (
-          <p className="ag-closed">Caricamenti chiusi per questa attività.</p>
+          <p className="ag-closed">{uploadOpen ? GALLERIA.appartenenzaCaricamento : "Caricamenti chiusi per questa attività."}</p>
         )
       ) : null}
 

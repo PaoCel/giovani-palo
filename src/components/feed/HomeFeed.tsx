@@ -11,13 +11,14 @@ import { ReportMediaSheet } from "@/components/gallery/ReportMediaSheet";
 import { activityMediaPath } from "@/components/gallery/ActivityMediaCard";
 import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { useAuth } from "@/hooks/useAuth";
-import { useStakeMembership } from "@/hooks/useStakeMembership";
+import { useGalleryAccess } from "@/hooks/useActivityGallery";
 import { onCacheRevalidated } from "@/services/firestore/cacheFirst";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import { userActivitiesService, type UserActivityItem } from "@/services/firestore/userActivitiesService";
 import { eventsService } from "@/services/firestore/eventsService";
 import type { FeedPost, Gallery, GalleryMedia, GalleryReportReason } from "@/types";
+import { isGalleryUploadOpen } from "@/utils/galleryWindow";
 import { isCampEvent, isPastEvent } from "@/utils/events";
 import { getActivityPath } from "@/utils/activityLinks";
 import { formatEventWindow } from "@/utils/formatters";
@@ -50,9 +51,9 @@ export function HomeFeed() {
   const navigate = useNavigate();
   const stakeId = session?.profile.stakeId ?? "";
   const uid = session?.firebaseUser.uid ?? "";
-  const { access } = useStakeMembership(stakeId);
+  const { access, canUpload } = useGalleryAccess(stakeId);
   const isMember = access === "member";
-  const context = `${uid}:${stakeId}:${access}`;
+  const context = `${uid}:${stakeId}:${access}:${canUpload}`;
   const contextRef = useRef(context);
   contextRef.current = context;
   const requestRef = useRef(0);
@@ -172,7 +173,7 @@ export function HomeFeed() {
   }, [context, data.likes.media, isMember, stakeId, uid]);
 
   function handleUpload(gallery: Gallery, files: File[]) {
-    if (!files.length || !isMember || !navigator.onLine || contextRef.current !== context || !gallery.activityId) return;
+    if (!files.length || !canUpload || !navigator.onLine || !isGalleryUploadOpen(null, gallery) || contextRef.current !== context || !gallery.activityId) return;
     pickMedia(files, gallery, gallery.mediaCount);
     navigate(activityMediaPath(gallery.activityId));
   }
@@ -221,7 +222,7 @@ export function HomeFeed() {
         if (post.type === "activity_reminder") return <ActivityReminderCard key={post.id} {...common} activity={post.activityId ? data.activities[post.activityId] : undefined} />;
         if (!post.galleryId) return null;
         const media = post.mediaIds.map(id => (data.media[post.galleryId!] ?? []).find(item => item.id === id)).filter((item): item is GalleryMedia => Boolean(item));
-        return <GalleryCard key={post.id} {...common} gallery={data.galleries[post.galleryId]} media={media} access={access}
+        return <GalleryCard key={`${context}:${post.id}:${post.galleryId}`} {...common} gallery={data.galleries[post.galleryId]} media={media} access={access} canUpload={canUpload}
           onOpenMedia={index => setLightbox({ key: context, galleryId: post.galleryId!, media, index })} isMediaLiked={lightboxMediaIsLiked} onUpload={files => { const gallery = data.galleries[post.galleryId!]; if (gallery) handleUpload(gallery, files); }} />;
       })}
     </div>
@@ -338,6 +339,7 @@ interface GalleryCardProps {
   onToggleLike: () => Promise<void>;
   onOpenMedia: (index: number) => void;
   onUpload: (files: File[]) => void;
+  canUpload: boolean;
   isMediaLiked: (mediaId: string) => boolean;
 }
 
@@ -351,6 +353,7 @@ function GalleryCard({
   onToggleLike,
   onOpenMedia,
   onUpload,
+  canUpload,
 }: GalleryCardProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isMember = access === "member";
@@ -418,7 +421,7 @@ function GalleryCard({
       {isMember && post.activityId ? <div className="social-gallery-links">
         {media.length > 0 ? <button type="button" onClick={() => onOpenMedia(0)}>Apri foto e commenti <span aria-hidden="true">↗</span></button> : null}
         <Link to={activityMediaPath(post.activityId)}>Vedi tutte</Link>
-        {gallery && !gallery.uploadsClosed && gallery.uploadsOpenFrom !== null && gallery.uploadsOpenUntil !== null && Date.now() >= gallery.uploadsOpenFrom && Date.now() < gallery.uploadsOpenUntil ?
+        {canUpload && gallery && isGalleryUploadOpen(null, gallery) ?
           <><input type="file" ref={inputRef} accept="image/*,video/*" multiple hidden onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ""; onUpload(files); }} />
             <button className="social-upload-link" type="button" disabled={!navigator.onLine} onClick={() => inputRef.current?.click()}>Aggiungi foto o video</button></> : null}
       </div> : null}

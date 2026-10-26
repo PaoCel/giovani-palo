@@ -11,6 +11,9 @@ const { randomUUID } = require("node:crypto");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
 const logger = require("firebase-functions/logger");
+const { onDocumentWritten, onDocumentDeleted } = require("firebase-functions/v2/firestore");
+const { resolveProjectId, isEmulatorRuntime } = require("./config");
+const { createGalleryMediaStorage, resolveMediaBucketNames, rewriteMediaDownloadUrl } = require("./galleryMediaStorage");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
 const { runTransactionWithRetry } = require("./transactionRetry");
@@ -231,6 +234,8 @@ async function reportMedia(db, { stakeId, galleryId, mediaId, reason, uid, nowMs
   const hiddenRef = galleryRef.collection("hiddenMedia").doc(mediaId);
   // Un report per segnalazione (non per persona): dopo un ripristino una nuova
   // segnalazione crea un doc nuovo e il trigger avvisa di nuovo gli admin.
+  const lifecycleRef = galleryRef.collection("mediaLifecycle").doc(mediaId);
+  const rotationSeed = randomUUID();
   const reportRef = galleryRef.collection("reports").doc(`${mediaId}_${uid}_${nowMs}`);
   const ts = new Date(nowMs).toISOString();
 
@@ -253,12 +258,18 @@ async function reportMedia(db, { stakeId, galleryId, mediaId, reason, uid, nowMs
   return runTransactionWithRetry(db, async (tx) => {
     const mediaSnap = await tx.get(mediaRef);
     const hiddenSnap = await tx.get(hiddenRef);
+    const lifecycle = await tx.get(lifecycleRef);
+    if (lifecycle.data()?.operation === "delete") throw new HttpsError("failed-precondition", "Cancellazione in corso.");
     if (!mediaSnap.exists) {
       // Già nascosto da un'altra segnalazione: per chi segnala è comunque fatto.
-      if (hiddenSnap.exists) return { status: "already_hidden" };
+      if (hiddenSnap.exists) {
+        if (!lifecycle.exists) tx.set(lifecycleRef, lifecycleData("hide", rotationSeed));
+        return { status: "already_hidden" };
+      }
       throw new HttpsError("not-found", "Contenuto non trovato.");
     }
     const media = mediaSnap.data() || {};
+    tx.set(lifecycleRef, lifecycleData("hide", rotationSeed));
     tx.set(reportRef, {
       mediaId,
       reporterUid: uid,
@@ -281,29 +292,58 @@ async function reportMedia(db, { stakeId, galleryId, mediaId, reason, uid, nowMs
   });
 }
 
-/**
- * Gli URL di download con token non passano dalle rules: chi li ha già visti
- * continuerebbe ad aprire il contenuto nascosto. Token nuovi su ogni file e
- * URL riscritti nella copia nascosta, che leggono solo staff e autore.
- */
-async function revokeDownloadTokens(db, bucket, { stakeId, galleryId, mediaId }) {
-  const [files] = await bucket.getFiles({ prefix: mediaFolder(stakeId, galleryId, mediaId) });
-  const tokensByPath = {};
-  for (const file of files) {
-    const token = randomUUID();
-    await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
-    tokensByPath[file.name] = token;
+// This document is also the pessimistic lock for Storage side effects. All
+// callbacks are idempotent: a transaction retry uses the same persisted seed.
+function lifecycleData(operation, rotationSeed) {
+  return { operation, status: "pending", ...(rotationSeed ? { rotationSeed } : {}),
+    createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+}
+function runtimeMediaStorage() {
+  const storage = getStorage();
+  const bucketNames = resolveMediaBucketNames({ projectId: resolveProjectId(), emulator: isEmulatorRuntime(), defaultBucketName: storage.bucket().name });
+  return createGalleryMediaStorage({ storage, bucketNames });
+}
+async function processMediaLifecycle(db, ids, mediaStorage = runtimeMediaStorage()) {
+  const { stakeId, galleryId, mediaId } = ids;
+  const galleryRef = db.doc(`stakes/${stakeId}/galleries/${galleryId}`);
+  const lifecycleRef = galleryRef.collection("mediaLifecycle").doc(mediaId);
+  const hiddenRef = galleryRef.collection("hiddenMedia").doc(mediaId);
+  return runTransactionWithRetry(db, async (tx) => {
+    const lifecycle = await tx.get(lifecycleRef);
+    if (!lifecycle.exists || lifecycle.data().status !== "pending") return { status: "complete" };
+    const state = lifecycle.data();
+    const hidden = await tx.get(hiddenRef);
+    if (state.operation === "hide") {
+      const revoked = await mediaStorage.revokeMedia({ ...ids, rotationSeed: state.rotationSeed,
+        isCurrent: async () => {
+          const current = (await lifecycleRef.get()).data();
+          return current?.operation === "hide" && current.rotationSeed === state.rotationSeed;
+        } });
+      if (hidden.exists) {
+        const patch = {};
+        for (const field of URL_FIELDS) {
+          const value = hidden.data()[field];
+          const next = rewriteMediaDownloadUrl(value, { ...revoked, prefix: mediaFolder(stakeId, galleryId, mediaId),
+            emulatorHost: isEmulatorRuntime() ? process.env.FIREBASE_STORAGE_EMULATOR_HOST : undefined });
+          if (next !== value) patch[field] = next;
+        }
+        if (Object.keys(patch).length) tx.update(hiddenRef, patch);
+      }
+    } else if (state.operation === "delete") {
+      await mediaStorage.deleteMedia(ids);
+      // Keep the tombstone even after all files and comments have disappeared.
+      await db.recursiveDelete(galleryRef.collection("media").doc(mediaId));
+      if (hidden.exists) tx.delete(hiddenRef);
+    } else { throw new Error("Operazione lifecycle non valida."); }
+    tx.update(lifecycleRef, { status: "complete", updatedAt: FieldValue.serverTimestamp() });
+    return { status: "complete" };
+  });
+}
+async function completeMediaOperation(db, ids) {
+  try { await processMediaLifecycle(db, ids); }
+  catch {
+    throw new HttpsError("unavailable", "Contenuto già nascosto. Protezione dei file in corso: riprova tra poco.", { mediaState: "hidden", cleanupStatus: "pending" });
   }
-  const hiddenRef = db.doc(`stakes/${stakeId}/galleries/${galleryId}/hiddenMedia/${mediaId}`);
-  const hiddenSnap = await hiddenRef.get();
-  if (!hiddenSnap.exists) return;
-  const data = hiddenSnap.data() || {};
-  const patch = {};
-  for (const field of URL_FIELDS) {
-    const next = rewriteDownloadUrl(data[field], tokensByPath);
-    if (next !== data[field]) patch[field] = next;
-  }
-  if (Object.keys(patch).length > 0) await hiddenRef.update(patch);
 }
 
 async function resolveReports(tx, galleryRef, mediaId, resolution, uid, ts) {
@@ -324,7 +364,12 @@ async function restoreMedia(db, { stakeId, galleryId, mediaId, uid, nowMs }) {
   const ts = new Date(nowMs).toISOString();
   return runTransactionWithRetry(db, async (tx) => {
     const hiddenSnap = await tx.get(hiddenRef);
+    const lifecycle = await tx.get(galleryRef.collection("mediaLifecycle").doc(mediaId));
+    if (lifecycle.data()?.operation === "delete") throw new HttpsError("failed-precondition", "Cancellazione già avviata.");
     if (!hiddenSnap.exists) throw new HttpsError("not-found", "Contenuto non trovato.");
+    if (lifecycle.data()?.operation !== "hide" || lifecycle.data()?.status !== "complete") {
+      throw new HttpsError("failed-precondition", "Protezione dei file in corso. Riprova tra poco.");
+    }
     const applyResolution = await resolveReports(tx, galleryRef, mediaId, "restored", uid, ts);
     const media = { ...(hiddenSnap.data() || {}) };
     for (const key of HIDDEN_ONLY_FIELDS) delete media[key];
@@ -336,34 +381,47 @@ async function restoreMedia(db, { stakeId, galleryId, mediaId, uid, nowMs }) {
   });
 }
 
-async function deleteHiddenMedia(db, { stakeId, galleryId, mediaId, uid, nowMs, bucket }) {
+async function deleteHiddenMedia(db, { stakeId, galleryId, mediaId, uid, nowMs }) {
   const galleryRef = db.doc(`stakes/${stakeId}/galleries/${galleryId}`);
   const hiddenRef = galleryRef.collection("hiddenMedia").doc(mediaId);
+  const lifecycleRef = galleryRef.collection("mediaLifecycle").doc(mediaId);
   const ts = new Date(nowMs).toISOString();
   await runTransactionWithRetry(db, async (tx) => {
     const hiddenSnap = await tx.get(hiddenRef);
+    const lifecycle = await tx.get(lifecycleRef);
+    if (lifecycle.data()?.operation === "delete") return;
     if (!hiddenSnap.exists) throw new HttpsError("not-found", "Contenuto non trovato.");
     const applyResolution = await resolveReports(tx, galleryRef, mediaId, "deleted", uid, ts);
-    tx.delete(hiddenRef);
+    tx.set(lifecycleRef, lifecycleData("delete"));
     applyResolution();
   });
-  // Like e commenti restano sotto media/{id}: si tolgono con il contenuto.
-  await db.recursiveDelete(galleryRef.collection("media").doc(mediaId));
-  if (bucket) {
-    try {
-      await bucket.deleteFiles({ prefix: mediaFolder(stakeId, galleryId, mediaId) });
-    } catch (error) {
-      // Il doc è già sparito: un file rimasto non è più raggiungibile dall'app.
-      logger.warn("Cancellazione file del contenuto nascosto fallita.", {
-        stakeId,
-        galleryId,
-        mediaId,
-        detail: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
+  try { await processMediaLifecycle(db, { stakeId, galleryId, mediaId }); }
+  catch { throw new HttpsError("unavailable", "Cancellazione in corso. Riprova tra poco.", { cleanupStatus: "pending", mediaState: "deleting" }); }
   return { status: "deleted" };
 }
+async function handleVisibleMediaDeleted(db, ids, mediaStorage) {
+  const galleryRef = db.doc(`stakes/${ids.stakeId}/galleries/${ids.galleryId}`);
+  await runTransactionWithRetry(db, async (tx) => {
+    const ref = galleryRef.collection("mediaLifecycle").doc(ids.mediaId);
+    const lifecycle = await tx.get(ref);
+    const hidden = await tx.get(galleryRef.collection("hiddenMedia").doc(ids.mediaId));
+    const visible = await tx.get(galleryRef.collection("media").doc(ids.mediaId));
+    if (visible.exists) return; // Delayed report event after a restore.
+    if (hidden.exists && lifecycle.data()?.operation !== "delete") {
+      if (!lifecycle.exists) tx.set(ref, lifecycleData("hide", randomUUID()));
+    } else if (lifecycle.data()?.operation !== "delete") tx.set(ref, lifecycleData("delete"));
+  });
+  return processMediaLifecycle(db, ids, mediaStorage);
+}
+const onGalleryMediaLifecycle = onDocumentWritten({ region: REGION, retry: true,
+  document: "stakes/{stakeId}/galleries/{galleryId}/mediaLifecycle/{mediaId}" }, async (event) => {
+  if (event.data?.after.data()?.status !== "pending") return;
+  await processMediaLifecycle(getFirestore(), event.params);
+});
+const onGalleryMediaDeleted = onDocumentDeleted({ region: REGION, retry: true,
+  document: "stakes/{stakeId}/galleries/{galleryId}/media/{mediaId}" }, async (event) => {
+  await handleVisibleMediaDeleted(getFirestore(), event.params);
+});
 
 const activityGallery = onCall({ region: REGION }, async (request) => {
   const db = getFirestore();
@@ -391,19 +449,7 @@ const activityGallery = onCall({ region: REGION }, async (request) => {
       uid,
       nowMs,
     });
-    if (result.status === "hidden") {
-      try {
-        await revokeDownloadTokens(db, getStorage().bucket(), { stakeId, galleryId, mediaId });
-      } catch (error) {
-        // Il contenuto è già nascosto nell'app; resta solo il link già visto.
-        logger.error("Rigenerazione token del contenuto segnalato fallita.", {
-          stakeId,
-          galleryId,
-          mediaId,
-          detail: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    await completeMediaOperation(db, { stakeId, galleryId, mediaId });
     logger.info("Contenuto galleria segnalato.", { stakeId, galleryId, mediaId, status: result.status });
     return result;
   }
@@ -412,6 +458,13 @@ const activityGallery = onCall({ region: REGION }, async (request) => {
     throw new HttpsError("permission-denied", "Solo un responsabile può farlo.");
   }
   if (action === "restore") {
+    const lifecycleRef = db.doc(`stakes/${stakeId}/galleries/${galleryId}/mediaLifecycle/${mediaId}`);
+    await runTransactionWithRetry(db, async (tx) => {
+      const lifecycle = await tx.get(lifecycleRef);
+      const hidden = await tx.get(db.doc(`stakes/${stakeId}/galleries/${galleryId}/hiddenMedia/${mediaId}`));
+      if (!lifecycle.exists && hidden.exists) tx.set(lifecycleRef, lifecycleData("hide", randomUUID()));
+    });
+    await completeMediaOperation(db, { stakeId, galleryId, mediaId });
     return restoreMedia(db, { stakeId, galleryId, mediaId, uid, nowMs });
   }
   if (action === "delete") {
@@ -421,7 +474,6 @@ const activityGallery = onCall({ region: REGION }, async (request) => {
       mediaId,
       uid,
       nowMs,
-      bucket: getStorage().bucket(),
     });
   }
   throw new HttpsError("invalid-argument", "Azione non valida.");
@@ -429,6 +481,10 @@ const activityGallery = onCall({ region: REGION }, async (request) => {
 
 module.exports = {
   activityGallery,
+  onGalleryMediaLifecycle,
+  onGalleryMediaDeleted,
+  processMediaLifecycle,
+  handleVisibleMediaDeleted,
   computeUploadWindow,
   isWindowOpen,
   resolveGalleryRole,

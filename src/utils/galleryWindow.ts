@@ -36,7 +36,7 @@ export function computeActivityUploadWindow(
  * calcolata dalle date dell'attività.
  */
 export function isGalleryUploadOpen(
-  event: Pick<Event, "startDate" | "endDate">,
+  event: Pick<Event, "startDate" | "endDate"> | null,
   gallery: Pick<Gallery, "uploadsClosed" | "uploadsOpenFrom" | "uploadsOpenUntil"> | null,
   nowMs: number = Date.now(),
 ): boolean {
@@ -45,6 +45,7 @@ export function isGalleryUploadOpen(
     if (gallery.uploadsOpenFrom === null || gallery.uploadsOpenUntil === null) return false;
     return nowMs >= gallery.uploadsOpenFrom && nowMs < gallery.uploadsOpenUntil;
   }
+  if (!event) return false;
   const uploadWindow = computeActivityUploadWindow(event);
   return uploadWindow !== null && nowMs >= uploadWindow.fromMs && nowMs < uploadWindow.untilMs;
 }

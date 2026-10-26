@@ -296,6 +296,7 @@ const filePath = (g, mediaId, kind = "optimized", name = "foto.jpg") =>
 const emulatorUrl = (path) => `http://${STORAGE.raw}/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=tok-${runId}`;
 const productionUrl = (path) => `https://firebasestorage.googleapis.com/v0/b/giovani-palo.firebasestorage.app/o/${encodeURIComponent(path)}?alt=media&token=tok-${runId}`;
 const stagingUrl = (path) => `https://firebasestorage.googleapis.com/v0/b/giovani-palo-staging.firebasestorage.app/o/${encodeURIComponent(path)}?alt=media&token=tok-${runId}`;
+const euProductionUrl = (path) => `https://firebasestorage.googleapis.com/v0/b/giovani-palo-eu/o/${encodeURIComponent(path)}?alt=media&token=tok-${runId}`;
 
 /** Payload di UploadManagerProvider (immagine) + createdAt/updatedAt/likeCount di createMediaDoc: 25 campi. */
 function imageData(g, mediaId, uid, mutate, urlOf = emulatorUrl) {
@@ -741,6 +742,29 @@ describe("rules: creazione media", () => {
     }
   });
 
+  test("URL nel formato di produzione del bucket UE (giovani-palo-eu) accettati", async () => {
+    const g = await newGallery();
+    await createMediaBatch(U.author, g, "eu1", imageData(g, "eu1", U.author.uid, null, euProductionUrl));
+    assert.equal((await mediaRef(g, "eu1").get()).exists, true);
+  });
+
+  test("URL dell'emulatore con il bucket UE (giovani-palo-eu), host 127.0.0.1 e localhost: accettati", async () => {
+    const g = await newGallery();
+    const port = STORAGE.port;
+    for (const host of ["127.0.0.1", "localhost"]) {
+      const mediaId = `eu-${host === "localhost" ? "l" : "i"}`;
+      const urlOf = (path) => `http://${host}:${port}/v0/b/giovani-palo-eu/o/${encodeURIComponent(path)}?alt=media&token=tok-${runId}`;
+      await createMediaBatch(U.author, g, mediaId, imageData(g, mediaId, U.author.uid, null, urlOf));
+      assert.equal((await mediaRef(g, mediaId).get()).exists, true, host);
+    }
+  });
+
+  test("il vecchio bucket di produzione (giovani-palo.firebasestorage.app) resta accettato per le PWA non aggiornate, anche con il bucket UE nelle rules", async () => {
+    const g = await newGallery();
+    await createMediaBatch(U.author, g, "old1", imageData(g, "old1", U.author.uid, null, productionUrl));
+    assert.equal((await mediaRef(g, "old1").get()).exists, true);
+  });
+
   test("URL di staging (giovani-palo-staging.firebasestorage.app) accettati", async () => {
     const g = await newGallery();
     await createMediaBatch(U.author, g, "s1", imageData(g, "s1", U.author.uid, null, stagingUrl));
@@ -820,6 +844,45 @@ describe("rules: creazione media", () => {
     }],
     ["URL con host che imita il bucket (giovani-palo.firebasestorage.app.evil.test)", (d) => {
       d.storageUrl = `https://firebasestorage.googleapis.com/v0/b/giovani-palo.firebasestorage.app.evil.test/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL con bucket che imita quello UE (giovani-palo-eu-evil)", (d) => {
+      d.storageUrl = `https://firebasestorage.googleapis.com/v0/b/giovani-palo-eu-evil/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL con host che imita il bucket UE (giovani-palo-eu.evil.test)", (d) => {
+      d.storageUrl = `https://firebasestorage.googleapis.com/v0/b/giovani-palo-eu.evil.test/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL con bucket che ha un prefisso davanti al bucket UE (xgiovani-palo-eu)", (d) => {
+      d.storageUrl = `https://firebasestorage.googleapis.com/v0/b/xgiovani-palo-eu/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL con bucket UE nel suffisso del bucket di un altro progetto (altro-giovani-palo-eu)", (d) => {
+      d.thumbnailUrl = `https://firebasestorage.googleapis.com/v0/b/altro-giovani-palo-eu/o/${encodeURIComponent(d.thumbnailPath)}?alt=media&token=t`;
+    }],
+    ["URL con il bucket UE come dominio .firebasestorage.app (giovani-palo-eu.firebasestorage.app)", (d) => {
+      d.storageUrl = `https://firebasestorage.googleapis.com/v0/b/giovani-palo-eu.firebasestorage.app/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL del bucket UE in http (non https) su firebasestorage.googleapis.com", (d) => {
+      d.storageUrl = `http://firebasestorage.googleapis.com/v0/b/giovani-palo-eu/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL del bucket UE in http su un host qualunque fuori da localhost (evil.test)", (d) => {
+      d.optimizedUrl = `http://evil.test/v0/b/giovani-palo-eu/o/${encodeURIComponent(d.optimizedPath)}?alt=media&token=t`;
+    }],
+    ["URL del bucket UE in https su un host qualunque (evil.test)", (d) => {
+      d.thumbnailUrl = `https://evil.test/v0/b/giovani-palo-eu/o/${encodeURIComponent(d.thumbnailPath)}?alt=media&token=t`;
+    }],
+    ["URL del bucket UE su un host che imita localhost (localhost.evil.test)", (d) => {
+      d.storageUrl = `http://localhost.evil.test:9299/v0/b/giovani-palo-eu/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL dell'emulatore con bucket che imita quello UE (giovani-palo-eu-evil)", (d) => {
+      d.storageUrl = `http://${STORAGE.raw}/v0/b/giovani-palo-eu-evil/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL dell'emulatore con host che imita il bucket UE (giovani-palo-eu.evil.test)", (d) => {
+      d.storageUrl = `http://${STORAGE.raw}/v0/b/giovani-palo-eu.evil.test/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL dell'emulatore con prefisso davanti al bucket UE (xgiovani-palo-eu)", (d) => {
+      d.storageUrl = `http://${STORAGE.raw}/v0/b/xgiovani-palo-eu/o/${encodeURIComponent(d.storagePath)}?alt=media&token=t`;
+    }],
+    ["URL del bucket UE con path di un altro palo (palo B)", (d) => {
+      d.storageUrl = euProductionUrl(d.storagePath).replace(`%2Fstakes%2F${STAKE_A}%2F`, `%2Fstakes%2F${STAKE_B}%2F`);
     }],
   ];
 

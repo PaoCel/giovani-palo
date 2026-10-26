@@ -19,6 +19,7 @@
 // --account se il progetto sta su un altro login della CLI.
 //   node tools/migrate-storage-bucket.mjs --project giovani-palo \
 //     --from giovani-palo.firebasestorage.app --to giovani-palo-eu --phase sync
+import { createHmac } from "node:crypto";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -26,6 +27,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
+import { guardMediaCopy, mediaLifecyclePath } from "./lib/storageMediaLifecycle.mjs";
 import { metadataKey, planSync, rewriteDocumentFields } from "./lib/storageMigration.mjs";
 
 const { values: args } = parseArgs({
@@ -94,8 +96,9 @@ async function makeApi() {
 }
 
 let api;
-async function call(method, url, body, { ok = [] } = {}) {
+async function call(method, url, body, { ok = [], beforeAttempt } = {}) {
   for (let attempt = 1; ; attempt++) {
+    if (beforeAttempt) await beforeAttempt();
     const headers = await api.headers();
     if (body !== undefined) headers["Content-Type"] = "application/json";
     const res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -176,12 +179,56 @@ function record(entry) {
   fs.appendFileSync(checkpointPath, JSON.stringify(entry) + "\n");
 }
 
-async function rewriteObject(name, srcGen, ifDestGeneration) {
+async function readMediaLifecycle(relativePath) {
+  const { status, json } = await call("GET", docUrl(`${docsRoot()}/${relativePath}`), undefined, { ok: [404] });
+  return status === 404 ? null : { operation: json.fields?.operation?.stringValue, rotationSeed: json.fields?.rotationSeed?.stringValue };
+}
+let deletionBudgetNames = new Set();
+async function removeMediaCopies(name) {
+  deletionBudgetNames.add(name);
+  if (deletionBudgetNames.size > MAX_DELETES) throw new Error("Tetto cancellazioni superato da un tombstone concorrente; sync fermato.");
+  const results = await Promise.allSettled([args.from, args.to].map((bucket) =>
+    call("DELETE", objectUrl(bucket, name), undefined, { ok: [404] })));
+  if (results.some((result) => result.status === "rejected")) throw new Error("Cleanup copie media incompleto.");
+  record({ name, deleted: true });
+}
+// Metadata first, then authoritative seed, then CAS: a newer rotation or
+// rewrite invalidates this patch instead of allowing a stale token to win.
+async function reconcileMediaHide(name, lifecyclePath) {
+  for (const bucket of [args.from, args.to]) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { status, json: metadata } = await call("GET", objectUrl(bucket, name), undefined, { ok: [404] });
+      if (status === 404) break;
+      const state = await readMediaLifecycle(lifecyclePath);
+      if (state?.operation === "delete") { await removeMediaCopies(name); return; }
+      if (state?.operation !== "hide") break;
+      if (!state.rotationSeed) throw new Error("Seed lifecycle mancante: sync bloccato.");
+      const token = createHmac("sha256", state.rotationSeed).update(name).digest("hex");
+      if (metadata.metadata?.firebaseStorageDownloadTokens === token) break;
+      const q = new URLSearchParams({ ifGenerationMatch: metadata.generation, ifMetagenerationMatch: metadata.metageneration });
+      try {
+        await call("PATCH", `${objectUrl(bucket, name)}?${q}`, { metadata: { firebaseStorageDownloadTokens: token } });
+        break;
+      } catch (error) {
+        if ([409, 412].includes(error.status) && attempt < 4) continue;
+        throw error;
+      }
+    }
+  }
+}
+
+async function mediaDeleted(name) {
+  const lifecyclePath = mediaLifecyclePath(name);
+  return lifecyclePath && (await readMediaLifecycle(lifecyclePath))?.operation === "delete";
+}
+
+async function rewriteObject(name, srcGen, srcMetaGen, ifDestGeneration, beforeAttempt) {
   let rewriteToken;
   for (;;) {
-    const q = new URLSearchParams({ ifSourceGenerationMatch: srcGen, ifGenerationMatch: String(ifDestGeneration) });
+    const q = new URLSearchParams({ ifSourceGenerationMatch: srcGen, ifSourceMetagenerationMatch: srcMetaGen, ifGenerationMatch: String(ifDestGeneration) });
     if (rewriteToken) q.set("rewriteToken", rewriteToken);
-    const { json } = await call("POST", `${objectUrl(args.from, name)}/rewriteTo/b/${enc(args.to)}/o/${enc(name)}?${q}`);
+    if (await mediaDeleted(name)) { await removeMediaCopies(name); return null; }
+    const { json } = await call("POST", `${objectUrl(args.from, name)}/rewriteTo/b/${enc(args.to)}/o/${enc(name)}?${q}`, undefined, { beforeAttempt });
     if (json.done) return json.resource;
     rewriteToken = json.rewriteToken;
   }
@@ -193,7 +240,18 @@ async function phaseSync() {
   if (source.size === 0 && checkpoint.size > 0) {
     throw new Error("Sorgente vuota ma checkpoint pieno: lista sospetta, mi fermo prima di cancellare.");
   }
-  const actions = planSync({ source, dest, checkpoint });
+  const planned = planSync({ source, dest, checkpoint });
+  const actions = [];
+  // Fail closed on lifecycle read errors; never cache across mutations/retries.
+  const plannedNames = new Set(planned.map(action => action.name));
+  for (const action of planned) {
+    actions.push(await mediaDeleted(action.name) ? { ...action, type: "mediaDeleted" } : action);
+  }
+  // Destination-only uploads can finish after a deletion listed its prefix.
+  // They have no migration checkpoint, but the tombstone still owns cleanup.
+  for (const name of dest.keys()) {
+    if (!plannedNames.has(name) && await mediaDeleted(name)) actions.push({ name, type: "mediaDeleted" });
+  }
   const count = (t) => actions.filter((a) => a.type === t).length;
   const bytesToCopy = actions
     .filter((a) => a.type === "copy" || a.type === "recopy")
@@ -210,14 +268,18 @@ async function phaseSync() {
     unchanged: count("unchanged"),
     destNewer: count("destNewer"),
     conflict: count("conflict"),
+    mediaDeleted: count("mediaDeleted"),
+    tombstoneSourceDeletes: actions.filter(a => a.type === "mediaDeleted" && source.has(a.name)).length,
+    tombstoneDestDeletes: actions.filter(a => a.type === "mediaDeleted" && dest.has(a.name)).length,
     mbToCopy: Number((bytesToCopy / 1e6).toFixed(1)),
   }));
   for (const a of actions.filter((x) => x.type === "conflict")) log("  CONFLICT", a.name, "-", a.reason);
-  const deletes = actions.filter((a) => a.type === "deleteFromDest");
-  for (const a of deletes) log("  DELETE-FROM-DEST", a.name);
+  const deletes = actions.filter((a) => a.type === "deleteFromDest" || a.type === "mediaDeleted");
+  for (const a of deletes) log(a.type === "mediaDeleted" ? "  DELETE-MEDIA-BOTH-BUCKETS" : "  DELETE-FROM-DEST", a.name);
   if (deletes.length > MAX_DELETES) {
-    throw new Error(`${deletes.length} cancellazioni dalla destinazione, oltre --max-deletes ${MAX_DELETES}: controlla e rilancia con un tetto più alto.`);
+    throw new Error(`${deletes.length} percorsi da cancellare (copie USA/UE incluse), oltre --max-deletes ${MAX_DELETES}: controlla e rilancia con un tetto più alto.`);
   }
+  deletionBudgetNames = new Set(deletes.map(a => a.name));
   if (!args.apply) return { actions, errors: [] };
 
   const snapshot = (name, resource) =>
@@ -233,8 +295,16 @@ async function phaseSync() {
   const work = actions.filter((a) => !["unchanged", "destNewer", "conflict"].includes(a.type));
   const errors = await pool(work, async (a) => {
     const s = source.get(a.name);
+    if (a.type === "mediaDeleted" || await mediaDeleted(a.name)) {
+      await removeMediaCopies(a.name);
+      return;
+    }
     if (a.type === "copy" || a.type === "recopy") {
-      const resource = await rewriteObject(a.name, s.generation, a.ifDestGeneration);
+      const guarded = await guardMediaCopy({ name: a.name, readLifecycle: readMediaLifecycle,
+        removeCopies: removeMediaCopies, apply: true, reconcileHide: reconcileMediaHide,
+        copy: beforeAttempt => rewriteObject(a.name, s.generation, s.metageneration, a.ifDestGeneration, beforeAttempt) });
+      if (guarded.skipped || !guarded.result) return;
+      const resource = guarded.result;
       if (resource.crc32c !== s.crc32c || metadataKey(resource.metadata) !== metadataKey(s.metadata)) {
         throw new Error("copia diversa dalla sorgente (crc32c o metadata)");
       }
@@ -243,9 +313,11 @@ async function phaseSync() {
       const d = dest.get(a.name);
       const metadata = { ...s.metadata };
       for (const k of Object.keys(d.metadata)) if (!(k in s.metadata)) metadata[k] = null;
-      const q = new URLSearchParams({ ifMetagenerationMatch: a.ifDestMetageneration });
-      const { json } = await call("PATCH", `${objectUrl(args.to, a.name)}?${q}`, { metadata });
-      snapshot(a.name, json);
+      const q = new URLSearchParams({ ifGenerationMatch: a.dstGen, ifMetagenerationMatch: a.ifDestMetageneration });
+      const guarded = await guardMediaCopy({ name: a.name, readLifecycle: readMediaLifecycle,
+        removeCopies: removeMediaCopies, apply: true, reconcileHide: reconcileMediaHide,
+        copy: async beforeAttempt => (await call("PATCH", `${objectUrl(args.to, a.name)}?${q}`, { metadata }, { beforeAttempt })).json });
+      if (!guarded.skipped) snapshot(a.name, guarded.result);
     } else if (a.type === "adopt") {
       snapshot(a.name, { generation: a.dstGen });
     } else if (a.type === "deleteFromDest") {
@@ -366,6 +438,10 @@ async function phaseVerify() {
   let missing = 0;
   let differentContent = 0;
   let differentMetadata = 0;
+  let deletedMediaObjects = 0;
+  for (const name of new Set([...source.keys(), ...dest.keys()])) {
+    if (await mediaDeleted(name)) deletedMediaObjects++;
+  }
   for (const [name, s] of source) {
     const d = dest.get(name);
     if (!d) missing++;
@@ -404,9 +480,9 @@ async function phaseVerify() {
     const { json } = await call("GET", `${api.storage}/b/${enc(args.to)}`);
     location = `${json.location} (${json.locationType})`;
   }
-  const report = { source: source.size, dest: dest.size, missing, differentContent, differentMetadata, onlyInDest, docsScanned: scanned, oldRefs, downloads, destLocation: location };
+  const report = { source: source.size, dest: dest.size, missing, differentContent, differentMetadata, deletedMediaObjects, onlyInDest, docsScanned: scanned, oldRefs, downloads, destLocation: location };
   log("VERIFY", JSON.stringify(report));
-  const ok = missing === 0 && differentContent === 0 && oldRefs === 0 && downloads.every((s) => s === 200 || s === 206);
+  const ok = missing === 0 && differentContent === 0 && deletedMediaObjects === 0 && oldRefs === 0 && downloads.every((s) => s === 200 || s === 206);
   log(ok ? "VERIFY_OK" : "VERIFY_FAIL");
   return { ok, report };
 }

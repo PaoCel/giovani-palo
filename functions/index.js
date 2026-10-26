@@ -5,13 +5,13 @@ const { defineSecret } = require("firebase-functions/params");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const webpush = require("web-push");
+const { EnvironmentConfigError, adminAppOptions, getAppPublicUrl, isProduction } = require("./lib/config");
 
-initializeApp();
+initializeApp(adminAppOptions());
 
 const db = getFirestore();
 
 // Cloud Functions per autorizzazione genitoriale (Brevo magic link).
-const { EnvironmentConfigError, getAppPublicUrl, isProduction } = require("./lib/config");
 const parentAuthorization = require("./lib/parentAuthorization");
 const parentConsent = require("./lib/parentConsent");
 const campManagement = require("./lib/campManagement");
@@ -51,6 +51,8 @@ exports.recordNightGuest = recordNightGuest.recordNightGuest;
 exports.onRecordNightRegistrationChanged = recordNight.onRecordNightRegistrationChanged;
 exports.onRecordNightActivityDeleted = recordNight.onRecordNightActivityDeleted;
 exports.activityGallery = activityGallery.activityGallery;
+exports.onGalleryMediaLifecycle = activityGallery.onGalleryMediaLifecycle;
+exports.onGalleryMediaDeleted = activityGallery.onGalleryMediaDeleted;
 exports.stakeMembership = stakeMembership.stakeMembership;
 exports.onUserStakeMembership = stakeMembership.onUserStakeMembership;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
