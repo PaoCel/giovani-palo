@@ -377,7 +377,6 @@ export function RecordNightPage() {
   }
 
   function handleRestore(entryId: string) {
-    if (!canReadList) return;
     const entry = current?.entries.find((item) => item.id === entryId);
     const label = entry ? getEntryLabel(entry, recordsById) : "";
     void runAction(async () => {
@@ -390,7 +389,7 @@ export function RecordNightPage() {
 
   // Dal foglio: gli errori tornano al foglio, che li mostra e resta aperto.
   async function submitProposal(input: RecordNightProposalInput) {
-    if (busyRef.current || !canReadList || !person) return;
+    if (busyRef.current || !person || (!canReadList && sheet?.mode !== "edit")) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -625,6 +624,10 @@ export function RecordNightPage() {
                       <span className="rn-withdrawn__label">
                         {getEntryLabel(entry, recordsById)}
                       </span>
+                      {entry.kind === "proposal" && entry.status === "pending" && people.some(item => item.registrationId === entry.registrationId) ? (
+                        <button className="rn-btn rn-btn--sm" disabled={busy}
+                          onClick={() => { choosePerson(entry.registrationId); setSheet({ mode: "edit", entry }); }} type="button">Modifica</button>
+                      ) : null}
                       <button
                         className="rn-btn rn-btn--sm"
                         disabled={busy}
@@ -708,7 +711,7 @@ export function RecordNightPage() {
         toast={toast}
       />
 
-      {sheet && person && canReadList ? (
+      {sheet && person && (canReadList || sheet.mode === "edit") ? (
         <ProposalSheet
           entry={sheet.mode === "edit" ? sheet.entry : null}
           getErrorMessage={getRecordNightErrorMessage}

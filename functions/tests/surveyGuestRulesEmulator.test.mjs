@@ -60,8 +60,12 @@ before(async () => {
   batch.set(adminDb.doc(`${activityPath()}/records/open`), { status: "open", title: "Prova sintetica", challengerCount: 1 });
   batch.set(adminDb.doc(`stakes/${stake}/galleries/private`), { visibility: "private", activityId: "enabled" });
   batch.set(adminDb.doc(`users/admin-${run}`), { role: "admin", stakeId: stake });
+  batch.set(adminDb.doc(`stakes/${stake}/members/account-${run}`), { status: "active", staffRole: null });
+  batch.set(adminDb.doc(`stakes/${stake}/members/pending-${run}`), { status: "pending", staffRole: null });
+  batch.set(adminDb.doc(`users/nonmember-${run}`), { role: "participant", stakeId: stake });
+  batch.set(adminDb.doc(`users/pending-${run}`), { role: "participant", stakeId: stake });
   await batch.commit();
-  for (const [actor, provider] of [["guest", "anonymous"], ["account", "password"], ["admin", "password"], ["signedOut", null]]) {
+  for (const [actor, provider] of [["guest", "anonymous"], ["account", "password"], ["nonmember", "password"], ["pending", "password"], ["admin", "password"], ["signedOut", null]]) {
     const app = initializeApp({ apiKey: "demo-key", projectId: project }, `survey-${actor}-${run}`);
     const db = getFirestore(app);
     connectFirestoreEmulator(db, hostname, Number(port), provider ? {
@@ -75,6 +79,8 @@ after(async () => {
   await Promise.all(Object.values(clients).map(({ app }) => deleteApp(app)));
   await adminDb.recursiveDelete(adminDb.doc(`stakes/${stake}`));
   await adminDb.doc(`users/admin-${run}`).delete();
+  await adminDb.doc(`users/nonmember-${run}`).delete();
+  await adminDb.doc(`users/pending-${run}`).delete();
   await deleteAdminApp(adminApp);
 });
 
@@ -156,7 +162,7 @@ for (const event of Object.keys(events).filter(id => id !== "enabled")) {
   });
 }
 
-test("account non anonimo: permessi correnti invariati anche senza opt-in guest", async () => {
+test("membro attivo: permessi correnti invariati anche senza opt-in guest", async () => {
   const db = clients.account.db;
   const snap = await getDocsFromServer(questions(db, "disabled"));
   assert.equal(snap.size, 3);
@@ -167,6 +173,31 @@ test("account non anonimo: permessi correnti invariati anche senza opt-in guest"
   await denied(updateDoc(target, { answers: {} }));
   await denied(getDocsFromServer(responses(db, "disabled")));
   await denied(setDoc(ref(db, "surveyQuestions/account-new"), { status: "active" }));
+});
+
+for (const actor of ["nonmember", "pending"]) {
+  test(`${actor}: opt-in ospite non scavalca l'appartenenza per account personali`, async () => {
+    const db = clients[actor].db;
+    for (const event of ["enabled", "disabled"]) {
+      await denied(getDocsFromServer(query(questions(db, event), where("status", "==", "active"))));
+      await denied(getDocFromServer(ref(db, "surveyResponses/draft", event)));
+      await denied(setDoc(ref(db, `surveyResponses/${actor}-new`, event), payload(event)));
+      await denied(updateDoc(ref(db, "surveyResponses/draft", event), { isDraft: false }));
+    }
+  });
+}
+
+test("revoca a sessione aperta: un membro perde accesso a query, bozza e invio", async () => {
+  const db = clients.account.db;
+  const membership = adminDb.doc(`stakes/${stake}/members/account-${run}`);
+  await membership.set({ status: "active", staffRole: null });
+  await getDocsFromServer(query(questions(db), where("status", "==", "active")));
+  await membership.update({ status: "removed" });
+  try {
+    await denied(getDocsFromServer(query(questions(db), where("status", "==", "active"))));
+    await denied(getDocFromServer(ref(db, "surveyResponses/draft")));
+    await denied(setDoc(ref(db, "surveyResponses/revoked"), payload()));
+  } finally { await membership.update({ status: "active" }); }
 });
 
 test("admin: gestione domande e lista risposte conservate", async () => {

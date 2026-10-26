@@ -16,8 +16,8 @@ blocked_by: []
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Cleanup account implementato e verificato; integrazione con main in corso"
-next: "Completare prova delivery del trigger, integrare main e collaudare regole e client uniti; poi home social e moduli"
+stopped_at: "S2 integrato su main e collaudato; nessun deploy o migrazione eseguiti"
+next: "Preparare rilascio coordinato con home e moduli; prima di prod ricontrollare dry-run, versioni e funzioni e chiedere conferma fresca"
 verified: "26 ottobre: contratto completo 1902/1902 (1724 Firestore e 178 Storage, upload 300 MB, zero salti), review indipendente PASS WITH CONCERNS senza difetti obbligatori; sul recupero precedente callable 74, fase 3 28, trigger 18, accesso 16, query 115, client 1390, puri Functions 409, browser 33 e build verdi. cleanup account 20 test puri e 17 Auth/Firestore, regressioni Functions 136/136 e review indipendente PASS; Storage UE non migrato, nessun deploy o scrittura di produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
@@ -241,3 +241,20 @@ Auth senza profilo cancellato invariato, poi DELETE e cleanup ricorsivo su
 due pali; altri utenti e iscrizioni intatti. Segreti sintetici locali, nessun
 accesso a Secret Manager nel giro finale. Nessuna cancellazione
 o altra scrittura di produzione.
+
+### Integrazione su main, 26 ottobre
+
+Merge c5be64c conserva sondaggi ospiti e Albo dei record successivi al branch.
+La revoca chiude le proposte aperte e invalida le richieste tardive; dopo la
+revoca restano modifica della propria proposta pendente, ritiro e Annulla,
+senza suggerimenti privati. Test scritti da un altro agente.
+
+QA mini: client 1472/1472 e build finale verdi, Functions puri 429/429,
+regressioni Functions 136/136. Rules e query integrate 2353 pass, due upload
+grandi saltati in quel giro; contratto completo ripetuto con upload 300 MB:
+1902/1902 e zero salti. Browser RecordNight 4/4, inclusi famiglia e risposte
+tardive. Delivery trigger reale 1/1. Exit in banda tutti 0; review indipendente
+PASS senza modifiche obbligatorie residue.
+
+La nuova home chiude separatamente la vecchia lettura pubblica dei post:
+contratto e test nel task gugd-home-social. Il rilascio di S2 resta da fare.

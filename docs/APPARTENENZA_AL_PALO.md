@@ -863,3 +863,12 @@ per un indirizzo sconosciuto). Il signup rivela comunque se un'email esiste:
 | S2-1 | Codici galleria (2026-10-20): `unlockGalleryWithCode` e `setGallerySecretCode` sono live senza sorgente nel repo; il client ha ancora il modulo del codice (irraggiungibile) e il pulsante del codice per le gallerie vecchie; in produzione restano una galleria con `accessMode: code_required`, il suo codice e 30 documenti di sblocco | a) cancellare le due functions, il codice client morto e il pulsante, portare quella galleria ad `open` e cancellare codice e documenti di sblocco, nel deploy di S2 dopo le rules; b) lasciare tutto (non apre niente, ma resta codice live che nessuno legge) | **a**, approvata il 2026-10-20 |
 | S2-2 | Notte dei Record per chi è iscritto all'attività ma ancora in attesa di verifica | a) elenco, proposte e sfide solo da membro (come dice la parte B: un'iscrizione libera non prova niente; ritirarsi resta sempre possibile); b) l'iscrizione all'attività basta, cioè l'elenco dei record si apre a chiunque si iscriva | **a**, approvata il 2026-10-20 |
 | S2-3 | "Non lo conosco" del dirigente su un membro migrato da confermare (2026-10-21) | a) torna in coda nella stessa unità, e il dirigente se lo ritrova come richiesta; b) passa agli admin come "Non è della mia unità", accesso sospeso | **b**, scelta da Paolo il 2026-10-22; dall'admin resta a |
+
+### Integrazione e regressione della revoca, 26 ottobre
+
+Su main conservati surveyGuest e Albo. Il foglio Record aperto si chiude
+alla revoca; richieste avviate con il vecchio accesso non riportano liste
+private. Le proprie proposte pendenti restano modificabili senza suggerimenti
+privati; ritiro e Annulla restano operativi. Verifica indipendente nel browser
+4/4 e contratto completo 1902/1902 con upload 300 MB. La nuova home restringe
+a parte la visibilità dei post e dei loro like/commenti: vedi HOME_SOCIAL.md.
