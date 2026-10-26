@@ -102,7 +102,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const galleryId = gallery?.id ?? "";
-  const uploadContext = `${uid}:${stakeId}:${event.id}:${galleryId}:${canUpload}:${uploadOpen}`;
+  const uploadContext = `${uid}:${stakeId}:${event?.id ?? ""}:${galleryId}:${canUpload}:${uploadOpen}`;
   const uploadContextRef = useRef(uploadContext);
   uploadContextRef.current = uploadContext;
   const pickerContext = useRef<string | null>(null);
