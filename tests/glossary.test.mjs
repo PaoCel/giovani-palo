@@ -9,6 +9,7 @@ import { SONDAGGIO } from "../src/copy/sondaggio.ts";
 import { ADMIN } from "../src/copy/admin.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
 import { ATTIVITA } from "../src/copy/attivita.ts";
+import { CAMP, CAMP_GROUPS } from "../src/copy/camp.ts";
 import { CHI_ISCRIVI } from "../src/copy/chiIscrivi.ts";
 import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
 import { CHI_SEI } from "../src/copy/chiSei.ts";
@@ -511,6 +512,8 @@ const COPY = {
   ADMIN,
   ANNULLA,
   ATTIVITA,
+  CAMP,
+  CAMP_GROUPS,
   CHI_ISCRIVI,
   CHI_PARTECIPA,
   CHI_SEI,
@@ -530,9 +533,22 @@ const COPY = {
   TIPO_ACCOUNT,
 };
 
+// Catalogues may group labels by a supported option. Every leaf still goes
+// through the same string, terminology and coverage checks as flat catalogues.
+function copyEntries(copy, prefix = "") {
+  const entries = Object.entries(copy);
+  assert.ok(entries.length > 0, `${prefix || "catalogo"} è vuoto`);
+  return entries.flatMap(([key, value]) => {
+    const name = prefix ? `${prefix}.${key}` : key;
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+      ? copyEntries(value, name)
+      : [[name, value]];
+  });
+}
+
 test("ogni testo di src/copy/ è una stringa non vuota", () => {
   for (const [name, copy] of Object.entries(COPY)) {
-    const entries = Object.entries(copy);
+    const entries = copyEntries(copy);
     assert.ok(entries.length > 0, `${name} è vuoto`);
     for (const [key, value] of entries) {
       assert.equal(typeof value, "string", `${name}.${key} non è una stringa`);
@@ -591,7 +607,7 @@ test("il messaggio di account già esistente nomina il pulsante Continua con Goo
 test("nelle schermate del genitore non compare la parola minore", () => {
   // "minore" vale solo nei testi legali e nell'autorizzazione (glossario).
   const values = [
-    ...Object.values(COPY).flatMap((copy) => Object.values(copy)),
+    ...Object.values(COPY).flatMap((copy) => copyEntries(copy).map(([, value]) => value)),
     EXISTING_ACCOUNT_RETRY_MESSAGE,
   ];
   for (const value of values) {
@@ -603,7 +619,7 @@ test("nei testi di src/copy/ non compare la parola login", () => {
   // Per l'utente si dice "Accedi" (glossario). Vale per ogni valore.
   const values = [
     ...Object.entries(COPY).flatMap(([name, copy]) =>
-      Object.entries(copy).map(([key, value]) => [`${name}.${key}`, value]),
+      copyEntries(copy).map(([key, value]) => [`${name}.${key}`, value]),
     ),
     ["EXISTING_ACCOUNT_RETRY_MESSAGE", EXISTING_ACCOUNT_RETRY_MESSAGE],
   ];

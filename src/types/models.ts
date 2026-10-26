@@ -74,6 +74,7 @@ export interface CampCommitteePlan {
   id: CampCommitteeId;
   title: string;
   emoji: string;
+  responsibilities: string;
   leaderRegistrationIds: string[];
   manualLeaderIds: string[];
   memberRegistrationIds: string[];
@@ -93,6 +94,7 @@ export interface CampPatrolPlan {
 }
 
 export interface CampManagementPlan {
+  groupLabel: "pattuglia" | "gruppo" | "compagnia" | "team" | "squadra";
   committees: CampCommitteePlan[];
   patrols: CampPatrolPlan[];
   manualLeaders: CampManualLeader[];

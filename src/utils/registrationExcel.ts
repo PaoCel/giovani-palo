@@ -1,3 +1,4 @@
+import { getCampGroupLabels } from "./campGroups.ts";
 import { ISCRITTI } from "@/copy/iscritti";
 import type { CampManagementPlan, GenderRoleCategory, Registration } from "@/types";
 import { formatDateOnly, formatDateTime } from "@/utils/formatters";
@@ -318,6 +319,7 @@ export async function downloadCampManagementExcel(
 ) {
   const XLSX = await import("xlsx");
   const workbook = XLSX.utils.book_new();
+  const labels = getCampGroupLabels(plan.groupLabel);
   const registrationById = new Map(registrations.map((registration) => [registration.id, registration]));
   const manualLeaderById = new Map(plan.manualLeaders.map((leader) => [leader.id, leader]));
 
@@ -328,6 +330,7 @@ export async function downloadCampManagementExcel(
       const registration = registrationById.get(registrationId);
       rows.push({
         Comitato: committee.title,
+        Incarico: committee.responsibilities,
         Ruolo: "Dirigente",
         Nome: registration ? getFieldValue(registration, "fullName") : "",
         "Rione/Ramo": registration ? getUnitLabel(registration) : "",
@@ -339,6 +342,7 @@ export async function downloadCampManagementExcel(
       const leader = manualLeaderById.get(manualLeaderId);
       rows.push({
         Comitato: committee.title,
+        Incarico: committee.responsibilities,
         Ruolo: "Dirigente",
         Nome: leader?.fullName ?? "",
         "Rione/Ramo": "",
@@ -350,6 +354,7 @@ export async function downloadCampManagementExcel(
       const registration = registrationById.get(registrationId);
       rows.push({
         Comitato: committee.title,
+        Incarico: committee.responsibilities,
         Ruolo: "Giovane",
         Nome: registration ? getFieldValue(registration, "fullName") : "",
         "Rione/Ramo": registration ? getUnitLabel(registration) : "",
@@ -357,6 +362,7 @@ export async function downloadCampManagementExcel(
       });
     }
 
+    if (rows.length === 0) rows.push({ Comitato: committee.title, Incarico: committee.responsibilities, Ruolo: "", Nome: "", "Rione/Ramo": "", Fonte: "" });
     return rows;
   });
 
@@ -365,7 +371,7 @@ export async function downloadCampManagementExcel(
     const pushRegistration = (registrationId: string, role: string) => {
       const registration = registrationById.get(registrationId);
       rows.push({
-        Pattuglia: patrol.name,
+        [labels.singular]: patrol.name,
         Ruolo: role,
         Nome: registration ? getFieldValue(registration, "fullName") : "",
         "Rione/Ramo": registration ? getUnitLabel(registration) : "",
@@ -373,7 +379,7 @@ export async function downloadCampManagementExcel(
     };
 
     if (patrol.leaderRegistrationId) {
-      pushRegistration(patrol.leaderRegistrationId, "Capo pattuglia");
+      pushRegistration(patrol.leaderRegistrationId, labels.leader);
     }
     for (const registrationId of patrol.supervisorRegistrationIds) {
       pushRegistration(registrationId, "Supervisore");
@@ -381,7 +387,7 @@ export async function downloadCampManagementExcel(
     for (const manualSupervisorId of patrol.manualSupervisorIds) {
       const supervisor = manualLeaderById.get(manualSupervisorId);
       rows.push({
-        Pattuglia: patrol.name,
+        [labels.singular]: patrol.name,
         Ruolo: "Supervisore",
         Nome: supervisor?.fullName ?? "",
         "Rione/Ramo": "",
@@ -391,12 +397,13 @@ export async function downloadCampManagementExcel(
       pushRegistration(registrationId, "Membro");
     }
 
+    if (rows.length === 0) rows.push({ [labels.singular]: patrol.name, Ruolo: "", Nome: "", "Rione/Ramo": "" });
     return rows;
   });
-  const committeeHeaders = ["Comitato", "Ruolo", "Nome", "Rione/Ramo", "Fonte"];
-  const patrolHeaders = ["Pattuglia", "Ruolo", "Nome", "Rione/Ramo"];
-  const committeeEmptyRow = { Comitato: "", Ruolo: "", Nome: "", "Rione/Ramo": "", Fonte: "" };
-  const patrolEmptyRow = { Pattuglia: "", Ruolo: "", Nome: "", "Rione/Ramo": "" };
+  const committeeHeaders = ["Comitato", "Incarico", "Ruolo", "Nome", "Rione/Ramo", "Fonte"];
+  const patrolHeaders = [labels.singular, "Ruolo", "Nome", "Rione/Ramo"];
+  const committeeEmptyRow = { Comitato: "", Incarico: "", Ruolo: "", Nome: "", "Rione/Ramo": "", Fonte: "" };
+  const patrolEmptyRow = { [labels.singular]: "", Ruolo: "", Nome: "", "Rione/Ramo": "" };
   const committeeSheet = XLSX.utils.json_to_sheet(committeeRows, { header: committeeHeaders });
   const patrolSheet = XLSX.utils.json_to_sheet(patrolRows, { header: patrolHeaders });
 
@@ -409,10 +416,10 @@ export async function downloadCampManagementExcel(
     patrolHeaders,
   );
   XLSX.utils.book_append_sheet(workbook, committeeSheet, "Comitati");
-  XLSX.utils.book_append_sheet(workbook, patrolSheet, "Pattuglie");
+  XLSX.utils.book_append_sheet(workbook, patrolSheet, labels.plural);
   XLSX.writeFile(
     workbook,
-    `${slugify(eventTitle || "campeggio") || "campeggio"}-comitati-pattuglie.xlsx`,
+    `${slugify(eventTitle || "campeggio") || "campeggio"}-comitati-gruppi.xlsx`,
   );
 }
 

@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Primo incremento integrato dal branch 1226ad7, nessun deploy; contratto e implementazione dei moduli successivi ancora aperti"
-next: "Completare il contratto dei moduli programma/gruppi/comitati/alloggi e la delega; verificare i prerequisiti di S2 prima del rilascio coordinato"
-verified: "26 ottobre, integrazione: 1372 test client, build e 70 controlli browser/emulatore (66 percorso UI a 320/390/430, 4 conflitti di salvataggio) verdi; test correttivi separati e review indipendente, nessun dato di produzione"
+stopped_at: "Secondo incremento camp completato e verificato: nomi/incarichi comitati e denominazione gruppi; nessun deploy"
+next: "Rilascio coordinato dopo Storage UE/S2; poi programma con iscrizioni, altri tipi, comitati arbitrari, alloggi e delega"
+verified: "Camp sul mini: 1479 client e build, 39 controlli browser, 14 regressioni staff, 64 puri/copy e 26 emulati indipendenti (17 SDK rules) verdi, zero salti; review server indipendente PASS. Primo incremento creazione: 1372 client e 70 controlli browser/emulatore verdi. Produzione invariata"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -75,3 +75,22 @@ Rimangono il controllo della visibilità delle bozze con S2 (le rules attuali
 ammettono anche i dirigenti), il limite legacy-only del percorso precedente,
 il deploy con conferma fresca. I moduli successivi della
 roadmap restano aperti in questo stesso task; nessun secondo task duplicato.
+
+### Secondo incremento: configurazione camp
+
+I cinque comitati storici sono rinominabili, con incarico fino a 600 caratteri;
+gruppi chiamabili Pattuglie, Gruppi, Compagnie, Team o Squadre. IDs, persone,
+iscrizioni e consensi restano gli stessi. Vista personale, dirigente ed Excel
+usano la denominazione e mostrano l’incarico pertinente. Non abilita ancora
+comitati arbitrari o moduli dei viaggi.
+
+Salvataggio con revisione server e transazione; proiezioni per lotti protette
+contro revisioni superate e cancellazioni concorrenti. Client legacy senza
+revisione e scritture dirette staff già ammesse mantengono la compatibilità.
+Conflitto ricaricabile dal server, uscita/scarto protetti, richiesta pendente
+riutilizzata; un errore dopo commit dichiara che il piano è già salvato e
+invita a controllare e riallineare le assegnazioni. Nessun successo finto.
+
+Review indipendente PASS e test separati dall’autore. Verifiche sopra e
+verbale ATTIVITA_MODULARI.md; per pubblicare servono rules aggiornate e
+`functions:campManagementSave` prima dell’hosting.

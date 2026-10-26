@@ -1,3 +1,6 @@
+import "@/styles/camp-configuration.css";
+import { CAMP } from "@/copy/camp";
+import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
 import { getSurveyHref } from "@/utils/surveyLinks";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -65,6 +68,7 @@ type PersonalCampCommittee = {
   id: string;
   title: string;
   emoji: string;
+  responsibilities: string;
   role: "leader" | "member";
   assignedCount: number;
   manualLeaderNames: string[];
@@ -74,10 +78,10 @@ type PersonalCampCommittee = {
 type YouthActivityTab =
   "registration" | "patrol" | "committees" | "gallery" | "survey";
 
-function getPatrolRoleLabel(role: string | null) {
+function getPatrolRoleLabel(role: string | null, leaderLabel = "Capo pattuglia") {
   switch (role) {
     case "leader":
-      return "Capo pattuglia";
+      return leaderLabel;
     case "supervisor":
       return "Supervisore";
     case "member":
@@ -94,10 +98,11 @@ function getCommitteeRoleLabel(role: string) {
 function getPublicMemberLabel(
   member: CampPublicMember,
   context: "committee" | "patrol",
+  leaderLabel?: string,
 ) {
   return context === "committee"
     ? getCommitteeRoleLabel(member.role)
-    : getPatrolRoleLabel(member.role);
+    : getPatrolRoleLabel(member.role, leaderLabel);
 }
 
 function getMemberPreview(members: CampPublicMember[]) {
@@ -294,6 +299,7 @@ export function MyActivityDetailPage() {
         id: committee.id,
         title: committee.title,
         emoji: committee.emoji,
+        responsibilities: committee.responsibilities,
         role,
         assignedCount:
           committee.leaderRegistrationIds.length +
@@ -315,6 +321,7 @@ export function MyActivityDetailPage() {
         id: committee.id,
         title: committee.title,
         emoji: "◌",
+        responsibilities: "",
         role: committee.role,
         assignedCount: 1,
         manualLeaderNames: [],
@@ -452,13 +459,14 @@ export function MyActivityDetailPage() {
   const registrationStatusDisplay = data
     ? getRegistrationStatusDisplay(data.registration)
     : null;
+  const campGroupLabels = getCampGroupLabels(data?.campManagement?.groupLabel);
   const tabDefinitions: Array<{
     id: YouthActivityTab;
     label: string;
     icon: "badge" | "users" | "list" | "eye" | "check";
   }> = [
     { id: "registration", label: "Iscrizione", icon: "badge" },
-    { id: "patrol", label: "Pattuglia", icon: "users" },
+    { id: "patrol", label: campGroupLabels.singular, icon: "users" },
     { id: "committees", label: "Comitati", icon: "list" },
     { id: "gallery", label: "Galleria", icon: "eye" },
     { id: "survey", label: "Sondaggio", icon: "check" },
@@ -767,7 +775,7 @@ export function MyActivityDetailPage() {
             {activeTab === "patrol" ? (
               <div className="camp-youth-screen">
                 <span className="camp-section-eyebrow">Il tuo gruppo</span>
-                <h2 className="camp-section-title">La tua pattuglia</h2>
+                <h2 className="camp-section-title">{campGroupLabels.your}</h2>
                 <p className="camp-section-sub">
                   Le persone con cui condividi turni, attività e vita di campo.
                 </p>
@@ -779,7 +787,7 @@ export function MyActivityDetailPage() {
                         className="camp-patrol-card__emoji"
                         aria-hidden="true"
                       >
-                        🧭
+                        <span className="camp-config-initials">{getCommitteeInitials(currentPatrol.name)}</span>
                       </div>
                       <h3>{currentPatrol.name}</h3>
                       <p>Con chi cammini durante il campeggio.</p>
@@ -787,7 +795,7 @@ export function MyActivityDetailPage() {
                         <div>
                           Ruolo
                           <b>
-                            {getPatrolRoleLabel(currentPatrol.role) || "Membro"}
+                            {getPatrolRoleLabel(currentPatrol.role, campGroupLabels.leader) || "Membro"}
                           </b>
                         </div>
                         <div>
@@ -815,7 +823,7 @@ export function MyActivityDetailPage() {
                           <span>
                             <strong>{member.fullName}</strong>
                             <small>
-                              {getPublicMemberLabel(member, "patrol") ||
+                              {getPublicMemberLabel(member, "patrol", campGroupLabels.leader) ||
                                 "Componente"}
                             </small>
                           </span>
@@ -828,8 +836,8 @@ export function MyActivityDetailPage() {
                   </>
                 ) : (
                   <EmptyState
-                    title="Nessuna pattuglia assegnata"
-                    description="Quando sarà assegnata, la vedrai qui."
+                    title={campGroupLabels.assigned}
+                    description={CAMP.gruppoAttesa}
                   />
                 )}
               </div>
@@ -863,7 +871,7 @@ export function MyActivityDetailPage() {
                               committeeIndex,
                             )}`}
                           >
-                            {committee.emoji}
+                            {getCommitteeInitials(committee.title)}
                           </span>
                           <span>
                             <h3>{committee.title}</h3>
@@ -880,6 +888,7 @@ export function MyActivityDetailPage() {
                             ? "Sei tra i responsabili di questo comitato."
                             : "Sei assegnato a questo comitato."}
                         </p>
+                        {committee.responsibilities ? <section><h4>{CAMP.incarico}</h4><p className="camp-config-responsibilities">{committee.responsibilities}</p></section> : null}
                         <div className="camp-committee-members">
                           {committee.manualLeaderNames.map(
                             (leaderName, index) => (

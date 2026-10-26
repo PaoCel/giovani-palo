@@ -1,3 +1,7 @@
+import { useBlocker } from "react-router-dom";
+import "@/styles/camp-configuration.css";
+import { CAMP, CAMP_GROUPS } from "@/copy/camp";
+import { getCampGroupLabels, getCommitteeInitials, normalizeCampGroupLabel } from "@/utils/campGroups";
 import { RoomManagementPanel } from "@/components/admin/RoomManagementPanel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -372,6 +376,8 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
 // rotta, il foglio si chiude e nessuna azione parte per l'oggetto sbagliato.
 type AdminConfirm =
   | { kind: "removePatrol"; patrolId: string }
+  | { kind: "discardCamp" }
+  | { kind: "reloadCamp" }
   | { kind: "deleteQuestion"; questionId: string }
   | { kind: "deleteActivity" }
   | { kind: "legacyApprovals" }
@@ -448,6 +454,18 @@ export function AdminEventDetailPage() {
     campManagementService.getDefaultCampManagement(),
   );
   const [campDraftDirty, setCampDraftDirty] = useState(false);
+  const [campSaving, setCampSaving] = useState(false);
+  const [campConflict, setCampConflict] = useState(false);
+  const [campSyncWarning, setCampSyncWarning] = useState(false);
+  const campSaveRef = useRef<{ context: string; promise: Promise<CampManagementPlan> } | null>(null);
+  const campDraftDirtyRef = useRef(false);
+  campDraftDirtyRef.current = campDraftDirty;
+  const campLoadedContextRef = useRef("");
+  const campGroupLabels = getCampGroupLabels(campDraft.groupLabel);
+  const campNavigationBlocker = useBlocker(({ currentLocation, nextLocation }) =>
+    campDraftDirty && Boolean(session) && nextLocation.pathname !== "/login" &&
+    (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search),
+  );
   const [manualLeaderName, setManualLeaderName] = useState("");
   const [selectedCampCommitteeId, setSelectedCampCommitteeId] =
     useState<CampCommitteeId | null>(null);
@@ -507,7 +525,7 @@ export function AdminEventDetailPage() {
       if (isCampManagementTab) {
         const [workspace, campManagement] = await Promise.all([
           adminEventsService.getAdminEventWorkspace(stakeId, eventId),
-          campManagementService.getCampManagement(stakeId, eventId),
+          campManagementService.getCampManagement(stakeId, eventId, true),
         ]);
 
         if (!workspace) {
@@ -525,7 +543,7 @@ export function AdminEventDetailPage() {
       const [workspace, organization, campManagement] = await Promise.all([
         adminEventsService.getAdminEventWorkspace(stakeId, eventId),
         organizationService.getProfile(stakeId),
-        campManagementService.getCampManagement(stakeId, eventId),
+        campManagementService.getCampManagement(stakeId, eventId, true),
       ]);
 
       if (!workspace) {
@@ -558,7 +576,7 @@ export function AdminEventDetailPage() {
         campManagement,
       };
     },
-    [eventId, isCampManagementTab, isStatsTab, refreshKey, stakeId],
+    [eventContextKey, eventId, isCampManagementTab, isStatsTab, refreshKey, stakeId],
     null,
   );
 
@@ -604,9 +622,20 @@ export function AdminEventDetailPage() {
   );
 
   useEffect(() => {
+    const changedContext = campLoadedContextRef.current !== eventContextKey;
+    if (!changedContext && (campDraftDirtyRef.current || campSaveRef.current)) return;
+    campLoadedContextRef.current = eventContextKey;
     setCampDraft(campManagement);
     setCampDraftDirty(false);
-  }, [campManagement]);
+    if (changedContext) {
+      campSaveRef.current = null;
+      setCampSaving(false);
+      setCampConflict(false);
+      setCampSyncWarning(false);
+      setSelectedCampCommitteeId(null);
+      setSelectedCampPatrolId(null);
+    }
+  }, [campManagement, eventContextKey]);
 
   const sortedRegistrations = useMemo(
     () =>
@@ -995,6 +1024,12 @@ export function AdminEventDetailPage() {
     navigate(getAdminEventTabHref(resolvedEventId, tab));
   }
 
+  function updateCommitteeDetails(committeeId: CampCommitteeId, field: "title" | "responsibilities", value: string) {
+    if (campSaving) return;
+    setCampDraftDirty(true);
+    setCampDraft((current) => ({ ...current, committees: current.committees.map((committee) => committee.id === committeeId ? { ...committee, [field]: value } : committee) }));
+  }
+
   function updateCommitteeRegistration(
     committeeId: CampCommitteeId,
     registrationId: string,
@@ -1134,7 +1169,7 @@ export function AdminEventDetailPage() {
         ...current.patrols,
         {
           id: createLocalId("patrol"),
-          name: `Pattuglia ${current.patrols.length + 1}`,
+          name: `${getCampGroupLabels(current.groupLabel).singular} ${current.patrols.length + 1}`,
           leaderRegistrationId: "",
           supervisorRegistrationIds: [],
           manualSupervisorIds: [],
@@ -1271,23 +1306,34 @@ export function AdminEventDetailPage() {
     draftOverride?: CampManagementPlan;
     onError?: (message: string) => void;
   }) {
+    const input = options?.draftOverride ?? campDraft;
+    if (!campSaveRef.current) {
+      if (input.committees.some((committee) => !committee.title.trim() || committee.title.trim().length > 80)) {
+        setActionError(CAMP.erroreNome); return false;
+      }
+      if (input.committees.some((committee) => committee.responsibilities.trim().length > 600)) {
+        setActionError(CAMP.erroreIncarico); return false;
+      }
+    }
     setBusy("saveCampManagement");
     setActionError(null);
     setActionInfo(null);
     const startedFor = eventContextRef.current;
-
+    if (!campSaveRef.current || campSaveRef.current.context !== startedFor) {
+      campSaveRef.current = { context: startedFor, promise: campManagementService.saveCampManagement(stakeId, resolvedEventId, input) };
+    }
+    const pending = campSaveRef.current;
+    setCampSaving(true);
     try {
-      const saved = await withWriteTimeout(
-        campManagementService.saveCampManagement(
-          stakeId,
-          resolvedEventId,
-          options?.draftOverride ?? campDraft,
-        ),
-      );
-      if (eventContextRef.current !== startedFor) return false;
+      const saved = await withWriteTimeout(pending.promise);
+      if (eventContextRef.current !== startedFor || campSaveRef.current !== pending) return false;
+      campSaveRef.current = null;
+      setCampSaving(false);
+      setCampConflict(false);
+      setCampSyncWarning(false);
       setCampDraft(saved);
       setCampDraftDirty(false);
-      setActionInfo("Comitati e pattuglie salvati.");
+      setActionInfo(CAMP.salvato);
       if (options?.closeModal) {
         setSelectedCampCommitteeId(null);
         setSelectedCampPatrolId(null);
@@ -1295,16 +1341,38 @@ export function AdminEventDetailPage() {
       setRefreshKey((current) => current + 1);
       return true;
     } catch (caughtError) {
-      if (eventContextRef.current !== startedFor) return false;
-      const message = getAdminActionError(caughtError, ADMIN.erroreSalvaCampo);
-      if (options?.onError) {
-        options.onError(message);
-      } else {
-        setActionError(message);
+      if (eventContextRef.current !== startedFor || campSaveRef.current !== pending) return false;
+      const code = (caughtError as { code?: string })?.code;
+      if (code !== "write-timeout") {
+        campSaveRef.current = null;
+        setCampSaving(false);
       }
+      if ((caughtError as { details?: { planSaved?: boolean } })?.details?.planSaved === true) {
+        setCampSyncWarning(true); setCampConflict(true);
+      }
+      if (code === "functions/aborted") setCampConflict(true);
+      const message = code === "write-timeout" ? CAMP.salvataggioInCorso : getAdminActionError(caughtError, ADMIN.erroreSalvaCampo);
+      if (options?.onError) options.onError(message);
+      else setActionError(message);
       return false;
     } finally {
-      setBusy(null);
+      if (eventContextRef.current === startedFor) setBusy(null);
+    }
+  }
+
+  async function handleReloadCamp() {
+    const startedFor = eventContextRef.current;
+    setBusy("saveCampManagement");
+    try {
+      const saved = await campManagementService.getCampManagement(stakeId, resolvedEventId, true);
+      if (eventContextRef.current !== startedFor) return;
+      setCampDraft(saved); setCampDraftDirty(false); setCampConflict(false);
+      setSelectedCampCommitteeId(null); setSelectedCampPatrolId(null);
+      setActionError(null); showConfirm(null);
+    } catch (error) {
+      if (eventContextRef.current === startedFor) setConfirmError(getAdminActionError(error, ADMIN.erroreSalvaCampo));
+    } finally {
+      if (eventContextRef.current === startedFor) setBusy(null);
     }
   }
 
@@ -1339,7 +1407,7 @@ export function AdminEventDetailPage() {
         activeRegistrations,
         campDraft,
       );
-      setActionInfo("Excel comitati e pattuglie generato.");
+      setActionInfo(CAMP.exportPronto);
     } catch (caughtError) {
       setActionError(getAdminActionError(caughtError, ADMIN.erroreExcel));
     } finally {
@@ -2001,17 +2069,30 @@ export function AdminEventDetailPage() {
     };
 
     switch (confirmSheet.kind) {
+      case "discardCamp":
+      case "reloadCamp": {
+        const reload = confirmSheet.kind === "reloadCamp";
+        return {
+          title: reload ? CAMP.ricaricaTitolo : CAMP.scartaTitolo,
+          body: reload ? CAMP.ricaricaCorpo : CAMP.scartaCorpo,
+          cancelLabel: CAMP.continuaModifica,
+          confirmLabel: reload ? CAMP.ricarica : CAMP.scarta,
+          busyLabel: ADMIN.salvataggio,
+          busy: busy === "saveCampManagement",
+          onConfirm: guard(handleReloadCamp),
+        };
+      }
       case "removePatrol": {
         const patrol = campDraft.patrols.find(
           (entry) => entry.id === confirmSheet.patrolId,
         );
         if (!patrol) return null;
         return {
-          title: fillCopy(ADMIN.eliminaPattugliaTitolo, { nome: patrol.name }),
+          title: `${campGroupLabels.remove} «${patrol.name}»?`,
           body: campDraftDirty
-            ? ADMIN.eliminaPattugliaCorpoBozza
-            : ADMIN.eliminaPattugliaCorpo,
-          cancelLabel: ADMIN.tieniPattuglia,
+            ? CAMP.eliminaGruppoBozza
+            : CAMP.eliminaGruppo,
+          cancelLabel: campGroupLabels.keep,
           confirmLabel: ADMIN.confermaEliminaPattuglia,
           busyLabel: ADMIN.salvataggio,
           busy: busy === "saveCampManagement",
@@ -2568,6 +2649,20 @@ export function AdminEventDetailPage() {
             <CampStaffSection eventId={eventId} stakeId={stakeId} />
           ) : null}
 
+          {campSyncWarning ? <div className="notice notice--warning" role="status"><p>{CAMP.assegnazioniDaControllare}</p></div> : null}
+          <section className="surface-panel surface-panel--subtle camp-config-panel">
+            <label className="field">
+              <span className="field__label">{CAMP.gruppoEtichetta}</span>
+              <select className="input" disabled={campSaving} value={campDraft.groupLabel} onChange={(input) => {
+                setCampDraftDirty(true);
+                setCampDraft((current) => ({ ...current, groupLabel: normalizeCampGroupLabel(input.target.value) }));
+              }}>
+                {Object.entries(CAMP_GROUPS).map(([value, labels]) => <option key={value} value={value}>{labels.plural}</option>)}
+              </select>
+              <span className="field__hint">{CAMP.gruppoAiuto}</span>
+            </label>
+          </section>
+
           <div className="admin-inline-metrics admin-inline-metrics--four">
             <article className="admin-inline-metric">
               <strong>{campDraft.committees.length}</strong>
@@ -2575,7 +2670,7 @@ export function AdminEventDetailPage() {
             </article>
             <article className="admin-inline-metric">
               <strong>{campDraft.patrols.length}</strong>
-              <span>Pattuglie</span>
+              <span>{campGroupLabels.plural}</span>
             </article>
             <article className="admin-inline-metric">
               <strong>{assignedCommitteeCount}</strong>
@@ -2583,7 +2678,7 @@ export function AdminEventDetailPage() {
             </article>
             <article className="admin-inline-metric">
               <strong>{assignedPatrolCount}</strong>
-              <span>Con pattuglia</span>
+              <span>{campGroupLabels.with}</span>
             </article>
           </div>
 
@@ -2606,9 +2701,11 @@ export function AdminEventDetailPage() {
                   <AppIcon name="download" />
                   <span>{downloadingExcel ? "Preparazione..." : "Excel"}</span>
                 </button>
+                {campDraftDirty ? <button className="button button--ghost button--small" disabled={campSaving} onClick={() => showConfirm({ kind: "discardCamp" })} type="button">{CAMP.scarta}</button> : null}
+                {campConflict ? <button className="button button--secondary button--small" disabled={campSaving} onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
                 <button
                   className="button button--primary button--small"
-                  disabled={busy === "saveCampManagement" || loading}
+                  disabled={busy === "saveCampManagement" || loading || campConflict}
                   onClick={() => void handleSaveCampManagement()}
                   type="button"
                 >
@@ -2616,7 +2713,7 @@ export function AdminEventDetailPage() {
                   <span>
                     {busy === "saveCampManagement"
                       ? "Salvataggio..."
-                      : campDraftDirty
+                      : campSaving ? CAMP.verificaSalvataggio : campDraftDirty
                         ? "Salva modifiche"
                         : "Salvato"}
                   </span>
@@ -2640,6 +2737,7 @@ export function AdminEventDetailPage() {
                   <input
                     className="input"
                     value={manualLeaderName}
+                    disabled={campSaving}
                     onChange={(eventInput) =>
                       setManualLeaderName(eventInput.target.value)
                     }
@@ -2648,6 +2746,7 @@ export function AdminEventDetailPage() {
                   <button
                     className="button button--secondary button--small"
                     onClick={addManualLeader}
+                    disabled={campSaving}
                     type="button"
                   >
                     <AppIcon name="plus" />
@@ -2666,6 +2765,7 @@ export function AdminEventDetailPage() {
                         aria-label={`Rimuovi ${leader.fullName}`}
                         className="chip__button"
                         onClick={() => removeManualLeader(leader.id)}
+                        disabled={campSaving}
                         type="button"
                       >
                         ×
@@ -2704,7 +2804,7 @@ export function AdminEventDetailPage() {
                     type="button"
                   >
                     <span className="camp-ios-card__icon" aria-hidden="true">
-                      {committee.emoji}
+                      {getCommitteeInitials(committee.title)}
                     </span>
                     <span className="camp-ios-card__body">
                       <strong>{committee.title}</strong>
@@ -2715,6 +2815,7 @@ export function AdminEventDetailPage() {
                         {" · "}
                         {committee.memberRegistrationIds.length} giovani
                       </small>
+                      <span className="camp-config-duty">{committee.responsibilities || CAMP.incaricoVuoto}</span>
                       <span className="camp-ios-card__preview">
                         {previewNames.length > 0
                           ? previewNames.join(", ")
@@ -2731,27 +2832,28 @@ export function AdminEventDetailPage() {
           <article className="surface-panel surface-panel--subtle admin-roster">
             <div className="section-head admin-roster__head">
               <div>
-                <h3>Pattuglie</h3>
+                <h3>{campGroupLabels.plural}</h3>
                 <p>
-                  Crea pattuglie e assegna capo pattuglia, supervisori e membri.
+                  {CAMP.gruppiAiuto}
                 </p>
               </div>
               <div className="admin-section-actions">
                 <button
                   className="button button--secondary button--small"
                   onClick={addPatrol}
+                  disabled={campSaving}
                   type="button"
                 >
                   <AppIcon name="plus" />
-                  <span>Aggiungi pattuglia</span>
+                  <span>{campGroupLabels.add}</span>
                 </button>
               </div>
             </div>
 
             {campDraft.patrols.length === 0 ? (
               <EmptyState
-                title="Nessuna pattuglia"
-                description="Aggiungi la prima pattuglia e assegna i partecipanti."
+                title={campGroupLabels.empty}
+                description={CAMP.primoGruppo}
               />
             ) : (
               <div className="camp-committee-grid">
@@ -2780,7 +2882,7 @@ export function AdminEventDetailPage() {
                       type="button"
                     >
                       <span className="camp-ios-card__icon" aria-hidden="true">
-                        🧭
+                        {getCommitteeInitials(patrol.name)}
                       </span>
                       <span className="camp-ios-card__body">
                         <strong>{patrol.name}</strong>
@@ -3756,40 +3858,45 @@ export function AdminEventDetailPage() {
 
       {selectedCampCommittee ? (
         <AppModal
-          title={`${selectedCampCommittee.emoji} ${selectedCampCommittee.title}`}
+          title={selectedCampCommittee.title.trim() || CAMP.nomeComitato}
           subtitle="Dirigenti e giovani assegnati al comitato"
           size="wide"
           onClose={closeCampModal}
           footer={
             <>
               <ModalFeedback error={actionError} />
+              {campConflict ? <button className="button button--secondary" onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
               <button
                 className="button button--ghost"
                 onClick={closeCampModal}
                 type="button"
               >
-                {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
+                {campDraftDirty ? CAMP.continuaDopo : "Chiudi"}
               </button>
               <button
                 className="button button--primary"
-                disabled={busy === "saveCampManagement" || loading}
+                disabled={busy === "saveCampManagement" || loading || campConflict}
                 onClick={() =>
                   void handleSaveCampManagement({ closeModal: true })
                 }
                 type="button"
               >
-                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva e chiudi"}
+                {busy === "saveCampManagement" ? "Salvataggio..." : campSaving ? CAMP.verificaSalvataggio : "Salva e chiudi"}
               </button>
             </>
           }
         >
-          <div className="camp-modal-stack">
+          <fieldset className="camp-modal-stack camp-config-fields" disabled={campSaving}>
             {campDraftDirty ? (
               <div className="camp-save-state camp-save-state--modal" role="status">
                 <AppIcon name="bell" />
                 <span>Modifiche non ancora salvate</span>
               </div>
             ) : null}
+
+            <label className="field"><span className="field__label">{CAMP.nomeComitato}</span><input className="input" value={selectedCampCommittee.title} maxLength={80} onChange={(input) => updateCommitteeDetails(selectedCampCommittee.id, "title", input.target.value)} /></label>
+            <label className="field"><span className="field__label">{CAMP.incarico}</span><textarea className="input camp-config-textarea" value={selectedCampCommittee.responsibilities} maxLength={600} onChange={(input) => updateCommitteeDetails(selectedCampCommittee.id, "responsibilities", input.target.value)} /><span className="field__hint">{CAMP.incaricoAiuto}</span></label>
+            {campDraftDirty ? <p className="field__hint">{CAMP.continuaAiuto}</p> : null}
 
             <div className="camp-ios-summary">
               <article>
@@ -3945,29 +4052,30 @@ export function AdminEventDetailPage() {
                 })}
               </div>
             </section>
-          </div>
+          </fieldset>
         </AppModal>
       ) : null}
 
       {selectedCampPatrol ? (
         <AppModal
           title={selectedCampPatrol.name}
-          subtitle="Capo pattuglia, supervisori e membri"
+          subtitle={`${campGroupLabels.leader}, supervisori e membri`}
           size="wide"
           onClose={closeCampModal}
           footer={
             <>
               <ModalFeedback error={actionError} />
+              {campConflict ? <button className="button button--secondary" onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
               <button
                 className="button button--ghost"
                 onClick={closeCampModal}
                 type="button"
               >
-                {campDraftDirty ? "Chiudi senza salvare" : "Chiudi"}
+                {campDraftDirty ? CAMP.continuaDopo : "Chiudi"}
               </button>
               <button
                 className="button button--ghost button--danger"
-                disabled={busy === "saveCampManagement" || loading}
+                disabled={busy === "saveCampManagement" || loading || campConflict}
                 onClick={() =>
                   showConfirm({
                     kind: "removePatrol",
@@ -3980,18 +4088,18 @@ export function AdminEventDetailPage() {
               </button>
               <button
                 className="button button--primary"
-                disabled={busy === "saveCampManagement" || loading}
+                disabled={busy === "saveCampManagement" || loading || campConflict}
                 onClick={() =>
                   void handleSaveCampManagement({ closeModal: true })
                 }
                 type="button"
               >
-                {busy === "saveCampManagement" ? "Salvataggio..." : "Salva e chiudi"}
+                {busy === "saveCampManagement" ? "Salvataggio..." : campSaving ? CAMP.verificaSalvataggio : "Salva e chiudi"}
               </button>
             </>
           }
         >
-          <div className="camp-modal-stack">
+          <fieldset className="camp-modal-stack camp-config-fields" disabled={campSaving}>
             {campDraftDirty ? (
               <div className="camp-save-state camp-save-state--modal" role="status">
                 <AppIcon name="bell" />
@@ -4000,7 +4108,7 @@ export function AdminEventDetailPage() {
             ) : null}
 
             <label className="field">
-              <span className="field__label">Nome pattuglia</span>
+              <span className="field__label">{`Nome ${campGroupLabels.singular.toLocaleLowerCase("it-IT")}`}</span>
               <input
                 className="input"
                 value={selectedCampPatrol.name}
@@ -4015,7 +4123,7 @@ export function AdminEventDetailPage() {
             </label>
 
             <section className="camp-modal-section">
-              <h3>Capo pattuglia</h3>
+              <h3>{campGroupLabels.leader}</h3>
               <select
                 className="input"
                 value={selectedCampPatrol.leaderRegistrationId}
@@ -4175,7 +4283,7 @@ export function AdminEventDetailPage() {
                       <span>
                         {getRegistrationDisplayName(registration)}
                         <small>{getRegistrationMeta(registration.id)}</small>
-                        {isLeader ? <small>Capo pattuglia</small> : null}
+                        {isLeader ? <small>{campGroupLabels.leader}</small> : null}
                         {unavailable ? (
                           <small>Già in {assignment.patrolName}</small>
                         ) : null}
@@ -4185,7 +4293,7 @@ export function AdminEventDetailPage() {
                 })}
               </div>
             </section>
-          </div>
+          </fieldset>
         </AppModal>
       ) : null}
 
@@ -4527,6 +4635,14 @@ export function AdminEventDetailPage() {
           registration={requestAuthorizationRegistration}
           stakeId={stakeId}
         />
+      ) : null}
+
+      {campNavigationBlocker.state === "blocked" ? (
+        <ConfirmSheet title={CAMP.uscitaTitolo} body={campSaving ? CAMP.uscitaInCorso : CAMP.uscitaCorpo}
+          cancelLabel={CAMP.continuaModifica} confirmLabel={CAMP.esci}
+          onCancel={() => campNavigationBlocker.reset()} onConfirm={() => {
+            setCampDraftDirty(false); campNavigationBlocker.proceed();
+          }} />
       ) : null}
 
       {confirmView ? (
