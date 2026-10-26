@@ -1,6 +1,8 @@
 import {
   createContext,
+  useContext,
   useEffect,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -8,6 +10,8 @@ import {
 import { authService } from "@/services/auth/authService";
 import { usersService } from "@/services/firestore/usersService";
 import { adminPushService } from "@/services/push/adminPushService";
+import { galleryCommentsService } from "@/services/firestore/galleryCommentsService";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import type { AuthContextValue, AuthSession, GenderRoleCategory } from "@/types";
 import { clearAdultGuardConfirmations } from "@/utils/adultGuard";
 import { shouldApplyAccountType } from "@/utils/profileCompletion";
@@ -15,9 +19,34 @@ import { clearProfileDrafts } from "@/utils/profileDrafts";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
+// The shared membership listener stays alive while the user navigates. A
+// request started in a now-closed viewer must also lose its UI context on revocation.
+function CommentMembershipEffects() {
+  const session = useContext(AuthContext)?.session;
+  const uid = session?.firebaseUser.uid ?? "";
+  const stakeId = session?.profile.stakeId ?? "";
+  const { access } = useStakeMembership(stakeId);
+  useEffect(() => {
+    if (uid && stakeId && access !== "member" && access !== "loading") {
+      galleryCommentsService.clearContext(uid, stakeId);
+    }
+  }, [uid, stakeId, access]);
+  return null;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const previousCommentsContext = useRef<{ uid: string; stakeId: string } | null>(null);
+  const commentsUid = session?.firebaseUser.uid ?? "";
+  const commentsStakeId = session?.profile.stakeId ?? "";
+  useEffect(() => {
+    const previous = previousCommentsContext.current;
+    if (previous && (previous.uid !== commentsUid || previous.stakeId !== commentsStakeId)) {
+      galleryCommentsService.clearContext(previous.uid, previous.stakeId);
+    }
+    previousCommentsContext.current = commentsUid ? { uid: commentsUid, stakeId: commentsStakeId } : null;
+  }, [commentsUid, commentsStakeId]);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -234,6 +263,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         signOut: handleSignOut,
       }}
     >
+      <CommentMembershipEffects />
       {children}
     </AuthContext.Provider>
   );

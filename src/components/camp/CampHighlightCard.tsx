@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { resolveLatestCampWithGallery, type CampHighlight } from "@/utils/campHighlight";
 import { formatEventWindow } from "@/utils/formatters";
@@ -18,11 +19,13 @@ export function CampHighlightCard() {
   const stakeId = session?.profile.stakeId || DEFAULT_STAKE_ID;
   const sessionKey = session ? `${session.firebaseUser.uid}:${stakeId}` : "none";
 
-  const { data: highlight } = useAsyncData<CampHighlight | null>(
-    () => resolveLatestCampWithGallery(stakeId),
-    [sessionKey],
-    null,
+  const { access } = useStakeMembership(stakeId);
+  const { data: result } = useAsyncData<{ key: string; highlight: CampHighlight | null }>(
+    async () => ({ key: sessionKey, highlight: access === "member" ? await resolveLatestCampWithGallery(stakeId) : null }),
+    [sessionKey, access],
+    { key: "", highlight: null },
   );
+  const highlight = access === "member" && result.key === sessionKey ? result.highlight : null;
 
   if (!highlight) return null;
 

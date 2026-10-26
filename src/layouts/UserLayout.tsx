@@ -1,10 +1,12 @@
+import "@/styles/userNavigation.css";
+
 import { ShellLayout } from "@/layouts/ShellLayout";
 
 export function UserLayout() {
   return (
     <ShellLayout
       area="user"
-      brandLabel="Piattaforma per Attività GU e GD Italia"
+      brandLabel="GUGD Italia"
       links={[
         { to: "/me", label: "Home", end: true, icon: "home" },
         { to: "/me/calendar", label: "Calendario", icon: "calendar" },

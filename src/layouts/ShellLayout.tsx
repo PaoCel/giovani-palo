@@ -536,7 +536,7 @@ export function ShellLayout({
               }
             >
               {link.icon ? <AppIcon name={link.icon} /> : null}
-              {link.icon ? <span className="sr-only">{link.label}</span> : link.label}
+              {link.icon ? <span className={area === "user" ? "bottom-nav__label" : "sr-only"}>{link.label}</span> : link.label}
               {link.badge ? (
                 <span aria-hidden="true" className="nav-badge nav-badge--corner">
                   {link.badge}

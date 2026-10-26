@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useAuth } from "@/hooks/useAuth";
 import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery } from "@/types";
@@ -45,38 +46,36 @@ export function useActivityGallery(
   event: Pick<Event, "id" | "startDate" | "endDate"> | null,
   enabled: boolean,
 ): ActivityGalleryState {
-  const [gallery, setGallery] = useState<Gallery | null>(null);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<string | null>(null);
-  const ensuredRef = useRef<string | null>(null);
+  const { session } = useAuth();
   const eventId = event?.id ?? "";
+  const context = `${session?.firebaseUser.uid ?? ""}:${stakeId}:${eventId}:${enabled}`;
+  const [state, setState] = useState<ActivityGalleryState & { key: string }>(() => ({
+    key: context, gallery: null, loading: enabled, error: null, uploadOpen: false,
+  }));
+  const ensuredRef = useRef<string | null>(null);
+  const current = state.key === context ? state : { gallery: null, loading: enabled, error: null };
+  const { gallery, loading, error } = current;
 
   useEffect(() => {
+    let active = true;
+    setState({ key: context, gallery: null, loading: enabled, error: null, uploadOpen: false });
     if (!enabled || !stakeId || !eventId) {
-      setGallery(null);
-      setLoading(false);
-      return undefined;
+      setState({ key: context, gallery: null, loading: false, error: null, uploadOpen: false });
+      return () => { active = false; };
     }
-    // Attività nuova: via la galleria di prima, così un errore della lettura
-    // nuova non lascia a schermo (e come destinazione dei caricamenti) quella vecchia.
-    setGallery(null);
-    setLoading(true);
-    setError(null);
-    return galleriesService.subscribeGalleryByActivity(
-      stakeId,
-      eventId,
+    const unsubscribe = galleriesService.subscribeGalleryByActivity(
+      stakeId, eventId,
       (found) => {
-        setGallery(found);
-        setLoading(false);
+        if (active) setState({ key: context, gallery: found, loading: false, error: null, uploadOpen: false });
       },
       (subError) => {
-        // Mai il messaggio dell'SDK (in inglese): il diniego lo traduce la
-        // galleria, il resto è la frase di rete.
-        setError((subError as { code?: string }).code === "permission-denied" ? GALLERY_DENIED : PAROLE.erroreRete);
-        setLoading(false);
+        if (!active) return;
+        setState({ key: context, gallery: null, loading: false, uploadOpen: false,
+          error: (subError as { code?: string }).code === "permission-denied" ? GALLERY_DENIED : PAROLE.erroreRete });
       },
     );
-  }, [enabled, stakeId, eventId]);
+    return () => { active = false; unsubscribe(); };
+  }, [context, enabled, stakeId, eventId]);
 
   const windowOpenByDates = event ? isGalleryUploadOpen(event, null) : false;
   const expected = event ? computeActivityUploadWindow(event) : null;
@@ -95,14 +94,16 @@ export function useActivityGallery(
 
   useEffect(() => {
     if (!needsEnsure || !stakeId || !eventId) return;
-    const key = `${stakeId}:${eventId}`;
+    const key = context;
     if (ensuredRef.current === key) return;
     ensuredRef.current = key;
+    let active = true;
     galleriesService.ensureActivityGallery(stakeId, eventId).catch((ensureError: unknown) => {
       // La callable risponde in italiano; i codici generici dell'SDK no.
-      setError(getAdminActionError(ensureError, "Impossibile aprire la galleria."));
+      if (active) setState(previous => previous.key === context ? { ...previous, error: getAdminActionError(ensureError, "Impossibile aprire la galleria.") } : previous);
     });
-  }, [needsEnsure, stakeId, eventId]);
+    return () => { active = false; };
+  }, [needsEnsure, stakeId, eventId, context]);
 
   const uploadOpen = Boolean(event && gallery && isGalleryUploadOpen(event, gallery));
   return { gallery, loading, error, uploadOpen };

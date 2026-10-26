@@ -1,9 +1,9 @@
 # Home dei giovani: dalle attività alle persone
 
-Proposta del 26 ottobre 2026, primo blocco di `gugd-home-social`.
-Base verificata: `main` a `3a59dad`. Nessuna modifica al client, alle rules
-o ai dati. Prototipo separato in `docs/prototypes/home-social/`.
-Rilascio subordinato a S2 e alla review del contratto effettivamente integrato.
+Progetto e primo incremento del client del 26 ottobre 2026, task
+`gugd-home-social`. Il prototipo storico è in `docs/prototypes/home-social/`.
+Il client implementa il contratto del primo incremento e le verifiche descritte
+in fondo. Nessun deploy; rilascio coordinato con S2 e Storage UE.
 
 ## Esperienza proposta
 
@@ -39,7 +39,7 @@ Desktop: navigazione a sinistra, stesso feed al centro (massimo 620 px),
 prossima attività nella colonna destra. Niente doppione della stessa card.
 Il feed mobile non diventa una griglia desktop: conserva ordine e lettura.
 
-## Tre decisioni di prodotto da ratificare
+## Perimetro conservativo del primo incremento
 
 | Decisione | Proposta per il primo rilascio | Motivo / alternativa rinviata |
 | --- | --- | --- |
@@ -49,7 +49,8 @@ Il feed mobile non diventa una griglia desktop: conserva ordine e lettura.
 
 Nessuna proposta di post liberi, DM, follower, nuove notifiche, reazioni
 multiple o esposizione pubblica. Il «Mi piace» è l'unica reazione esistente.
-Le scelte sopra sono proposte, non approvazioni di Paolo.
+Il primo incremento le applica nell’autonomia confermata da Paolo,
+conservando gli autori e le iscrizioni personali esistenti.
 
 ## Azioni quotidiane e scoperta
 
@@ -182,3 +183,74 @@ upload reali, invio commenti, iscrizioni o moderazione in produzione.
 Non tocca editor attività, S2, service worker o bundle. I PNG di review sono
 artefatti locali persistenti; sorgenti e verbale di verifica sono sul branch.
 Il task completo resta aperto: qui si consegna soltanto il progetto della home.
+
+## Contratto del primo incremento nel client, 26 ottobre
+
+L'autonomia confermata da Paolo consente di procedere conservando P1/P2/P3:
+admin autori, gallerie filtrate sulle iscrizioni personali, prima Me e riuso
+in Unità. Non vengono attivati post liberi né commenti ai post.
+
+Il codice S2 integrato conserva la vecchia lettura pubblica dei post
+pubblicati e ignora visibility. Il primo incremento la chiude: non esiste
+un valore di visibilità esplicitamente pubblico nel modello. I valori
+all_authenticated e gallery_members richiedono un membro verificato del
+medesimo palo; admins_only è solo admin. Bozze solo admin. Anche commenti
+e like richiedono di poter leggere il post genitore. Nessun nuovo campo o
+collection: query esatta published == true AND visibility IN
+[all_authenticated, gallery_members], ordine locale pinned/pubblicazione.
+Indice esplicito COLLECTION su feedPosts (published ASC, visibility ASC),
+da rilasciare prima del client; l’emulatore prova permessi e shape ma non
+lo stato di costruzione degli indici in produzione.
+L'admin usa la stessa query nella vista partecipante e la query completa
+nel pannello di gestione. La query della PWA precedente published == true
+non passa più per un partecipante: aggiornare rules prima del client,
+nessun bypass per mantenere la lettura pubblica. Attività pubbliche e
+sito pubblico restano raggiungibili tramite i loro percorsi esistenti.
+
+La home non legge feed o foto prima della verifica. Revoca, cambio palo e
+cambio account invalidano richieste in volo, chiudono il visualizzatore e
+svuotano post/media/like. I filtri sono locali e ripristinabili con Tutto.
+Il retry di rete è esplicito; offline impedisce nuovi like prima della
+scrittura e conserva le letture autorizzate soltanto nel contesto corrente.
+Nessuna nuova bozza o coda persistente di mutazioni. Le anteprime aprono
+il visualizzatore esistente; Vedi tutte apre la galleria dell'attività.
+
+## Verifica indipendente del client integrato, 26 ottobre 2026
+
+Eseguita sul Mac mini, esclusivamente con progetto `demo-room-planner`,
+Auth/Firestore/Storage Emulator locali e dati sintetici. Nessun deploy.
+
+- Build client completata; suite client **1.480/1.480**, nessuno skip.
+- Contratto S2 aggiornato più matrice Home **1.975/1.975**, nessuno skip,
+  inclusi gli upload di confine da 300 MB. La nuova matrice Home comprende
+  51 casi: query esatta e legacy, ruoli, palo, pubblicazione, visibilità,
+  like/contatori/commenti e revoca. Le sole aspettative S2 sostituite sono
+  quelle esplicitamente chiuse dal contratto Home riportato sopra.
+- `tests/browser/homeSocial.mjs`: **8/8** scenari con login e servizi reali
+  sugli emulatori. Verificati 320/390/430/1440 px, filtri, stati iscrizione,
+  errore e Riprova, like post e media, offline, P2, bozze per foto, Continua,
+  Scarta, Back del visualizzatore e della segnalazione, doppio invio con ID
+  unico, revoca a visualizzatore aperto e già chiuso. Una lettura reale dei
+  commenti viene consegnata in ritardo per verificare che non cancelli un
+  commento confermato successivamente.
+- `tests/browser/galleryContext.mjs`: **5/5** prove con componenti reali e
+  callback controllate. Cambio account, palo, attività e galleria scartano
+  risposte precedenti e invalidano il selettore file già aperto. Il controllo
+  positivo verifica che il selettore del contesto corrente avvii ancora
+  il percorso di upload.
+
+I runner browser richiedono `QA_BASE_URL` locale e `PLAYWRIGHT_MODULE` del
+nodo QA; quello Home richiede anche `GCLOUD_PROJECT=demo-*`,
+`FIRESTORE_EMULATOR_HOST` e `FIREBASE_AUTH_EMULATOR_HOST` locali, verificati
+prima dell'Admin SDK. `QA_ARTIFACT_DIR` salva i PNG alle quattro larghezze.
+La fixture di contesto non usa dati Firebase; serve a consegnare callback
+ormai annullate in modo riproducibile. Le immagini del seed Home sono asset
+di prova, non fotografie degli utenti. Questa verifica non sostituisce
+il collaudo Safari su dispositivo né prova la costruzione degli indici in
+produzione; nessuno dei due è dichiarato eseguito.
+
+Test indipendenti aggiuntivi del service commenti: 8/8 su trasporto SDK
+controllato, con promessa/ID condivisi, retry e data invariati, separazione
+account/palo/galleria/foto, rimozione doppia e assenza di chiamate SDK offline.
+Il server resta il confine autorizzativo; questi test coprono il ciclo di
+vita delle richieste del client e non sostituiscono i 1975 test del contratto.

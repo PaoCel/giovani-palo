@@ -1,0 +1,15 @@
+.media-lightbox__notice {
+  width: min(100%, 30rem);
+  padding: 0.8rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 1rem;
+}
+.media-lightbox .media-lightbox__close { width: 44px; height: 44px; }
+.media-lightbox .media-lightbox__nav { min-width: 44px; min-height: 44px; }
+.media-lightbox .media-comments__form input { min-width: 0; font-size: 16px; }
+.media-lightbox .media-comment__body { font-size: 16px; }
+.media-lightbox .media-comment__delete { min-height: 44px; }
+.media-lightbox button:focus-visible, .media-lightbox input:focus-visible { outline: 3px solid #e8bd65; outline-offset: 3px; }
+.media-lightbox .media-comments__head .subtle-text { font-size: 13px; }

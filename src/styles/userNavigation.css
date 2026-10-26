@@ -1,0 +1,4 @@
+/* Explicit labels keep the four participant destinations understandable. */
+.shell--user .bottom-nav { gap:2px; padding:6px; }
+.shell--user .bottom-nav__item { flex-direction:column; gap:4px; padding:7px 1px; min-height:58px; }
+.shell--user .bottom-nav__label { font-size:13px; line-height:1.2; font-weight:650; }
