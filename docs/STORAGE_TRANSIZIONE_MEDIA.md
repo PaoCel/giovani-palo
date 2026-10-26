@@ -107,12 +107,13 @@ La configurazione separata della fase A continua a indicare soltanto EU.
 
 ## Verifiche del 26 ottobre
 
-40 test puri indipendenti helper/sync e 28 scenari diretti su
+44 test puri indipendenti helper/sync e 31 scenari diretti su
 Firestore/Auth/Storage emulati passano senza salti. I puri sono stati
 rieseguiti anche dall'autore del codice sul mini. Gli scenari diretti
 comprendono ruoli SDK, retry e concorrenza, firme/PDF nuovi e copiati,
 CLI reale per tombstone dest-only, dry-run, tetto cancellazioni,
-verifica dei residui e ripetizione idempotente.
+verifica dei residui, ripetizione idempotente e risposta 503 simulata dopo
+rewrite applicata, con controllo del numero di tentativi mutanti.
 
 Il controllo di protocollo rileva `CAS_ENFORCED=false` nell'emulatore
 Storage: non prova l'efficacia delle precondizioni in produzione. La
@@ -125,3 +126,12 @@ Review indipendente del codice server: finding obbligatori chiusi;
 verifiche integrate S2/home/camp e browser in corso al momento di questo
 aggiornamento. La verifica dell'intero pacchetto e il deploy B restano
 separati dall'accettazione di questo incremento.
+
+La finalizzazione del sync avviene anche quando la copia restituisce un
+errore: una risposta fallita non dimostra che GCS non abbia applicato la
+richiesta. Ogni retry HTTP di rewrite/PATCH ricontrolla il marker; dopo un
+errore con effetto possibile si eliminano le copie tombstoned oppure si
+riconcilia il token con il seed corrente, quindi si riporta l'errore se
+l'operazione non risulta conclusa. L'admin attivo conserva il permesso di
+sovrascrittura precedente anche quando l'SDK presenta l'operazione come
+create; il gate lifecycle resta obbligatorio.

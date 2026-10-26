@@ -96,8 +96,9 @@ async function makeApi() {
 }
 
 let api;
-async function call(method, url, body, { ok = [] } = {}) {
+async function call(method, url, body, { ok = [], beforeAttempt } = {}) {
   for (let attempt = 1; ; attempt++) {
+    if (beforeAttempt) await beforeAttempt();
     const headers = await api.headers();
     if (body !== undefined) headers["Content-Type"] = "application/json";
     const res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -221,13 +222,13 @@ async function mediaDeleted(name) {
   return lifecyclePath && (await readMediaLifecycle(lifecyclePath))?.operation === "delete";
 }
 
-async function rewriteObject(name, srcGen, srcMetaGen, ifDestGeneration) {
+async function rewriteObject(name, srcGen, srcMetaGen, ifDestGeneration, beforeAttempt) {
   let rewriteToken;
   for (;;) {
     const q = new URLSearchParams({ ifSourceGenerationMatch: srcGen, ifSourceMetagenerationMatch: srcMetaGen, ifGenerationMatch: String(ifDestGeneration) });
     if (rewriteToken) q.set("rewriteToken", rewriteToken);
     if (await mediaDeleted(name)) { await removeMediaCopies(name); return null; }
-    const { json } = await call("POST", `${objectUrl(args.from, name)}/rewriteTo/b/${enc(args.to)}/o/${enc(name)}?${q}`);
+    const { json } = await call("POST", `${objectUrl(args.from, name)}/rewriteTo/b/${enc(args.to)}/o/${enc(name)}?${q}`, undefined, { beforeAttempt });
     if (json.done) return json.resource;
     rewriteToken = json.rewriteToken;
   }
@@ -301,7 +302,7 @@ async function phaseSync() {
     if (a.type === "copy" || a.type === "recopy") {
       const guarded = await guardMediaCopy({ name: a.name, readLifecycle: readMediaLifecycle,
         removeCopies: removeMediaCopies, apply: true, reconcileHide: reconcileMediaHide,
-        copy: () => rewriteObject(a.name, s.generation, s.metageneration, a.ifDestGeneration) });
+        copy: beforeAttempt => rewriteObject(a.name, s.generation, s.metageneration, a.ifDestGeneration, beforeAttempt) });
       if (guarded.skipped || !guarded.result) return;
       const resource = guarded.result;
       if (resource.crc32c !== s.crc32c || metadataKey(resource.metadata) !== metadataKey(s.metadata)) {
@@ -315,7 +316,7 @@ async function phaseSync() {
       const q = new URLSearchParams({ ifGenerationMatch: a.dstGen, ifMetagenerationMatch: a.ifDestMetageneration });
       const guarded = await guardMediaCopy({ name: a.name, readLifecycle: readMediaLifecycle,
         removeCopies: removeMediaCopies, apply: true, reconcileHide: reconcileMediaHide,
-        copy: async () => (await call("PATCH", `${objectUrl(args.to, a.name)}?${q}`, { metadata })).json });
+        copy: async beforeAttempt => (await call("PATCH", `${objectUrl(args.to, a.name)}?${q}`, { metadata }, { beforeAttempt })).json });
       if (!guarded.skipped) snapshot(a.name, guarded.result);
     } else if (a.type === "adopt") {
       snapshot(a.name, { generation: a.dstGen });

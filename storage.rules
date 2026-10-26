@@ -162,7 +162,8 @@ service firebase.storage {
       // two cross-service documents, the production Storage Rules limit.
       allow create: if isActiveStakeMember(stakeId)
         && !firestore.exists(/databases/(default)/documents/stakes/$(stakeId)/galleries/$(galleryId)/mediaLifecycle/$(mediaId))
-        && resource == null && validGalleryUpload();
+        && (isAdminRole(firestore.get(memberDocPath(stakeId)).data.get('staffRole', null))
+          || (resource == null && validGalleryUpload()));
       allow update: if isActiveStakeMember(stakeId)
         && isAdminRole(firestore.get(memberDocPath(stakeId)).data.get('staffRole', null))
         && !firestore.exists(/databases/(default)/documents/stakes/$(stakeId)/galleries/$(galleryId)/mediaLifecycle/$(mediaId));
