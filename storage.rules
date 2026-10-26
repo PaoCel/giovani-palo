@@ -158,9 +158,14 @@ service firebase.storage {
       // resource == null: solo file nuovi. Un upload su un path esistente può
       // arrivare come create (l'emulatore lo fa): senza, si sovrascrive il
       // file di un altro.
-      allow create: if isGalleryAdmin(stakeId)
-        || (isStakeMember(stakeId) && resource == null && validGalleryUpload());
-      allow update: if isGalleryAdmin(stakeId);
+      // Writes require active membership even for staff: member + lifecycle =
+      // two cross-service documents, the production Storage Rules limit.
+      allow create: if isActiveStakeMember(stakeId)
+        && !firestore.exists(/databases/(default)/documents/stakes/$(stakeId)/galleries/$(galleryId)/mediaLifecycle/$(mediaId))
+        && resource == null && validGalleryUpload();
+      allow update: if isActiveStakeMember(stakeId)
+        && isAdminRole(firestore.get(memberDocPath(stakeId)).data.get('staffRole', null))
+        && !firestore.exists(/databases/(default)/documents/stakes/$(stakeId)/galleries/$(galleryId)/mediaLifecycle/$(mediaId));
       allow delete: if isGalleryStaff(stakeId)
         || (isStakeMember(stakeId) && resource.metadata != null && resource.metadata.uploadedBy == request.auth.uid);
     }

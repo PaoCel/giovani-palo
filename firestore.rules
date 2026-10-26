@@ -1613,8 +1613,9 @@ service cloud.firestore {
             || (isStakeMember(stakeId) && validLikeCountUpdate(stakeId, galleryId, mediaId));
           // Invariante: uploadedBy è sempre l'uid di chi carica, mai
           // gallery.createdBy (un client che lo copiava ha rotto gli upload).
-          allow create: if isStakeAdmin(stakeId)
-            || (isStakeMember(stakeId) && validMemberMediaCreate(stakeId, galleryId, mediaId));
+          allow create: if !exists(/databases/$(database)/documents/stakes/$(stakeId)/galleries/$(galleryId)/mediaLifecycle/$(mediaId))
+            && (isStakeAdmin(stakeId)
+              || (isStakeMember(stakeId) && validMemberMediaCreate(stakeId, galleryId, mediaId)));
           allow delete: if isGalleryStaff(stakeId)
             || (isStakeMember(stakeId) && resource.data.uploadedBy == request.auth.uid);
 
@@ -1656,6 +1657,11 @@ service cloud.firestore {
           allow get, list: if isGalleryStaff(stakeId)
             || (isStakeMember(stakeId) && resource.data.uploadedBy == request.auth.uid);
           allow write: if false;
+        }
+
+        // Durable server-only revocation state and deletion tombstones.
+        match /mediaLifecycle/{mediaId} {
+          allow read, write: if false;
         }
 
         match /reports/{reportId} {
