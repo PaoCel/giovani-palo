@@ -94,3 +94,33 @@ Rollback prima della rimozione USA: commit precedente su main, rules/Functions/
 hosting con service worker ulteriormente aumentato, sync e URL nell'altro
 verso con checkpoint distinto. Anche il rollback in produzione richiede la
 conferma prevista; non cancellare file o riscrivere history per tornare indietro.
+
+## Collaudo definitivo del candidato
+
+Codice `main` 41a215c, tree `74c544a742af74411a07eb820a12f38319b3bf25`.
+Build e 1524/1524 test client passano sullo snapshot esatto sul mini;
+18/18 test adminAppOptions. Verifiche indipendenti: 44/44 test puri,
+31/31 scenari diretti di transizione, 1924 test S2 e 51 Home sulle rules,
+115 query SDK, 57 test HTTP consensi, 26 test HTTP camp, 8 scenari browser
+Home sullo stesso snapshot, 6 guardie upload e 5 cambi contesto.
+Review finale PASS con confronto hash dei sorgenti QA e candidato.
+
+La regressione della sovrascrittura admin è stata riprodotta e corretta:
+Storage mirato 25 PASS e 0 FAIL, un solo caso grande escluso perché già passato
+nel contratto S2 con GALLERY_BIG_UPLOAD=1. Il primo ambiente QA del
+coordinatore era privo dell'index git richiesto dal test sugli accenti:
+ricostruito dal manifest tracciato con tree hash identico; il giro finale
+1524/1524 è successivo alla correzione dell'ambiente.
+
+L'emulatore Storage non applica CAS metadata e può accodare i token: non
+viene usato come prova di revoca effettiva. Prova GCS reale staging con
+helper SHA-256 `5da24f93c7cfc9216e9f2364dbfefe4777f5fbf584cf461ee6d3a9214fd38849`:
+vecchi token 206 → 403 e nuovi 206 su entrambe le copie, retry stabile, worker
+vecchio respinto da CAS, token successivo conservato. File sintetici
+eliminati da entrambi i bucket, cleanup completo. Nessun dato reale usato.
+
+Dry-run del nuovo sync sul candidato: 1196 in sorgente, destinazione e checkpoint,
+1196 invariati, zero copie, patch, cancellazioni, conflitti o tombstone.
+Questo controllo è readonly; il passaggio client e la riscrittura degli URL
+restano da autorizzare. Il candidato esporta 33 Functions da aggiornare
+esplicitamente; le due callable obsolete vengono eliminate separatamente.

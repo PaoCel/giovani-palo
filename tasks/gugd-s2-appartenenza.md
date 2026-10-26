@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: ready
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-10-20
 started_at: 2026-10-20
 touched: 2026-10-26
 due:
-blocked_by: []
+blocked_by: ["decisione: conferma fresca per il rilascio coordinato B"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "S2 integrato su main e collaudato; nessun deploy o migrazione eseguiti"
-next: "Preparare rilascio coordinato con home e moduli; prima di prod ricontrollare dry-run, versioni e funzioni e chiedere conferma fresca"
-verified: "26 ottobre: contratto completo 1902/1902 (1724 Firestore e 178 Storage, upload 300 MB, zero salti), review indipendente PASS WITH CONCERNS senza difetti obbligatori; sul recupero precedente callable 74, fase 3 28, trigger 18, accesso 16, query 115, client 1390, puri Functions 409, browser 33 e build verdi. cleanup account 20 test puri e 17 Auth/Firestore, regressioni Functions 136/136 e review indipendente PASS; Storage UE non migrato, nessun deploy o scrittura di produzione"
+stopped_at: "S2 integrato con Storage UE, home e attività su main 41a215c; contratto completo finale verificato, migrazione non applicata"
+next: "Dopo conferma B: ricontrollare dry-run180, migrare prima delle rules, pubblicare Functions/rules e rimuovere codici legacy secondo piano"
+verified: "Finale 41a215c: 1924 S2 + 51 Home sulle rules, upload 300 MB, 115 query SDK, 31 diretti Storage/PDF, 44 puri, 57 HTTP consensi e 26 camp; build e 1524 client, browser 8 Home + 6 upload + 5 contesto. Review PASS. Dry-run prod: 180 profili (31 staff, 108 da verificare, 41 in coda), cleanup 31 e query dei 10 admin riusciti. Nessuna migrazione S2 o deploy B"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -271,3 +271,12 @@ finali arrestati. Nessuna operazione di produzione.
 Strumenti fase A Storage: 23/23 mock API/CLI e letture reali senza scritture;
 prossimo passo con conferma nel task gugd-storage-eu. Artefatti locali
 preservati in .claude/qa-rilascio-integrato/ e nelle cartelle di ogni blocco.
+
+## Pacchetto coordinato pronto, 26 ottobre
+
+Codice integrato su main 41a215c, tree 74c544a742af74411a07eb820a12f38319b3bf25.
+Build e 1524 test client passano sullo snapshot esatto; test indipendenti finali e
+review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
+Solo la preparazione fase A Storage è stata eseguita in produzione; questo
+incremento aspetta la conferma B. I task più ampi restano aperti per gli
+incrementi successivi, senza richiedere una nuova richiesta di ripartenza.

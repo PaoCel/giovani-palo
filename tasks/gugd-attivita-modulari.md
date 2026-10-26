@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: ready
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-10-26
 started_at: 2026-10-26
 touched: 2026-10-26
 due:
-blocked_by: []
+blocked_by: ["decisione: conferma fresca per il primo rilascio coordinato B"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Secondo incremento camp completato e verificato: nomi/incarichi comitati e denominazione gruppi; nessun deploy"
-next: "Rilascio coordinato dopo Storage UE/S2; poi programma con iscrizioni, altri tipi, comitati arbitrari, alloggi e delega"
-verified: "Camp sul mini: 1479 client e build, 39 controlli browser, 14 regressioni staff, 64 puri/copy e 26 emulati indipendenti (17 SDK rules) verdi, zero salti; review server indipendente PASS. Primo incremento creazione: 1372 client e 70 controlli browser/emulatore verdi. Produzione invariata"
+stopped_at: "Creazione guidata e camp configurabili integrati nel pacchetto41a215c verificato; primi incrementi pronti ma non pubblicati"
+next: "Conferma B e deploy campManagementSave prima hosting; poi programma con iscrizioni, altri tipi, comitati arbitrari, alloggi e delega"
+verified: "Pacchetto finale 41a215c: build, 1524 client, 26 camp backend/rules indipendenti e 57 HTTP consensi. Ultimo giro camp UI 39/39 conserva gli stessi file camp; 64 puri/copy e 14 regressioni staff già verdi. Review PASS. Programma, alloggi e delega restano aperti; nessun deploy B"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -107,3 +107,12 @@ finali arrestati. Nessuna operazione di produzione.
 Strumenti fase A Storage: 23/23 mock API/CLI e letture reali senza scritture;
 prossimo passo con conferma nel task gugd-storage-eu. Artefatti locali
 preservati in .claude/qa-rilascio-integrato/ e nelle cartelle di ogni blocco.
+
+## Pacchetto coordinato pronto, 26 ottobre
+
+Codice integrato su main 41a215c, tree 74c544a742af74411a07eb820a12f38319b3bf25.
+Build e 1524 test client passano sullo snapshot esatto; test indipendenti finali e
+review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
+Solo la preparazione fase A Storage è stata eseguita in produzione; questo
+incremento aspetta la conferma B. I task più ampi restano aperti per gli
+incrementi successivi, senza richiedere una nuova richiesta di ripartenza.

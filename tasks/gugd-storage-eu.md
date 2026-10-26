@@ -1,7 +1,7 @@
 ---
 id: gugd-storage-eu
 title: "Storage in UE: fasi A-E della migrazione"
-status: in-progress
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: M
@@ -12,13 +12,13 @@ opened: 2026-10-20
 started_at: 2026-10-26
 touched: 2026-10-26
 due:
-blocked_by: []
-branch: codex/storage-eu
-worktree: /Users/paolocelestini/Developer/giovani-palo-storage-eu
+blocked_by: ["decisione: conferma fresca per il rilascio coordinato B"]
+branch:
+worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Fase A autorizzata ed eseguita: bucket UE collegato, rules EU verificate, 1196 copie identiche; integrazione B in corso"
-next: "Integrare e collaudare B, chiudere revoca/cancellazione su entrambe le copie e correggere informativa; nuova conferma prima del rilascio"
-verified: "Fase A live EXIT0: create/link, rules solo UE con default invariato; 1196/1196 copie, zero differenze CRC/dimensioni/metadata; 3 download token206/senza403. S2 dry-run180 e cleanup31 invariati. App e Functions ancora sul vecchio bucket; B non autorizzata"
+stopped_at: "Fase A live completata; passaggio B integrato su main 41a215c e collaudato, app ancora sul vecchio bucket"
+next: "Conferma fresca per piano docs/STORAGE_FASE_B.md, poi deploy coordinato e migrazioni; C/D/E restano separate"
+verified: "A live: 1196 copie identiche e token 206/senza 403; default invariato. B: build, 1524 client, 44 puri, 31 diretti, 1975 rules, 115 query, 57 HTTP consensi, 26 camp, browser 8 Home + 6 upload + 5 contesto. Review PASS e prova GCS reale token/CAS PASS. Sync finale readonly: 1196 invariati, zero azioni. Nessun deploy B"
 links: [docs/STORAGE_FASE_A.md]
 done_at:
 ---
@@ -121,3 +121,12 @@ cancellare entrambe le copie transitorie; cancellare solo UE permette al
 sync successivo di ricopiare il file USA. Correzione e test indipendenti in
 corso prima del rilascio. L'informativa deve descrivere le copie USA finché
 non vengono eliminate nella fase E, che resta separata e non autorizzata.
+
+## Pacchetto coordinato pronto, 26 ottobre
+
+Codice integrato su main 41a215c, tree 74c544a742af74411a07eb820a12f38319b3bf25.
+Build e 1524 test client passano sullo snapshot esatto; test indipendenti finali e
+review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
+Solo la preparazione fase A Storage è stata eseguita in produzione; questo
+incremento aspetta la conferma B. I task più ampi restano aperti per gli
+incrementi successivi, senza richiedere una nuova richiesta di ripartenza.

@@ -1,7 +1,7 @@
 ---
 id: gugd-home-social
 title: "Home del palo più social: post, foto, commenti"
-status: ready
+status: needs-paolo
 impact: 2
 urgency: 1
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-10-20
 started_at: 2026-10-26
 touched: 2026-10-26
 due:
-blocked_by: [gugd-s2-appartenenza]
+blocked_by: ["decisione: conferma fresca per il rilascio coordinato B"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Primo incremento home nel client completo e verificato, integrato e pushato su main; nessun deploy"
-next: "Rilascio coordinato dopo Storage UE e S2; poi gestione post admin, contesto Famiglia e moduli successivi"
-verified: "Mini: build, 1480/1480 client, 1975/1975 contratto S2/home e zero salti, 8/8 browser reale Auth/Firestore, 5/5 cambi contesto, 8/8 test service indipendenti; review PASS. Produzione invariata, indici non rilasciati"
+stopped_at: "Home e guardie upload finali integrate su main 41a215c, browser reale8/8 e quattro viewport verificati; nessun deploy B"
+next: "Conferma e rilascio coordinato B; poi gestione post admin, contesto Famiglia e moduli successivi"
+verified: "Finale 41a215c, tree 74c544a: build, 1524 client, 1975 rules, 115 query; Home 8/8 con Auth/Firestore e screenshot a 320/390/430/1440 px; 6 guardie upload e 5 cambi contesto. Review PASS. Query prod: 8 post pubblicati tutti con visibilità esplicita, nessun post perso. Solo fase A Storage eseguita in produzione"
 links: [docs/HOME_SOCIAL.md, docs/HOME_SOCIAL_REVIEW.md, docs/prototypes/home-social/index.html, docs/GALLERIA_ATTIVITA.md]
 done_at:
 ---
@@ -104,3 +104,12 @@ finali arrestati. Nessuna operazione di produzione.
 Strumenti fase A Storage: 23/23 mock API/CLI e letture reali senza scritture;
 prossimo passo con conferma nel task gugd-storage-eu. Artefatti locali
 preservati in .claude/qa-rilascio-integrato/ e nelle cartelle di ogni blocco.
+
+## Pacchetto coordinato pronto, 26 ottobre
+
+Codice integrato su main 41a215c, tree 74c544a742af74411a07eb820a12f38319b3bf25.
+Build e 1524 test client passano sullo snapshot esatto; test indipendenti finali e
+review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
+Solo la preparazione fase A Storage è stata eseguita in produzione; questo
+incremento aspetta la conferma B. I task più ampi restano aperti per gli
+incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
