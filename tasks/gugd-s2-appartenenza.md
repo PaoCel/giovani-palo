@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-s2-appartenenza
 worktree: .claude/worktrees/kind-rosalind-0307da
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Ripreso il cleanup account: implementazione e test affidati a due agenti separati attivi"
-next: "Verificare il contratto e completare helper, script operativo, guardie anti-ricreazione e test su emulatori; review prima del commit del codice"
-verified: "26 ottobre: contratto completo 1902/1902 (1724 Firestore e 178 Storage, upload 300 MB, zero salti), review indipendente PASS WITH CONCERNS senza difetti obbligatori; sul recupero precedente callable 74, fase 3 28, trigger 18, accesso 16, query 115, client 1390, puri Functions 409, browser 33 e build verdi. Storage UE non migrato, cleanup account non implementato, nessun deploy o scrittura di produzione"
+stopped_at: "Cleanup account implementato e verificato; integrazione con main in corso"
+next: "Completare prova delivery del trigger, integrare main e collaudare regole e client uniti; poi home social e moduli"
+verified: "26 ottobre: contratto completo 1902/1902 (1724 Firestore e 178 Storage, upload 300 MB, zero salti), review indipendente PASS WITH CONCERNS senza difetti obbligatori; sul recupero precedente callable 74, fase 3 28, trigger 18, accesso 16, query 115, client 1390, puri Functions 409, browser 33 e build verdi. cleanup account 20 test puri e 17 Auth/Firestore, regressioni Functions 136/136 e review indipendente PASS; Storage UE non migrato, nessun deploy o scrittura di produzione"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -98,10 +98,12 @@ Prossime fasi:
   la decisione;
 - "Ho sbagliato palo" e "Hai un codice?" con S3; uscita dello staff, dopo tre
   rifiuti e oltre i 30 giorni con S4 (Persone);
-- cleanup di `members` (con `history` e `staff`) alla cancellazione account
-  (nel repo non c'è ancora un flusso di cancellazione, ricontrollato il
-  2026-10-26): prerequisito ancora aperto del criterio di completamento,
-  nessun modulo nuovo costruito durante il recupero;
+- cleanup di `members` (con discendenti `history` e `staff`) implementato il
+  26 ottobre: helper idempotente e script dry-run/apply con conteggio atteso;
+  il trigger del profilo lo esegue solo con account Auth e profilo assenti.
+  Le callable e la riconciliazione non ricreano appartenenze dopo la cancellazione.
+  Cancellare solo Auth non attiva il trigger: procedura di assistenza documentata
+  (Auth, profilo, verifica), senza introdurre un trigger preview;
 - rules Storage dopo la fase B di `gugd-storage-eu` (celle già scritte, si
   sbloccano con `S2_STORAGE_CONTRACT=1`);
 - rilascio, ogni passo con conferma fresca di Paolo. Letture di produzione
@@ -227,3 +229,12 @@ Recupero del 2026-10-26, sulla base `475ac0a` e sul diff preesistente:
 - Storage (164 celle), integrazione delle modifiche successive di main,
   cleanup account e account vero in produzione restano non verificati.
   Nessuna migrazione, cancellazione, merge su main o pubblicazione eseguita.
+
+### Cleanup account, 26 ottobre
+
+Implementazione e test scritti da agenti diversi. Sul Mac mini, 20/20 test
+puri e 17/17 test con Auth/Firestore Emulator; regressioni reali Functions
+136/136, zero salti. Hash dei cinque sorgenti e test uguali tra worktree e
+copia QA. Review indipendente PASS, nessuna modifica richiesta. La prova
+di delivery dell’evento al trigger Functions è in corso. Nessuna cancellazione
+o altra scrittura di produzione.

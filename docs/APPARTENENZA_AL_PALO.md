@@ -451,8 +451,63 @@ un documento (copre anche chi si registra con la PWA vecchia, che non chiama
 `request`), (3) al cambio di palo apre la richiesta nel palo nuovo senza
 toccare quella vecchia. `tools/create-stake.mjs` crea anche il members attivo
 del primo admin. Cancellazione account: members e note dello staff del uid in
-ogni palo, nella stessa pulizia (oggi il repo non ha un flusso di
-cancellazione: va costruito con S2).
+ogni palo, nella stessa pulizia, secondo il contratto seguente.
+
+**Cleanup della membership alla cancellazione account (contratto server).**
+Nessuna nuova UI: l'assistenza riceve già le richieste di cancellazione via
+email. Questo incremento cancella soltanto `stakes/{s}/members/{uid}` e tutti
+i suoi discendenti (`history`, `staff/note`, `staff/previous`, anche con il
+documento members assente); non modifica iscrizioni, PDF o altri dati con la
+conservazione già prevista. Scrive solo Admin SDK. Nessun accesso client nuovo,
+nessun indice nuovo: elenco dei documenti `stakes` esistenti, lettura diretta
+del members del solo UID richiesto e visita delle sue sottocollezioni. Mai
+`collectionGroup('members')`, che include gli sblocchi galleria legacy.
+
+Interfaccia pubblica in `functions/lib/stakeMembershipCleanup.js`:
+`cleanupDeletedUserMemberships({ db, auth, uid, dryRun = true,
+expectedMemberships })`. UID non vuoto, massimo 128 caratteri e senza `/`.
+Il risultato contiene `dryRun`, `memberships` (pali con almeno un documento
+nel sottoalbero del UID), `documents` (documenti esistenti nel piano),
+`deletedMemberships` e `deletedDocuments` (zero nel dry-run). Nessun nome,
+email, token o documento personale nel risultato o nei log dello script.
+
+Prima del piano e prima di ogni lotto di cancellazione devono essere assenti
+sia Auth (`getUser`: soltanto `auth/user-not-found` prova l'assenza) sia il
+profilo corrente `users/{uid}`. Le letture del profilo e le cancellazioni di
+ogni lotto sono nella stessa transazione; la verifica Auth viene ripetuta
+dentro il callback della transazione. Se account o profilo ricompaiono, il
+lotto non scrive e la pulizia si interrompe. Anche callable e riconciliazione
+rileggono identità Auth e profili nella transazione prima di scrivere:
+un'azione già partita prima della cancellazione del profilo non può lasciare
+members, history o note dopo la pulizia. La creazione amministrativa di un
+nuovo account con lo stesso UID durante la procedura non è consentita.
+
+Il dry-run esegue soltanto letture. L'applicazione richiede sempre
+`expectedMemberships`, intero non negativo identico al piano appena letto:
+nessuna scrittura se manca o differisce. Gli errori hanno `code` stabile:
+`invalid_uid`, `account_exists`, `profile_exists`,
+`expected_memberships_required`, `membership_count_changed`; errori Auth o
+Firestore diversi dall'assenza propagano senza essere trattati come assenza.
+Una cancellazione parziale può lasciare sottoalberi incompleti: la procedura
+si riprende con un nuovo dry-run e il suo numero atteso, senza checkpoint con
+dati personali. Ripetere su un UID già pulito restituisce zero.
+
+Script `functions/scripts/cleanupDeletedUserMemberships.js`:
+`--uid <uid> --project <project>` per il dry-run; aggiungere
+`--apply --expect-memberships <n>` per applicare. Sono obbligatori UID e
+progetto espliciti. Con progetto `demo-*` servono entrambi gli host locali
+degli emulatori Auth e Firestore; fuori dagli emulatori serve progetto reale
+esplicito e nessuna variabile host degli emulatori. Mai credenziali o UID nei
+log: solo modalità, progetto e conteggi. Errori di guardia o conteggio escono
+con codice 2; gli altri errori con codice 1.
+
+Il trigger gen2 esistente su `users/{uid}` gestisce anche delete e rilegge lo
+stato corrente. Se Auth o profilo esistono, ignora l'evento vecchio senza
+cancellare lo stato ricreato; gli altri errori propagano per il retry.
+Non copre automaticamente una cancellazione soltanto Auth. Procedura di
+assistenza obbligatoria: cancellazione Auth singola → cancellazione profilo →
+dry-run dello script → verifica dei conteggi → apply esplicito, con conferma
+fresca per ogni operazione di produzione. Nessun trigger Auth preview/gen1.
 
 **PWA vecchia** (bundle in cache, service worker v29): per M, D e A non cambia
 nulla. Per N, P e F (i 41 "account esistente" e chi si registra dopo la

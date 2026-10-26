@@ -16,6 +16,7 @@ const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 
 const core = require("./stakeMembership");
 const { runTransactionWithRetry } = require("./transactionRetry");
+const { cleanupDeletedUserMemberships } = require("./stakeMembershipCleanup");
 
 const REGION = "europe-west1";
 // Elenchi dello staff scelti da un admin per attività: chi viene rimosso o
@@ -709,7 +710,16 @@ const ACTION_HANDLERS = Object.freeze({
   undo: actionUndo,
 });
 
-async function runAction(tx, db, input) {
+async function currentAuthUser(auth, uid) {
+  try {
+    return await auth.getUser(uid);
+  } catch (error) {
+    if (error?.code === "auth/user-not-found") return null;
+    throw error;
+  }
+}
+
+async function runAction(tx, db, input, auth) {
   const { action, stakeId, uid, callerUid } = input;
   const ref = memberRef(db, stakeId, uid);
   const [callerSnap, targetSnap, memberSnap, previousSnap] = await readDocs(tx, [
@@ -718,6 +728,13 @@ async function runAction(tx, db, input) {
     ref,
     previousRefOf(ref),
   ]);
+  // ID tokens can outlive an Auth deletion. The profiles are transaction reads:
+  // deletion or recreation while this action is in flight forces a retry.
+  if (!(await currentAuthUser(auth, callerUid))) throw new HttpsError("unauthenticated", "Accedi per continuare.");
+  if (!callerSnap.exists) throw precondition("profile_incomplete", "Completa il profilo prima di chiedere di entrare.");
+  if (!targetSnap.exists || (uid !== callerUid && !(await currentAuthUser(auth, uid)))) {
+    throw new HttpsError("not-found", "Questa persona non ha chiesto di entrare nel palo.");
+  }
   const ctx = {
     ...input,
     tx,
@@ -751,9 +768,10 @@ async function opensRequest(db, stakeId, uid) {
   return opens ? profile : null;
 }
 
-function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
+function createStakeMembershipHandler({ db, auth, clock = () => Date.now() } = {}) {
   return async (request) => {
     const firestore = db || getFirestore();
+    const identity = auth || getAuth();
     if (!request.auth) throw new HttpsError("unauthenticated", "Accedi per continuare.");
     if (request.auth.token?.firebase?.sign_in_provider === "anonymous") {
       throw denied("Serve un account personale.");
@@ -773,7 +791,7 @@ function createStakeMembershipHandler({ db, clock = () => Date.now() } = {}) {
       : [[], undefined];
     const nowMs = clock();
     const result = await runTransactionWithRetry(firestore, (tx) =>
-      runAction(tx, firestore, { ...input, callerUid, stakeIds, hints, note, nowMs }),
+      runAction(tx, firestore, { ...input, callerUid, stakeIds, hints, note, nowMs }, identity),
     );
     logger.info("Appartenenza al palo.", {
       action: input.action,
@@ -836,6 +854,11 @@ async function reconcileUserMembership(db, uid, { nowMs = Date.now(), auth = get
   return runTransactionWithRetry(db, async (tx) => {
     const userSnap = await tx.get(userRef);
     if (!userSnap.exists) return { skipped: "no_profile" };
+    // Recheck Auth on each retry, after reading the profile in this transaction.
+    // A queued event must never recreate membership data for a deleted account.
+    const currentIdentity = await currentAuthUser(auth, uid);
+    if (!currentIdentity) return { skipped: "no_account" };
+    if (isAnonymousAuthUser(currentIdentity)) return { skipped: "anonymous" };
     const profile = userSnap.data() || {};
     const chosen = stakeIds.includes(profile.stakeId) ? profile.stakeId : "";
     const snaps = await readDocs(tx, stakeIds.map((id) => memberRef(db, id, uid)));
@@ -903,13 +926,31 @@ async function reconcileUserMembership(db, uid, { nowMs = Date.now(), auth = get
   });
 }
 
-const onUserStakeMembership = onDocumentWritten({ document: "users/{uid}", region: REGION }, async (event) => {
-  if (!event.data?.after?.exists) return;
-  const result = await reconcileUserMembership(getFirestore(), event.params.uid);
+async function handleUserStakeMembershipEvent(event, { db = getFirestore(), auth = getAuth() } = {}) {
+  if (!event.data) return { skipped: "no_event" };
+  const uid = event.params.uid;
+  if (!event.data.after?.exists) {
+    if (!event.data.before?.exists) return { skipped: "no_profile_event" };
+    try {
+      const plan = await cleanupDeletedUserMemberships({ db, auth, uid });
+      return await cleanupDeletedUserMemberships({ db, auth, uid, dryRun: false, expectedMemberships: plan.memberships });
+    } catch (error) {
+      // An old delete event must not erase a recreated identity or profile.
+      if (error?.code === "account_exists" || error?.code === "profile_exists") return { skipped: error.code };
+      throw error;
+    }
+  }
+  const result = await reconcileUserMembership(db, uid, { auth });
   if (result?.changed) {
     logger.info("Appartenenza allineata al profilo.", { uid: event.params.uid, changes: result.changes });
   }
-});
+  return result;
+}
+
+const onUserStakeMembership = onDocumentWritten(
+  { document: "users/{uid}", region: REGION, retry: true },
+  (event) => handleUserStakeMembershipEvent(event),
+);
 
 // ---------------------------------------------------------------------------
 // Promemoria agli admin (fase 3): richieste in coda da più di 48 ore
@@ -965,6 +1006,7 @@ module.exports = {
   queueReminderPayload,
   stakeMembership,
   onUserStakeMembership,
+  handleUserStakeMembershipEvent,
   createStakeMembershipHandler,
   reconcileUserMembership,
   computeRegistrationHints,
