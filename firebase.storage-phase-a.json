@@ -1,0 +1,5 @@
+{
+  "storage": [
+    { "bucket": "giovani-palo-eu", "rules": "storage.rules" }
+  ]
+}
