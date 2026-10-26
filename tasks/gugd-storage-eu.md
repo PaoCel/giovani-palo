@@ -1,7 +1,7 @@
 ---
 id: gugd-storage-eu
 title: "Storage in UE: fasi A-E della migrazione"
-status: needs-paolo
+status: in-progress
 impact: 2
 urgency: 2
 effort: M
@@ -12,13 +12,13 @@ opened: 2026-10-20
 started_at: 2026-10-26
 touched: 2026-10-26
 due:
-blocked_by: ["decisione: conferma fresca per la fase A in produzione"]
-branch:
-worktree:
+blocked_by: []
+branch: codex/storage-eu
+worktree: /Users/paolocelestini/Developer/giovani-palo-storage-eu
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Strumenti fase A integrati e pushati su main; produzione invariata, bucket EU assente"
-next: "Conferma fresca per create/link, rules solo EU e sync; poi integrare e verificare il passaggio B prima di una nuova conferma deploy"
-verified: "23/23 test API simulata da altro autore, review PASS WITH CONCERNS per POST live non eseguite; inspect e create dry-run reali EXIT0, sync dry-run 1196 oggetti/1065,8 MB senza conflitti o cancellazioni, diff Storage live letto e limitato a S2"
+stopped_at: "Fase A autorizzata ed eseguita: bucket UE collegato, rules EU verificate, 1196 copie identiche; integrazione B in corso"
+next: "Integrare e collaudare B, chiudere revoca/cancellazione su entrambe le copie e correggere informativa; nuova conferma prima del rilascio"
+verified: "Fase A live EXIT0: create/link, rules solo UE con default invariato; 1196/1196 copie, zero differenze CRC/dimensioni/metadata; 3 download token206/senza403. S2 dry-run180 e cleanup31 invariati. App e Functions ancora sul vecchio bucket; B non autorizzata"
 links: [docs/STORAGE_FASE_A.md]
 done_at:
 ---
@@ -100,3 +100,24 @@ Il pacchetto coordinato main 4831334 (S2, home, creazione e camp) ha superato
 collaudo finale: build, 1510 client, 1975 contratto S2/home, 115 query SDK,
 26 backend/rules camp, 8 browser Home e 39 camp, tutti senza salti o errori.
 Nessun hosting, deploy rules/Functions o passaggio di bucket eseguito.
+
+## Fase A eseguita, 26 ottobre
+
+Conferma esplicita di Paolo in questa chat: «Confermo, andiamo avanti», in
+risposta al piano create/link, rules solo UE e copia di 1196 file (1065,8 MB).
+Esecuzione dal Mac mini, clone isolato pulito di main61bf802. Create e link
+EXIT0; regione EUROPE-WEST1, ownership verificata, accesso uniforme e
+prevenzione accesso pubblico enforced. Rules candidate pubblicate solo nel
+nuovo bucket; sorgente live verificato e release default identica a prima.
+
+Sync solo copia, `--max-deletes 0`: 1196 completati, zero errori, checkpoint
+per oggetto; nessuna riscrittura Firestore o cancellazione sorgente. Verifica
+indipendente: 1196 sorgente e destinazione, zero mancanti/differenze CRC,
+dimensioni e metadati, zero oggetti extra; tre download protetti con token206
+e senza token403. Hosting e Functions non modificati.
+
+Review del passaggio B: le operazioni galleria devono revocare token e
+cancellare entrambe le copie transitorie; cancellare solo UE permette al
+sync successivo di ricopiare il file USA. Correzione e test indipendenti in
+corso prima del rilascio. L'informativa deve descrivere le copie USA finché
+non vengono eliminate nella fase E, che resta separata e non autorizzata.

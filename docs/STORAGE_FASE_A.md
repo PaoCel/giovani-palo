@@ -115,3 +115,26 @@ client/URL e hosting con service worker monotonico. Non pubblicare solo
 l’hosting: il vecchio backend camp ignorerebbe le nuove opzioni. Controllare
 le Functions effettive e i dry-run subito prima del rilascio; la copia A
 resta `--phase sync`, senza riscrittura URL o fase `all`.
+
+## Esito reale della fase A, 26 ottobre 2026
+
+Paolo ha confermato esplicitamente create/link, rules sul solo UE e sync.
+Eseguiti dal clone isolato main61bf802 sul Mac mini: tutti EXIT0. Bucket
+`giovani-palo-eu` esistente e collegato, EUROPE-WEST1, ownership verificata,
+accesso uniforme e prevenzione accesso pubblico enforced. Rules UE live
+corrispondenti al candidato SHA-256 `34fd55bc41011d32f10c779d27a9a1535907acdcad79017cb249487e9ff103a2`;
+release e SHA-256 del bucket default invariati rispetto al preflight.
+
+Sync con `--phase sync --apply --max-deletes 0`: 1196 oggetti, 1065,8 MB,
+1196 completati e zero errori; checkpoint a ogni oggetto. Verifica di sola
+lettura: 1196 file su entrambi i bucket, zero mancanti, differenze di CRC,
+dimensioni o metadata, zero oggetti extra. Tre file protetti rispondono206
+con token e403 senza. Nessun URL Firestore riscritto e nessun file sorgente
+cancellato; il client e le Functions attivi usano ancora il bucket precedente.
+
+La fase B richiede ancora integrazione, collaudo e conferma fresca. La review
+ha richiesto revoca/cancellazione galleria su entrambi i bucket e protezione
+del sync contro ricreazione dopo cancellazione, più informativa esplicita
+sulle copie USA transitorie. I vecchi esiti di test del branch non verificano
+questa fusione. Letture aggiornate: migrazione S2 180 profili da creare,
+cleanup codici31 documenti, 30 Functions live compresi i due codici obsoleti.
