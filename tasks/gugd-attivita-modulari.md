@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: backlog
+status: in-progress
 impact: 2
 urgency: 2
 effort: L
@@ -9,16 +9,16 @@ delivery: deploy
 surface: [web, functions, rules]
 source: paolo
 opened: 2026-10-26
-started_at:
+started_at: 2026-10-26
 touched: 2026-10-26
 due:
 blocked_by: []
-branch:
+branch: codex/gugd-creazione-essenziale
 worktree:
-session:
-stopped_at: ""
-next: "Primo incremento: creazione essenziale con bozza ritrovabile e pubblicazione esplicita; S2 in verifica separata"
-verified: "26 ottobre: requisiti confrontati con editor e spec esistenti; nessun nuovo flusso implementato o collaudato"
+session: 01a177a4-ce16-72d3-aedf-38c33a576cc0
+stopped_at: "Spec e review registrate; prima implementazione avviata in chat e worktree isolati, S2 e home in chat separate"
+next: "Completare e collaudare il primo incremento della creazione essenziale, poi integrare il branch e procedere con i moduli"
+verified: "26 ottobre: confronto con editor/spec e secondo parere indipendente di prodotto PASS WITH CONCERNS, recepito nella spec; nessun nuovo flusso implementato o collaudato"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -29,6 +29,10 @@ Paolo, 26 ottobre: rendere configurabili dall'app le operazioni oggi affidate
 all'operatore con accesso completo ai dati. Creazione essenziale, sottoattività
 con iscrizioni, comitati con incarichi, gruppi dal nome configurabile e alloggi;
 gestione anche da un responsabile esplicitamente delegato all'attività.
+
+Priorità esplicita di Paolo del 26 ottobre: iniziare autonomamente e aprire
+nuove chat per i filoni indipendenti. Registrato il superamento del limite
+WIP globale; nessun altro task è stato parcheggiato automaticamente.
 
 ## Fatto quando
 

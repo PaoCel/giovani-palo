@@ -11,7 +11,7 @@ interventi di Paolo sui dati. La home dei giovani deve diventare un feed:
 il lavoro resta in `gugd-home-social`. FSY è una prospettiva futura, non
 autorizza a cambiare adesso il modello GU/GD o a copiare dati reali in demo.
 
-- Poche informazioni essenziali per iniziare, salvando una bozza privata.
+- Poche informazioni essenziali per iniziare, salvando una bozza non pubblica.
 - Opzioni aggiuntive su richiesta dell'organizzatore, anche subito.
 - Sottoattività con propria partecipazione: la serata dei record dentro un
   viaggio è il caso concreto, da integrare senza rompere i link esistenti.
@@ -58,7 +58,7 @@ essere specificati e provati prima dell'implementazione.
 
 | Dati | Gestisce | Legge |
 | --- | --- | --- |
-| Attività / bozza | Admin del palo, poi responsabile delegato | Bozza solo organizzatori; pubblicata secondo il pubblico scelto |
+| Attività / bozza | Admin del palo, poi responsabile delegato | Bozza secondo i permessi staff esistenti; pubblicata secondo il pubblico scelto |
 | Momenti / partecipazioni | Organizzatori e titolare della partecipazione | Secondo pubblico e stato della spec Programma; nomi solo staff autorizzato |
 | Comitati / gruppi | Organizzatori con permesso pertinente | Iscritto vede ciò che lo riguarda; elenchi completi con permesso esplicito |
 | Stanze / condizioni / assegnazioni | Oggi solo admin, come ROOM_MANAGEMENT | Piano completo solo autorizzati; partecipante solo la propria stanza |
@@ -71,8 +71,9 @@ mantenuti dal server. Nessuna scrittura di collaudo in produzione.
 ## Blocchi di consegna
 
 1. Completare le verifiche S2 di Persone e appartenenza e preparare il rilascio.
-2. Creazione essenziale, bozza ritrovabile, opzioni su richiesta, anteprima e
-   pubblicazione esplicita. Primo incremento senza introdurre nuovi dati.
+2. Creazione essenziale, bozza persistente e ritrovabile, opzioni su richiesta,
+   anteprima e pubblicazione esplicita. Primo incremento senza nuovi campi o
+   collection: la bozza viene salvata nel modello esistente.
 3. Programma con momenti informativi e iscrizioni; adattatore per i record.
 4. Comitati con incarichi, gruppi dal nome configurabile, alloggi configurabili;
    estendere i percorsi attuali preservando gli eventi esistenti.
@@ -98,6 +99,27 @@ Un admin sintetico di un secondo palo, da telefono e senza console/script:
   verificati anche con chiamate dirette;
 - supera vuoto, caricamento, rete assente, doppio tocco, ritorno e conflitto;
   collaudo a 320/390/430 e confronto con mockup dai token reali.
+
+## Precisazioni della review del 26 ottobre
+
+- Le bozze oggi sono leggibili anche dai dirigenti di unità: primo incremento
+  con i permessi esistenti. Un futuro perimetro limitato ai soli organizzatori
+  richiede una verifica esplicita con S2 e i client già in uso.
+- Chiudere le nuove iscrizioni, nascondere e annullare un'attività sono azioni
+  diverse. Per ciascuna va specificato cosa vede chi ha il link o è già
+  iscritto, e come riaprire. Il primo incremento non introduce stati nuovi né
+  promette un ripristino automatico delle partecipazioni.
+- Prima del modulo gruppi/comitati, definire cardinalità delle appartenenze e
+  distinguere incarico e permesso. La rimozione mostra le assegnazioni
+  coinvolte e consente riassegnazione o ripristino senza toccare le iscrizioni.
+- Ridurre la capienza sotto gli occupanti produce un conflitto da risolvere,
+  senza espulsioni automatiche. Distinguere revisione preparata e comunicata;
+  correggere una comunicazione già ricevuta richiede una nuova indicazione,
+  non una promessa di cancellare la mail precedente.
+- Contratto della delega prima dei moduli: ambiti, durata, pubblicazione,
+  comunicazione e possibilità di ulteriore delega. Revoca durante un
+  salvataggio: rifiuto server comprensibile, nessuna scrittura parziale,
+  lavoro recuperabile dall'admin.
 
 ## Verifiche attuali
 
