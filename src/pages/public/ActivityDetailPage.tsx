@@ -11,6 +11,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
@@ -148,6 +149,8 @@ export function ActivityDetailPage() {
     [eventId, requestedStakeId, sessionKey],
     initialData,
   );
+  // Il conteggio dei record si legge solo da membro del palo dell'attività.
+  const { access: membershipAccess } = useStakeMembership(data.stakeId);
 
   if (!loading && !data.event) {
     return (
@@ -362,11 +365,7 @@ export function ActivityDetailPage() {
       {event?.recordsEnabled ? (
         <Suspense fallback={null}>
           <RecordNightEntryCard
-            canReadRecords={Boolean(
-              session?.isAuthenticated &&
-                !session.isAnonymous &&
-                (session.isAdmin || session.profile.stakeId === data.stakeId),
-            )}
+            canReadRecords={membershipAccess === "member"}
             event={event}
             stakeId={data.stakeId}
           />

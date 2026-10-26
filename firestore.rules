@@ -35,8 +35,11 @@ service cloud.firestore {
       return /databases/$(database)/documents/stakes/$(stakeId)/activities/$(activityId)/registrations/$(registrationId);
     }
 
+    // Profilo di un account vero. Usato solo per i poteri dello staff: una
+    // sessione anonima non è mai admin né dirigente, qualunque ruolo abbia il
+    // suo profilo.
     function currentUserExists() {
-      return isSignedIn() && exists(userDocPath(request.auth.uid));
+      return isNonAnonymousSignedIn() && exists(userDocPath(request.auth.uid));
     }
 
     function currentUser() {
@@ -68,14 +71,29 @@ service cloud.firestore {
     // Confine per unità: il dirigente vede solo documenti della propria unità.
     // Le query client devono filtrare con where('unitId', '==', <propria unità>)
     // perché la rule sia dimostrabile anche in list.
-    // Galleria foto/video dell'attività (docs/GALLERIA_ATTIVITA.md): la vede e
-    // la riempie solo chi ha un account nel palo, mai una sessione anonima né
-    // un utente di un altro palo. Staff = admin e dirigenti di unità del palo,
-    // ruoli assegnati da un admin.
-    function isStakeMember(stakeId) {
+    // Appartenenza al palo (docs/APPARTENENZA_AL_PALO.md parte B, «Contratto di
+    // autorizzazione»). `stakes/{s}/members/{uid}` lo scrive solo
+    // il server ed è l'unico documento che dice se qualcuno è dentro un palo:
+    // `users.stakeId` resta il palo scelto e non dà più nessun permesso.
+    function memberDocPath(stakeId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/members/$(request.auth.uid);
+    }
+
+    function isActiveStakeMember(stakeId) {
       return isNonAnonymousSignedIn()
-        && currentUserExists()
-        && (currentUser().stakeId == stakeId || currentUser().role == 'super_admin');
+        && exists(memberDocPath(stakeId))
+        && get(memberDocPath(stakeId)).data.status == 'active';
+    }
+
+    // Galleria, record, sondaggi (docs/GALLERIA_ATTIVITA.md): li vede chi è
+    // membro attivo del palo, mai una sessione anonima né un utente di un altro
+    // palo, oppure lo staff del palo (admin e dirigenti di unità, ruoli
+    // assegnati da un admin). Lo staff ha anche il proprio documento members
+    // attivo (migrazione, trigger sul ruolo): il ramo staff evita che un
+    // documento mancante tolga la galleria a chi la modera. Il documento members
+    // si legge per primo, così un membro attivo non paga la lettura del profilo.
+    function isStakeMember(stakeId) {
+      return isActiveStakeMember(stakeId) || isGalleryStaff(stakeId);
     }
 
     function isGalleryStaff(stakeId) {
@@ -154,6 +172,21 @@ service cloud.firestore {
     // Like: il contatore si muove di uno solo insieme al proprio doc like.
     function validLikeCountUpdate(stakeId, galleryId, mediaId) {
       let likePath = galleryMediaLikePath(stakeId, galleryId, mediaId);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
+        && (
+          (request.resource.data.likeCount == resource.data.likeCount + 1
+            && !exists(likePath) && existsAfter(likePath))
+          || (request.resource.data.likeCount == resource.data.likeCount - 1
+            && exists(likePath) && !existsAfter(likePath))
+        );
+    }
+
+    function feedPostDocPath(stakeId, postId) {
+      return /databases/$(database)/documents/stakes/$(stakeId)/feedPosts/$(postId);
+    }
+
+    function validFeedLikeCountUpdate(stakeId, postId) {
+      let likePath = /databases/$(database)/documents/stakes/$(stakeId)/feedPosts/$(postId)/likes/$(request.auth.uid);
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
         && (
           (request.resource.data.likeCount == resource.data.likeCount + 1
@@ -1374,7 +1407,19 @@ service cloud.firestore {
         );
     }
 
-    function canAdminAssignUserRole() {
+    // Un ruolo staff dà anche l'appartenenza (isStakeMember): non si assegna a
+    // chi è uscito dal palo, rifiutato, rimosso o bloccato. Prima va riattivato
+    // dalla coda (stakeMembership), poi promosso.
+    // Senza palo (`stakeId` vuoto) niente ruolo staff: i poteri valgono per un palo.
+    function canReceiveStaffRole(uid, stakeId) {
+      return stakeId != ''
+        && (
+          !exists(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid))
+          || get(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid)).data.status in ['pending', 'active']
+        );
+    }
+
+    function canAdminAssignUserRole(uid) {
       return currentUserExists()
         && validUserPayload(request.resource.data)
         && isStakeAdmin(resource.data.stakeId)
@@ -1395,7 +1440,12 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.lastLoginAt == resource.data.lastLoginAt
         && request.resource.data.updatedAt is string
-        && request.resource.data.role in ['participant', 'admin', 'unit_leader', 'parent'];
+        && request.resource.data.role in ['participant', 'admin', 'unit_leader', 'parent']
+        && (
+          !(request.resource.data.role in ['admin', 'unit_leader'])
+          || request.resource.data.role == resource.data.role
+          || canReceiveStaffRole(uid, resource.data.stakeId)
+        );
     }
 
     function validChildPayload(data) {
@@ -1431,7 +1481,7 @@ service cloud.firestore {
       allow list: if isStakeAdmin(resource.data.stakeId)
         || isUnitLeaderOfUnit(resource.data.stakeId, resource.data.unitId);
       allow create: if canCreateOwnUser(uid);
-      allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole();
+      allow update: if canUpdateOwnUser(uid) || canAdminAssignUserRole(uid);
       allow delete: if false;
 
       // Specchio delle gallerie sbloccate dall'utente. La scrittura avviene
@@ -1458,40 +1508,73 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isStakeAdmin(stakeId);
 
-      // Feed pubblico nell'home dell'app: post pubblicati visibili a chiunque (anche
-      // non loggati). Scrittura solo admin (di solito creato da Cloud Functions).
+      // Appartenenza al palo: scrive solo il server (callable stakeMembership,
+      // trigger, script di migrazione). Il titolare legge il proprio documento
+      // (anche quando non esiste: "non hai ancora chiesto"); l'admin del palo
+      // legge tutti; il dirigente di unità solo le persone che hanno dichiarato
+      // la sua unità, e la sua query deve filtrare where('claimedUnitId', '==',
+      // <propria unità>). Mai una query collectionGroup('members'): prenderebbe
+      // anche i vecchi `galleries/{g}/members` dei codici galleria.
+      match /members/{uid} {
+        allow get: if isSelf(uid)
+          || isStakeAdmin(stakeId)
+          || isUnitLeaderOfUnit(stakeId, resource.data.claimedUnitId);
+        allow list: if isStakeAdmin(stakeId)
+          || isUnitLeaderOfUnit(stakeId, resource.data.claimedUnitId);
+        allow create, update, delete: if false;
+
+        // Note dello staff ("stesso nome e data di un membro attivo"): mai al
+        // richiedente.
+        match /staff/{noteId} {
+          allow get: if isStakeAdmin(stakeId)
+            || isUnitLeaderOfUnit(
+              stakeId,
+              get(/databases/$(database)/documents/stakes/$(stakeId)/members/$(uid)).data.claimedUnitId
+            );
+          allow list: if isStakeAdmin(stakeId);
+          allow create, update, delete: if false;
+        }
+      }
+
+      // Feed nell'home dell'app: i post pubblicati (annunci, avvisi di galleria
+      // con soli id dei media, mai URL) li legge chiunque, anche senza login.
+      // Scrittura solo admin. Like e commenti sono dei membri del palo, come
+      // nella galleria: il contatore si muove di uno solo insieme al proprio
+      // doc like, nello stesso batch.
       match /feedPosts/{postId} {
         allow get, list: if (resource == null || resource.data.published == true) || isStakeAdmin(stakeId);
-        // Permettiamo update solo per likeCount (incremento) da utenti loggati,
-        // resto solo admin.
         allow update: if isStakeAdmin(stakeId)
-          || (
-            isSignedIn()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
-          );
+          || (isStakeMember(stakeId) && validFeedLikeCountUpdate(stakeId, postId));
         allow create, delete: if isStakeAdmin(stakeId);
 
+        // get del proprio like aperto a ogni account: la home lo legge per ogni
+        // post visibile, anche per chi è ancora in attesa di verifica.
         match /likes/{uid} {
           allow get: if isStakeAdmin(stakeId)
             || (isSignedIn() && request.auth.uid == uid);
           allow list: if isStakeAdmin(stakeId);
-          allow create, delete: if isSignedIn() && request.auth.uid == uid;
+          allow create: if isStakeMember(stakeId) && request.auth.uid == uid
+            && getAfter(feedPostDocPath(stakeId, postId)).data.likeCount
+              == get(feedPostDocPath(stakeId, postId)).data.likeCount + 1;
+          allow delete: if isStakeMember(stakeId) && request.auth.uid == uid
+            && getAfter(feedPostDocPath(stakeId, postId)).data.likeCount
+              == get(feedPostDocPath(stakeId, postId)).data.likeCount - 1;
           allow update: if false;
         }
 
         match /comments/{commentId} {
-          allow get, list: if isSignedIn();
-          allow create: if isSignedIn()
+          allow get, list: if isStakeMember(stakeId);
+          allow create: if isStakeMember(stakeId)
             && request.resource.data.uid == request.auth.uid
             && request.resource.data.body is string
             && request.resource.data.body.size() > 0
             && request.resource.data.body.size() <= 1000;
-          allow update: if isSignedIn()
+          allow update: if isStakeMember(stakeId)
             && resource.data.uid == request.auth.uid
             && request.resource.data.uid == resource.data.uid
             && request.resource.data.createdAt == resource.data.createdAt;
           allow delete: if isStakeAdmin(stakeId)
-            || (isSignedIn() && resource.data.uid == request.auth.uid);
+            || (isStakeMember(stakeId) && resource.data.uid == request.auth.uid);
         }
       }
 
@@ -1794,20 +1877,22 @@ service cloud.firestore {
             && hasOwnRegistration(stakeId, activityId);
         }
 
+        // Sondaggi dopo l'attività: li leggono e li compilano i membri attivi
+        // del palo e lo staff. L’accesso ospite è un’eccezione esplicita: solo
+        // attività pubbliche abilitate e domande attive, senza categoria o PII.
         match /surveyQuestions/{questionId} {
-          allow get, list: if isStakeAdmin(stakeId) || isNonAnonymousSignedIn()
+          allow get, list: if isStakeMember(stakeId)
             || (canUseGuestSurvey(stakeId, activityId) && resource.data.status == 'active');
           allow create, update, delete: if isStakeAdmin(stakeId);
         }
 
         match /surveyResponses/{responseId} {
-          // get aperto ai signed-in: serve a riprendere/aggiornare la propria
+          // get aperto ai membri: serve a riprendere/aggiornare la propria
           // bozza sondaggio (id casuale memorizzato in localStorage). Le risposte
           // sono anonime (no userId/anonymousUid). list resta solo admin.
-          allow get: if isStakeAdmin(stakeId) || isNonAnonymousSignedIn()
-            || canUseGuestSurvey(stakeId, activityId);
+          allow get: if isStakeMember(stakeId) || canUseGuestSurvey(stakeId, activityId);
           allow list: if isStakeAdmin(stakeId);
-          allow create: if (isNonAnonymousSignedIn()
+          allow create: if (isStakeMember(stakeId)
               || (canUseGuestSurvey(stakeId, activityId) && validGuestSurveyResponse()))
             && request.resource.data.eventId == activityId
             && request.resource.data.stakeId == stakeId
@@ -1819,7 +1904,7 @@ service cloud.firestore {
           // così nessun altro loggato può distruggere un invio definitivo
           // conoscendone l'id casuale. L'anonimato resta intatto (nessuna
           // identità è tracciata sul documento).
-          allow update: if (isNonAnonymousSignedIn()
+          allow update: if (isStakeMember(stakeId)
               || (canUseGuestSurvey(stakeId, activityId) && validGuestSurveyResponse()))
             && resource.data.isDraft == true
             && request.resource.data.eventId == activityId
@@ -1833,7 +1918,7 @@ service cloud.firestore {
         // Notte dei Record (docs/NOTTE_DEI_RECORD.md). Record e tentativi li scrive
         // solo la callable (Admin SDK): i client leggono e basta.
         // `records`: testi approvati da un admin ma scritti da minori, quindi mai
-        // senza login. I membri del palo (anche chi non è iscritto all'attività)
+        // senza login. I membri attivi del palo (anche chi non è iscritto all'attività)
         // leggono solo i record `open` e devono interrogare con
         // `where('status', '==', 'open')`; lo staff (admin, dirigenti di unità,
         // uid in elenco) legge tutto. Il client mostra poi solo quelli con
@@ -1842,10 +1927,8 @@ service cloud.firestore {
         // `result` contiene solo il nome del vincitore, mai l'elenco iscritti.
         match /records/{recordId} {
           allow get, list: if (
-              isNonAnonymousSignedIn()
-              && resource.data.status == 'open'
-              && currentUserExists()
-              && currentUser().stakeId == stakeId
+              resource.data.status == 'open'
+              && isStakeMember(stakeId)
             )
             || isRecordNightStaff(stakeId, activityId);
           allow create, update, delete: if false;

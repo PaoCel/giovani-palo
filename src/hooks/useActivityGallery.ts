@@ -1,29 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery } from "@/types";
 import { computeActivityUploadWindow, isGalleryUploadOpen } from "@/utils/galleryWindow";
+import { getAdminActionError } from "@/utils/adminErrors";
+import type { MemberAccess } from "@/utils/stakeMembership";
+import { PALO } from "@/copy/palo";
+import { PAROLE } from "@/copy/parole";
+
+const GALLERY_DENIED = PALO.soloMembriFoto;
 
 export interface ActivityGalleryAccess {
-  /** Utente con account nel palo: può vedere e (a finestra aperta) caricare. */
+  /** Membro attivo del palo (o staff): vede e, a finestra aperta, carica. */
   isMember: boolean;
   /** Admin o dirigente di unità del palo: toglie e modera. */
   isStaff: boolean;
   uid: string;
+  /** Perché non è membro: `waiting` e `out` hanno il loro testo, `loading` nessuno. */
+  access: MemberAccess;
 }
 
+// "Membro" viene da `stakes/{s}/members/{uid}` (docs/APPARTENENZA_AL_PALO.md,
+// «Client della fase 3»), mai da `users.stakeId`: stessa regola delle rules.
 export function useGalleryAccess(stakeId: string): ActivityGalleryAccess {
-  const { session } = useAuth();
-  const uid = session?.firebaseUser.uid ?? "";
-  if (!session?.isAuthenticated || session.isAnonymous || !stakeId) {
-    return { isMember: false, isStaff: false, uid };
-  }
-  const isSuperAdmin = session.profile.role === "super_admin";
-  const sameStake = session.profile.stakeId === stakeId;
-  const isMember = isSuperAdmin || sameStake;
-  const isStaff = isSuperAdmin || (sameStake && (session.isAdmin || session.isUnitLeader));
-  return { isMember, isStaff, uid };
+  const { access, isStaff, uid } = useStakeMembership(stakeId);
+  return { isMember: access === "member", isStaff, uid, access };
 }
 
 interface ActivityGalleryState {
@@ -55,6 +57,9 @@ export function useActivityGallery(
       setLoading(false);
       return undefined;
     }
+    // Attività nuova: via la galleria di prima, così un errore della lettura
+    // nuova non lascia a schermo (e come destinazione dei caricamenti) quella vecchia.
+    setGallery(null);
     setLoading(true);
     setError(null);
     return galleriesService.subscribeGalleryByActivity(
@@ -65,7 +70,9 @@ export function useActivityGallery(
         setLoading(false);
       },
       (subError) => {
-        setError(subError.message || "Impossibile caricare la galleria.");
+        // Mai il messaggio dell'SDK (in inglese): il diniego lo traduce la
+        // galleria, il resto è la frase di rete.
+        setError((subError as { code?: string }).code === "permission-denied" ? GALLERY_DENIED : PAROLE.erroreRete);
         setLoading(false);
       },
     );
@@ -79,9 +86,11 @@ export function useActivityGallery(
     Boolean(gallery && expected) &&
     gallery!.uploadsWindowSource !== "manual" &&
     (gallery!.uploadsOpenFrom !== expected!.fromMs || gallery!.uploadsOpenUntil !== expected!.untilMs);
+  // Dopo una lettura fallita non si sa se la galleria c'è: niente `ensure`.
   const needsEnsure =
     enabled &&
     !loading &&
+    !error &&
     ((windowOpenByDates && (!gallery || gallery.uploadsOpenUntil === null)) || windowStale);
 
   useEffect(() => {
@@ -90,11 +99,8 @@ export function useActivityGallery(
     if (ensuredRef.current === key) return;
     ensuredRef.current = key;
     galleriesService.ensureActivityGallery(stakeId, eventId).catch((ensureError: unknown) => {
-      setError(
-        ensureError instanceof Error && ensureError.message
-          ? ensureError.message
-          : "Impossibile aprire la galleria.",
-      );
+      // La callable risponde in italiano; i codici generici dell'SDK no.
+      setError(getAdminActionError(ensureError, "Impossibile aprire la galleria."));
     });
   }, [needsEnsure, stakeId, eventId]);
 

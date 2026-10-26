@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { LikeButton } from "@/components/feed/LikeButton";
-import { GalleryUnlockForm } from "@/components/feed/GalleryUnlockForm";
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
+import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { onCacheRevalidated } from "@/services/firestore/cacheFirst";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
-import { galleryUnlockService } from "@/services/firestore/galleryUnlockService";
 import { userActivitiesService, type UserActivityItem } from "@/services/firestore/userActivitiesService";
 import type { FeedPost, Gallery, GalleryMedia } from "@/types";
 import { isCampEvent, isPastEvent } from "@/utils/events";
 import { formatEventWindow } from "@/utils/formatters";
+import type { MemberAccess } from "@/utils/stakeMembership";
 import { eventsService } from "@/services/firestore/eventsService";
 
 interface HomeFeedProps {}
@@ -23,10 +24,6 @@ interface ActivityRefMap {
 
 interface MediaCacheMap {
   [galleryId: string]: GalleryMedia[];
-}
-
-interface UnlockedSet {
-  [galleryId: string]: true;
 }
 
 interface LikeState {
@@ -43,12 +40,16 @@ export function HomeFeed(_: HomeFeedProps) {
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId ?? "";
   const uid = session?.firebaseUser.uid ?? "";
+  // Gli annunci si leggono da tutti; foto, video e like sono dei membri del
+  // palo (docs/APPARTENENZA_AL_PALO.md): per gli altri quelle letture non
+  // partono e la galleria dice perché.
+  const { access } = useStakeMembership(stakeId);
+  const isMember = access === "member";
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [galleries, setGalleries] = useState<Record<string, Gallery>>({});
   const [activities, setActivities] = useState<ActivityRefMap>({});
   const [campChecklistActivities, setCampChecklistActivities] = useState<UserActivityItem[]>([]);
-  const [unlocked, setUnlocked] = useState<UnlockedSet>({});
   const [mediaByGallery, setMediaByGallery] = useState<MediaCacheMap>({});
   const [likes, setLikes] = useState<LikeState>({ posts: {}, media: {} });
   const [loading, setLoading] = useState(true);
@@ -57,11 +58,21 @@ export function HomeFeed(_: HomeFeedProps) {
   const [lightbox, setLightbox] = useState<
     { galleryId: string; media: GalleryMedia[]; index: number } | null
   >(null);
+  // Alla revoca il visualizzatore si chiude e dimentica i media già aperti.
+  useEffect(() => {
+    if (!isMember) setLightbox(null);
+  }, [isMember]);
 
   const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!stakeId || !uid) {
       setPosts([]);
       setLoading(false);
+      return;
+    }
+    // Finché non si sa se è membro non parte nessuna lettura (niente lampo di
+    // "si sbloccano" né richieste negate).
+    if (access === "loading") {
+      if (!options?.silent) setLoading(true);
       return;
     }
     // Il refresh silenzioso (revalidazione cache-first) non mostra lo
@@ -102,12 +113,6 @@ export function HomeFeed(_: HomeFeedProps) {
         ),
       );
 
-      // Niente più codice galleria: tutte le gallerie del feed sono
-      // automaticamente accessibili a chi è loggato.
-      const unlockedMap: UnlockedSet = {};
-      for (const id of galleryIds) {
-        unlockedMap[id] = true;
-      }
       const activityIds = Array.from(
         new Set(
           visibleFeedPosts
@@ -117,11 +122,13 @@ export function HomeFeed(_: HomeFeedProps) {
       );
 
       const [galleryDocs, activityDocs] = await Promise.all([
-        Promise.all(
-          galleryIds.map((id) =>
-            galleriesService.getGallery(stakeId, id).catch(() => null),
-          ),
-        ),
+        isMember
+          ? Promise.all(
+              galleryIds.map((id) =>
+                galleriesService.getGallery(stakeId, id).catch(() => null),
+              ),
+            )
+          : Promise.resolve([] as (Gallery | null)[]),
         Promise.all(activityIds.map((id) => eventsService.getEventById(stakeId, id).catch(() => null))),
       ]);
 
@@ -129,9 +136,6 @@ export function HomeFeed(_: HomeFeedProps) {
       galleryDocs.forEach((gallery) => {
         if (gallery) {
           galleryMap[gallery.id] = gallery;
-          if (gallery.accessMode === "open") {
-            unlockedMap[gallery.id] = true;
-          }
         }
       });
 
@@ -149,14 +153,11 @@ export function HomeFeed(_: HomeFeedProps) {
       const galleryPosts = visibleFeedPosts.filter(
         (post) => post.type === "gallery" && post.galleryId,
       );
-      const unlockedGalleryPosts = galleryPosts.filter(
-        (post) => post.galleryId && unlockedMap[post.galleryId],
-      );
 
       const mediaCache: MediaCacheMap = {};
       await Promise.all(
-        unlockedGalleryPosts.map(async (post) => {
-          if (!post.galleryId) return;
+        galleryPosts.map(async (post) => {
+          if (!isMember || !post.galleryId) return;
           if (!mediaCache[post.galleryId]) {
             mediaCache[post.galleryId] = await galleriesService
               .listMedia(stakeId, post.galleryId)
@@ -168,7 +169,9 @@ export function HomeFeed(_: HomeFeedProps) {
       const likedPosts = await Promise.all(
         visibleFeedPosts.map(async (post) => ({
           id: post.id,
-          liked: await feedService.hasUserLikedPost(stakeId, post.id, uid).catch(() => false),
+          liked: isMember
+            ? await feedService.hasUserLikedPost(stakeId, post.id, uid).catch(() => false)
+            : false,
         })),
       );
       const postLikes: Record<string, boolean> = {};
@@ -180,7 +183,6 @@ export function HomeFeed(_: HomeFeedProps) {
       setCampChecklistActivities(checklistActivities);
       setGalleries(galleryMap);
       setActivities(activityMap);
-      setUnlocked(unlockedMap);
       setMediaByGallery(mediaCache);
       setLikes((prev) => ({ ...prev, posts: postLikes }));
     } catch (caughtError) {
@@ -189,7 +191,6 @@ export function HomeFeed(_: HomeFeedProps) {
         setCampChecklistActivities([]);
         setGalleries({});
         setActivities({});
-        setUnlocked({});
         setMediaByGallery({});
         setLikes((prev) => ({ ...prev, posts: {} }));
         return;
@@ -203,7 +204,7 @@ export function HomeFeed(_: HomeFeedProps) {
     } finally {
       setLoading(false);
     }
-  }, [session, stakeId, uid]);
+  }, [access, isMember, session, stakeId, uid]);
 
   useEffect(() => {
     void refresh();
@@ -213,26 +214,9 @@ export function HomeFeed(_: HomeFeedProps) {
   // quando il refresh in background trova dati diversi sul server, ricarica.
   useEffect(() => onCacheRevalidated(() => void refresh({ silent: true })), [refresh]);
 
-  const handleUnlock = useCallback(
-    async (galleryId: string, code: string) => {
-      if (!stakeId) {
-        return { success: false, message: "Sessione non disponibile." };
-      }
-      const result = await galleryUnlockService.unlock({ stakeId, galleryId, code });
-      if (!result.success) {
-        return { success: false, message: result.message ?? "Codice non valido." };
-      }
-      setUnlocked((prev) => ({ ...prev, [galleryId]: true }));
-      const media = await galleriesService.listMedia(stakeId, galleryId).catch(() => []);
-      setMediaByGallery((prev) => ({ ...prev, [galleryId]: media }));
-      return { success: true };
-    },
-    [stakeId],
-  );
-
   const handleTogglePostLike = useCallback(
     async (post: FeedPost) => {
-      if (!stakeId || !uid) return;
+      if (!stakeId || !uid || !isMember) return;
       const wasLiked = likes.posts[post.id] === true;
       try {
         if (wasLiked) {
@@ -258,12 +242,12 @@ export function HomeFeed(_: HomeFeedProps) {
         console.error("Like fallito", likeError);
       }
     },
-    [stakeId, uid, likes.posts],
+    [stakeId, uid, isMember, likes.posts],
   );
 
   const handleToggleMediaLike = useCallback(
     async (media: GalleryMedia) => {
-      if (!stakeId || !uid) return;
+      if (!stakeId || !uid || !isMember) return;
       const wasLiked = likes.media[media.id] === true;
       try {
         if (wasLiked) {
@@ -294,7 +278,7 @@ export function HomeFeed(_: HomeFeedProps) {
         console.error("Like media fallito", likeError);
       }
     },
-    [stakeId, uid, likes.media],
+    [stakeId, uid, isMember, likes.media],
   );
 
   const lightboxMediaIsLiked = useCallback(
@@ -348,6 +332,7 @@ export function HomeFeed(_: HomeFeedProps) {
                   key={post.id}
                   post={post}
                   liked={liked}
+                  canLike={isMember}
                   onToggleLike={() => handleTogglePostLike(post)}
                 />
               );
@@ -359,13 +344,13 @@ export function HomeFeed(_: HomeFeedProps) {
                   post={post}
                   activity={post.activityId ? activities[post.activityId] : undefined}
                   liked={liked}
+                  canLike={isMember}
                   onToggleLike={() => handleTogglePostLike(post)}
                 />
               );
             }
             if (post.type === "gallery" && post.galleryId) {
               const gallery = galleries[post.galleryId];
-              const isUnlocked = Boolean(unlocked[post.galleryId]);
               const allMedia = mediaByGallery[post.galleryId] ?? [];
               const postMedia = post.mediaIds
                 .map((mediaId) => allMedia.find((media) => media.id === mediaId))
@@ -375,13 +360,10 @@ export function HomeFeed(_: HomeFeedProps) {
                   key={post.id}
                   post={post}
                   gallery={gallery}
-                  unlocked={isUnlocked}
                   media={postMedia}
                   liked={liked}
+                  access={access}
                   onToggleLike={() => handleTogglePostLike(post)}
-                  onUnlock={(code) =>
-                    handleUnlock(post.galleryId as string, code)
-                  }
                   onOpenMedia={(index) =>
                     setLightbox({
                       galleryId: post.galleryId as string,
@@ -398,7 +380,7 @@ export function HomeFeed(_: HomeFeedProps) {
         </div>
       </div>
 
-      {lightbox ? (
+      {lightbox && isMember ? (
         <MediaLightbox
           media={lightbox.media}
           initialIndex={lightbox.index}
@@ -435,10 +417,12 @@ function CampChecklistFeedCard({ event }: { event: UserActivityItem["event"] }) 
 interface AnnouncementCardProps {
   post: FeedPost;
   liked: boolean;
+  /** I like sono dei membri del palo: per gli altri il pulsante non c'è. */
+  canLike: boolean;
   onToggleLike: () => Promise<void>;
 }
 
-function AnnouncementCard({ post, liked, onToggleLike }: AnnouncementCardProps) {
+function AnnouncementCard({ post, liked, canLike, onToggleLike }: AnnouncementCardProps) {
   return (
     <article className="card feed-card feed-card--announcement">
       <header className="feed-card__header">
@@ -452,9 +436,11 @@ function AnnouncementCard({ post, liked, onToggleLike }: AnnouncementCardProps) 
           {post.ctaLabel}
         </a>
       ) : null}
-      <footer className="feed-card__footer">
-        <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
-      </footer>
+      {canLike ? (
+        <footer className="feed-card__footer">
+          <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
+        </footer>
+      ) : null}
     </article>
   );
 }
@@ -463,6 +449,7 @@ interface ActivityReminderCardProps {
   post: FeedPost;
   activity?: { title: string; window: string; location: string };
   liked: boolean;
+  canLike: boolean;
   onToggleLike: () => Promise<void>;
 }
 
@@ -470,6 +457,7 @@ function ActivityReminderCard({
   post,
   activity,
   liked,
+  canLike,
   onToggleLike,
 }: ActivityReminderCardProps) {
   return (
@@ -496,9 +484,11 @@ function ActivityReminderCard({
           </Link>
         ) : null}
       </div>
-      <footer className="feed-card__footer">
-        <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
-      </footer>
+      {canLike ? (
+        <footer className="feed-card__footer">
+          <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
+        </footer>
+      ) : null}
     </article>
   );
 }
@@ -506,11 +496,11 @@ function ActivityReminderCard({
 interface GalleryCardProps {
   post: FeedPost;
   gallery?: Gallery;
-  unlocked: boolean;
   media: GalleryMedia[];
   liked: boolean;
+  /** Chi non è membro vede il titolo e la frase del palo, mai i media. */
+  access: MemberAccess;
   onToggleLike: () => Promise<void>;
-  onUnlock: (code: string) => Promise<{ success: boolean; message?: string }>;
   onOpenMedia: (index: number) => void;
   isMediaLiked: (mediaId: string) => boolean;
 }
@@ -518,13 +508,13 @@ interface GalleryCardProps {
 function GalleryCard({
   post,
   gallery,
-  unlocked,
   media,
   liked,
+  access,
   onToggleLike,
-  onUnlock,
   onOpenMedia,
 }: GalleryCardProps) {
+  const isMember = access === "member";
   const totalBatches = useMemo(() => {
     if (!gallery) return null;
     if (gallery.mediaCount === 0) return null;
@@ -540,75 +530,60 @@ function GalleryCard({
       <h3 className="feed-card__title">{post.title || gallery?.title || "Galleria"}</h3>
       {post.body ? <p className="feed-card__body">{post.body}</p> : null}
 
-      {!unlocked ? (
-        <div className="gallery-card__locked">
-          <div
-            className="gallery-card__cover gallery-card__cover--locked"
-            style={{
-              backgroundImage: gallery?.coverImageUrl
-                ? `url(${gallery.coverImageUrl})`
-                : undefined,
-            }}
-          >
-            <div className="gallery-card__lock-badge">🔒</div>
-          </div>
-          <p className="feed-card__hint">
-            Inserisci il codice ricevuto dai responsabili per vedere foto e video.
-          </p>
-          <GalleryUnlockForm onUnlock={onUnlock} />
-        </div>
-      ) : (
-        <div className="gallery-card__unlocked">
-          {media.length > 0 ? (
-            <>
-              <div className="gallery-carousel" role="list">
-                {media.map((item, index) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="gallery-carousel__item"
-                    onClick={() => onOpenMedia(index)}
-                    role="listitem"
-                    aria-label={`Apri ${item.type === "video" ? "video" : "foto"} ${index + 1} di ${media.length}`}
-                  >
-                    {item.type === "image" ? (
+      <div className="gallery-card__content">
+        {!isMember ? (
+          <MemberLockedNote access={access} kind="foto" />
+        ) : media.length > 0 ? (
+          <>
+            <div className="gallery-carousel" role="list">
+              {media.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="gallery-carousel__item"
+                  onClick={() => onOpenMedia(index)}
+                  role="listitem"
+                  aria-label={`Apri ${item.type === "video" ? "video" : "foto"} ${index + 1} di ${media.length}`}
+                >
+                  {item.type === "image" ? (
+                    <img
+                      src={item.thumbnailUrl ?? item.optimizedUrl ?? item.storageUrl ?? ""}
+                      alt={item.caption || `Foto ${index + 1}`}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <>
                       <img
-                        src={item.thumbnailUrl ?? item.optimizedUrl ?? item.storageUrl ?? ""}
-                        alt={item.caption || `Foto ${index + 1}`}
+                        src={item.posterUrl ?? item.thumbnailUrl ?? ""}
+                        alt={item.caption || `Video ${index + 1}`}
                         loading="lazy"
                       />
-                    ) : (
-                      <>
-                        <img
-                          src={item.posterUrl ?? item.thumbnailUrl ?? ""}
-                          alt={item.caption || `Video ${index + 1}`}
-                          loading="lazy"
-                        />
-                        <span className="gallery-carousel__play" aria-hidden="true">▶</span>
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="gallery-card__meta-row">
-                <span className="gallery-card__counter">
-                  {post.galleryBatchIndex !== null && totalBatches && totalBatches > 1
-                    ? `Parte ${post.galleryBatchIndex + 1}/${totalBatches} · ${media.length} elementi`
-                    : `${media.length} elementi`}
-                </span>
-              </div>
-            </>
-          ) : (
-            <p className="subtle-text">
-              La galleria è stata sbloccata, ma non ci sono ancora media in questo gruppo.
-            </p>
-          )}
-        </div>
-      )}
+                      <span className="gallery-carousel__play" aria-hidden="true">▶</span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="gallery-card__meta-row">
+              <span className="gallery-card__counter">
+                {post.galleryBatchIndex !== null && totalBatches && totalBatches > 1
+                  ? `Parte ${post.galleryBatchIndex + 1}/${totalBatches} · ${media.length} elementi`
+                  : `${media.length} elementi`}
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="subtle-text">
+            Non ci sono ancora media in questo gruppo.
+          </p>
+        )}
+      </div>
 
-      <footer className="feed-card__footer">
-        <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
-      </footer>
+      {isMember ? (
+        <footer className="feed-card__footer">
+          <LikeButton liked={liked} count={post.likeCount} onToggle={onToggleLike} />
+        </footer>
+      ) : null}
     </article>
   );
 }

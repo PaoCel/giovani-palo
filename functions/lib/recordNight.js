@@ -1839,6 +1839,22 @@ async function participantContext({ tx, refs, firestore, uid, stakeId }) {
 }
 
 const ENTRY_ACTIONS = new Set(["edit", "withdraw", "restore"]);
+// S2-2 (docs/APPARTENENZA_AL_PALO.md, «Callable»): proporre e sfidare un record
+// è dei membri del palo, come leggere i record aperti. Modificare, ritirare e
+// rimettere i propri tentativi resta a tutti, così chi esce dal palo può
+// ancora ritirarsi.
+const MEMBER_ACTIONS = new Set(["propose", "challenge"]);
+
+// Membro = `stakes/{stakeId}/members/{uid}` attivo, scritto solo dal server;
+// lo staff del palo (ruolo nel profilo) lo è comunque, come nelle rules
+// (isStakeMember). `users.stakeId` da solo non basta più.
+async function assertStakeMemberInTx(tx, firestore, uid, stakeId) {
+  const profileSnap = await tx.get(firestore.doc(`users/${uid}`));
+  if (resolveStaffAccess(profileSnap.exists ? profileSnap.data() : null, stakeId, uid, null, null)) return;
+  const memberSnap = await tx.get(firestore.doc(`stakes/${stakeId}/members/${uid}`));
+  if (memberSnap.exists && memberSnap.data().status === "active") return;
+  throw new HttpsError("permission-denied", "Proporre e sfidare i record è per i membri del palo.");
+}
 
 function createRecordNightParticipantHandler({ db, clock = () => new Date() } = {}) {
   return async (request) => {
@@ -1883,6 +1899,7 @@ function createRecordNightParticipantHandler({ db, clock = () => new Date() } = 
       if (registrationId.startsWith("child_") && typeof registration.parentUid === "string" && registration.parentUid !== uid) {
         throw new HttpsError("permission-denied", "Non puoi agire per questa iscrizione.");
       }
+      if (MEMBER_ACTIONS.has(input.action)) await assertStakeMemberInTx(tx, firestore, uid, input.stakeId);
       const entries = await readEntriesOfRegistration(tx, refs, registrationId);
       return PARTICIPANT_ACTIONS[input.action]({
         tx,

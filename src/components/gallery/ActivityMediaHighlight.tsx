@@ -6,6 +6,7 @@ import "@/styles/activityGallery.css";
 import { AppIcon } from "@/components/AppIcon";
 import { CampHighlightCard } from "@/components/camp/CampHighlightCard";
 import { activityMediaPath } from "@/components/gallery/ActivityMediaCard";
+import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +16,7 @@ import { eventsService } from "@/services/firestore/eventsService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, GalleryMedia } from "@/types";
 import { isActivityLive, isGalleryUploadOpen } from "@/utils/galleryWindow";
+import type { MemberAccess } from "@/utils/stakeMembership";
 
 async function resolveLiveActivity(stakeId: string): Promise<Event | null> {
   if (!stakeId) return null;
@@ -29,23 +31,50 @@ async function resolveLiveActivity(stakeId: string): Promise<Event | null> {
 }
 
 /**
- * Card home di tutti i ruoli. Durante un'attività (e per 7 giorni dopo) invita
- * a caricare foto e video; altrimenti mostra la card dell'ultimo campeggio.
+ * Card home dei membri del palo. Durante un'attività (e per 7 giorni dopo)
+ * invita a caricare foto e video; altrimenti mostra la card dell'ultimo
+ * campeggio. A chi aspetta la verifica o è fuori dal palo, durante
+ * un'attività, mostra la card chiusa con il motivo; altrimenti niente.
  */
 export function ActivityMediaHighlight() {
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId || DEFAULT_STAKE_ID;
-  const { isMember } = useGalleryAccess(stakeId);
+  const { isMember, access } = useGalleryAccess(stakeId);
+  const locked = access === "waiting" || access === "out";
   const sessionKey = session ? `${session.firebaseUser.uid}:${stakeId}` : "none";
 
   const { data: live } = useAsyncData<Event | null>(
-    () => (isMember ? resolveLiveActivity(stakeId) : Promise.resolve(null)),
-    [sessionKey, isMember],
+    // Le attività pubbliche le legge chiunque: la card chiusa non tocca la galleria.
+    () => (isMember || locked ? resolveLiveActivity(stakeId) : Promise.resolve(null)),
+    [sessionKey, isMember, locked],
     null,
   );
 
+  // Chi non è membro non legge la galleria: durante un'attività vede la card
+  // chiusa con il motivo, altrimenti niente (il banner spiega il resto).
+  if (locked) return live ? <LockedActivityCard access={access} event={live} /> : null;
+  if (!isMember) return null;
   if (!live) return <CampHighlightCard />;
   return <LiveActivityCard stakeId={stakeId} event={live} />;
+}
+
+function LockedActivityCard({ access, event }: { access: MemberAccess; event: Event }) {
+  return (
+    <section className="dash-section">
+      <article className="mship-locked-card">
+        <div className="mship-locked-card__head">
+          <strong>Foto e video</strong>
+          <span>{event.title}</span>
+        </div>
+        <div aria-hidden="true" className="mship-locked-card__ph">
+          <i />
+          <i />
+          <i />
+        </div>
+        <MemberLockedNote access={access} kind="foto" />
+      </article>
+    </section>
+  );
 }
 
 function LiveActivityCard({ stakeId, event }: { stakeId: string; event: Event }) {

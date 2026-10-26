@@ -24,7 +24,6 @@ import type {
   Gallery,
   GalleryMedia,
   GalleryMediaType,
-  GalleryMember,
   GalleryReportReason,
   GalleryWriteInput,
   HiddenGalleryMedia,
@@ -55,14 +54,6 @@ function mediaCollection(stakeId: string, galleryId: string) {
 
 function mediaDoc(stakeId: string, galleryId: string, mediaId: string) {
   return doc(mediaCollection(stakeId, galleryId), mediaId);
-}
-
-function membersCollection(stakeId: string, galleryId: string) {
-  return collection(galleryDoc(stakeId, galleryId), "members");
-}
-
-function memberDoc(stakeId: string, galleryId: string, uid: string) {
-  return doc(membersCollection(stakeId, galleryId), uid);
 }
 
 // La finestra di caricamento è un Timestamp Firestore (la confrontano le rules).
@@ -102,11 +93,11 @@ function mapGallery(stakeId: string, id: string, data: Record<string, unknown>):
     coverImageUrl: typeof data.coverImageUrl === "string" ? data.coverImageUrl : null,
     mediaCount: typeof data.mediaCount === "number" ? data.mediaCount : 0,
     batchSize: typeof data.batchSize === "number" ? data.batchSize : GALLERY_BATCH_SIZE,
-    accessMode: data.accessMode === "open" ? "open" : "code_required",
+    // Non c'è più il codice galleria: l'accesso lo decide l'appartenenza al palo.
+    accessMode: "open",
     likeCount: typeof data.likeCount === "number" ? data.likeCount : 0,
     commentsEnabled: false,
     postsCreated: data.postsCreated === true,
-    codeStatus: data.codeStatus === "set" ? "set" : "missing",
     uploadsClosed: data.uploadsClosed === true,
     uploadsOpenFrom: timestampMs(data.uploadsOpenFrom),
     uploadsOpenUntil: timestampMs(data.uploadsOpenUntil),
@@ -194,17 +185,6 @@ function mapMedia(
   };
 }
 
-function mapMember(uid: string, data: Record<string, unknown>): GalleryMember {
-  return {
-    uid,
-    email: typeof data.email === "string" ? data.email : null,
-    displayName: typeof data.displayName === "string" ? data.displayName : null,
-    unlockedAt: typeof data.unlockedAt === "string" ? data.unlockedAt : nowIso(),
-    unlockedBy: data.unlockedBy === "admin" ? "admin" : "code",
-    source: data.source === "admin_manual" ? "admin_manual" : "home_code_prompt",
-  };
-}
-
 export const galleriesService = {
   GALLERY_BATCH_SIZE,
 
@@ -254,11 +234,13 @@ export const galleriesService = {
       coverImageUrl: input.coverImageUrl ?? null,
       mediaCount: 0,
       batchSize: GALLERY_BATCH_SIZE,
+      // Va scritto sempre: la PWA vecchia, ancora in cache sui telefoni, tratta
+      // come `code_required` una galleria senza accessMode e la nasconde dietro
+      // il codice.
       accessMode: "open" as const,
       likeCount: 0,
       commentsEnabled: false,
       postsCreated: false,
-      codeStatus: "missing" as const,
     };
     await setDoc(ref, payload);
     return mapGallery(stakeId, ref.id, payload);
@@ -279,7 +261,6 @@ export const galleriesService = {
       "published",
       "publishedAt",
       "postsCreated",
-      "codeStatus",
     ] as const) {
       if (key in patch) allowed[key] = (patch as Record<string, unknown>)[key];
     }
@@ -322,17 +303,6 @@ export const galleriesService = {
       snapshot.docs.map((d) => mapGallery(stakeId, d.id, d.data())),
       activityId,
     );
-  },
-
-  async markCodeStatus(
-    stakeId: string,
-    galleryId: string,
-    status: "set" | "missing",
-  ): Promise<void> {
-    await updateDoc(galleryDoc(stakeId, galleryId), {
-      codeStatus: status,
-      updatedAt: nowIso(),
-    });
   },
 
   async setCover(
@@ -656,75 +626,6 @@ export const galleriesService = {
         updatedAt: nowIso(),
       });
     });
-  },
-
-  async getMember(
-    stakeId: string,
-    galleryId: string,
-    uid: string,
-  ): Promise<GalleryMember | null> {
-    if (!uid) return null;
-    const snap = await getDocCacheFirst(memberDoc(stakeId, galleryId, uid));
-    if (!snap.exists()) return null;
-    return mapMember(snap.id, snap.data());
-  },
-
-  async listMembers(stakeId: string, galleryId: string): Promise<GalleryMember[]> {
-    const snapshot = await getDocsCacheFirst(membersCollection(stakeId, galleryId));
-    return snapshot.docs.map((d) => mapMember(d.id, d.data()));
-  },
-
-  async addMemberAsAdmin(
-    stakeId: string,
-    galleryId: string,
-    uid: string,
-    profile: { email?: string | null; displayName?: string | null },
-  ): Promise<void> {
-    const ts = nowIso();
-    await setDoc(
-      memberDoc(stakeId, galleryId, uid),
-      {
-        uid,
-        email: profile.email ?? null,
-        displayName: profile.displayName ?? null,
-        unlockedAt: ts,
-        unlockedBy: "admin",
-        source: "admin_manual",
-      },
-      { merge: true },
-    );
-    await setDoc(
-      doc(db, "users", uid, "unlockedGalleries", galleryId),
-      { galleryId, stakeId, unlockedAt: ts },
-      { merge: true },
-    );
-  },
-
-  async removeMember(
-    stakeId: string,
-    galleryId: string,
-    uid: string,
-  ): Promise<void> {
-    await deleteDoc(memberDoc(stakeId, galleryId, uid));
-    await deleteDoc(doc(db, "users", uid, "unlockedGalleries", galleryId)).catch(
-      () => undefined,
-    );
-  },
-
-  // Used by client touch when admin-only is not available; mirrors function logic.
-  // Server-authoritative path is unlockGalleryWithCode callable.
-  async listUnlockedForUser(uid: string): Promise<{ galleryId: string; stakeId: string }[]> {
-    if (!uid) return [];
-    const snap = await getDocsCacheFirst(collection(db, "users", uid, "unlockedGalleries"));
-    return snap.docs
-      .map((d) => {
-        const data = d.data();
-        return {
-          galleryId: d.id,
-          stakeId: typeof data.stakeId === "string" ? data.stakeId : "",
-        };
-      })
-      .filter((entry) => Boolean(entry.stakeId));
   },
 
   serverTimestampToken: serverTimestamp,

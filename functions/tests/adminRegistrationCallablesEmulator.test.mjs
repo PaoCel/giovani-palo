@@ -22,10 +22,12 @@
 // Callable vere (SDK client → Functions emulator) con utenti dell'Auth emulator;
 // le correzioni dell'admin passano dalle rules con le chiamate del client.
 //
-// Rilancio dalla radice del repository (Auth, Firestore e Functions emulati;
-// functions/.secret.local con BREVO_API_KEY= e WEB_PUSH_PRIVATE_KEY= vuoti):
+// Rilancio dalla radice del repository (Auth, Firestore, Functions e Storage
+// emulati: la firma scrive l'immagine su Storage, e senza l'emulatore le
+// Functions provano il bucket vero; functions/.secret.local con
+// BREVO_API_KEY= e WEB_PUSH_PRIVATE_KEY= vuoti):
 //   JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
-//   firebase emulators:exec --only auth,firestore,functions --config firebase.room-test.json --project demo-admin-callables \
+//   firebase emulators:exec --only auth,firestore,functions,storage --config firebase.multistake-test.json --project demo-admin-callables \
 //     'node --test --test-concurrency=1 functions/tests/adminRegistrationCallablesEmulator.test.mjs'
 // Le mail sono simulate (nessuna EMAIL_ALLOWLIST negli emulatori).
 import { after, before, describe, test } from "node:test";

@@ -13,6 +13,8 @@ const { getStorage } = require("firebase-admin/storage");
 const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
+const { runTransactionWithRetry } = require("./transactionRetry");
+
 const REGION = "europe-west1";
 
 // La card compare un po' prima dell'inizio (ritrovo) e resta aperta una
@@ -51,25 +53,6 @@ function rewriteDownloadUrl(url, tokensByPath) {
   }
 }
 
-// Due transazioni sullo stesso doc (due segnalazioni insieme): Firestore fa
-// perdere una delle due, che l'SDK ritenta solo se il codice è ABORTED.
-// L'emulatore risponde invece INVALID_ARGUMENT "Transaction is invalid or
-// closed": si ritenta anche quello, poche volte, e l'altra lettura vede lo
-// stato vincente (already_hidden).
-async function runTransactionWithRetry(db, fn, attempts = 4) {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await db.runTransaction(fn);
-    } catch (error) {
-      const retryable =
-        error?.code === 10 ||
-        (error?.code === 3 && /transaction is invalid or closed/i.test(String(error?.details ?? error?.message)));
-      if (!retryable || attempt >= attempts) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 150 * attempt + Math.floor(Math.random() * 150)));
-    }
-  }
-}
-
 function galleryIdForActivity(activityId) {
   return `act_${activityId}`;
 }
@@ -100,16 +83,21 @@ function isWindowOpen(window, nowMs) {
 }
 
 /**
- * Ruolo nella galleria del palo. "staff" = admin del palo o dirigente di
- * unità del palo (ruoli assegnati da un admin, mai autodichiarati).
+ * Ruolo nella galleria del palo, con la stessa regola delle rules
+ * (isStakeMember, docs/APPARTENENZA_AL_PALO.md «Contratto di
+ * autorizzazione»). "staff" = admin del palo o dirigente di unità del palo,
+ * ruoli assegnati da un admin e letti dal profilo; "member" = documento
+ * `stakes/{stakeId}/members/{uid}` attivo, scritto solo dal server.
+ * `users.stakeId` da solo non basta più: è il palo scelto, non l'appartenenza.
  */
-function resolveGalleryRole({ profile, stakeId, isAnonymous }) {
-  if (isAnonymous || !profile) return null;
-  const role = profile.role;
-  if (role === "super_admin") return "staff";
-  if (profile.stakeId !== stakeId) return null;
-  if (role === "admin" || role === "unit_leader") return "staff";
-  return "member";
+function resolveGalleryRole({ profile, member, stakeId, isAnonymous }) {
+  if (isAnonymous) return null;
+  if (profile) {
+    const role = profile.role;
+    if (role === "super_admin") return "staff";
+    if (profile.stakeId === stakeId && (role === "admin" || role === "unit_leader")) return "staff";
+  }
+  return member && member.status === "active" ? "member" : null;
 }
 
 function cleanId(value, field) {
@@ -124,15 +112,20 @@ async function loadRole(db, request, stakeId) {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Accedi per vedere foto e video.");
   }
+  const uid = request.auth.uid;
   const isAnonymous = request.auth.token?.firebase?.sign_in_provider === "anonymous";
-  const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const [userSnap, memberSnap] = await db.getAll(
+    db.doc(`users/${uid}`),
+    db.doc(`stakes/${stakeId}/members/${uid}`),
+  );
   const role = resolveGalleryRole({
     profile: userSnap.exists ? userSnap.data() : null,
+    member: memberSnap.exists ? memberSnap.data() : null,
     stakeId,
     isAnonymous,
   });
   if (!role) {
-    throw new HttpsError("permission-denied", "Foto e video sono visibili solo agli iscritti del palo.");
+    throw new HttpsError("permission-denied", "Foto e video sono visibili solo ai membri del palo.");
   }
   return role;
 }
@@ -215,7 +208,6 @@ async function ensureGallery(db, { stakeId, activityId, role, uid, nowMs }) {
       likeCount: 0,
       commentsEnabled: false,
       postsCreated: false,
-      codeStatus: "missing",
       uploadsClosed: false,
       uploadsWindowSource: "activity",
       ...windowFields(window),

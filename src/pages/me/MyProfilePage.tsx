@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
 import { UserPageIntro } from "@/components/UserPageIntro";
 import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
@@ -175,6 +176,7 @@ export function MyProfilePage() {
           <div className="surface-panel surface-panel--subtle">
             <strong>Palo</strong>
             <p>{organization?.stakeName || session.profile.stakeName || "Non definito"}</p>
+            <StakeMembershipStatus stakeName={organization?.stakeName || session.profile.stakeName} />
           </div>
           <div className="surface-panel surface-panel--subtle">
             <strong>Email</strong>

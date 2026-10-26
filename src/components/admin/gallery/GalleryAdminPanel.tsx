@@ -20,7 +20,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { deleteMediaPath } from "@/services/firebase/galleryUploadService";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
-import { gallerySecretsService } from "@/services/firestore/gallerySecretsService";
 import type { Gallery, GalleryMedia } from "@/types";
 import { getAdminActionError } from "@/utils/adminErrors";
 import { withWriteTimeout } from "@/utils/writeTimeout";
@@ -53,8 +52,6 @@ export function GalleryAdminPanel({
   const [error, setError] = useState<string | null>(null);
 
   const [selected, setSelected] = useState<GalleryMedia | null>(null);
-  const [codeModalOpen, setCodeModalOpen] = useState(false);
-  const [newCode, setNewCode] = useState("");
 
   const [infoModalOpen, setInfoModalOpen] = useState(false);
   const [editTitle, setEditTitle] = useState(gallery.title);
@@ -135,30 +132,6 @@ export function GalleryAdminPanel({
       setError(caughtError instanceof Error ? caughtError.message : "Errore.");
     } finally {
       setSavingInfo(false);
-    }
-  }
-
-  async function handleSetCode(submitEvent: FormEvent<HTMLFormElement>) {
-    submitEvent.preventDefault();
-    if (newCode.trim().length < 4) return;
-    setWorking(true);
-    setError(null);
-    try {
-      await gallerySecretsService.setGalleryCode({
-        stakeId,
-        galleryId: gallery.id,
-        code: newCode,
-      });
-      setGallery((prev) => (prev ? { ...prev, codeStatus: "set" } : prev));
-      setFeedback(
-        `Codice aggiornato: ${newCode.trim().toUpperCase()}`,
-      );
-      setNewCode("");
-      setCodeModalOpen(false);
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Errore codice.");
-    } finally {
-      setWorking(false);
     }
   }
 
@@ -266,10 +239,6 @@ export function GalleryAdminPanel({
     setError(null);
     setFeedback(null);
     if (!gallery.published) {
-      if (gallery.accessMode === "code_required" && gallery.codeStatus !== "set") {
-        setError("Imposta prima il codice di accesso.");
-        return;
-      }
       if (gallery.mediaCount === 0) {
         setError("Carica almeno un media prima di pubblicare.");
         return;
@@ -350,12 +319,8 @@ export function GalleryAdminPanel({
     ? sortedMedia.findIndex((entry) => entry.id === selected.id)
     : -1;
   const mediaCount = media.length;
-  const requiresCode = gallery.accessMode === "code_required";
   const publishDisabled =
-    working ||
-    uploader.uploading ||
-    (!gallery.published &&
-      ((requiresCode && gallery.codeStatus !== "set") || mediaCount === 0));
+    working || uploader.uploading || (!gallery.published && mediaCount === 0);
 
   return (
     <div className="gallery-stage">
@@ -374,11 +339,6 @@ export function GalleryAdminPanel({
           <span className="gallery-toolbar__count">
             {mediaCount} elemento{mediaCount === 1 ? "" : "i"}
           </span>
-          {requiresCode && gallery.codeStatus !== "set" ? (
-            <span className="gallery-toolbar__warning" title="Imposta il codice">
-              codice mancante
-            </span>
-          ) : null}
         </div>
         <div className="gallery-toolbar__actions">
           <button
@@ -390,21 +350,6 @@ export function GalleryAdminPanel({
           >
             ✎
           </button>
-          {requiresCode ? (
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => {
-                setNewCode(gallerySecretsService.generateReadableCode("ATT"));
-                setError(null);
-                setCodeModalOpen(true);
-              }}
-              aria-label="Codice galleria"
-              title="Codice"
-            >
-              🔑
-            </button>
-          ) : null}
           {gallery.published ? (
             <button
               type="button"
@@ -470,71 +415,6 @@ export function GalleryAdminPanel({
           onMove={(direction) => void handleMove(selected, direction)}
           onDelete={() => showDelete({ kind: "media", item: selected })}
         />
-      ) : null}
-
-      {codeModalOpen ? (
-        <AppModal
-          title="Codice galleria"
-          subtitle={
-            gallery.codeStatus === "set"
-              ? "Cambia il codice. Quello attuale smetterà di funzionare."
-              : "Imposta il codice per pubblicare la galleria."
-          }
-          onClose={() => setCodeModalOpen(false)}
-          size="compact"
-        >
-          <form className="stack" onSubmit={handleSetCode}>
-            <label className="field">
-              <span>Nuovo codice</span>
-              <div className="inline-row">
-                <input
-                  type="text"
-                  value={newCode}
-                  onChange={(submitEvent) => setNewCode(submitEvent.target.value)}
-                  minLength={4}
-                  required
-                  disabled={working}
-                />
-                <button
-                  type="button"
-                  className="button button--ghost button--small"
-                  onClick={() =>
-                    setNewCode(gallerySecretsService.generateReadableCode("ATT"))
-                  }
-                  disabled={working}
-                >
-                  Genera
-                </button>
-              </div>
-              <small className="subtle-text">
-                Salva subito il codice: per sicurezza non sarà più mostrato.
-              </small>
-            </label>
-            {/* L'errore nel modale: la pagina sotto è coperta e inerte. */}
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <div className="form-actions">
-              <button
-                type="button"
-                className="button button--ghost"
-                onClick={() => setCodeModalOpen(false)}
-                disabled={working}
-              >
-                Annulla
-              </button>
-              <button
-                type="submit"
-                className="button button--primary"
-                disabled={working || newCode.trim().length < 4}
-              >
-                {working ? "Salvo…" : "Imposta codice"}
-              </button>
-            </div>
-          </form>
-        </AppModal>
       ) : null}
 
       {infoModalOpen ? (

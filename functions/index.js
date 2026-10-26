@@ -3,6 +3,7 @@ const { getFirestore } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const webpush = require("web-push");
 
 initializeApp();
@@ -19,6 +20,7 @@ const roomManagement = require("./lib/roomManagement");
 const recordNight = require("./lib/recordNight");
 const recordNightGuest = require("./lib/recordNightGuest");
 const activityGallery = require("./lib/activityGallery");
+const stakeMembership = require("./lib/stakeMembershipFunctions");
 
 exports.onRegistrationPendingParentAuth = parentAuthorization.onRegistrationPendingParentAuth;
 exports.parentAuthorizationGetContext = parentAuthorization.parentAuthorizationGetContext;
@@ -49,6 +51,8 @@ exports.recordNightGuest = recordNightGuest.recordNightGuest;
 exports.onRecordNightRegistrationChanged = recordNight.onRecordNightRegistrationChanged;
 exports.onRecordNightActivityDeleted = recordNight.onRecordNightActivityDeleted;
 exports.activityGallery = activityGallery.activityGallery;
+exports.stakeMembership = stakeMembership.stakeMembership;
+exports.onUserStakeMembership = stakeMembership.onUserStakeMembership;
 const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 const PRODUCTION_WEB_PUSH_PUBLIC_KEY = "BNXpBiGfPKrQKpHDW7d7-qYscOYyBZhhG3zFosp6_V9-Azmg5OLCWTb_Sib6v5wYaJkGOiGHBQ5MiNDjYbKH-p8";
 const PRODUCTION_WEB_PUSH_SUBJECT = "https://giovani-palo.web.app";
@@ -295,13 +299,16 @@ exports.propagateUnitNameChange = onDocumentUpdated(
   },
 );
 
+// Restituisce quanti dispositivi hanno ricevuto il push (0 senza dispositivi o
+// con la configurazione incompleta): il promemoria della coda lo usa per non
+// segnare come avvisato chi non ha ricevuto niente.
 async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logContext }) {
   if (devicesSnapshot.empty) {
     logger.info("No admin push devices registered for stake.", {
       stakeId,
       ...logContext,
     });
-    return;
+    return 0;
   }
 
   let webPushIdentity;
@@ -314,7 +321,7 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
       ...logContext,
       detail: error.message,
     });
-    return;
+    return 0;
   }
 
   webpush.setVapidDetails(
@@ -325,6 +332,7 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
 
   const deliveryTimestamp = nowIso();
   const staleDeviceIds = [];
+  let delivered = 0;
 
   await Promise.allSettled(
     devicesSnapshot.docs.map(async (deviceDocument) => {
@@ -343,6 +351,7 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
           TTL: 60 * 60,
           urgency: "high",
         });
+        delivered += 1;
 
         await deviceDocument.ref.set(
           {
@@ -404,6 +413,8 @@ async function sendPushToAdminDevices({ stakeId, devicesSnapshot, payload, logCo
 
     await batch.commit();
   }
+
+  return delivered;
 }
 
 exports.sendAdminPushForNewRegistration = onDocumentCreated(
@@ -473,6 +484,34 @@ exports.sendAdminPushForNewRegistration = onDocumentCreated(
       payload,
       logContext: { activityId, registrationId },
     });
+  },
+);
+
+// Richieste di accesso al palo in coda da più di 48 ore: un promemoria al
+// giorno agli admin, solo se c'è una richiesta mai ricordata
+// (docs/APPARTENENZA_AL_PALO.md, «Aggiunte server della fase 3»).
+exports.stakeMembershipQueueReminder = onSchedule(
+  {
+    schedule: "0 18 * * *",
+    timeZone: "Europe/Rome",
+    region: "europe-west1",
+    secrets: [WEB_PUSH_PRIVATE_KEY],
+  },
+  async () => {
+    const result = await stakeMembership.runStakeMembershipQueueReminder({
+      db,
+      sendPush: async ({ stakeId, payload }) => {
+        const devicesSnapshot = await db.collection(`stakes/${stakeId}/adminPushDevices`).get();
+        const delivered = await sendPushToAdminDevices({
+          stakeId,
+          devicesSnapshot,
+          payload,
+          logContext: { kind: "membership-queue" },
+        });
+        return delivered > 0;
+      },
+    });
+    logger.info("Promemoria della coda di accesso.", result);
   },
 );
 

@@ -444,7 +444,31 @@ button {
   transform: translateY(calc(100% + 1.25rem));
 }
 
+/* Numero accanto a una voce di menu (richieste di accesso in attesa). */
+.nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e8a857;
+  color: #2a1d0c;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.nav-badge--corner {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  margin-left: 0;
+}
+
 .bottom-nav__item {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10045,12 +10069,6 @@ p.admin-person-fields__note {
   font-size: 0.85rem;
 }
 
-.feed-card__hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
 .feed-card__actions {
   display: flex;
   gap: 0.5rem;
@@ -10104,38 +10122,7 @@ p.admin-person-fields__note {
 }
 
 /* Gallery card */
-.gallery-card__cover {
-  height: 11rem;
-  border-radius: 1rem;
-  background: linear-gradient(
-    135deg,
-    rgba(35, 93, 144, 0.18),
-    rgba(245, 196, 112, 0.18)
-  );
-  background-size: cover;
-  background-position: center;
-  display: grid;
-  place-items: center;
-}
-
-.gallery-card__cover--locked {
-  position: relative;
-}
-
-.gallery-card__lock-badge {
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--primary);
-  width: 3rem;
-  height: 3rem;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 1.4rem;
-  box-shadow: 0 6px 18px rgba(16, 28, 48, 0.18);
-}
-
-.gallery-card__locked,
-.gallery-card__unlocked {
+.gallery-card__content {
   display: grid;
   gap: 0.7rem;
 }
@@ -10192,27 +10179,6 @@ p.admin-person-fields__note {
   .gallery-carousel {
     grid-auto-columns: 32%;
   }
-}
-
-/* Gallery unlock form */
-.gallery-unlock-form {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.gallery-unlock-form .field span {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.gallery-unlock-form input[type="text"] {
-  width: 100%;
-  padding: 0.65rem 0.8rem;
-  border-radius: 0.85rem;
-  border: 1px solid rgba(16, 28, 48, 0.12);
-  font-size: 1rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .form-error {
@@ -10643,16 +10609,6 @@ p.admin-person-fields__note {
 .gallery-toolbar__count {
   font-size: 0.82rem;
   color: var(--muted);
-}
-
-.gallery-toolbar__warning {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #92400e;
-  background: #fef3c7;
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
 }
 
 .gallery-toolbar__actions {

@@ -4,12 +4,14 @@ import { Link } from "react-router-dom";
 import { AppIcon } from "@/components/AppIcon";
 import { FamilyHomeSection } from "@/components/family/FamilyHomeSection";
 import { EmptyState } from "@/components/EmptyState";
+import { MembershipBanner } from "@/components/membership/MembershipBanner";
 import { ShareButton } from "@/components/ShareButton";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { surveysService } from "@/services/firestore/surveysService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import {
@@ -61,12 +63,16 @@ export function MeDashboardPage() {
   const pastEvents = feed.filter(({ event }) => isPastEvent(event)).slice(0, 6);
   const pastIdsKey = pastEvents.map(({ event }) => event.id).join(",");
   const stakeIdKey = session?.profile.stakeId ?? "";
+  const { access } = useStakeMembership(stakeIdKey);
+  const isMember = access === "member";
 
   // Per ogni attività passata, controlla se ha almeno una domanda attiva.
-  // Solo quelle col sondaggio compilato dall'admin compaiono in home.
+  // Solo quelle col sondaggio compilato dall'admin compaiono in home. I
+  // sondaggi sono dei membri: per gli altri la lettura non parte e la sezione
+  // non compare (il banner spiega perché).
   const { data: surveyableIds } = useAsyncData<Set<string>>(
     async () => {
-      if (!stakeIdKey || pastEvents.length === 0) return new Set();
+      if (!isMember || !stakeIdKey || pastEvents.length === 0) return new Set();
       const results = await Promise.all(
         pastEvents.map(({ event }) =>
           surveysService
@@ -77,11 +83,13 @@ export function MeDashboardPage() {
       );
       return new Set(results.filter((entry) => entry.has).map((entry) => entry.id));
     },
-    [pastIdsKey, stakeIdKey],
+    [pastIdsKey, stakeIdKey, isMember],
     new Set<string>(),
   );
 
-  const surveyCandidates = pastEvents.filter(({ event }) => surveyableIds.has(event.id));
+  const surveyCandidates = isMember
+    ? pastEvents.filter(({ event }) => surveyableIds.has(event.id))
+    : [];
   const firstName = getFirstName(session);
 
   return (
@@ -109,6 +117,8 @@ export function MeDashboardPage() {
           url={getAbsoluteUrl(getActivitiesPath(session?.profile.stakeId))}
         />
       </header>
+
+      <MembershipBanner />
 
       {error ? (
         <div className="notice notice--warning">

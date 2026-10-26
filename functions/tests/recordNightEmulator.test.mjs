@@ -51,7 +51,7 @@ import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/
 
 const require = createRequire(import.meta.url);
 const { initializeApp: initializeAdminApp, getApps } = require("firebase-admin/app");
-const { getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
+const { Timestamp, getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
 const night = require("../lib/recordNight.js");
 
 const PROJECT = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
@@ -161,6 +161,20 @@ before(async () => {
       seededUsers.push(pool[name].uid);
       return adminDb.doc(`users/${pool[name].uid}`).set(profile);
     }),
+  );
+  // Appartenenza (S2): i record aperti li leggono i membri attivi del palo (members/{uid}, scritto
+  // dal server), non chi ha solo users.stakeId. Il members attivo c'è per chi nel test è "del palo".
+  await Promise.all(
+    Object.entries(PROFILES)
+      .filter(([name, profile]) => name !== "anon" && profile.stakeId === stakeId)
+      .map(([name]) =>
+        adminDb.doc(`stakes/${stakeId}/members/${pool[name].uid}`).set({
+          status: "active", sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }], previous: null,
+          staffRole: null, claimedUnitId: "", claimedUnitName: "", displayName: name, birthYear: null,
+          registrationHints: [], reviewNeeded: false, requestedAt: Timestamp.now(), decidedAt: Timestamp.now(),
+          decidedBy: "system", declineCount: 0, version: 1,
+        }),
+      ),
   );
 });
 
@@ -1684,6 +1698,8 @@ test("gare sulle transazioni: limite, doppio tocco e contatore senza aggiornamen
       }),
     ),
   );
+  // S2-2: proporre e sfidare è dei membri attivi del palo (members/{uid}).
+  await Promise.all(crowd.map((uid) => adminDb.doc(`stakes/${stakeId}/members/${uid}`).set({ status: "active", version: 1 })));
   const outcome = (settled) => settled.map((r) => (r.status === "fulfilled" ? "ok" : r.reason?.code ?? "errore"));
 
   // A. Una persona, molte proposte insieme: il limite di 2 regge.

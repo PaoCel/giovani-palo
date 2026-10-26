@@ -17,8 +17,8 @@ import {
 interface RecordNightEntryCardProps {
   event: Pick<Event, "id" | "recordsEnabled" | "recordsCloseAt" | "startDate">;
   stakeId: string;
-  // Il conteggio dei record si legge solo con un account non anonimo del
-  // palo: la rule nega gli altri, e senza login la card mostra solo l'invito.
+  // Il conteggio dei record si legge solo da membro del palo: la rule nega gli
+  // altri, e chi non lo è vede solo l'invito (la pagina spiega il resto).
   canReadRecords: boolean;
   // Classe in più per adattare la card al contenitore della pagina.
   className?: string;

@@ -253,6 +253,10 @@ export const router = createBrowserRouter([
             path: "activities/:eventId",
             element: lazyPage(() => import("@/pages/unit/UnitActivityPage"), "UnitActivityPage"),
           },
+          {
+            path: "persone",
+            element: lazyPage(() => import("@/pages/unit/UnitPeoplePage"), "UnitPeoplePage"),
+          },
         ],
       },
     ],
@@ -333,6 +337,10 @@ export const router = createBrowserRouter([
               () => import("@/pages/admin/AdminGalleryDetailPage"),
               "AdminGalleryDetailPage",
             ),
+          },
+          {
+            path: "persone",
+            element: lazyPage(() => import("@/pages/admin/AdminPeoplePage"), "AdminPeoplePage"),
           },
           {
             path: "settings",

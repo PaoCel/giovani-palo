@@ -13,6 +13,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { childrenService } from "@/services/firestore/childrenService";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
@@ -144,6 +145,8 @@ export function MyActivityDetailPage() {
     ? `${session.firebaseUser.uid}:${session.isAnonymous}`
     : "none";
   const stakeId = session?.profile.stakeId ?? "";
+  // Il conteggio dei record si legge solo da membro del palo.
+  const { access: membershipAccess } = useStakeMembership(stakeId);
   const [busy, setBusy] = useState<null | "cancel">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   // "Annulla l'iscrizione": prima il foglio, mai un dialogo del browser.
@@ -561,7 +564,7 @@ export function MyActivityDetailPage() {
       {data?.event.recordsEnabled ? (
         <Suspense fallback={null}>
           <RecordNightEntryCard
-            canReadRecords={Boolean(session?.isAuthenticated && !session.isAnonymous)}
+            canReadRecords={membershipAccess === "member"}
             className="rn-entry--inset"
             event={data.event}
             stakeId={stakeId}

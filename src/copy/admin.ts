@@ -78,7 +78,7 @@ export const ADMIN = {
   nonInviare: "Non inviare",
   confermaCompletamentoUno: "Sì, invia 1 email",
   confermaCompletamentoPiu: "Sì, invia {n} email",
-  invio: "Invio...",
+  invio: PAROLE.invio,
   erroreCompletamento: "Impossibile inviare le email ai genitori.",
   completamentoElencoCambiato:
     "L'elenco dei destinatari è cambiato dopo il controllo. Nessuna email è stata inviata: rifai il controllo e verifica l'elenco.",

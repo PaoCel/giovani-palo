@@ -222,6 +222,21 @@ before(async () => {
       return adminDb.doc(`users/${pool[name].uid}`).set(profile);
     }),
   );
+  // Appartenenza (S2-2): proporre e sfidare è dei membri attivi del palo
+  // (members/{uid}, scritto dal server), non di chi ha solo users.stakeId. Il
+  // members attivo c'è per chi nel test è "del palo".
+  await Promise.all(
+    Object.entries(PROFILES)
+      .filter(([, profile]) => profile.stakeId === stakeId)
+      .map(([name]) =>
+        adminDb.doc(`stakes/${stakeId}/members/${pool[name].uid}`).set({
+          status: "active", sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }], previous: null,
+          staffRole: null, claimedUnitId: "", claimedUnitName: "", displayName: name, birthYear: null,
+          registrationHints: [], reviewNeeded: false, requestedAt: Timestamp.now(), decidedAt: Timestamp.now(),
+          decidedBy: "system", declineCount: 0, version: 1,
+        }),
+      ),
+  );
   const nowIso = new Date().toISOString();
   await Promise.all([
     ...Object.values(UNITS).map((unit) =>

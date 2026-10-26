@@ -217,6 +217,41 @@ const fs = (actor) => clients[actor].firestore;
 const uid = (actor) => `${actor}-${runId}`;
 const emailOf = (actor) => `${actor}-${runId}@example.invalid`;
 const stored = async (path) => (await adminDb.doc(path).get()).data();
+
+/**
+ * Aspetta che un documento smetta di cambiare (fermo per `quietMs`). Dopo
+ * l'invio di un'iscrizione di un minore il trigger della richiesta al
+ * genitore scrive `parentAuthorization` qualche istante dopo: un confronto
+ * "prima/dopo" fatto mentre scrive vede la sua modifica, non quella negata.
+ */
+async function settled(path, { quietMs = 600, maxMs = 15000 } = {}) {
+  const startedAt = Date.now();
+  let last = JSON.stringify(await stored(path));
+  let since = Date.now();
+  while (Date.now() - startedAt < maxMs) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const now = JSON.stringify(await stored(path));
+    if (now !== last) {
+      last = now;
+      since = Date.now();
+    } else if (Date.now() - since >= quietMs) {
+      return;
+    }
+  }
+  throw new Error(`${path} non si ferma dopo ${maxMs} ms`);
+}
+
+/**
+ * L'iscrizione salvata è quella scritta dal client: il trigger del genitore
+ * può aggiungere solo `parentAuthorization` e un `updatedAt` più recente.
+ */
+function assertWrittenByClient(actual, payload, label = "iscrizione") {
+  const { parentAuthorization: added, updatedAt: actualUpdatedAt, ...rest } = actual || {};
+  const { parentAuthorization: written, updatedAt: payloadUpdatedAt, ...expected } = payload || {};
+  assert.deepEqual(rest, expected, label);
+  assert.ok(added === written || (written === null && added && typeof added === "object"), `${label}: parentAuthorization`);
+  assert.ok(typeof actualUpdatedAt === "string" && actualUpdatedAt >= payloadUpdatedAt, `${label}: updatedAt`);
+}
 const unitOf = (actor) => UNITS[ACTORS[actor].stake].find((unit) => unit.id === ACTORS[actor].unitId);
 
 /** Rifiuto delle rules: l'operazione si passa come funzione, così non resta una promessa rifiutata senza gestore. */
@@ -1449,7 +1484,7 @@ for (const owner of OWNERS) {
         assert.equal(child.saved.parentUid, me());
         assert.equal(child.saved.userId, null);
         assert.equal(child.saved.childId, nicola.id);
-        assert.deepEqual(await stored(path), child.payload);
+        assertWrittenByClient(await stored(path), child.payload);
         const attempt = await stored(`stakes/${stakeId}/registrationAttempts/${child.attemptId}`);
         assert.equal(attempt.status, "succeeded");
         assert.equal(attempt.userId, me());
@@ -1494,7 +1529,7 @@ for (const owner of OWNERS) {
       assert.equal(own.saved.registrationStatus, "active");
       assert.equal((await stored(`users/${me()}`)).role, ACTORS[owner].role);
       // L'iscrizione del figlio non è cambiata.
-      assert.deepEqual(await stored(registrationPath(activityB, child.registrationId)), child.payload);
+      assertWrittenByClient(await stored(registrationPath(activityB, child.registrationId)), child.payload);
       t.diagnostic(note);
     });
 
@@ -1551,6 +1586,7 @@ for (const owner of OWNERS) {
       const childId = childRegistrationId(me(), nicola.id);
       const childPathA = registrationPath(activityA, childId);
       const ownPathA = registrationPath(activityA, `user_${me()}`);
+      await Promise.all([settled(childPathA), settled(ownPathA)]);
       const ownBefore = await stored(ownPathA);
       const before = await stored(childPathA);
       const startedAt = nowIso();
@@ -1570,6 +1606,7 @@ for (const owner of OWNERS) {
       assert.equal((await stored(childPathA)).registrationStatus, "pending_parent_authorization");
 
       // Il contrario: annullare l'iscrizione propria lascia quella del figlio.
+      await settled(childPathA);
       const childBefore = await stored(childPathA);
       const ownCancelled = await cancelRegistrationById(actor, activityA, `user_${me()}`);
       assert.equal(ownCancelled.registrationStatus, "cancelled");
@@ -1755,6 +1792,7 @@ for (const victim of OWNERS) {
       const saved = await submitRegistration(victim, activityId, childLookup(me(), child.id), editorSubmitInput(child, account));
       registrationId = saved.registrationId;
       path = registrationPath(activityId, registrationId);
+      await settled(path);
     });
 
     for (const outsider of OUTSIDERS) {
@@ -1860,6 +1898,7 @@ describe("5. chi già oggi vede le iscrizioni dei figli per il proprio ruolo (co
     const camp = await submitRegistration("adulto", campId, childLookup(uid("adulto"), child.id), editorSubmitInput(child, account));
     tripPath = registrationPath(tripId, trip.registrationId);
     campPath = registrationPath(campId, camp.registrationId);
+    await Promise.all([settled(tripPath), settled(campPath)]);
   });
 
   test("admin dello stesso palo: legge figlio e iscrizione (supporto), come per un genitore", async () => {
