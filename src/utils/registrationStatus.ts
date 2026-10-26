@@ -22,6 +22,22 @@ export function resolveRegistrationStatusOnSave(
   }
 
   if (existing && existing.registrationStatus !== "cancelled") {
+    // Attiva senza firma e il modulo ora raccoglie il genitore (meno di 18
+    // anni in un'attività che chiede l'autorizzazione, per esempio dopo una
+    // data di nascita corretta): passa in attesa. Le rules lo impongono
+    // quando cambia la data (docs/ADMIN_ISCRITTI.md); prima restava attiva
+    // senza consenso.
+    // Una decisione del genitore (firma o rifiuto) resta com'è.
+    const decided =
+      existing.parentAuthorization?.status === "authorized" ||
+      existing.parentAuthorization?.status === "rejected_by_parent";
+    if (
+      existing.registrationStatus === "active" &&
+      options.parentAuthorizationRequested &&
+      !decided
+    ) {
+      return "pending_parent_authorization";
+    }
     return existing.registrationStatus;
   }
 

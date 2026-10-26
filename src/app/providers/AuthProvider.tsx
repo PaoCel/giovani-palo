@@ -1,6 +1,8 @@
 import {
   createContext,
+  useContext,
   useEffect,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -8,20 +10,66 @@ import {
 import { authService } from "@/services/auth/authService";
 import { usersService } from "@/services/firestore/usersService";
 import { adminPushService } from "@/services/push/adminPushService";
+import { galleryCommentsService } from "@/services/firestore/galleryCommentsService";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import type { AuthContextValue, AuthSession, GenderRoleCategory } from "@/types";
+import { clearAdultGuardConfirmations } from "@/utils/adultGuard";
+import { shouldApplyAccountType } from "@/utils/profileCompletion";
+import { clearProfileDrafts } from "@/utils/profileDrafts";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
+
+// The shared membership listener stays alive while the user navigates. A
+// request started in a now-closed viewer must also lose its UI context on revocation.
+function CommentMembershipEffects() {
+  const session = useContext(AuthContext)?.session;
+  const uid = session?.firebaseUser.uid ?? "";
+  const stakeId = session?.profile.stakeId ?? "";
+  const { access } = useStakeMembership(stakeId);
+  useEffect(() => {
+    if (uid && stakeId && access !== "member" && access !== "loading") {
+      galleryCommentsService.clearContext(uid, stakeId);
+    }
+  }, [uid, stakeId, access]);
+  return null;
+}
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const previousCommentsContext = useRef<{ uid: string; stakeId: string } | null>(null);
+  const commentsUid = session?.firebaseUser.uid ?? "";
+  const commentsStakeId = session?.profile.stakeId ?? "";
+  useEffect(() => {
+    const previous = previousCommentsContext.current;
+    if (previous && (previous.uid !== commentsUid || previous.stakeId !== commentsStakeId)) {
+      galleryCommentsService.clearContext(previous.uid, previous.stakeId);
+    }
+    previousCommentsContext.current = commentsUid ? { uid: commentsUid, stakeId: commentsStakeId } : null;
+  }, [commentsUid, commentsStakeId]);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
+    // Account di prima (undefined al primo giro): uscendo o cambiando account
+    // le memorie dell'iscrizione dell'altro (bozza di «I tuoi dati», conferme
+    // della guardia adulto) spariscono, qualunque pagina sia aperta.
+    let previousUid: string | null | undefined;
 
     const unsubscribeAuth = authService.observeAuthState(async (firebaseUser) => {
       unsubscribeProfile?.();
       unsubscribeProfile = null;
+
+      // Anche l'ospite conta col suo uid: collegando un account l'uid resta lo
+      // stesso e Firebase non chiama di nuovo questo ascoltatore, quindi
+      // l'uscita dopo il collegamento deve trovare l'uid di prima.
+      const uid = firebaseUser?.uid ?? null;
+
+      if (previousUid !== undefined && previousUid !== uid) {
+        clearProfileDrafts();
+        clearAdultGuardConfirmations();
+      }
+
+      previousUid = uid;
 
       if (!firebaseUser) {
         setSession(null);
@@ -71,12 +119,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return nextSession;
   }
 
-  async function applyAccountType(nextSession: AuthSession, accountType?: "participant" | "parent") {
-    if (!accountType || nextSession.profile.role === accountType) {
-      return nextSession;
-    }
-
-    if (nextSession.profile.role !== "participant" && nextSession.profile.role !== "parent") {
+  // Il tipo scelto ("per chi" dell'iscrizione) vale solo per un account appena
+  // creato e col profilo ancora da completare: entrare con Google in un
+  // account esistente non lo trasforma mai (l'account di un ragazzo non
+  // diventa da genitore); per quelli il tipo si decide salvando "I tuoi dati".
+  // Dirigenti e admin restano quello che sono.
+  async function applyAccountType(
+    nextSession: AuthSession,
+    accountType: "participant" | "parent" | undefined,
+    isNewAccount: boolean,
+  ) {
+    if (
+      !accountType ||
+      !shouldApplyAccountType({ accountType, isNewAccount, profile: nextSession.profile })
+    ) {
       return nextSession;
     }
 
@@ -100,7 +156,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const credential = await authService.signInWithGoogle();
     const nextSession = await authService.createSessionFromFirebaseUser(credential.user);
     setSession(nextSession);
-    return applyAccountType(nextSession, accountType);
+    return applyAccountType(nextSession, accountType, authService.isNewAccount(credential));
   }
 
   async function signUpWithEmail(
@@ -111,7 +167,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const credential = await authService.signUpWithEmail(email, password);
     const nextSession = await authService.createSessionFromFirebaseUser(credential.user);
     setSession(nextSession);
-    return applyAccountType(nextSession, accountType);
+    // "Crea un account" crea sempre un account nuovo (o collega l'ospite).
+    return applyAccountType(nextSession, accountType, true);
   }
 
   async function handlePasswordReset(email: string) {
@@ -132,6 +189,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     genderRoleCategory: GenderRoleCategory;
     unitName: string;
     stakeId: string;
+    role?: "participant";
   }) {
     if (!session) {
       throw new Error("Sessione non disponibile.");
@@ -170,14 +228,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return nextSession;
   }
 
-  async function switchToParentAccount() {
-    if (!session) {
-      throw new Error("Sessione non disponibile.");
-    }
-
-    return applyAccountType(session, "parent");
-  }
-
   async function handleChangePassword(nextPassword: string) {
     await authService.changePassword(nextPassword);
 
@@ -209,11 +259,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
         signInAnonymously,
         completeProfile,
         completeParentProfile,
-        switchToParentAccount,
         changePassword: handleChangePassword,
         signOut: handleSignOut,
       }}
     >
+      <CommentMembershipEffects />
       {children}
     </AuthContext.Provider>
   );

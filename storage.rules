@@ -92,7 +92,7 @@ service firebase.storage {
     }
 
     // Galleria foto/video dell'attività (docs/GALLERIA_ATTIVITA.md): la vede
-    // e la riempie solo chi ha un account nel palo, mai una sessione anonima.
+    // e la riempie solo un membro attivo del palo o lo staff, mai una sessione anonima.
     // Ognuno crea solo file nuovi marcati col proprio uid (niente sovrascritture
     // di file altrui) e cancella solo i propri; lo staff (admin, dirigenti di
     // unità) cancella tutto. Tetti: foto 30 MB, video 300 MB, come nel client.
@@ -100,15 +100,36 @@ service firebase.storage {
       return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
-    function isStakeMember(stakeId) {
+    function memberDocPath(stakeId) {
+      return /databases/(default)/documents/stakes/$(stakeId)/members/$(request.auth.uid);
+    }
+
+    function isActiveStakeMember(stakeId) {
       return isNonAnonymousSignedIn()
-        && currentUserExists()
-        && (currentUser().stakeId == stakeId || currentUser().role == 'super_admin');
+        && firestore.exists(memberDocPath(stakeId))
+        && firestore.get(memberDocPath(stakeId)).data.status == 'active';
+    }
+
+    // Un membro attivo usa solo members, anche per i poteri dello staff.
+    // Il profilo resta un fallback per lo staff senza appartenenza attiva:
+    // così ogni richiesta legge al massimo members + users oppure members + media.
+    function isGalleryAdmin(stakeId) {
+      return isNonAnonymousSignedIn()
+        && (isActiveStakeMember(stakeId)
+          ? isAdminRole(firestore.get(memberDocPath(stakeId)).data.get('staffRole', null))
+          : isStakeAdmin(stakeId));
     }
 
     function isGalleryStaff(stakeId) {
-      return isStakeAdmin(stakeId)
-        || (currentUserExists() && currentUser().role == 'unit_leader' && currentUser().stakeId == stakeId);
+      return isNonAnonymousSignedIn()
+        && (isActiveStakeMember(stakeId)
+          ? firestore.get(memberDocPath(stakeId)).data.get('staffRole', null) in ['admin', 'super_admin', 'unit_leader']
+          : (isStakeAdmin(stakeId)
+            || (currentUserExists() && currentUser().role == 'unit_leader' && currentUser().stakeId == stakeId)));
+    }
+
+    function isStakeMember(stakeId) {
+      return isActiveStakeMember(stakeId) || isGalleryStaff(stakeId);
     }
 
     function validGalleryUpload() {
@@ -137,9 +158,9 @@ service firebase.storage {
       // resource == null: solo file nuovi. Un upload su un path esistente può
       // arrivare come create (l'emulatore lo fa): senza, si sovrascrive il
       // file di un altro.
-      allow create: if isStakeAdmin(stakeId)
+      allow create: if isGalleryAdmin(stakeId)
         || (isStakeMember(stakeId) && resource == null && validGalleryUpload());
-      allow update: if isStakeAdmin(stakeId);
+      allow update: if isGalleryAdmin(stakeId);
       allow delete: if isGalleryStaff(stakeId)
         || (isStakeMember(stakeId) && resource.metadata != null && resource.metadata.uploadedBy == request.auth.uid);
     }

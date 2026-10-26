@@ -16,9 +16,10 @@ export function getRegistrationLookupFromSession(
     };
   }
 
-  // Genitore che agisce per conto di un figlio collegato: l'iscrizione vive
-  // sul documento child_{parentUid}_{childId}, non su quello del genitore.
-  if (session.isParent && childId) {
+  // Account che agisce per conto di un suo figlio (qualunque ruolo adulto,
+  // G2): l'iscrizione vive sul documento child_{parentUid}_{childId}, non su
+  // quello dell'account. Chi chiama passa `childId` solo per un figlio suo.
+  if (childId) {
     return {
       userId: null,
       anonymousAuthUid: null,

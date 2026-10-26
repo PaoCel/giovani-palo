@@ -93,6 +93,7 @@ Le raccomandazioni sono la prima opzione. Dettagli e alternative nelle spec.
 | 2026-10-15 | Push ai ragazzi quando apre un momento | analisi blocco 3 | dopo S5, se le iscrizioni ai momenti restano basse |
 | 2026-10-15 | Logo e colori per palo | analisi blocco 4 | quando un secondo palo è attivo |
 | 2026-10-15 | App Check su callable pubbliche | review galleria e record | se compare abuso delle code |
+| 2026-10-18 | App nativa come companion di un evento speciale, che poi resta collegata all'account del sito (notifiche più affidabili per chi la scarica) | Paolo | un evento che ha davvero bisogno di funzioni native; fino ad allora solo web, niente store (molti hanno Android) |
 
 ## Vale per ogni sessione
 

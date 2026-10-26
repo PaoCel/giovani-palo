@@ -148,6 +148,33 @@ before(async () => {
       adminDb.doc(`users/${U[key].uid}`).set(profile),
     ),
   );
+  // Appartenenza (S2): galleria e media sono dei membri attivi (members/{uid}, scritto dal server),
+  // non di chi ha solo users.stakeId. Il members attivo lo semino per chi nel test è "del palo";
+  // anon lo ha per errore (caso peggiore): resta negato perché anonimo.
+  // memberB è membro attivo del palo B: le prove di isolamento (attività o
+  // galleria del palo A raggiunte passando lo stakeId del palo B) restano
+  // quelle di un membro vero, non di chi ha solo scelto il palo.
+  await Promise.all(
+    [...["author", "other", "parent", "leader", "admin", "anon"].map((key) => [STAKE_A, key]), [STAKE_B, "memberB"]].map(([stake, key]) =>
+      adminDb.doc(`stakes/${stake}/members/${U[key].uid}`).set({
+        status: "active",
+        sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }],
+        previous: null,
+        staffRole: key === "admin" ? "admin" : key === "leader" ? "unit_leader" : null,
+        claimedUnitId: "",
+        claimedUnitName: "",
+        displayName: key,
+        birthYear: null,
+        registrationHints: [],
+        reviewNeeded: false,
+        requestedAt: Timestamp.now(),
+        decidedAt: Timestamp.now(),
+        decidedBy: "system",
+        declineCount: 0,
+        version: 1,
+      }),
+    ),
+  );
   // Galleria aperta, creata da un admin (createdBy = uid dell'admin), con due media seminati.
   MAIN = await newGallery({ createdBy: U.admin.uid, mediaCount: 0 });
   await seedMedia(MAIN, "m-seed-1", U.author.uid);

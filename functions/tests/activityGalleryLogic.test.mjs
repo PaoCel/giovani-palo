@@ -176,22 +176,40 @@ test("resolveGalleryRole: unit_leader del palo è staff, di un altro palo no", (
   assert.equal(role({ role: "unit_leader", stakeId: "altro-palo", unitId: "u1" }), null);
 });
 
-test("resolveGalleryRole: participant e parent del palo sono membri, di un altro palo no", () => {
-  assert.equal(role({ role: "participant", stakeId: STAKE }), "member");
-  assert.equal(role({ role: "parent", stakeId: STAKE }), "member");
-  assert.equal(role({ role: "participant", stakeId: "altro-palo" }), null);
-  assert.equal(role({ role: "parent", stakeId: "altro-palo" }), null);
-  assert.equal(role({ role: "participant" }), null, "senza stakeId nel profilo");
+// S2: "membro" è il documento `stakes/{s}/members/{uid}` attivo, non più
+// `users.stakeId` (docs/APPARTENENZA_AL_PALO.md, «Contratto di autorizzazione»).
+const ACTIVE = { status: "active" };
+
+test("resolveGalleryRole: participant e parent sono membri solo con members attivo nel palo", () => {
+  assert.equal(role({ role: "participant", stakeId: STAKE }, { member: ACTIVE }), "member");
+  assert.equal(role({ role: "parent", stakeId: STAKE }, { member: ACTIVE }), "member");
+  assert.equal(role({ role: "participant", stakeId: STAKE }), null, "palo scelto ma nessun members");
+  assert.equal(role({ role: "parent", stakeId: STAKE }), null, "palo scelto ma nessun members");
+  for (const status of ["pending", "declined", "withdrawn", "removed", "blocked"]) {
+    assert.equal(role({ role: "participant", stakeId: STAKE }, { member: { status } }), null, status);
+  }
+  assert.equal(
+    role({ role: "participant", stakeId: "altro-palo" }, { member: ACTIVE }),
+    "member",
+    "members attivo nel palo, palo scelto già cambiato: resta membro finché esce",
+  );
+});
+
+test("resolveGalleryRole: un members attivo non basta a una sessione anonima", () => {
+  assert.equal(role({ role: "participant", stakeId: STAKE }, { member: ACTIVE, isAnonymous: true }), null);
+  assert.equal(role(null, { member: ACTIVE, isAnonymous: true }), null);
 });
 
 test("resolveGalleryRole: una categoria autodichiarata non dà lo staff", () => {
   for (const genderRoleCategory of ["dirigente", "accompagnatore"]) {
-    assert.equal(role({ role: "participant", stakeId: STAKE, genderRoleCategory }), "member");
+    assert.equal(role({ role: "participant", stakeId: STAKE, genderRoleCategory }, { member: ACTIVE }), "member");
+    assert.equal(role({ role: "participant", stakeId: STAKE, genderRoleCategory }), null);
   }
 });
 
-test("resolveGalleryRole: ruolo sconosciuto o mancante nel palo = membro, mai staff", () => {
-  assert.equal(role({ stakeId: STAKE }), "member");
-  assert.equal(role({ role: "ADMIN", stakeId: STAKE }), "member", "maiuscole non riconosciute");
-  assert.equal(role({ role: "staff", stakeId: STAKE }), "member");
+test("resolveGalleryRole: ruolo sconosciuto o mancante nel palo = membro solo con members attivo, mai staff", () => {
+  assert.equal(role({ stakeId: STAKE }, { member: ACTIVE }), "member");
+  assert.equal(role({ role: "ADMIN", stakeId: STAKE }, { member: ACTIVE }), "member", "maiuscole non riconosciute");
+  assert.equal(role({ role: "staff", stakeId: STAKE }, { member: ACTIVE }), "member");
+  assert.equal(role({ role: "ADMIN", stakeId: STAKE }), null);
 });

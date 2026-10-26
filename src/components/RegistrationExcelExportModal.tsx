@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { AppModal } from "@/components/AppModal";
+import { ModalFeedback } from "@/components/admin/ModalFeedback";
 import {
   DEFAULT_EXPORT_CATEGORIES,
   DEFAULT_EXPORT_FIELDS,
@@ -14,6 +15,8 @@ import {
 interface RegistrationExcelExportModalProps {
   totalRegistrations: number;
   busy?: boolean;
+  // Esportazione non riuscita: nel modale, perché la pagina sotto è coperta.
+  error?: string | null;
   onClose: () => void;
   onConfirm: (options: ExportOptions) => void | Promise<void>;
 }
@@ -44,6 +47,7 @@ const groupOrder: Array<ExportFieldOption["group"]> = [
 export function RegistrationExcelExportModal({
   totalRegistrations,
   busy = false,
+  error,
   onClose,
   onConfirm,
 }: RegistrationExcelExportModalProps) {
@@ -99,6 +103,7 @@ export function RegistrationExcelExportModal({
       size="wide"
       footer={
         <>
+          <ModalFeedback error={error ?? null} />
           <button
             type="button"
             className="button button--ghost"

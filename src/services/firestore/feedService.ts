@@ -111,7 +111,8 @@ export const feedService = {
   async listPublishedPosts(stakeId: string): Promise<FeedPost[]> {
     if (!stakeId) return [];
     const snapshot = await getDocsCacheFirst(
-      query(feedPostsCollection(stakeId), where("published", "==", true)),
+      query(feedPostsCollection(stakeId), where("published", "==", true),
+        where("visibility", "in", ["all_authenticated", "gallery_members"])),
     );
     return snapshot.docs
       .map((d) => mapFeedPost(stakeId, d.id, d.data()))
@@ -349,10 +350,7 @@ export const feedService = {
       batch.delete(feedPostDoc(stakeId, post.id));
     }
 
-    const isOpen = gallery.accessMode === "open";
-    const defaultBody = isOpen
-      ? `È disponibile la galleria: ${gallery.title}.`
-      : `È disponibile la galleria: ${gallery.title}. Inserisci il codice per guardarla.`;
+    const defaultBody = `È disponibile la galleria: ${gallery.title}.`;
 
     batches.forEach(({ mediaIds, batchIndex }) => {
       const ref = doc(feedPostsCollection(stakeId));
@@ -373,7 +371,7 @@ export const feedService = {
         galleryBatchIndex: batchIndex,
         mediaIds,
         likeCount: 0,
-        visibility: isOpen ? "all_authenticated" : "gallery_members",
+        visibility: "all_authenticated",
         ctaLabel: null,
         ctaUrl: null,
       });

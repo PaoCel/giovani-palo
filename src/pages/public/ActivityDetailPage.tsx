@@ -1,3 +1,4 @@
+import { getSurveyHref } from "@/utils/surveyLinks";
 import { Suspense, lazy } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 
@@ -10,6 +11,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
@@ -18,6 +20,7 @@ import {
   getVisibleStandardFieldDefinitions,
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
+import { ATTIVITA } from "@/copy/attivita";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
   getAudienceRestrictionMessage,
@@ -26,12 +29,14 @@ import {
   getEventStatusTone,
   getRegistrationAvailability,
 } from "@/utils/events";
+import { canManageFamily } from "@/utils/family";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
 import {
   getAbsoluteUrl,
   getActivityPath,
   getActivityRegistrationPath,
+  withRegisterFor,
   getMyActivityPath,
 } from "@/utils/activityLinks";
 
@@ -144,6 +149,8 @@ export function ActivityDetailPage() {
     [eventId, requestedStakeId, sessionKey],
     initialData,
   );
+  // Il conteggio dei record si legge solo da membro del palo dell'attività.
+  const { access: membershipAccess } = useStakeMembership(data.stakeId);
 
   if (!loading && !data.event) {
     return (
@@ -179,8 +186,14 @@ export function ActivityDetailPage() {
   const standardFieldDefinitions = getVisibleStandardFieldDefinitions(
     data.organization?.registrationDefaults.fieldOverrides,
   );
+  // Chi può avere figli (G2) entra nell'iscrizione anche se l'attività non è
+  // per il suo gruppo: il pubblico si guarda su chi partecipa, nel modulo.
   const availability =
-    event && formConfig ? getRegistrationAvailability(event, formConfig, session) : null;
+    event && formConfig
+      ? getRegistrationAvailability(event, formConfig, session, {
+          forChild: canManageFamily(session),
+        })
+      : null;
   const fieldLabels =
     formConfig
       ? normalizeStandardFieldKeys(formConfig.enabledStandardFields)
@@ -215,23 +228,23 @@ export function ActivityDetailPage() {
       );
     }
 
-    if (availability === "open" || availability === "guest-allowed") {
-      return (
-        <Link className={primaryClass} to={registrationPath}>
-          <AppIcon name="ticket" />
-          <span>Iscriviti</span>
-        </Link>
-      );
-    }
+    // Chi non è entrato si iscrive da qui anche quando serve un account: il
+    // passo account è dentro l'iscrizione (docs/FLUSSO_GENITORE.md, A e C).
+    if (
+      availability === "open" ||
+      availability === "guest-allowed" ||
+      availability === "login-required"
+    ) {
+      const forChild = Boolean(session?.isParent);
 
-    if (availability === "login-required") {
       return (
         <Link
           className={primaryClass}
-          to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
+          state={{ fromActivity: true }}
+          to={forChild ? withRegisterFor(registrationPath, "figlio") : registrationPath}
         >
-          <AppIcon name="user" />
-          <span>Accedi</span>
+          <AppIcon name="ticket" />
+          <span>{forChild ? ATTIVITA.iscriviFiglio : ATTIVITA.iscriviti}</span>
         </Link>
       );
     }
@@ -251,8 +264,45 @@ export function ActivityDetailPage() {
     );
   }
 
+  // Sotto "Iscriviti", per chi non è entrato (anche da ospite): la stessa
+  // iscrizione con la scelta del figlio già fatta.
+  function renderParentLine(className: string) {
+    if (
+      !event ||
+      !formConfig ||
+      data.registration ||
+      (session?.isAuthenticated && !session.isAnonymous) ||
+      (availability !== "guest-allowed" && availability !== "login-required")
+    ) {
+      return null;
+    }
+
+    const [before, after = ""] = ATTIVITA.rigaGenitore.split("{link}");
+
+    return (
+      <p className={className}>
+        {before}
+        <Link
+          state={{ fromActivity: true }}
+          to={withRegisterFor(getActivityRegistrationPath(event.id, data.stakeId), "figlio")}
+        >
+          {ATTIVITA.iscriviFiglio}
+        </Link>
+        {after}
+      </p>
+    );
+  }
+
+  const parentLineBar = renderParentLine("activity-cta-bar__parent");
+
   return (
-    <div className="page page--activity-detail">
+    <div
+      className={
+        parentLineBar
+          ? "page page--activity-detail page--activity-detail-parent"
+          : "page page--activity-detail"
+      }
+    >
       <section className="activity-hero">
         {event?.heroImageUrl ? (
           <div
@@ -306,6 +356,7 @@ export function ActivityDetailPage() {
               />
             </div>
           ) : null}
+          {renderParentLine("activity-hero__parent")}
         </div>
       </section>
 
@@ -314,11 +365,7 @@ export function ActivityDetailPage() {
       {event?.recordsEnabled ? (
         <Suspense fallback={null}>
           <RecordNightEntryCard
-            canReadRecords={Boolean(
-              session?.isAuthenticated &&
-                !session.isAnonymous &&
-                (session.isAdmin || session.profile.stakeId === data.stakeId),
-            )}
+            canReadRecords={membershipAccess === "member"}
             event={event}
             stakeId={data.stakeId}
           />
@@ -387,7 +434,7 @@ export function ActivityDetailPage() {
           title="Sondaggio post-evento"
           description="Hai partecipato? Lasciaci un feedback (anonimo)."
         >
-          <Link className="button button--ghost" to={`/me/sondaggi/${event.id}`}>
+          <Link className="button button--ghost" to={getSurveyHref(event.id)}>
             Apri il sondaggio
           </Link>
         </SectionCard>
@@ -479,6 +526,7 @@ export function ActivityDetailPage() {
               url={shareUrl}
             />
           </div>
+          {parentLineBar}
         </div>
       ) : null}
     </div>

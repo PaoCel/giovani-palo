@@ -1,13 +1,43 @@
-import { useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Link,
+  useBlocker,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { AuthCredentialsForm } from "@/components/auth/AuthCredentialsForm";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { ProfileForm } from "@/components/auth/ProfileForm";
 import { EmptyState } from "@/components/EmptyState";
-import { PageHero } from "@/components/PageHero";
 import { QuestionsSection } from "@/components/QuestionsSection";
-import { RegistrationEditor } from "@/components/RegistrationEditor";
+import { AccountNeededCard } from "@/components/register/AccountNeededCard";
+import { AdultGuardCard } from "@/components/register/AdultGuardCard";
+import { ChiIscriviStep } from "@/components/register/ChiIscriviStep";
+import { ChiPartecipaStep } from "@/components/register/ChiPartecipaStep";
+import { getChildUnitOptions } from "@/components/register/ChildForm";
+import { ChildSheet } from "@/components/register/ChildSheet";
+import { IscrizioneInviataStep } from "@/components/register/IscrizioneInviataStep";
+import { RegisterFlowHeader } from "@/components/register/RegisterFlowHeader";
+import {
+  RegistrationEditor,
+  type ParentAccountPrefill,
+  type RegistrationEditorDraft,
+} from "@/components/RegistrationEditor";
 import { SectionCard } from "@/components/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ACCEDI } from "@/copy/accedi";
+import { CHI_ISCRIVI } from "@/copy/chiIscrivi";
+import { CHI_PARTECIPA } from "@/copy/chiPartecipa";
+import { INVIATA } from "@/copy/inviata";
+import { ISCRIZIONE } from "@/copy/iscrizione";
+import { fillCopy } from "@/copy/parole";
+import { PERCORSO } from "@/copy/percorso";
+import { PROFILO } from "@/copy/profilo";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
@@ -15,28 +45,83 @@ import { childrenService } from "@/services/firestore/childrenService";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
+import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
 import { questionsService } from "@/services/firestore/questionsService";
 import { registrationAttemptsService } from "@/services/firestore/registrationAttemptsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
+import { unitsService } from "@/services/firestore/unitsService";
 import type {
+  AuthSession,
   ChildProfile,
+  GenderRoleCategory,
   OrganizationProfile,
   Registration,
   RegistrationWriteInput,
+  Unit,
 } from "@/types";
-import { formatDateTime } from "@/utils/formatters";
+import {
+  applyChildIdentity,
+  getActivityFirstDay,
+  getAvatarTone,
+  getChildChoiceState,
+  getChildFormInitial,
+  getInitialChildChoice,
+  getInitials,
+  getRegisterDraftKey,
+  isLiveRegistration,
+  validateChildForm,
+  type ChildFormValues,
+} from "@/utils/childChoice";
+import {
+  getAdultGuardAge,
+  getAdultGuardKey,
+  needsExistingAccountGuard,
+  readAdultGuardConfirmations,
+  writeAdultGuardConfirmation,
+} from "@/utils/adultGuard";
+import { canManageFamily, suggestsChildAfterOwn } from "@/utils/family";
+import { formatDateOnly, formatDateRange } from "@/utils/formatters";
 import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
 import {
   getAudienceRestrictionMessage,
-  getEventAudienceLabel,
   getRegistrationAvailability,
   isEventAudienceEligible,
 } from "@/utils/events";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { writePendingAccountProfile } from "@/utils/pendingAccountProfile";
+import {
+  canBecomeParent,
+  canChooseAccountType,
+  getAgeOn,
+  isEmailDerivedName,
+  isPlaceholderName,
+  needsProfileCompletion,
+} from "@/utils/profileCompletion";
+import {
+  buildRegisterSearch,
+  clearStoredRegisterFor,
+  getRegisterBackTarget,
+  getRegisterProgressIndex,
+  getRegisterRole,
+  getRequestedRegisterChoice,
+  parseRegisterFor,
+  parseRegisterPasso,
+  readStoredRegisterFor,
+  resolveRegisterFlow,
+  writeStoredRegisterFor,
+  type RegisterFor,
+  type RegisterPasso,
+} from "@/utils/registerFlow";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
-import { getActivityRegistrationPath } from "@/utils/activityLinks";
+import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+import {
+  getActivityPath,
+  getActivityRegistrationPath,
+  getLoginPath,
+} from "@/utils/activityLinks";
+
+import "@/styles/registerFlow.css";
 
 interface RegisterPageData {
   stakeId: string;
@@ -48,6 +133,23 @@ interface RegisterPageData {
   // contatti del genitore: lo step genitore parte compilato, da confermare.
   parentDetailsSource: Registration | null;
   children: ChildProfile[];
+  // Unità del palo per il foglio del figlio (solo account che possono avere figli).
+  units: Unit[];
+  // "Già iscritto": l'iscrizione di ogni figlio a questa attività, o null.
+  childRegistrations: Record<string, Registration | null>;
+  // Per quali parametri sono stati letti questi dati: al cambio di figlio,
+  // il primo render dopo la navigazione ha ancora quelli del figlio di prima.
+  loadedFor: string;
+}
+
+// Stato della cronologia lasciato dai passi: la freccia in alto torna indietro
+// con la cronologia (non con una voce nuova) quando il passo prima è lì.
+interface RegisterHistoryState {
+  registerFrom?: string;
+  fromActivity?: boolean;
+  // «I tuoi dati» aperto dalla guardia in cima al modulo per un profilo già
+  // completo (docs/FLUSSO_GENITORE.md, G): da dove ripartire nel passo.
+  ownData?: "data" | "dirigente";
 }
 
 const initialData: RegisterPageData = {
@@ -58,6 +160,23 @@ const initialData: RegisterPageData = {
   registration: null,
   parentDetailsSource: null,
   children: [],
+  units: [],
+  childRegistrations: {},
+  loadedFor: "",
+};
+
+const CATEGORY_WORDS: Record<GenderRoleCategory, string> = {
+  giovane_uomo: CHI_PARTECIPA.categoriaGiovaneUomo,
+  giovane_donna: CHI_PARTECIPA.categoriaGiovaneDonna,
+  dirigente: CHI_PARTECIPA.categoriaDirigente,
+  accompagnatore: CHI_PARTECIPA.categoriaAccompagnatore,
+};
+
+const CATEGORY_LABELS: Record<GenderRoleCategory, string> = {
+  giovane_uomo: PROFILO.giovaneUomo,
+  giovane_donna: PROFILO.giovaneDonna,
+  dirigente: PROFILO.dirigente,
+  accompagnatore: PROFILO.accompagnatore,
 };
 
 // Precompila il modulo con i dati del figlio selezionato: il RegistrationEditor
@@ -127,6 +246,36 @@ function createAnonymousTokenId() {
   return `anon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Nome da mostrare per l'account: nome e cognome, altrimenti l'email.
+function getAccountName(session: AuthSession) {
+  const email = session.firebaseUser.email || session.profile.email || "";
+  return isPlaceholderName(session.profile.fullName) ||
+    isEmailDerivedName(session.profile.fullName, email)
+    ? email
+    : session.profile.fullName.trim();
+}
+
+// Nome e cognome veri (non il segnaposto né la parte dell'email).
+function accountHasName(session: AuthSession) {
+  const email = session.firebaseUser.email || session.profile.email || "";
+  return (
+    !isPlaceholderName(session.profile.fullName) &&
+    !isEmailDerivedName(session.profile.fullName, email)
+  );
+}
+
+// "Partecipi tu: {nome}" con il nome in grassetto.
+function withBoldName(template: string, name: string): ReactNode {
+  const [before, after = ""] = template.split("{nome}");
+  return (
+    <>
+      {before}
+      <strong>{name}</strong>
+      {after}
+    </>
+  );
+}
+
 function RegistrationLoadingState({ title }: { title?: string }) {
   return (
     <section className="registration-loading" role="status" aria-live="polite">
@@ -156,21 +305,39 @@ function RegistrationLoadingState({ title }: { title?: string }) {
 export function ActivityRegisterPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { session, signInAnonymously, signOut } = useAuth();
-  const sessionKey = session ? `${session.firebaseUser.uid}:${session.isAnonymous}` : "public";
-  const requestedStakeId = searchParams.get("stake") ?? "";
+  const { session, loading: authLoading, signInAnonymously, signOut } = useAuth();
+  const historyState = (location.state ?? null) as RegisterHistoryState | null;
   const isParentSession = Boolean(session?.isParent);
-  const childIdParam = isParentSession ? (searchParams.get("child") ?? "") : "";
-  const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset">(null);
+  // Può avere figli nel suo account (G2): da genitore, dello staff o adulto.
+  // Il ruolo dice solo se l'account partecipa lui stesso.
+  const familySession = canManageFamily(session);
+  // Cambia anche quando l'account cambia tipo o diventa adulto (data salvata
+  // in «I tuoi dati»): i figli si rileggono.
+  const sessionKey = session
+    ? `${session.firebaseUser.uid}:${session.isAnonymous}:${session.profile.role}:${familySession}`
+    : "public";
+  const requestedStakeId = searchParams.get("stake") ?? "";
+  const childIdParam = familySession ? (searchParams.get("child") ?? "") : "";
+  const perParam = parseRegisterFor(searchParams.get("per"));
+  const passoParam = parseRegisterPasso(searchParams.get("passo"));
+  const [busy, setBusy] = useState<null | "anonymous" | "save" | "pdf" | "reset" | "account">(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [anonymousCompletion, setAnonymousCompletion] = useState<Registration | null>(null);
   const [latestAttemptLogId, setLatestAttemptLogId] = useState<string | null>(null);
+  const [resetSheetOpen, setResetSheetOpen] = useState(false);
+  // Uscita chiesta da qui ("Cambia account"): la scelta "per chi" resta.
+  const keepPerOnSignOutRef = useRef(false);
+  const previousUidRef = useRef<string | null>(null);
+  const loadKey = [eventId ?? "", requestedStakeId, sessionKey, childIdParam].join("|");
 
-  const { data, loading, error, setData } = useAsyncData(
+  const { data, loading, error, setData, reload } = useAsyncData(
     async () => {
       if (!eventId) {
-        return initialData;
+        return { ...initialData, loadedFor: loadKey };
       }
 
       const stakeId = await resolvePublicStakeId(requestedStakeId || session?.profile.stakeId);
@@ -184,16 +351,16 @@ export function ActivityRegisterPage() {
 
       // Step 2-5 sono indipendenti tra loro (basta lo stakeId): in parallelo
       // tagliamo ~60% del tempo percepito sulla pagina di iscrizione.
-      const [organization, event, formConfig, registration, children] = await Promise.all([
+      const parentUid = familySession && session ? session.firebaseUser.uid : "";
+      const [organization, event, formConfig, registration, children, units] = await Promise.all([
         organizationService.getProfile(stakeId),
         eventsService.getPublicEventById(stakeId, eventId),
         eventFormsService.getFormConfig(stakeId, eventId),
         hasLookup
           ? registrationsService.getRegistrationByActor(stakeId, eventId, lookup)
           : Promise.resolve(null),
-        isParentSession && session
-          ? childrenService.listChildren(session.firebaseUser.uid)
-          : Promise.resolve([]),
+        parentUid ? childrenService.listChildren(parentUid) : Promise.resolve([]),
+        parentUid ? unitsService.listActiveUnits(stakeId) : Promise.resolve([]),
       ]);
 
       if (!event) {
@@ -202,8 +369,37 @@ export function ActivityRegisterPage() {
           stakeId,
           organization,
           children,
+          units,
+          loadedFor: loadKey,
         };
       }
+
+      // "Chi iscrivi?" mostra "Già iscritto" per ogni figlio: l'id è fisso
+      // (`child_<genitore>_<figlio>`) e le rules lo lasciano leggere anche
+      // quando manca. Una lettura fallita lascia la scheda selezionabile:
+      // l'id fisso impedisce comunque un doppione (il salvataggio aggiorna).
+      const childRegistrationList = parentUid
+        ? await Promise.all(
+            children.map((child) =>
+              registrationsService
+                .getRegistrationByActor(stakeId, eventId, {
+                  userId: null,
+                  anonymousAuthUid: null,
+                  anonymousUid: null,
+                  parentUid,
+                  childId: child.id,
+                })
+                .catch((caughtError: unknown) => {
+                  console.warn("Iscrizione del figlio non letta.", caughtError);
+                  return null;
+                }),
+            ),
+          )
+        : [];
+      const childRegistrations: Record<string, Registration | null> = {};
+      children.forEach((child, index) => {
+        childRegistrations[child.id] = childRegistrationList[index] ?? null;
+      });
 
       // Solo quando servono davvero (attività con autorizzazione genitore) e
       // solo se questa iscrizione non li ha già: sono get sulla propria
@@ -223,18 +419,453 @@ export function ActivityRegisterPage() {
         registration,
         parentDetailsSource,
         children,
+        units,
+        childRegistrations,
+        loadedFor: loadKey,
       };
     },
     [eventId, requestedStakeId, sessionKey, childIdParam],
     initialData,
   );
+  // Dati di un altro figlio (o di prima del cambio di account): si aspetta.
+  // Un errore lascia i dati di prima: si mostra l'errore, non il caricamento.
+  const loadingData = loading || (!error && data.loadedFor !== loadKey);
+  const loadFailed = Boolean(error) && data.loadedFor !== loadKey;
 
-  if (loading) {
-    return (
-      <div className="page page--register-loading">
-        <RegistrationLoadingState title={data.event?.title} />
-      </div>
+  const event = data.event;
+  const formConfig = data.formConfig;
+  const organization = data.organization;
+  const isUserAccount = Boolean(session && !session.isAnonymous);
+  const profileComplete = Boolean(
+    session && !session.isAnonymous && !needsProfileCompletion(session.profile),
+  );
+  // Account di un minore: partecipante completo che non può avere figli
+  // (`canManageFamily`, meno di 18 anni). Vale anche per una data illeggibile:
+  // percorso, freccia e intestazione lo trattano tutti allo stesso modo, e
+  // nessuno finisce in "Chi iscrivi?" senza poter caricare i figli.
+  const isMinorAccount = Boolean(
+    session &&
+      isUserAccount &&
+      profileComplete &&
+      session.profile.role === "participant" &&
+      !familySession,
+  );
+  // Per attività rafforzate (overnight/trip/camp/multi_day) con account
+  // obbligatorio: niente ospiti, anche se formConfig.allowGuestRegistration
+  // fosse legacy true.
+  const eventForcesAccount = Boolean(event?.requiresAccount);
+  const allowGuestForThisActivity =
+    Boolean(formConfig?.allowGuestRegistration) && !eventForcesAccount;
+  const selectedChild = familySession
+    ? (data.children.find((child) => child.id === childIdParam) ?? null)
+    : null;
+  // Chi ha già la sua iscrizione (account o ospite) riparte dal modulo, non
+  // da "Chi partecipa?"; così chi arriva con un figlio già scelto ("Gestisci"
+  // in Famiglia, link vecchi senza `per`).
+  const hasOwnRegistration = Boolean(data.registration) && !selectedChild;
+  const requested = getRequestedRegisterChoice({
+    per: perParam,
+    passo: passoParam,
+    childSelected: Boolean(selectedChild),
+    hasOwnRegistration,
+  });
+  // Primo giorno dell'attività: età e avvisi (figli, guardia adulto) valgono
+  // per quel giorno.
+  const activityFirstDay = getActivityFirstDay(event?.startDate, new Date());
+  // Guardia adulto (docs/FLUSSO_GENITORE.md, G): "Confermo, partecipo io come
+  // giovane" vale per account, attività e data di nascita.
+  const [guardConfirmations, setGuardConfirmations] = useState(() =>
+    readAdultGuardConfirmations(),
+  );
+  const guardUid = session && !session.isAnonymous ? session.firebaseUser.uid : "";
+  const isGuardConfirmed = (birthDate: string) =>
+    Boolean(
+      guardUid &&
+        event &&
+        guardConfirmations.has(getAdultGuardKey({ uid: guardUid, eventId: event.id, birthDate })),
     );
+  const confirmAdultGuard = (birthDate: string) => {
+    if (!guardUid || !event) {
+      return;
+    }
+
+    const key = getAdultGuardKey({ uid: guardUid, eventId: event.id, birthDate });
+    writeAdultGuardConfirmation(key);
+    setGuardConfirmations((current) => new Set(current).add(key));
+  };
+  // Un'iscrizione annullata non ferma la guardia: si sta iscrivendo di nuovo.
+  const hasLiveOwnRegistration = isLiveRegistration(data.registration) && !selectedChild;
+  const existingAccountGuard = Boolean(
+    session &&
+      event &&
+      isUserAccount &&
+      needsExistingAccountGuard({
+        role: session.profile.role,
+        profileComplete,
+        category: session.profile.genderRoleCategory,
+        birthDate: session.profile.birthDate,
+        firstDay: activityFirstDay,
+        hasOwnRegistration: hasLiveOwnRegistration,
+        confirmed: isGuardConfirmed(session.profile.birthDate || ""),
+      }),
+  );
+  // "Iscrivi un'altra persona" esce dalla sessione da ospite e ne apre
+  // un'altra: nel mezzo si resta ospiti, sul modulo.
+  const resettingGuest = busy === "reset";
+  const flow = resolveRegisterFlow({
+    per: requested.per,
+    passo: requested.passo,
+    account: resettingGuest || session?.isAnonymous ? "guest" : !session ? "none" : "user",
+    profileComplete,
+    role: getRegisterRole(session?.profile.role ?? ""),
+    isMinor: isMinorAccount,
+    guestAllowed: allowGuestForThisActivity,
+    childSelected: Boolean(selectedChild),
+    submitted: isLiveRegistration(data.registration),
+    adultGuard: existingAccountGuard,
+    editOwnData: Boolean(historyState?.ownData),
+  });
+  const keepChild =
+    flow.per === "figlio" &&
+    (flow.screen === "figlio" || flow.screen === "modulo" || flow.screen === "inviata");
+  const canonicalSearch = buildRegisterSearch(searchParams, {
+    per: flow.per,
+    passo: flow.passo,
+    child: keepChild ? undefined : null,
+  });
+  const ready =
+    !authLoading && !loadingData && !loadFailed && Boolean(event) && !resettingGuest;
+
+  // Bozze del modulo in memoria per account, attività e persona
+  // (docs/FLUSSO_GENITORE.md, F): da Marco a Giulia e di nuovo a Marco si
+  // ritrovano le risposte di Marco; i dati sanitari non passano a un altro
+  // figlio. Uscire dall'iscrizione o dall'account le cancella.
+  const draftsRef = useRef(new Map<string, RegistrationEditorDraft>());
+  const draftUid = session && !session.isAnonymous ? session.firebaseUser.uid : "";
+  const currentDraftKey =
+    draftUid && event
+      ? getRegisterDraftKey({
+          uid: draftUid,
+          stakeId: data.stakeId,
+          eventId: event.id,
+          childId: selectedChild?.id ?? null,
+        })
+      : null;
+  const handleDraftChange = useCallback((draft: RegistrationEditorDraft, key: string | undefined) => {
+    if (key) {
+      draftsRef.current.set(key, draft);
+    }
+  }, []);
+
+  // Risposte non inviate (il modulo aperto o le bozze di altri figli): uscire
+  // dall'iscrizione (link, indietro del browser fuori dalla pagina, "Esci",
+  // "Cambia account") passa dal foglio "Esci dall'iscrizione?". Dentro il
+  // percorso ("Cambia", freccia, un altro figlio) le bozze restano: niente foglio.
+  // Prima degli effetti che navigano: useBlocker aggiorna la sua funzione in
+  // un suo effetto, e quegli effetti devono trovarla già aggiornata.
+  const [formDirty, setFormDirty] = useState(false);
+  const submittingRef = useRef(false);
+  const [pendingExit, setPendingExit] = useState<null | (() => void)>(null);
+  const hasUnsentAnswers = () =>
+    (formDirty && flow.screen === "modulo") || draftsRef.current.size > 0;
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (submittingRef.current || !hasUnsentAnswers()) {
+      return false;
+    }
+
+    return nextLocation.pathname !== currentLocation.pathname;
+  });
+
+  useEffect(() => {
+    if (flow.screen !== "modulo") {
+      setFormDirty(false);
+    }
+
+    // Indietro del browser con il foglio aperto: il foglio non torna da solo.
+    if (flow.screen !== "figlio") {
+      setChildSheet(null);
+    }
+  }, [flow.screen]);
+
+  // "Chi iscrivi?": la scelta fatta, il foglio del figlio, il modulo aperto
+  // quando non ci sono figli salvati.
+  const [childChoice, setChildChoice] = useState<string | null>(null);
+  const [childSheet, setChildSheet] = useState<null | {
+    child: ChildProfile | null;
+    draft: { childId: string; createdAt: string } | null;
+  }>(null);
+  const [inlineChild, setInlineChild] = useState<ChildFormValues | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [inlineBusy, setInlineBusy] = useState(false);
+  const inlineDraftRef = useRef<{ childId: string; createdAt: string } | null>(null);
+  const childSavingRef = useRef(false);
+  // Doppio tocco su "Invia": una scrittura sola.
+  const savingRef = useRef(false);
+  // "Iscrizione inviata" segue l'iscrizione dal vivo.
+  const [liveRegistration, setLiveRegistration] = useState<Registration | null>(null);
+  const [authorizing, setAuthorizing] = useState(false);
+  const [authorizeError, setAuthorizeError] = useState<string | null>(null);
+  const authorizingRef = useRef(false);
+  // Unità del foglio: quelle attive del palo, più quella salvata sul figlio
+  // in modifica se nel frattempo non è più in elenco.
+  const unitOptions = getChildUnitOptions(
+    data.units,
+    childSheet?.child
+      ? { unitId: childSheet.child.unitId, unitName: childSheet.child.unitName }
+      : null,
+  );
+
+  // Un passo senza i suoi prerequisiti porta al primo passo valido: si
+  // sostituisce la voce di cronologia, mai una nuova (docs/FLUSSO_GENITORE.md,
+  // "Navigazione").
+  useEffect(() => {
+    if (!ready || canonicalSearch === searchParams.toString()) {
+      return;
+    }
+
+    navigate({ search: canonicalSearch }, { replace: true, state: location.state });
+  }, [canonicalSearch, location.state, navigate, ready, searchParams]);
+
+  // Uscita dall'account (anche dall'intestazione del sito): la scelta "per
+  // chi" si cancella, salvo "Cambia account" che la tiene per rientrare.
+  const currentUid = session && !session.isAnonymous ? session.firebaseUser.uid : null;
+  useEffect(() => {
+    const previousUid = previousUidRef.current;
+    previousUidRef.current = currentUid;
+
+    if (!previousUid || previousUid === currentUid) {
+      return;
+    }
+
+    setAnonymousCompletion(null);
+    // Cambio di account o uscita: bozze e scelte dell'account di prima spariscono.
+    draftsRef.current.clear();
+    setFormDirty(false);
+    setChildChoice(null);
+    setChildSheet(null);
+    setInlineChild(null);
+    setInlineError(null);
+    inlineDraftRef.current = null;
+    setLiveRegistration(null);
+
+    if (keepPerOnSignOutRef.current) {
+      keepPerOnSignOutRef.current = false;
+      return;
+    }
+
+    clearStoredRegisterFor();
+    navigate(
+      { search: buildRegisterSearch(searchParams, { per: null, passo: null, child: null }) },
+      { replace: true },
+    );
+    // Solo al cambio di account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUid]);
+
+  // Conferme della guardia adulto: AuthProvider le cancella a ogni uscita o
+  // cambio di account; la pagina le rilegge a ogni account, anche al primo
+  // accesso con la pagina già aperta.
+  useEffect(() => {
+    setGuardConfirmations(readAdultGuardConfirmations());
+  }, [currentUid]);
+
+  // Passo nuovo: si riparte dall'alto (il titolo prende il focus nel passo);
+  // indietro del browser ritrova la posizione di prima.
+  const navigationType = useNavigationType();
+  const screenKey = `${flow.screen}:${flow.per ?? ""}`;
+  const previousScreenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    const previous = previousScreenRef.current;
+    previousScreenRef.current = screenKey;
+
+    if (previous && previous !== screenKey && navigationType !== "POP") {
+      window.scrollTo({ top: 0 });
+    }
+  }, [navigationType, ready, screenKey]);
+
+  // "Iscrizione inviata": l'iscrizione dal vivo (esito della mail, firma).
+  const watchedRegistration =
+    flow.screen === "inviata" && data.registration && data.stakeId && event
+      ? `${data.stakeId}|${event.id}|${data.registration.id}`
+      : "";
+  useEffect(() => {
+    if (!watchedRegistration) {
+      setLiveRegistration(null);
+      return;
+    }
+
+    const [stakeId, eventIdToWatch, registrationId] = watchedRegistration.split("|");
+    return registrationsService.watchRegistration(
+      stakeId,
+      eventIdToWatch,
+      registrationId,
+      (next) => setLiveRegistration(next),
+    );
+  }, [watchedRegistration]);
+
+  // Azioni che non sono una navigazione (uscita dall'account): stesso foglio.
+  function confirmExitThen(action: () => void) {
+    if (hasUnsentAnswers()) {
+      setPendingExit(() => action);
+      return;
+    }
+
+    action();
+  }
+
+  function goTo(
+    per: RegisterFor | null,
+    passo: RegisterPasso | null,
+    options: { replace?: boolean; child?: string | null } = {},
+  ) {
+    const search = buildRegisterSearch(searchParams, {
+      per,
+      passo,
+      child: options.child === undefined ? null : options.child,
+    });
+    navigate(
+      { search },
+      options.replace
+        ? { replace: true, state: location.state }
+        : { state: { registerFrom: searchParams.toString() } satisfies RegisterHistoryState },
+    );
+  }
+
+  // Dalla guardia in cima al modulo: «I tuoi dati» del profilo già salvato,
+  // con il cursore sulla data o con Dirigente già scelto.
+  function openOwnData(start: "data" | "dirigente") {
+    setActionError(null);
+    navigate(
+      { search: buildRegisterSearch(searchParams, { per: "io", passo: "dati", child: null }) },
+      {
+        state: {
+          registerFrom: searchParams.toString(),
+          ownData: start,
+        } satisfies RegisterHistoryState,
+      },
+    );
+  }
+
+  // «I tuoi dati» aperto dalla guardia: la voce prima è quella del modulo
+  // (la guardia), e si torna lì, salvando o con la freccia, senza lasciare
+  // due voci del modulo una dopo l'altra.
+  const openedFromGuard =
+    Boolean(historyState?.ownData) &&
+    parseRegisterPasso(new URLSearchParams(historyState?.registerFrom ?? "").get("passo")) ===
+      "modulo";
+
+  // «I tuoi dati» salvato da chi partecipa: si va al modulo, e indietro non
+  // riporta al passo appena chiuso.
+  function handleOwnDataSaved() {
+    if (openedFromGuard) {
+      navigate(-1);
+      return;
+    }
+
+    navigate(
+      { search: buildRegisterSearch(searchParams, { per: "io", passo: "modulo", child: null }) },
+      {
+        replace: true,
+        state: {
+          registerFrom: historyState?.registerFrom,
+          fromActivity: historyState?.fromActivity,
+        } satisfies RegisterHistoryState,
+      },
+    );
+  }
+
+  function handleChoose(per: RegisterFor) {
+    if (eventId) {
+      writeStoredRegisterFor(eventId, per);
+    }
+
+    setActionError(null);
+    goTo(per, null);
+  }
+
+  function handleBack() {
+    if (!event) {
+      return;
+    }
+
+    if (flow.screen === "dati" && openedFromGuard) {
+      navigate(-1);
+      return;
+    }
+
+    const target = getRegisterBackTarget(flow.screen, flow.per, isMinorAccount);
+
+    if (target.kind === "activity") {
+      if (historyState?.fromActivity) {
+        navigate(-1);
+      } else {
+        navigate(getActivityPath(event.id, requestedStakeId || undefined));
+      }
+      return;
+    }
+
+    // Il passo prima è la voce precedente della cronologia: si torna con la
+    // cronologia (così "avanti" del browser funziona ancora). "Chi
+    // partecipa?" senza scelta nell'URL conta come lo stesso passo.
+    if (historyState?.registerFrom !== undefined) {
+      const from = new URLSearchParams(historyState.registerFrom);
+      const fromPasso =
+        parseRegisterPasso(from.get("passo")) ?? (parseRegisterFor(from.get("per")) ? null : "chi");
+
+      if (fromPasso === target.passo) {
+        navigate(-1);
+        return;
+      }
+    }
+
+    navigate(
+      {
+        search: buildRegisterSearch(searchParams, {
+          per: target.per,
+          passo: target.passo,
+          child: target.passo === "figlio" ? undefined : null,
+        }),
+      },
+      { replace: true, state: location.state },
+    );
+  }
+
+  async function handleSignOut() {
+    setBusy("account");
+    setActionError(null);
+
+    try {
+      await signOut();
+    } catch (caughtError) {
+      setActionError(toUserFacingAuthError(caughtError));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Esce e riparte da "Il tuo account" con la stessa scelta (o con `per`).
+  async function handleSwitchAccount(per: RegisterFor) {
+    setBusy("account");
+    setActionError(null);
+    keepPerOnSignOutRef.current = true;
+
+    try {
+      await signOut();
+      writeStoredRegisterFor(eventId ?? "", per);
+      navigate(
+        { search: buildRegisterSearch(searchParams, { per, passo: "account", child: null }) },
+        { replace: true },
+      );
+    } catch (caughtError) {
+      keepPerOnSignOutRef.current = false;
+      setActionError(toUserFacingAuthError(caughtError));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function handleAnonymousAccess() {
@@ -242,7 +873,10 @@ export function ActivityRegisterPage() {
     setActionError(null);
 
     try {
-      await signInAnonymously();
+      if (!session?.isAnonymous) {
+        await signInAnonymously();
+      }
+      goTo("io", "modulo");
     } catch (caughtError) {
       setActionError(toUserFacingAuthError(caughtError));
     } finally {
@@ -254,19 +888,9 @@ export function ActivityRegisterPage() {
   // creare un account. La sessione anonima è legata al primo figlio quindi
   // riapre l'iscrizione esistente; con questo bottone scolleghiamo e
   // apriamo una nuova sessione anonima per ripartire da zero.
+  // Conferma nel foglio (resetSheetOpen), mai con un dialogo del browser.
   async function handleResetAnonymousSession() {
     if (!session?.isAnonymous) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Stai per avviare una nuova iscrizione per un'altra persona. " +
-        "Conferma di aver già salvato il codice di recupero o il PDF " +
-        "dell'iscrizione precedente: senza quelli non potrai più modificarla. " +
-        "Le richieste ai record fatte da questo telefono non si vedranno più.",
-    );
-
-    if (!confirmed) {
       return;
     }
 
@@ -279,7 +903,9 @@ export function ActivityRegisterPage() {
       setAnonymousCompletion(null);
       setLatestAttemptLogId(null);
       setData((current) => ({ ...current, registration: null }));
+      setResetSheetOpen(false);
     } catch (caughtError) {
+      setResetSheetOpen(false);
       setActionError(toUserFacingAuthError(caughtError));
     } finally {
       setBusy(null);
@@ -287,6 +913,10 @@ export function ActivityRegisterPage() {
   }
 
   async function handleSubmit(input: RegistrationWriteInput) {
+    if (savingRef.current) {
+      return;
+    }
+
     if (!data.event || !data.stakeId || !session) {
       setActionError("Serve una sessione valida per salvare la registrazione.");
       return;
@@ -299,36 +929,72 @@ export function ActivityRegisterPage() {
       return;
     }
 
+    const currentEvent = data.event;
+    const stakeId = data.stakeId;
+    const networkMessage = ISCRIZIONE.invioRete;
+
+    // Senza rete non si prova nemmeno: la scrittura resterebbe in coda e
+    // partirebbe da sola più tardi, dopo che abbiamo detto che non è partita.
+    if (isOffline()) {
+      setActionError(networkMessage);
+      return;
+    }
+
+    // Prima iscrizione (o una annullata risalvata): dopo l'invio si va su
+    // "Iscrizione inviata". Una modifica torna dove tornava.
+    const isNewSubmission = !isLiveRegistration(data.registration);
+    const draftKey = currentDraftKey;
+    savingRef.current = true;
     setBusy("save");
     setActionError(null);
 
-    const attemptLogId = await registrationAttemptsService.startAttempt({
-      stakeId: data.stakeId,
-      eventId: data.event.id,
-      eventTitle: data.event.title,
-      lookup,
-      input,
-    });
-
-    setLatestAttemptLogId(attemptLogId);
+    let attemptLogId: string | null = null;
 
     try {
-      const savedRegistration = await registrationsService.upsertRegistration(
-        data.stakeId,
-        data.event.id,
-        lookup,
-        input,
+      // Senza risposta dal server il pulsante torna attivo e le risposte
+      // restano: un esito che arriva dopo non sposta più la pagina (la
+      // scrittura in coda parte da sola e "Chi iscrivi?" la mostra).
+      const savedRegistration = await withWriteTimeout(
+        (async () => {
+          attemptLogId = await registrationAttemptsService.startAttempt({
+            stakeId,
+            eventId: currentEvent.id,
+            eventTitle: currentEvent.title,
+            lookup,
+            input,
+          });
+
+          setLatestAttemptLogId(attemptLogId);
+
+          const saved = await registrationsService.upsertRegistration(
+            stakeId,
+            currentEvent.id,
+            lookup,
+            input,
+          );
+
+          if (!saved) {
+            throw new Error("La registrazione non è stata riletta correttamente.");
+          }
+
+          return saved;
+        })(),
       );
 
-      if (!savedRegistration) {
-        throw new Error("La registrazione non è stata riletta correttamente.");
-      }
-
-      await registrationAttemptsService.markStep(data.stakeId, attemptLogId, {
+      // Registro dei tentativi e domande del caminetto: scritture di contorno,
+      // in coda senza aspettarle. L'iscrizione è salvata: se la rete cade
+      // adesso, la pagina va avanti lo stesso e loro partono al ritorno.
+      void registrationAttemptsService.markStep(stakeId, attemptLogId, {
         lastStep: "registration_saved",
         registrationId: savedRegistration.id,
         registrationStatus: savedRegistration.registrationStatus,
       });
+
+      // Iscrizione inviata: la scelta "per chi" non serve più, la bozza nemmeno.
+      clearStoredRegisterFor();
+      if (draftKey) {
+        draftsRef.current.delete(draftKey);
+      }
 
       // Domande caminetto raccolte inline nel form: ora che la registrazione
       // esiste possiamo creare i doc /questions. Errori non bloccano (le
@@ -338,19 +1004,23 @@ export function ActivityRegisterPage() {
           session.isAnonymous
             ? savedRegistration.fullName
             : session.profile.fullName || savedRegistration.fullName;
-        for (const draft of input.pendingQuestions) {
-          try {
-            await questionsService.create(
-              data.stakeId,
-              data.event.id,
-              lookup,
-              authorName,
-              { text: draft.text, isAnonymous: draft.isAnonymous },
-            );
-          } catch (questionError) {
-            console.error("Creazione domanda caminetto fallita", questionError);
+        const questions = input.pendingQuestions;
+        void (async () => {
+          for (const draft of questions) {
+            try {
+              await questionsService.create(
+                stakeId,
+                currentEvent.id,
+                savedRegistration.id,
+                lookup,
+                authorName,
+                { text: draft.text, isAnonymous: draft.isAnonymous },
+              );
+            } catch (questionError) {
+              console.error("Creazione domanda caminetto fallita", questionError);
+            }
           }
-        }
+        })();
       }
 
       let nextRegistration = savedRegistration;
@@ -364,8 +1034,8 @@ export function ActivityRegisterPage() {
         }
 
         const recovered = await registrationsService.saveAnonymousRecovery(
-          data.stakeId,
-          data.event.id,
+          stakeId,
+          currentEvent.id,
           savedRegistration.id,
           {
             anonymousUid: lookup.anonymousUid,
@@ -373,7 +1043,7 @@ export function ActivityRegisterPage() {
               savedRegistration.anonymousTokenId ?? createAnonymousTokenId(),
             recoveryCode,
             pdfDataSummary: {
-              eventTitle: data.event.title,
+              eventTitle: currentEvent.title,
               fullName: savedRegistration.fullName,
               email: savedRegistration.email,
               submittedAt: savedRegistration.updatedAt,
@@ -383,39 +1053,53 @@ export function ActivityRegisterPage() {
         );
 
         nextRegistration = recovered ?? savedRegistration;
-        await registrationAttemptsService.markStep(data.stakeId, attemptLogId, {
+        void registrationAttemptsService.markStep(stakeId, attemptLogId, {
           lastStep: "recovery_saved",
           registrationId: nextRegistration.id,
           registrationStatus: nextRegistration.registrationStatus,
         });
         setAnonymousCompletion(nextRegistration);
+        setFormDirty(false);
+        setData((current) => ({ ...current, registration: nextRegistration }));
         window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        await registrationAttemptsService.markSucceeded(
-          data.stakeId,
+        void registrationAttemptsService.markSucceeded(
+          stakeId,
           attemptLogId,
           nextRegistration,
           "completed",
         );
-        if (lookup.parentUid) {
-          navigate("/family", { replace: true });
-        } else {
-          navigate(`/me/activities/${data.event.id}`, { replace: true });
-        }
+        return;
       }
 
-      setData((current) => ({
-        ...current,
-        registration: nextRegistration,
-      }));
+      void registrationAttemptsService.markSucceeded(
+        stakeId,
+        attemptLogId,
+        nextRegistration,
+        "completed",
+      );
+      submittingRef.current = true;
+      setFormDirty(false);
 
-      if (session.isAnonymous && lookup.anonymousUid) {
-        await registrationAttemptsService.markSucceeded(
-          data.stakeId,
-          attemptLogId,
-          nextRegistration,
-          "completed",
-        );
+      if (isNewSubmission) {
+        // I dati prima della navigazione: "Iscrizione inviata" vale solo con
+        // l'iscrizione salvata, altrimenti la pagina tornerebbe al modulo.
+        setData((current) => ({
+          ...current,
+          registration: nextRegistration,
+          childRegistrations: lookup.childId
+            ? { ...current.childRegistrations, [lookup.childId]: nextRegistration }
+            : current.childRegistrations,
+        }));
+        setLiveRegistration(nextRegistration);
+        goTo(flow.per ?? (lookup.parentUid ? "figlio" : "io"), "inviata", {
+          replace: true,
+          child: lookup.childId ?? null,
+        });
+        submittingRef.current = false;
+      } else if (lookup.parentUid) {
+        navigate("/family", { replace: true });
+      } else {
+        navigate(`/me/activities/${currentEvent.id}`, { replace: true });
       }
     } catch (caughtError) {
       // Log dettagliato per diagnostica: senza questo l'admin vede solo
@@ -427,12 +1111,19 @@ export function ActivityRegisterPage() {
             : null,
         message:
           caughtError instanceof Error ? caughtError.message : String(caughtError),
-        stakeId: data.stakeId,
-        eventId: data.event.id,
+        stakeId,
+        eventId: currentEvent.id,
         lookup,
       });
+
+      if (isConnectionError(caughtError)) {
+        // Il tentativo resta "started": il registro non si scrive senza rete.
+        setActionError(networkMessage);
+        return;
+      }
+
       await registrationAttemptsService.markFailed(
-        data.stakeId,
+        stakeId,
         attemptLogId,
         "submit_failed",
         caughtError,
@@ -441,13 +1132,239 @@ export function ActivityRegisterPage() {
         caughtError && typeof caughtError === "object" && "code" in caughtError
           ? String((caughtError as { code?: unknown }).code ?? "")
           : "";
-      const baseMessage =
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile salvare la registrazione.";
-      setActionError(code ? `${baseMessage} (codice: ${code})` : baseMessage);
+      // Gli errori di Firebase arrivano in inglese: per l'utente una frase
+      // italiana con il codice; i nostri (pubblico, unità) restano come sono.
+      setActionError(
+        code
+          ? `${ISCRIZIONE.invioErrore} (codice: ${code})`
+          : caughtError instanceof Error
+            ? caughtError.message
+            : ISCRIZIONE.invioErrore,
+      );
     } finally {
+      savingRef.current = false;
       setBusy(null);
+    }
+  }
+
+  // Scrive il figlio nell'account (foglio "Aggiungi", modifica, modulo aperto
+  // senza figli) e aggiorna la lista senza rileggere tutto.
+  async function saveChild(
+    values: ChildFormValues,
+    existing: ChildProfile | null,
+    draft: { childId: string; createdAt: string } | null,
+  ): Promise<ChildProfile> {
+    if (!session || session.isAnonymous || !data.stakeId) {
+      throw new Error(CHI_ISCRIVI.erroreSalvataggio);
+    }
+
+    if (isOffline()) {
+      throw new Error(CHI_ISCRIVI.erroreRete);
+    }
+
+    const parentUid = session.firebaseUser.uid;
+    const unit = unitOptions.find((option) => option.id === values.unitId) ?? null;
+    const input = {
+      firstName: values.firstName,
+      lastName: values.lastName,
+      birthDate: values.birthDate,
+      genderRoleCategory: values.genderRoleCategory,
+      unitId: unit?.id ?? "",
+      unitName: unit?.name ?? "",
+      stakeId: existing?.stakeId || data.stakeId,
+    };
+
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName.trim();
+    const edited: ChildProfile | null = existing
+      ? {
+          ...existing,
+          ...input,
+          firstName,
+          lastName,
+          fullName: `${firstName} ${lastName}`.trim(),
+          unitName: input.unitName.trim(),
+          updatedAt: new Date().toISOString(),
+        }
+      : null;
+    const showChild = (child: ChildProfile) =>
+      setData((current) => ({
+        ...current,
+        children: [...current.children.filter((item) => item.id !== child.id), child].sort(
+          (left, right) => left.fullName.localeCompare(right.fullName, "it-IT"),
+        ),
+      }));
+
+    try {
+      let saved: ChildProfile;
+
+      if (existing && edited) {
+        await withWriteTimeout(childrenService.updateChild(parentUid, existing.id, input));
+        saved = edited;
+      } else {
+        saved = await withWriteTimeout(
+          childrenService.createChild(parentUid, input, draft ?? undefined),
+        );
+      }
+
+      showChild(saved);
+      return saved;
+    } catch (caughtError) {
+      console.error("[child save] failed", caughtError);
+
+      // Senza rete la modifica resta in coda e arriverà: la lista e la bozza
+      // del suo modulo seguono già i dati nuovi (la data decide l'autorizzazione).
+      if (edited && isConnectionError(caughtError)) {
+        showChild(edited);
+        refreshDraftIdentity(edited);
+      }
+
+      // Senza rete la creazione resta in coda e la cache la conosce già: il
+      // figlio compare nella lista, così chiudere e riaprire "Aggiungi" non
+      // ne crea un secondo.
+      if (!existing && isConnectionError(caughtError)) {
+        void childrenService
+          .listChildren(parentUid)
+          .then((children) => setData((current) => ({ ...current, children })))
+          .catch(() => undefined);
+      }
+
+      throw new Error(
+        isConnectionError(caughtError) ? CHI_ISCRIVI.erroreRete : CHI_ISCRIVI.erroreSalvataggio,
+      );
+    }
+  }
+
+  async function handleSheetSave(values: ChildFormValues) {
+    if (!childSheet || childSavingRef.current) {
+      return;
+    }
+
+    childSavingRef.current = true;
+
+    try {
+      const saved = await saveChild(values, childSheet.child, childSheet.draft);
+
+      if (childSheet.child) {
+        refreshDraftIdentity(saved);
+      }
+
+      // "Salva" seleziona il figlio (se l'attività lo accetta).
+      setChildChoice(saved.id);
+      setChildSheet(null);
+    } finally {
+      childSavingRef.current = false;
+    }
+  }
+
+  // Dati del figlio corretti con la matita: la bozza del suo modulo riparte
+  // dal primo passo con nome, data, gruppo e unità nuovi. Quei campi sono
+  // nascosti a chi ha già il profilo completo, e una data vecchia deciderebbe
+  // se serve l'autorizzazione del genitore.
+  function refreshDraftIdentity(child: ChildProfile) {
+    if (!draftUid || !event) {
+      return;
+    }
+
+    const key = getRegisterDraftKey({
+      uid: draftUid,
+      stakeId: data.stakeId,
+      eventId: event.id,
+      childId: child.id,
+    });
+    const draft = draftsRef.current.get(key);
+
+    if (!draft) {
+      return;
+    }
+
+    draftsRef.current.set(key, { stepIndex: 0, values: applyChildIdentity(draft.values, child) });
+  }
+
+  // Senza figli: "Salva e continua" porta al modulo di quel figlio.
+  async function handleInlineSave(values: ChildFormValues) {
+    if (childSavingRef.current) {
+      return;
+    }
+
+    if (!session) {
+      return;
+    }
+
+    if (!inlineDraftRef.current) {
+      inlineDraftRef.current = childrenService.newChildDraft(session.firebaseUser.uid);
+    }
+
+    childSavingRef.current = true;
+    setInlineBusy(true);
+    setInlineError(null);
+    setActionError(null);
+
+    try {
+      const saved = await saveChild(values, null, inlineDraftRef.current);
+      inlineDraftRef.current = null;
+      setInlineChild(null);
+      setChildChoice(saved.id);
+
+      if (event && getChildChoiceState(saved, event, null).kind === "selectable") {
+        goTo("figlio", "modulo", { child: saved.id });
+      }
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : CHI_ISCRIVI.erroreSalvataggio;
+      setInlineError(message);
+      // Senza rete il figlio in coda compare nella lista e il modulo aperto
+      // sparisce: il messaggio resta in cima alla pagina.
+      if (message === CHI_ISCRIVI.erroreRete) {
+        setActionError(message);
+      }
+    } finally {
+      childSavingRef.current = false;
+      setInlineBusy(false);
+    }
+  }
+
+  // "Autorizza ora" (G5): link di 60 minuti che invalida quello della mail,
+  // poi la pagina di firma di oggi.
+  function handleAuthorizeNow(registration: Registration) {
+    if (authorizingRef.current) {
+      return;
+    }
+
+    // Le bozze di un altro figlio si perderebbero: prima il foglio, poi il link.
+    confirmExitThen(() => void issueOwnTokenAndOpen(registration));
+  }
+
+  async function issueOwnTokenAndOpen(registration: Registration) {
+    if (authorizingRef.current) {
+      return;
+    }
+
+    authorizingRef.current = true;
+    setAuthorizing(true);
+    setAuthorizeError(null);
+
+    try {
+      const { token } = await parentAuthorizationService.issueOwnToken({
+        stakeId: registration.stakeId,
+        activityId: registration.eventId,
+        registrationId: registration.id,
+      });
+      navigate(`/parent-confirm/${token}`);
+      authorizingRef.current = false;
+      setAuthorizing(false);
+    } catch (caughtError) {
+      authorizingRef.current = false;
+      const code = String((caughtError as { code?: unknown } | null)?.code ?? "");
+      // I messaggi delle nostre callable sono già in italiano; quelli di rete no.
+      setAuthorizeError(
+        /^functions\/(failed-precondition|not-found|permission-denied|invalid-argument)$/u.test(code) &&
+          caughtError instanceof Error &&
+          caughtError.message
+          ? caughtError.message
+          : INVIATA.erroreAutorizza,
+      );
+      setAuthorizing(false);
     }
   }
 
@@ -505,7 +1422,31 @@ export function ActivityRegisterPage() {
     }
   }
 
-  if (!data.event) {
+  if (authLoading || loadingData) {
+    return (
+      <div className="page page--register-loading">
+        <RegistrationLoadingState title={data.event?.title} />
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="page">
+        <EmptyState
+          title={ISCRIZIONE.caricamentoTitolo}
+          description={ISCRIZIONE.caricamentoTesto}
+          action={
+            <button className="button button--primary" onClick={reload} type="button">
+              {ISCRIZIONE.riprova}
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!event) {
     return (
       <div className="page">
         <EmptyState
@@ -521,18 +1462,23 @@ export function ActivityRegisterPage() {
     );
   }
 
-  const event = data.event;
   const registrationPath = getActivityRegistrationPath(event.id, data.stakeId);
-  const formConfig = data.formConfig;
-  const organization = data.organization;
-  const availability =
-    event && formConfig ? getRegistrationAvailability(event, formConfig, session) : null;
-  const canEditExisting = Boolean(data.registration);
-  const selectedChild = isParentSession
-    ? (data.children.find((child) => child.id === childIdParam) ?? null)
+  const eventDates = formatDateRange(event.startDate, event.endDate);
+  // Finestra delle iscrizioni, uguale per tutti (il pubblico si guarda dopo).
+  const registrationWindow = formConfig
+    ? getRegistrationAvailability(event, formConfig, null)
     : null;
+  const registrationsOpen =
+    registrationWindow === "guest-allowed" || registrationWindow === "login-required";
+  // Per un figlio il pubblico si guarda sul figlio (audienceMismatch), non
+  // sulla categoria di chi lo iscrive.
+  const availability = formConfig
+    ? getRegistrationAvailability(event, formConfig, session, {
+        forChild: Boolean(selectedChild),
+      })
+    : null;
+  const canEditExisting = Boolean(data.registration);
   const audienceMismatch =
-    event &&
     session?.isAuthenticated &&
     !session.isAnonymous &&
     !canEditExisting &&
@@ -542,37 +1488,97 @@ export function ActivityRegisterPage() {
           selectedChild ? selectedChild.genderRoleCategory : session.profile.genderRoleCategory,
         )
       : false;
-  // Per attività rafforzate (overnight/trip/camp/multi_day) con account
-  // obbligatorio: blocco i guest. Anche se formConfig.allowGuestRegistration
-  // fosse legacy true, qui prevale.
-  const eventForcesAccount = Boolean(event?.requiresAccount);
-  const allowGuestForThisActivity =
-    Boolean(formConfig?.allowGuestRegistration) && !eventForcesAccount;
-  const isAuthenticatedAccount = Boolean(session?.isAuthenticated && !session.isAnonymous);
-  const accountBlockedForGuest =
-    eventForcesAccount && session?.isAnonymous === true;
+  const accountBlockedForGuest = eventForcesAccount && session?.isAnonymous === true;
   const canSubmit =
-    Boolean(event && formConfig && session) &&
+    Boolean(formConfig && session) &&
     !audienceMismatch &&
     !accountBlockedForGuest &&
+    // Il modulo di un figlio vale solo con un figlio dell'account scelto.
     (!isParentSession || Boolean(selectedChild)) &&
+    (flow.per !== "figlio" || Boolean(selectedChild)) &&
     (canEditExisting || availability === "open" || availability === "guest-allowed");
-  return (
-    <div className="page">
-      <PageHero
-        className="hero--compact"
-        eyebrow="Iscrizione"
-        title={event?.title ?? "Caricamento iscrizione..."}
-        actions={
-          session?.isAuthenticated && !session.isAnonymous ? (
-            <Link className="button button--soft" to={isParentSession ? "/family" : "/me"}>
-              <AppIcon name="home" />
-              <span>Dashboard</span>
-            </Link>
-          ) : undefined
+  const accountName = session && isUserAccount ? getAccountName(session) : "";
+  const selectedChildName = selectedChild
+    ? selectedChild.fullName || `${selectedChild.firstName} ${selectedChild.lastName}`.trim()
+    : "";
+  const firstDay = activityFirstDay;
+  // Passo "Genitore e sicurezza" del figlio: nome, email e telefono dell'account.
+  const parentAccount: ParentAccountPrefill | null =
+    session && familySession && selectedChild
+      ? {
+          firstName: accountHasName(session) ? session.profile.firstName : "",
+          lastName: accountHasName(session) ? session.profile.lastName : "",
+          email: session.profile.email || session.firebaseUser.email || "",
+          phone: session.profile.phone || "",
         }
-      />
+      : null;
+  const progressIndex = getRegisterProgressIndex(flow.screen, flow.per);
+  const progressLabels =
+    flow.per === "figlio"
+      ? ([PERCORSO.tappaAccount, PERCORSO.tappaFiglio, PERCORSO.tappaIscrizione] as const)
+      : ([PERCORSO.tappaAccount, PERCORSO.tappaDati, PERCORSO.tappaIscrizione] as const);
+  const busyAccount = busy === "account";
+  const showsIdentity =
+    isUserAccount &&
+    !isMinorAccount &&
+    (flow.screen === "chi" ||
+      flow.screen === "figlio" ||
+      flow.screen === "guardia" ||
+      flow.screen === "serve-genitore");
+  const identity =
+    session && showsIdentity
+      ? {
+          text: withBoldName(`${PERCORSO.seiEntratoCome} {nome}`, accountName),
+          actionLabel: PERCORSO.cambiaAccount,
+          // Da "Chi partecipa?" senza scelta: si esce e si resta qui.
+          onAction: () =>
+            confirmExitThen(
+              () => void (flow.per ? handleSwitchAccount(flow.per) : handleSignOut()),
+            ),
+          note: profileComplete ? null : PERCORSO.accountResta,
+        }
+      : session && isMinorAccount && flow.screen === "modulo"
+        ? {
+            text: withBoldName(PERCORSO.partecipiTu, accountName),
+            prompt: fillCopy(PERCORSO.nonSeiTu, {
+              nome: session.profile.firstName || accountName,
+            }),
+            actionLabel: PERCORSO.cambiaAccount,
+            onAction: () => confirmExitThen(() => void handleSwitchAccount("io")),
+          }
+        : null;
 
+  const header = (
+    <RegisterFlowHeader
+      busy={busyAccount}
+      eventDates={eventDates}
+      eventTitle={event.title}
+      identity={identity}
+      onBack={handleBack}
+      onChangePer={() => goTo(flow.per, "chi")}
+      // Sotto "Esci" in "I tuoi dati": l'account appena creato resta.
+      note={flow.screen === "dati" ? PERCORSO.accountResta : null}
+      onSignOut={
+        isUserAccount ? () => confirmExitThen(() => void handleSignOut()) : undefined
+      }
+      per={flow.screen === "chi" || isMinorAccount ? null : flow.per}
+      progress={progressIndex === null ? null : { index: progressIndex, labels: progressLabels }}
+      // Modulo di un figlio: "Stai iscrivendo Marco Rossi · Cambia" (→ E).
+      subject={
+        flow.screen === "modulo" && flow.per === "figlio" && selectedChild
+          ? {
+              name: selectedChildName,
+              initials: getInitials(selectedChildName),
+              tone: getAvatarTone(selectedChildName),
+              onChange: handleBack,
+            }
+          : null
+      }
+    />
+  );
+
+  const errorNotices = (
+    <>
       {error ? (
         <div className="notice notice--warning">
           <div>
@@ -582,7 +1588,510 @@ export function ActivityRegisterPage() {
         </div>
       ) : null}
 
-      {event && audienceMismatch ? (
+      {actionError ? (
+        <div className="notice notice--warning" role="alert">
+          <div>
+            <h3>Azione non completata</h3>
+            <p>{actionError}</p>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+
+  // "Esci dall'iscrizione?" vale in ogni passo: le bozze di un figlio restano
+  // anche mentre si guarda "Chi iscrivi?" o "Chi partecipa?".
+  const exitSheet =
+    blocker.state === "blocked" || pendingExit ? (
+      <ConfirmSheet
+        body={ISCRIZIONE.esciTesto}
+        cancelLabel={ISCRIZIONE.continuaACompilare}
+        confirmLabel={ISCRIZIONE.esci}
+        onCancel={() => {
+          if (blocker.state === "blocked") {
+            blocker.reset();
+          }
+          setPendingExit(null);
+        }}
+        onConfirm={() => {
+          const action = pendingExit;
+          setFormDirty(false);
+          setPendingExit(null);
+          draftsRef.current.clear();
+
+          if (blocker.state === "blocked") {
+            blocker.proceed();
+          } else {
+            action?.();
+          }
+        }}
+        title={ISCRIZIONE.esciTitolo}
+      />
+    ) : null;
+
+
+  // Iscrizioni chiuse o non ancora aperte: niente percorso, salvo chi ha già
+  // un'iscrizione da rivedere (o i figli: l'account da genitore, o un adulto
+  // che ha scelto "Iscrivo mio figlio").
+  if (
+    formConfig &&
+    !registrationsOpen &&
+    !hasOwnRegistration &&
+    !isParentSession &&
+    !(familySession && requested.per === "figlio")
+  ) {
+    const notYet = registrationWindow === "not-open-yet";
+
+    return (
+      <div className="page page--flow">
+        {header}
+        <section className="flow-step">
+          <EmptyState
+            title={notYet ? CHI_PARTECIPA.nonAncoraTitolo : CHI_PARTECIPA.chiuseTitolo}
+            description={
+              notYet
+                ? fillCopy(CHI_PARTECIPA.nonAncoraTesto, {
+                    data: formatDateOnly(event.registrationOpen),
+                  })
+                : CHI_PARTECIPA.chiuseTesto
+            }
+            action={
+              <div className="inline-actions">
+                <Link
+                  className="button button--primary"
+                  to={getActivityPath(event.id, requestedStakeId || undefined)}
+                >
+                  {CHI_PARTECIPA.tornaAllAttivita}
+                </Link>
+                {!isUserAccount && !notYet ? (
+                  <Link className="button button--ghost" to={getLoginPath(registrationPath)}>
+                    {CHI_PARTECIPA.accedi}
+                  </Link>
+                ) : null}
+              </div>
+            }
+          />
+          {!isUserAccount && !notYet ? (
+            <p className="subtle-text">{CHI_PARTECIPA.giaIscritto}</p>
+          ) : null}
+        </section>
+        {exitSheet}
+      </div>
+    );
+  }
+
+  if (flow.screen === "chi") {
+    const category = session?.profile.genderRoleCategory || "";
+    const isAdultCategory = category === "dirigente" || category === "accompagnatore";
+    const partecipoIoDetail =
+      isUserAccount && profileComplete && session
+        ? isParentSession
+          ? data.children.length > 0
+            ? CHI_PARTECIPA.partecipoIoGenitore
+            : CHI_PARTECIPA.partecipoIoGenitoreSenzaFigli
+          : category && session.profile.unitName
+            ? fillCopy(CHI_PARTECIPA.partecipoIoCome, {
+                categoria: CATEGORY_WORDS[category],
+                unita: session.profile.unitName,
+              })
+            : CHI_PARTECIPA.partecipoIoAccount
+        : CHI_PARTECIPA.partecipoIoDettaglio;
+    const iscrivoFiglioDetail = !isUserAccount
+      ? CHI_PARTECIPA.iscrivoFiglioDettaglio
+      : !profileComplete &&
+          session &&
+          canBecomeParent(session.profile.role, session.profile.birthDate, new Date())
+        ? CHI_PARTECIPA.iscrivoFiglioCompleta
+        : familySession
+          ? data.children.length > 0
+            ? CHI_PARTECIPA.iscrivoFiglioGenitore
+            : CHI_PARTECIPA.iscrivoFiglioAggiungi
+          : CHI_PARTECIPA.iscrivoFiglioServeGenitore;
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        <ChiPartecipaStep
+          iscrivoFiglioDetail={iscrivoFiglioDetail}
+          onChoose={handleChoose}
+          partecipoIoDetail={partecipoIoDetail}
+          partecipoIoIllustration={
+            isAdultCategory || (isUserAccount && getRegisterRole(session?.profile.role ?? "") === "staff")
+              ? "dirigente"
+              : "io"
+          }
+          selected={flow.per ?? readStoredRegisterFor(event.id)}
+        />
+        {exitSheet}
+      </div>
+    );
+  }
+
+  if (flow.screen === "account" && flow.per) {
+    const forParent = flow.per === "figlio";
+    const offerGuest = !forParent && allowGuestForThisActivity;
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        <AuthCredentialsForm
+          accountType={forParent ? "parent" : "participant"}
+          // Collegare la sessione da ospite vale per chi partecipa lui.
+          anonymousNote={session?.isAnonymous && !forParent ? ACCEDI.ospiteIscrizione : null}
+          extra={
+            offerGuest ? (
+              <div className="flow-guest">
+                <button
+                  className="button button--ghost button--large"
+                  disabled={busy !== null}
+                  onClick={() => void handleAnonymousAccess()}
+                  type="button"
+                >
+                  {busy === "anonymous" ? ISCRIZIONE.apriSessione : ISCRIZIONE.continuaSenzaAccount}
+                </button>
+                <p className="auth-screen__note">
+                  {organization?.guestRegistrationHint || ISCRIZIONE.completataSenzaAccount}
+                </p>
+              </div>
+            ) : !forParent && eventForcesAccount ? (
+              <p className="auth-screen__note">{ISCRIZIONE.serveAccountPernottamento}</p>
+            ) : null
+          }
+          afterExtra={
+            organization?.supportContact ? (
+              <p className="auth-screen__note">
+                {fillCopy(ISCRIZIONE.supporto, { contatto: organization.supportContact })}
+              </p>
+            ) : null
+          }
+          autoFocusTitle
+          footNotes={forParent ? { signup: ISCRIZIONE.accountPiedeGenitore } : undefined}
+          initialMode="signup"
+          key={flow.per}
+          leads={{
+            login: forParent ? ISCRIZIONE.accountLeadGenitore : ISCRIZIONE.accountLeadIo,
+            signup: forParent ? ISCRIZIONE.accountLeadGenitore : ISCRIZIONE.accountLeadIo,
+          }}
+          signupNote={organization?.accountHelpText || ACCEDI.notaDati}
+          tabOrder={["signup", "login"]}
+          titles={{
+            login: forParent ? ISCRIZIONE.accountTitoloGenitore : ISCRIZIONE.accountTitoloIo,
+            signup: forParent ? ISCRIZIONE.accountTitoloGenitore : ISCRIZIONE.accountTitoloIo,
+          }}
+        />
+        {exitSheet}
+      </div>
+    );
+  }
+
+  if (flow.screen === "dati" && session && organization) {
+    // Dirigenti, admin e chi ha una data di nascita da minore completano i
+    // loro dati, anche se hanno scelto il figlio: poi "Chi iscrivi?" (G2), o
+    // per un minore la scheda che dice quale account serve. Il titolo non dice
+    // "Sei tu a partecipare": iscrivono un figlio.
+    const forParent =
+      flow.per === "figlio" &&
+      canBecomeParent(session.profile.role, session.profile.birthDate, new Date());
+    const ownDataStart = profileComplete ? historyState?.ownData : undefined;
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        <ProfileForm
+          // Chi partecipa lui: guardia adulto al «Continua» della data (G).
+          // Non per dirigenti e admin (completano i loro dati) né per chi ha
+          // già un'iscrizione attiva (la modifica).
+          adultGuard={
+            flow.per === "io" &&
+            canChooseAccountType(session.profile.role) &&
+            !hasLiveOwnRegistration
+              ? {
+                  firstDay: activityFirstDay,
+                  existingAccount: profileComplete,
+                  isConfirmed: isGuardConfirmed,
+                  onConfirm: confirmAdultGuard,
+                  // Account nuovo: dati da genitore, niente salvato. Profilo
+                  // già salvato: "Chi iscrivi?" (o la scheda che dice quale
+                  // account serve), l'account resta com'è.
+                  onChooseChild: () => {
+                    writeStoredRegisterFor(event.id, "figlio");
+                    goTo("figlio", profileComplete ? null : "dati");
+                  },
+                }
+              : undefined
+          }
+          draftKey={`${session.firebaseUser.uid}|${event.id}`}
+          onSaved={flow.per === "io" ? handleOwnDataSaved : undefined}
+          start={ownDataStart}
+          aside={
+            forParent ? (
+              <p className="flow-aside">
+                <AppIcon name="user" />
+                <span>
+                  {PROFILO.menoDi18}{" "}
+                  <button
+                    className="flow-aside__link"
+                    onClick={() => goTo("io", "dati")}
+                    type="button"
+                  >
+                    {PROFILO.seiTuAPartecipare}
+                  </button>
+                </span>
+              </p>
+            ) : null
+          }
+          autoFocusTitle
+          footNote={PROFILO.piede}
+          key={`${session.firebaseUser.uid}:${ownDataStart ?? ""}`}
+          lead={forParent ? PROFILO.leadGenitore : PROFILO.leadIo}
+          organization={organization}
+          submitLabel={PROFILO.continua}
+          title={flow.per === "figlio" ? PROFILO.titoloDati : PROFILO.titoloIo}
+          variant={forParent ? "genitore" : "io"}
+        />
+        {exitSheet}
+      </div>
+    );
+  }
+
+  // Figlio scelto dall'account di un minore: l'account del ragazzo non
+  // diventa mai da genitore (tabella "Account già esistente").
+  if (flow.screen === "serve-genitore" && session) {
+    const firstName = session.profile.firstName || accountName;
+    const age = getAgeOn(session.profile.birthDate, new Date());
+    const category = session.profile.genderRoleCategory;
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        <AccountNeededCard
+          body={fillCopy(CHI_PARTECIPA.serveGenitoreRagazzo, { nome: firstName })}
+          busy={busyAccount}
+          identity={{
+            label: PERCORSO.seiEntratoCome,
+            name: accountName,
+            initials: getInitials(accountName),
+            detail:
+              age !== null && category
+                ? fillCopy(CHI_PARTECIPA.etaEGruppo, {
+                    eta: String(age),
+                    gruppo: CATEGORY_LABELS[category],
+                  })
+                : undefined,
+          }}
+          primary={{
+            icon: "logout",
+            label: CHI_PARTECIPA.esciEAccediComeGenitore,
+            onClick: () => confirmExitThen(() => void handleSwitchAccount("figlio")),
+          }}
+          secondary={{
+            label: fillCopy(CHI_PARTECIPA.iscriviConIlSuoAccount, { nome: firstName }),
+            onClick: () => goTo("io", "modulo"),
+          }}
+          title={CHI_PARTECIPA.serveGenitoreTitolo}
+        />
+        {exitSheet}
+      </div>
+    );
+  }
+
+  // Partecipante già entrato con almeno 19 anni il primo giorno: la guardia
+  // in cima al modulo (docs/FLUSSO_GENITORE.md, G). Niente è salvato qui.
+  if (flow.screen === "guardia" && session) {
+    const birthDate = session.profile.birthDate || "";
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        <section className="flow-step">
+          <AdultGuardCard
+            age={getAdultGuardAge(birthDate, activityFirstDay) ?? 0}
+            existingAccount
+            firstDay={activityFirstDay}
+            headingLevel="h1"
+            onChooseAdult={() => openOwnData("dirigente")}
+            onChooseChild={() => handleChoose("figlio")}
+            onConfirm={() => confirmAdultGuard(birthDate)}
+            onWrongDate={() => openOwnData("data")}
+          />
+        </section>
+        {exitSheet}
+      </div>
+    );
+  }
+
+  if (flow.screen === "figlio") {
+    const parentUnitId = session?.profile.unitId ?? "";
+    const entries = data.children.map((child) => ({
+      child,
+      state: getChildChoiceState(child, event, data.childRegistrations[child.id]),
+    }));
+    const choice = getInitialChildChoice(
+      entries.map((entry) => ({ childId: entry.child.id, state: entry.state })),
+      childChoice ?? childIdParam,
+    );
+    const unitIds = unitOptions.map((unit) => unit.id);
+    const inlineValues = inlineChild ?? getChildFormInitial(null, parentUnitId, unitIds);
+
+    return (
+      <div className="page page--flow">
+        {header}
+        {errorNotices}
+        {formConfig && !registrationsOpen ? (
+          <div className="notice notice--warning">
+            <div>
+              <h3>
+                {registrationWindow === "not-open-yet"
+                  ? CHI_PARTECIPA.nonAncoraTitolo
+                  : CHI_PARTECIPA.chiuseTitolo}
+              </h3>
+              <p>
+                {registrationWindow === "not-open-yet"
+                  ? fillCopy(CHI_PARTECIPA.nonAncoraTesto, {
+                      data: formatDateOnly(event.registrationOpen),
+                    })
+                  : CHI_PARTECIPA.chiuseTesto}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        <ChiIscriviStep
+          busy={inlineBusy}
+          closed={!registrationsOpen}
+          entries={entries}
+          eventTitle={event.title}
+          firstDay={firstDay}
+          inlineForm={
+            data.children.length === 0 && registrationsOpen
+              ? {
+                  values: inlineValues,
+                  onChange: (next) => {
+                    setInlineChild(next);
+                    setInlineError(null);
+                  },
+                  onSubmit: () => {
+                    const problem = validateChildForm(inlineValues, {
+                      today: new Date(),
+                      unitIds,
+                    });
+
+                    if (problem) {
+                      setInlineError(problem);
+                      return;
+                    }
+
+                    void handleInlineSave(inlineValues);
+                  },
+                  unitOptions,
+                  parentUnitId,
+                  error: inlineError,
+                  busy: inlineBusy,
+                }
+              : null
+          }
+          onAdd={() =>
+            setChildSheet({
+              child: null,
+              draft: session ? childrenService.newChildDraft(session.firebaseUser.uid) : null,
+            })
+          }
+          onContinue={() => {
+            if (choice) {
+              setChildChoice(choice);
+              goTo("figlio", "modulo", { child: choice });
+            }
+          }}
+          onEdit={(child) => setChildSheet({ child, draft: null })}
+          onOpen={(childId) => goTo("figlio", "modulo", { child: childId })}
+          onSelect={(childId) => setChildChoice(childId)}
+          selectedId={choice}
+        />
+        {childSheet ? (
+          <ChildSheet
+            child={childSheet.child}
+            firstDay={firstDay}
+            onCancel={() => setChildSheet(null)}
+            onSave={handleSheetSave}
+            parentUnitId={parentUnitId}
+            unitOptions={unitOptions}
+          />
+        ) : null}
+        {exitSheet}
+      </div>
+    );
+  }
+
+  if (flow.screen === "inviata") {
+    const registration = liveRegistration ?? data.registration;
+
+    if (!registration) {
+      return null;
+    }
+
+    const forChild = flow.per === "figlio" && Boolean(selectedChild);
+    // Dopo la propria iscrizione, un adulto che può avere figli (dirigente,
+    // accompagnatore, o chi ne ha già) iscrive un figlio senza uscire (G2).
+    const offerChild =
+      !forChild &&
+      suggestsChildAfterOwn({
+        canManageFamily: familySession,
+        role: session?.profile.role ?? "",
+        category: session?.profile.genderRoleCategory ?? "",
+        hasChildren: data.children.length > 0,
+      });
+    const personName = forChild ? selectedChildName : registration.fullName || accountName;
+    const personFirstName = forChild
+      ? selectedChild?.firstName ?? ""
+      : registration.firstName || session?.profile.firstName || "";
+
+    return (
+      <div className="page page--flow">
+        <IscrizioneInviataStep
+          authorizeError={authorizeError}
+          authorizing={authorizing}
+          childGroup={forChild ? selectedChild?.genderRoleCategory ?? "" : ""}
+          eventTitle={event.title}
+          mode={forChild ? "figlio" : "io"}
+          onAnother={() => {
+            setChildChoice(null);
+            setAuthorizeError(null);
+            goTo("figlio", "figlio");
+          }}
+          onAuthorize={() => handleAuthorizeNow(registration)}
+          onChild={
+            offerChild
+              ? () => {
+                  writeStoredRegisterFor(event.id, "figlio");
+                  setChildChoice(null);
+                  goTo("figlio", "figlio");
+                }
+              : undefined
+          }
+          onClose={() => navigate(getActivityPath(event.id, requestedStakeId || undefined))}
+          onEdit={() => goTo("io", "modulo")}
+          onFamily={() => navigate("/family")}
+          onScheda={() => navigate(`/me/activities/${event.id}`)}
+          personFirstName={personFirstName}
+          personName={personName}
+          registration={registration}
+        />
+        {exitSheet}
+      </div>
+    );
+  }
+
+  // Modulo (F), con le iscrizioni da ospite e quelle già presenti.
+  return (
+    <div className="page page--flow page--flow-wide">
+      {header}
+      {errorNotices}
+
+      {audienceMismatch ? (
         <div className="notice notice--warning">
           <div>
             <h3>Iscrizione non disponibile</h3>
@@ -591,19 +2100,10 @@ export function ActivityRegisterPage() {
         </div>
       ) : null}
 
-      {actionError ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Azione non completata</h3>
-            <p>{actionError}</p>
-          </div>
-        </div>
-      ) : null}
-
       {anonymousCompletion ? (
         <SectionCard
           title="Iscrizione completata"
-          description="Se non fai il login, i tuoi dati verranno salvati solo per questa attività."
+          description={ISCRIZIONE.completataSenzaAccount}
         >
           <div className="stack">
             <div className="notice notice--info">
@@ -635,10 +2135,10 @@ export function ActivityRegisterPage() {
                     unitName: anonymousCompletion.unitNameSnapshot,
                   });
                 }}
-                to={`/login?redirect=${encodeURIComponent(`/me/activities/${eventId}`)}`}
+                to={getLoginPath(`/me/activities/${eventId}`, "crea")}
               >
                 <AppIcon name="user" />
-                <span>Crea account</span>
+                <span>{ISCRIZIONE.creaUnAccount}</span>
               </Link>
               <button
                 className="button button--ghost"
@@ -653,7 +2153,7 @@ export function ActivityRegisterPage() {
                 <button
                   className="button button--soft"
                   disabled={busy !== null}
-                  onClick={() => void handleResetAnonymousSession()}
+                  onClick={() => setResetSheetOpen(true)}
                   type="button"
                 >
                   <AppIcon name="plus" />
@@ -673,13 +2173,9 @@ export function ActivityRegisterPage() {
 
             {session?.isAnonymous ? (
               <p className="subtle-text">
-                Stai per iscrivere un'altra persona (es. un secondo figlio) dallo stesso
-                dispositivo? Usa "Iscrivi un'altra persona": chiude questa sessione anonima
-                e ne apre una nuova. <strong>Salva prima codice e PDF</strong>: senza non
-                potrai più modificare l'iscrizione attuale.
+                {ISCRIZIONE.altraPersonaAiuto} <strong>{ISCRIZIONE.altraPersonaSalva}</strong>
               </p>
             ) : null}
-
           </div>
         </SectionCard>
       ) : null}
@@ -703,12 +2199,11 @@ export function ActivityRegisterPage() {
             ) : null}
             {session?.isAnonymous ? (
               <p style={{ marginTop: "0.6rem" }}>
-                Vuoi iscrivere un'altra persona dallo stesso dispositivo (es. un secondo
-                figlio)?{" "}
+                {ISCRIZIONE.altraPersonaDomanda}{" "}
                 <button
                   className="button button--soft button--small"
                   disabled={busy !== null}
-                  onClick={() => void handleResetAnonymousSession()}
+                  onClick={() => setResetSheetOpen(true)}
                   type="button"
                 >
                   <AppIcon name="plus" />
@@ -718,8 +2213,7 @@ export function ActivityRegisterPage() {
                       : "Iscrivi un'altra persona"}
                   </span>
                 </button>{" "}
-                Salva prima codice di recupero e PDF dell'iscrizione attuale: una volta
-                aperta la nuova sessione non potrai più modificarla da qui senza il codice.
+                {ISCRIZIONE.altraPersonaSalvaCodice}
               </p>
             ) : null}
           </div>
@@ -730,131 +2224,19 @@ export function ActivityRegisterPage() {
         </div>
       ) : null}
 
-      {!session && allowGuestForThisActivity ? (
-        <SectionCard
-          title="Come vuoi procedere?"
-          description={
-            organization?.guestRegistrationHint ||
-            "Puoi iscriverti senza account oppure entrare con email e password."
-          }
-        >
-          <div className="inline-actions">
-            <button
-              className="button button--primary"
-              disabled={busy !== null}
-              onClick={() => void handleAnonymousAccess()}
-              type="button"
-            >
-              <AppIcon name="ticket" />
-              <span>{busy === "anonymous" ? "Apertura sessione..." : "Senza account"}</span>
-            </button>
-            <Link
-              className="button button--ghost"
-              to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
-            >
-              <AppIcon name="user" />
-              <span>Login / Account</span>
-            </Link>
-          </div>
-
-          {organization?.supportContact ? (
-            <p className="subtle-text">
-              Per supporto rapido puoi contattare: {organization.supportContact}.
-            </p>
-          ) : null}
-        </SectionCard>
-      ) : null}
-
-      {!session && formConfig && !allowGuestForThisActivity ? (
-        <SectionCard
-          title={eventForcesAccount ? "Serve un account per questa attività" : "Serve un account"}
-          description={
-            eventForcesAccount
-              ? "Questa attività prevede pernottamento o trasferta: per motivi di sicurezza l'iscrizione è disponibile solo con account autenticato."
-              : "Per questa attività l'iscrizione è disponibile solo dopo autenticazione."
-          }
-        >
-          <Link
-            className="button button--primary"
-            to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
-          >
-            <AppIcon name="user" />
-            <span>Vai al login</span>
-          </Link>
-        </SectionCard>
-      ) : null}
-
-      {accountBlockedForGuest ? (
-        <SectionCard
-          title="Iscrizione disponibile solo con account"
-          description="Stai usando una sessione anonima. Per le attività con pernottamento o trasferta serve creare un account o accedere."
-        >
-          <Link
-            className="button button--primary"
-            to={`/login?redirect=${encodeURIComponent(registrationPath)}`}
-          >
-            <AppIcon name="user" />
-            <span>Vai al login</span>
-          </Link>
-        </SectionCard>
-      ) : null}
-
-      {isParentSession && !selectedChild && event && formConfig && !anonymousCompletion ? (
-        <SectionCard
-          title="Chi vuoi iscrivere?"
-          description="Scegli il ragazzo o la ragazza da iscrivere a questa attività."
-        >
-          {data.children.length === 0 ? (
-            <EmptyState
-              title="Nessun figlio collegato"
-              description="Aggiungi prima i tuoi figli dalla dashboard famiglia: serviranno nome, data di nascita e unità."
-              action={
-                <Link className="button button--primary" to="/family">
-                  Vai alla dashboard famiglia
-                </Link>
-              }
-            />
-          ) : (
-            <div className="inline-actions">
-              {data.children.map((child) => {
-                const params = new URLSearchParams(searchParams);
-                params.set("child", child.id);
-                return (
-                  <Link
-                    key={child.id}
-                    className="button button--primary"
-                    to={{ search: params.toString() }}
-                  >
-                    <AppIcon name="user" />
-                    <span>{child.fullName || child.firstName}</span>
-                  </Link>
-                );
-              })}
-              <Link className="button button--ghost" to="/family">
-                <AppIcon name="plus" />
-                <span>Aggiungi figlio/a</span>
-              </Link>
-            </div>
-          )}
-        </SectionCard>
-      ) : null}
-
-      {selectedChild && !anonymousCompletion ? (
-        <div className="notice notice--info">
+      {formConfig && !canSubmit && !audienceMismatch && !anonymousCompletion ? (
+        <div className="notice notice--warning">
           <div>
-            <h3>Stai iscrivendo {selectedChild.fullName || selectedChild.firstName}</h3>
-            <p>
-              L'iscrizione verrà salvata sul profilo di{" "}
-              {selectedChild.firstName || "tuo figlio/a"} e resterà gestibile dalla tua
-              dashboard famiglia.
-            </p>
+            <h3>{CHI_PARTECIPA.chiuseTitolo}</h3>
+            <p>{CHI_PARTECIPA.chiuseTesto}</p>
           </div>
         </div>
       ) : null}
 
-      {event && formConfig && canSubmit && !anonymousCompletion ? (
-        <SectionCard title={data.registration ? "Aggiorna iscrizione" : "Compila il modulo"}>
+      {formConfig && canSubmit && !anonymousCompletion ? (
+        <section className="flow-form">
           <RegistrationEditor
+            layout="flow"
             busy={busy === "save"}
             event={event}
             formConfig={formConfig}
@@ -869,12 +2251,33 @@ export function ActivityRegisterPage() {
             minorConsentExampleImageUrl={organization?.minorConsentExampleImageUrl}
             unitOptions={organization?.units ?? []}
             submitLabel={data.registration ? "Salva modifiche" : "Conferma iscrizione"}
+            onDirtyChange={setFormDirty}
             onSubmit={handleSubmit}
+            key={currentDraftKey ?? "modulo"}
+            draftKey={currentDraftKey ?? undefined}
+            initialDraft={currentDraftKey ? draftsRef.current.get(currentDraftKey) : null}
+            onDraftChange={handleDraftChange}
+            parentAccount={parentAccount}
+            childFirstName={selectedChild?.firstName}
+            forChild={Boolean(selectedChild)}
           />
-        </SectionCard>
+        </section>
       ) : null}
 
-      {event?.questionsEnabled && data.registration && session ? (
+      {resetSheetOpen ? (
+        <ConfirmSheet
+          body={ISCRIZIONE.altraPersonaConferma}
+          busy={busy === "reset"}
+          busyLabel={ISCRIZIONE.altraPersonaInCorso}
+          cancelLabel={ISCRIZIONE.altraPersonaResta}
+          confirmLabel={ISCRIZIONE.altraPersonaVai}
+          onCancel={() => setResetSheetOpen(false)}
+          onConfirm={() => void handleResetAnonymousSession()}
+          title={ISCRIZIONE.altraPersonaTitolo}
+        />
+      ) : null}
+
+      {event.questionsEnabled && data.registration && session ? (
         <QuestionsSection
           eventId={event.id}
           registration={data.registration}
@@ -882,7 +2285,7 @@ export function ActivityRegisterPage() {
           stakeId={data.stakeId}
         />
       ) : null}
-
+      {exitSheet}
     </div>
   );
 }

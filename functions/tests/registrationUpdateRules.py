@@ -69,6 +69,13 @@ def save(path, value, actor='owner', expected=200):
     return call(path, {'fields': fields(value)}, actor=actor, method='PATCH', expected=expected)
 
 
+def cancel_like_client(path, updated_at, actor='test-parent', expected=200):
+    """Annullamento come cancelRegistrationById: updateDoc di due soli campi."""
+    return call(path + '?updateMask.fieldPaths=registrationStatus&updateMask.fieldPaths=updatedAt',
+                {'fields': fields({'registrationStatus': 'cancelled', 'updatedAt': updated_at})},
+                actor=actor, method='PATCH', expected=expected)
+
+
 profile = {
     'firstName': 'Test', 'lastName': 'Parent', 'fullName': 'Test Parent',
     'email': 'parent@example.invalid', 'birthDate': '', 'genderRoleCategory': '',
@@ -142,17 +149,33 @@ for key in ['parentUid', 'childId', 'parentAuthorization', 'assignedCommittees']
 save(participant_path, legacy)
 save(participant_path, {**legacy, 'parentUid': None, 'childId': None, 'assignedCommittees': []}, actor='test-participant')
 save(participant_path, {**legacy, 'parentAuthorization': None}, actor='test-participant', expected=403)
-save(path, {**registration, 'registrationStatus': 'cancelled'}, actor='test-parent')
-save(path, {**registration, 'assignedRoomId': 'admin-room'}, actor='test-admin')
-print('PASS: participant and legacy saves, parent cancellation, admin update')
+# Annullamento come lo fa il client (cancelRegistrationById): updateDoc di due
+# soli campi, quindi PATCH con updateMask. Un PATCH dell'intero documento con
+# altri campi cambiati non è un flusso del client e, con il ramo dedicato
+# validOwnerCancellation valutato per primo, può superare il budget di 1000
+# espressioni.
+cancel_like_client(path, '2026-01-02T00:00:00.000Z')
+# L'admin del palo non assegna stanze dal client (docs/ADMIN_ISCRITTI.md, scelta R):
+# corregge i dati; le assegnazioni arrivano dalla callable, qui seminate come owner.
+save(path, {**registration, 'assignedRoomId': 'admin-room'}, actor='test-admin', expected=403)
+save(path, {**registration, 'phone': '1111111111'}, actor='test-admin')
+print('PASS: participant and legacy saves, parent cancellation, admin data update, admin cannot assign rooms')
 
 # Stanza comunicata dal server (callable roomManagementSave): il proprietario la
 # legge e la rimanda invariata, ma non può cambiarla né toglierla.
 published = {**registration, 'registrationStatus': 'cancelled', 'assignedRoomId': 'admin-room',
              'assignedRoomName': 'Stanza 12'}
-save(path, published, actor='test-admin')
+save(path, published)
 assert call(path, actor='test-parent')['fields']['assignedRoomName']['stringValue'] == 'Stanza 12'
-save(path, {**published, 'phone': '3333333333'}, actor='test-parent')
+# Il proprietario rimanda la stanza invariata risalvando il modulo. Come nel
+# client (resolveRegistrationStatusOnSave), il risalvataggio di un'iscrizione
+# annullata la riattiva; poi la riannulla con i due campi del client, per lo
+# stato atteso dalla sezione sulla riattivazione. Un PATCH completo che resta
+# 'cancelled' cambiando altri campi non è un flusso del client e, come sopra,
+# può superare il budget.
+save(path, {**published, 'phone': '3333333333', 'registrationStatus': 'pending_parent_authorization'},
+     actor='test-parent')
+cancel_like_client(path, published['updatedAt'])
 save(path, {**published, 'assignedRoomName': 'Stanza 13'}, actor='test-parent', expected=403)
 without_room = copy.deepcopy(published)
 del without_room['assignedRoomName']

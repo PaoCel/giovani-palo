@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { GuestRecordsToggle } from "@/components/admin/recordNight/GuestRecordsToggle";
+import { ADMIN } from "@/copy/admin";
 import type {
   ActivityType,
   Event,
@@ -17,6 +18,7 @@ import {
   eventSpansMultipleCalendarDays,
   getEventAudienceLabel,
 } from "@/utils/events";
+import { isRecordsCloseAfterEnd } from "@/utils/recordNight";
 import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 
 const ACTIVITY_TYPE_OPTIONS: {
@@ -65,6 +67,7 @@ interface EventEditorFormProps {
   busy?: boolean;
   submitLabel: string;
   compact?: boolean;
+  onDirtyChange?: () => void;
   statusMode?: "full" | "simplified";
   secondaryAction?: {
     label: string;
@@ -156,22 +159,10 @@ function toDatetimeLocalValueSafe(isoDate?: string | null) {
 }
 
 const RECORDS_CLOSE_TOO_LATE_MESSAGE =
-  "La chiusura delle iscrizioni ai record non può essere dopo l'inizio dell'attività.";
+  "La chiusura delle iscrizioni ai record non può essere dopo la fine dell'attività.";
 
 const GUEST_REVIEW_MISSING_MESSAGE =
   "Per accendere i record senza account controlla i titoli dell'anteprima e spunta «Ho controllato i titoli».";
-
-// La chiusura delle iscrizioni ai record non può cadere dopo l'inizio
-// dell'attività: la serata sarebbe già cominciata.
-function isRecordsCloseAfterStart(recordsCloseAt: string, startDate: string) {
-  if (!recordsCloseAt || !startDate) {
-    return false;
-  }
-
-  const closes = new Date(recordsCloseAt).getTime();
-  const starts = new Date(startDate).getTime();
-  return !Number.isNaN(closes) && !Number.isNaN(starts) && closes > starts;
-}
 
 function getInitialValues(event?: Event | null): EventEditorValues {
   const initialActivityType: ActivityType =
@@ -227,6 +218,7 @@ export function EventEditorForm({
   busy,
   submitLabel,
   compact = false,
+  onDirtyChange,
   statusMode = "full",
   secondaryAction,
   onSubmit,
@@ -253,9 +245,10 @@ export function EventEditorForm({
   const isLastStep = currentStepIndex === eventEditorSteps.length - 1;
   const progress = ((currentStepIndex + 1) / eventEditorSteps.length) * 100;
   const isSimplifiedStatusMode = statusMode === "simplified";
+  const editingDraft = isSimplifiedStatusMode && !initialEvent?.isPublic;
   const recordsCloseAtTooLate =
     values.recordsEnabled &&
-    isRecordsCloseAfterStart(values.recordsCloseAt, values.startDate);
+    isRecordsCloseAfterEnd(values.recordsCloseAt, values.endDate);
   // Già acceso sull'attività salvata: l'anteprima l'ha vista chi l'ha acceso.
   const guestAlreadyEnabled = initialEvent?.recordsGuestEnabled === true;
   const guestReviewMissing =
@@ -297,6 +290,7 @@ export function EventEditorForm({
     key: Key,
     value: EventEditorValues[Key],
   ) {
+    onDirtyChange?.();
     clearFieldError(key);
     setValues((current) => ({
       ...current,
@@ -305,6 +299,7 @@ export function EventEditorForm({
   }
 
   function handleActivityTypeChange(nextType: ActivityType) {
+    onDirtyChange?.();
     clearFieldError("activityType");
     setValues((current) => {
       const wasStrong = isStrongAuthActivity(current.activityType);
@@ -373,7 +368,7 @@ export function EventEditorForm({
         errors.title = true;
       }
 
-      if (!values.description.trim()) {
+      if (!editingDraft && !values.description.trim()) {
         errors.description = true;
       }
 
@@ -395,11 +390,11 @@ export function EventEditorForm({
         errors.location = true;
       }
 
-      if (!values.registrationOpen) {
+      if (!editingDraft && !values.registrationOpen) {
         errors.registrationOpen = true;
       }
 
-      if (!values.registrationClose) {
+      if (!editingDraft && !values.registrationClose) {
         errors.registrationClose = true;
       }
     }
@@ -480,28 +475,16 @@ export function EventEditorForm({
       if (forceDraft) {
         nextStatus = "draft";
         nextIsPublic = false;
-      } else if (values.status === "cancelled") {
-        nextStatus = "cancelled";
+      } else if (values.status === "cancelled" || values.status === "completed") {
+        nextStatus = values.status;
         nextIsPublic = initialEvent?.isPublic ?? false;
       } else if (!(initialEvent?.isPublic ?? false)) {
         nextStatus = "draft";
         nextIsPublic = false;
       } else {
-        const now = Date.now();
-        const opensAt = new Date(
-          fromDatetimeLocalValue(values.registrationOpen),
-        ).getTime();
-        const closesAt = new Date(
-          fromDatetimeLocalValue(values.registrationClose),
-        ).getTime();
-
-        nextStatus =
-          !Number.isNaN(opensAt) &&
-          !Number.isNaN(closesAt) &&
-          now >= opensAt &&
-          now <= closesAt
-            ? "registrations_open"
-            : "registrations_closed";
+        // Dates gate availability in the client. The existing rules require
+        // registrations_open even for a future publication.
+        nextStatus = "registrations_open";
         nextIsPublic = true;
       }
     } else if (forceDraft) {
@@ -518,7 +501,7 @@ export function EventEditorForm({
       endDate: fromDatetimeLocalValue(values.endDate),
       location: values.location.trim(),
       program: values.program.trim(),
-      publicNotes: values.program.trim(),
+      publicNotes: initialEvent?.publicNotes ?? "",
       organizerNotes: values.organizerNotes.trim(),
       menuInfo: values.menuInfo.trim(),
       allergiesInfo: values.allergiesInfo.trim(),
@@ -528,6 +511,7 @@ export function EventEditorForm({
       heroImagePath: values.heroImagePath.trim(),
       status: nextStatus,
       isPublic: nextIsPublic,
+      isVisible: initialEvent?.isVisible ?? nextIsPublic,
       registrationOpen: fromDatetimeLocalValue(values.registrationOpen),
       registrationClose: fromDatetimeLocalValue(values.registrationClose),
       maxParticipants: values.maxParticipants
@@ -704,7 +688,7 @@ export function EventEditorForm({
               </label>
 
               <label className="field">
-                {renderFieldLabel("Descrizione", "description", true)}
+                {renderFieldLabel("Descrizione", "description", !editingDraft)}
                 <textarea
                   className={
                     fieldErrors.description
@@ -769,7 +753,7 @@ export function EventEditorForm({
                   {renderFieldLabel(
                     "Apertura iscrizioni",
                     "registrationOpen",
-                    true,
+                    !editingDraft,
                   )}
                   <input
                     className={getInputClass("registrationOpen")}
@@ -786,7 +770,7 @@ export function EventEditorForm({
                   {renderFieldLabel(
                     "Chiusura iscrizioni",
                     "registrationClose",
-                    true,
+                    !editingDraft,
                   )}
                   <input
                     className={getInputClass("registrationClose")}
@@ -1090,7 +1074,7 @@ export function EventEditorForm({
                       updateValue("requireLoginForEdit", event.target.checked)
                     }
                   />
-                  <span>Richiedi login per modificare l'iscrizione</span>
+                  <span>{ADMIN.richiediAccountPerModificare}</span>
                 </label>
 
                 <label className="toggle-field">

@@ -74,6 +74,7 @@ export interface CampCommitteePlan {
   id: CampCommitteeId;
   title: string;
   emoji: string;
+  responsibilities: string;
   leaderRegistrationIds: string[];
   manualLeaderIds: string[];
   memberRegistrationIds: string[];
@@ -93,6 +94,7 @@ export interface CampPatrolPlan {
 }
 
 export interface CampManagementPlan {
+  groupLabel: "pattuglia" | "gruppo" | "compagnia" | "team" | "squadra";
   committees: CampCommitteePlan[];
   patrols: CampPatrolPlan[];
   manualLeaders: CampManualLeader[];
@@ -320,6 +322,7 @@ export interface Event {
   // Richieste senza account (docs/NOTTE_DEI_RECORD_SENZA_ACCOUNT.md): chiude solo
   // l'invio, spento di default. Il client lo legge dal contesto pubblico.
   recordsGuestEnabled?: boolean;
+  surveyGuestEnabled?: boolean;
   requiresParentalConsent: boolean;
   requiresPhotoRelease: boolean;
   createdBy: string;
@@ -404,6 +407,8 @@ export interface Registration {
   assignedPatrolName: string | null;
   assignedPatrolRole: CampPatrolRole | null;
   assignedCommittees: CampCommitteeAssignment[];
+  // Admin che ha aggiunto l'iscrizione a mano (solo `manual_`, dal 2026-10-20).
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
   cancelledAt?: string | null;
@@ -757,6 +762,8 @@ export interface ParentAuthorizationState {
   authorizedAt: string | null;
   rejectedAt: string | null;
   expiresAt: string | null;
+  /** Ultimo "Autorizza ora" dall'account genitore; null dopo ogni nuova mail. */
+  selfTokenIssuedAt?: string | null;
   legalVersions: ParentAuthorizationLegalVersions | null;
   consents: ParentAuthorizationConsents | null;
   photoConsent: PhotoConsentDecision;
@@ -896,6 +903,8 @@ export type RecordNightEntryKind = "proposal" | "challenge";
 export type RecordNightEntryStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 export interface RecordNightRecord {
+  // Staff-confirmed result. Absent on records that were not played.
+  result?: { winnerName: string; value: number } | null;
   id: string;
   title: string;
   category: RecordNightCategory;

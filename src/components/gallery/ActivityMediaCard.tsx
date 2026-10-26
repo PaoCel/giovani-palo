@@ -3,7 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 
 import "@/styles/activityGallery.css";
 
+import { useAuth } from "@/hooks/useAuth";
 import { AppIcon } from "@/components/AppIcon";
+import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { galleriesService } from "@/services/firestore/galleriesService";
@@ -26,17 +28,21 @@ function thumbOf(item: GalleryMedia) {
 }
 
 function useLatestMedia(stakeId: string, galleryId: string, count: number) {
-  const [media, setMedia] = useState<GalleryMedia[]>([]);
+  const { session } = useAuth();
+  const key = `${session?.firebaseUser.uid ?? ""}:${stakeId}:${galleryId}:${count}`;
+  const [result, setResult] = useState<{ key: string; media: GalleryMedia[] }>({ key: "", media: [] });
   useEffect(() => {
+    let active = true;
     if (!stakeId || !galleryId) {
-      setMedia([]);
-      return undefined;
+      setResult({ key, media: [] });
+      return () => { active = false; };
     }
-    return galleriesService.subscribeLatestMedia(stakeId, galleryId, count, setMedia, () =>
-      setMedia([]),
-    );
-  }, [stakeId, galleryId, count]);
-  return media;
+    const unsubscribe = galleriesService.subscribeLatestMedia(stakeId, galleryId, count,
+      media => { if (active) setResult({ key, media }); },
+      () => { if (active) setResult({ key, media: [] }); });
+    return () => { active = false; unsubscribe(); };
+  }, [key, stakeId, galleryId, count]);
+  return result.key === key ? result.media : [];
 }
 
 interface ActivityMediaCardProps {
@@ -52,11 +58,16 @@ interface ActivityMediaCardProps {
  */
 export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCardProps) {
   const navigate = useNavigate();
-  const { isMember } = useGalleryAccess(stakeId);
+  const { session } = useAuth();
+  const { isMember, access } = useGalleryAccess(stakeId);
   const { pickMedia } = useUploadApi();
   const { gallery, loading, uploadOpen } = useActivityGallery(stakeId, event, isMember);
   const latest = useLatestMedia(stakeId, gallery?.id ?? "", 5);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const context = `${session?.firebaseUser.uid ?? ""}:${stakeId}:${event.id}:${access}:${gallery?.id ?? ""}:${uploadOpen}`;
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const pickerContext = useRef("");
 
   const uploadWindow = computeActivityUploadWindow(event);
   const started = uploadWindow !== null && Date.now() >= uploadWindow.fromMs;
@@ -65,18 +76,25 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
   const rootClass = `ag-card${className ? ` ${className}` : ""}`;
   const galleryHref = activityMediaPath(event.id);
 
+  // Finché il documento members non arriva né contenuto né lucchetto.
+  if (access === "loading") return null;
+
   if (!isMember) {
     return (
       <section className={rootClass}>
         <div className="ag-card__head">
           <h3>Foto e video</h3>
         </div>
-        <Link
-          className="ag-btn ag-btn--primary"
-          to={`/login?redirect=${encodeURIComponent(galleryHref)}`}
-        >
-          Accedi per vedere foto e video
-        </Link>
+        {access === "guest" ? (
+          <Link
+            className="ag-btn ag-btn--primary"
+            to={`/login?redirect=${encodeURIComponent(galleryHref)}`}
+          >
+            Accedi per vedere foto e video
+          </Link>
+        ) : (
+          <MemberLockedNote access={access} kind="foto" />
+        )}
       </section>
     );
   }
@@ -87,7 +105,7 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
   function onPick(changeEvent: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(changeEvent.target.files ?? []);
     changeEvent.target.value = "";
-    if (!gallery || files.length === 0) return;
+    if (!gallery || !isMember || !uploadOpen || !navigator.onLine || pickerContext.current !== contextRef.current || files.length === 0) return;
     pickMedia(files, gallery, mediaCount);
     navigate(galleryHref);
   }
@@ -141,7 +159,8 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
           <button
             type="button"
             className="ag-btn ag-btn--primary"
-            onClick={() => inputRef.current?.click()}
+            disabled={!navigator.onLine}
+            onClick={() => { pickerContext.current = context; inputRef.current?.click(); }}
           >
             <AppIcon name="camera" />
             Aggiungi foto o video

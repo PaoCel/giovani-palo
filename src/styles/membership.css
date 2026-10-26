@@ -1,0 +1,593 @@
+/* Appartenenza al palo (docs/APPARTENENZA_AL_PALO.md, «Client della fase 3»):
+   banner dell'utente, pagina "Persone" dello staff, toast con "Annulla".
+   Palette della galleria (activityGallery.css), ridefinita qui perché questi
+   pezzi vivono in home, profilo, admin e area dirigenti. */
+
+.mship-banner,
+.mship-page,
+.mship-toast,
+.mship-locked,
+.mship-dash-card {
+  --ms-ink: #1e2a3b;
+  --ms-ink-soft: #4a5768;
+  --ms-paper: #f4f5f1;
+  --ms-card: #ffffff;
+  --ms-line: #e1e3dc;
+  --ms-amber: #e8a857;
+  --ms-amber-deep: #c97f2e;
+  --ms-amber-soft: rgba(232, 168, 87, 0.2);
+  --ms-sage: #6e8f6b;
+  --ms-sage-soft: #e4ebe2;
+  --ms-blue: var(--primary, #235d90);
+  --ms-blue-soft: var(--primary-soft, rgba(35, 93, 144, 0.12));
+  --ms-danger: var(--danger, #b14e44);
+  --ms-shadow: 0 1px 2px rgba(30, 42, 59, 0.04), 0 6px 16px -6px rgba(30, 42, 59, 0.12);
+}
+
+/* --- Bottoni ---------------------------------------------------------------- */
+.mship-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.mship-btn:active {
+  transform: scale(0.98);
+}
+
+.mship-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.mship-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+}
+
+.mship-btn--primary {
+  background: var(--ms-blue);
+  color: #fff;
+}
+
+.mship-btn--soft {
+  background: var(--ms-blue-soft);
+  color: var(--ms-blue);
+}
+
+.mship-btn--ghost {
+  background: transparent;
+  color: var(--ms-ink-soft);
+}
+
+.mship-btn--out {
+  background: #fff;
+  color: var(--ms-ink);
+  border: 1.5px solid var(--ms-line);
+}
+
+.mship-btn--icon {
+  width: 2.75rem;
+  padding: 0;
+}
+
+.mship-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--ms-blue);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* --- Banner dell'utente -------------------------------------------------------- */
+.mship-banner {
+  background: var(--ms-card);
+  border: 1px solid var(--ms-line);
+  border-radius: 22px;
+  box-shadow: var(--ms-shadow);
+  overflow: hidden;
+}
+
+.mship-banner--out {
+  background: #fbf7f0;
+  border-color: #eadfcd;
+}
+
+.mship-banner__in {
+  display: flex;
+  gap: 0.9rem;
+  padding: 1rem 1rem 0.75rem;
+}
+
+.mship-banner__art {
+  width: 4.5rem;
+  height: 6.25rem;
+  object-fit: cover;
+  flex: none;
+  filter: drop-shadow(0 6px 10px rgba(16, 28, 48, 0.18));
+}
+
+.mship-banner__title {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.15;
+  color: var(--heading, #101c30);
+}
+
+.mship-banner--out .mship-banner__title {
+  font-size: 1.125rem;
+}
+
+.mship-banner__body,
+.mship-banner__support {
+  margin: 0.4rem 0 0;
+  color: var(--ms-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.mship-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem 1rem;
+}
+
+.mship-banner__error {
+  margin: 0 1rem 0.5rem;
+}
+
+.mship-sheet__body {
+  margin: 0;
+  color: var(--ms-ink-soft, #4a5768);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* --- Superfici dei membri chiuse ---------------------------------------------- */
+.mship-locked {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ms-ink-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mship-locked__icon {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--ms-amber-soft);
+  color: var(--ms-amber-deep);
+}
+
+.mship-locked__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* --- Pagina "Persone" dello staff ------------------------------------------------ */
+.mship-page {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.mship-page__lead {
+  margin: 0;
+  color: var(--ms-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.mship-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(30, 42, 59, 0.07);
+}
+
+.mship-tabs button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.4rem;
+  line-height: 1.15;
+  text-align: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--ms-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.mship-tabs button[aria-selected="true"] {
+  background: #fff;
+  color: var(--heading, #101c30);
+  box-shadow: 0 1px 3px rgba(30, 42, 59, 0.14);
+}
+
+.mship-count {
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  background: rgba(30, 42, 59, 0.1);
+  color: inherit;
+}
+
+.mship-count--hot {
+  background: var(--ms-amber, #e8a857);
+  color: #2a1d0c;
+}
+
+.mship-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mship-card {
+  position: relative;
+  background: var(--ms-card);
+  border: 1px solid var(--ms-line);
+  border-radius: 22px;
+  box-shadow: var(--ms-shadow);
+  padding: 1rem;
+}
+
+.mship-card--overdue {
+  border-color: rgba(201, 127, 46, 0.5);
+}
+
+.mship-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mship-avatar {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.mship-card__name {
+  display: block;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--heading, #101c30);
+  overflow-wrap: anywhere;
+}
+
+.mship-card__meta {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted, #5e6c81);
+}
+
+.mship-card__ctx {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--ms-ink-soft);
+}
+
+.mship-card__ctx svg,
+.mship-note svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.mship-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  background: var(--ms-amber-soft);
+  color: #86500f;
+  white-space: nowrap;
+}
+
+.mship-tag--blue {
+  background: var(--ms-blue-soft);
+  color: var(--ms-blue);
+}
+
+.mship-note {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 13px;
+  background: rgba(232, 168, 87, 0.18);
+  color: #6f430c;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.mship-card__actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.mship-menu {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  min-width: 13.5rem;
+  padding: 4px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--ms-line);
+  box-shadow: 0 18px 40px -10px rgba(16, 28, 48, 0.4);
+  display: grid;
+}
+
+.mship-menu button {
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 11px;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ms-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mship-menu button:hover,
+.mship-menu button:focus-visible {
+  background: var(--ms-paper);
+}
+
+.mship-empty {
+  padding: 1.25rem 1rem;
+  border-radius: 22px;
+  background: var(--ms-card);
+  border: 1px dashed var(--ms-line);
+  text-align: center;
+}
+
+.mship-empty h3 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--heading, #101c30);
+}
+
+.mship-empty p {
+  margin: 0.35rem 0 0;
+  color: var(--ms-ink-soft);
+  font-size: 0.9rem;
+}
+
+/* Colori degli avatar: stabili per persona (hash dell'uid). */
+.mship-avatar--0 { background: #6e8f6b; }
+.mship-avatar--1 { background: #7b9bb3; }
+.mship-avatar--2 { background: #c96f4a; }
+.mship-avatar--3 { background: #235d90; }
+.mship-avatar--4 { background: #c97f2e; }
+.mship-avatar--5 { background: #8a7aa3; }
+
+/* --- Toast con "Annulla" ----------------------------------------------------------- */
+.mship-toast {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(26rem, calc(100vw - 2rem));
+  min-height: 3.4rem;
+  border-radius: 18px;
+  background: var(--ms-ink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  box-shadow: 0 18px 40px -12px rgba(16, 28, 48, 0.5);
+}
+
+.mship-toast--error {
+  background: #7e342c;
+}
+
+.mship-toast__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mship-toast__undo {
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  color: var(--ms-amber);
+  cursor: pointer;
+}
+
+.mship-toast__undo:disabled {
+  opacity: 0.6;
+}
+
+/* --- Card in dashboard ------------------------------------------------------------- */
+.mship-dash-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 22px;
+  background: var(--ms-card);
+  border: 1px solid var(--ms-line);
+  box-shadow: var(--ms-shadow);
+  color: inherit;
+  text-decoration: none;
+}
+
+.mship-dash-card__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mship-dash-card__text strong {
+  display: block;
+  font-weight: 800;
+  color: var(--heading, #101c30);
+}
+
+.mship-dash-card__text span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.88rem;
+  color: var(--ms-ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mship-btn {
+    transition: none;
+  }
+}
+
+.mship-dash {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.mship-dash-card svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: none;
+  color: var(--ms-ink-soft);
+}
+
+/* --- Profilo, blocco "Palo" ------------------------------------------------------ */
+.mship-status {
+  --ms-line: #e1e3dc;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.mship-tag--ok {
+  background: #e4ebe2;
+  color: #3f6a3c;
+}
+
+.mship-link--danger {
+  color: var(--danger, #b14e44);
+}
+
+/* --- Card "Foto e video" chiusa in home -------------------------------------- */
+.mship-locked-card {
+  --ms-line: #e1e3dc;
+  background: #fff;
+  border: 1px solid var(--ms-line);
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(30, 42, 59, 0.04), 0 6px 16px -6px rgba(30, 42, 59, 0.12);
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mship-locked-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.mship-locked-card__head strong {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--heading, #101c30);
+}
+
+.mship-locked-card__head span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted, #5e6c81);
+  text-align: right;
+}
+
+.mship-locked-card__ph {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 6px;
+  height: 5.75rem;
+}
+
+.mship-locked-card__ph i {
+  border-radius: 14px;
+  background: linear-gradient(160deg, #e7e9e3, #d8dcd3);
+}

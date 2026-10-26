@@ -1,13 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
 import { UserPageIntro } from "@/components/UserPageIntro";
+import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { organizationService } from "@/services/firestore/organizationService";
 import { usersService } from "@/services/firestore/usersService";
 import type { GenderRoleCategory } from "@/types";
 import { DEFAULT_STAKE_ID } from "@/config/app";
+import { isMinorOn } from "@/utils/profileCompletion";
 
 const MANUAL_UNIT_VALUE = "__manual_unit__";
 
@@ -23,19 +27,12 @@ export function MyProfilePage() {
   const { session, completeProfile } = useAuth();
   const navigate = useNavigate();
   const [switchingRole, setSwitchingRole] = useState(false);
+  const [parentSheetOpen, setParentSheetOpen] = useState(false);
   const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
 
+  // Conferma nel foglio (parentSheetOpen), mai con un dialogo del browser.
   async function handleBecomeParent() {
     if (!session) {
-      return;
-    }
-
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Passare ad account genitore? Potrai sempre tornare ad account partecipante dal profilo.",
-      )
-    ) {
       return;
     }
 
@@ -45,6 +42,7 @@ export function MyProfilePage() {
       await usersService.setOwnAccountType(session.firebaseUser.uid, "parent");
       navigate("/family", { replace: true });
     } catch (caughtError) {
+      setParentSheetOpen(false);
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -178,6 +176,7 @@ export function MyProfilePage() {
           <div className="surface-panel surface-panel--subtle">
             <strong>Palo</strong>
             <p>{organization?.stakeName || session.profile.stakeName || "Non definito"}</p>
+            <StakeMembershipStatus stakeName={organization?.stakeName || session.profile.stakeName} />
           </div>
           <div className="surface-panel surface-panel--subtle">
             <strong>Email</strong>
@@ -343,7 +342,11 @@ export function MyProfilePage() {
         </form>
       </section>
 
-      {session && !session.isAdmin && !session.isUnitLeader ? (
+      {/* L'account di un minore non diventa mai da genitore (FLUSSO_GENITORE.md). */}
+      {session &&
+      !session.isAdmin &&
+      !session.isUnitLeader &&
+      !isMinorOn(session.profile.birthDate, new Date()) ? (
         <section className="surface-panel">
           <h2>Sei un genitore?</h2>
           <p className="subtle-text">
@@ -354,13 +357,26 @@ export function MyProfilePage() {
             <button
               className="button button--soft"
               disabled={switchingRole}
-              onClick={() => void handleBecomeParent()}
+              onClick={() => setParentSheetOpen(true)}
               type="button"
             >
-              {switchingRole ? "Attivazione..." : "Passa ad account genitore"}
+              {TIPO_ACCOUNT.passaGenitore}
             </button>
           </div>
         </section>
+      ) : null}
+
+      {parentSheetOpen ? (
+        <ConfirmSheet
+          body={TIPO_ACCOUNT.passaGenitoreTesto}
+          busy={switchingRole}
+          busyLabel={TIPO_ACCOUNT.passaGenitoreInCorso}
+          cancelLabel={TIPO_ACCOUNT.restaComeSei}
+          confirmLabel={TIPO_ACCOUNT.passaGenitore}
+          onCancel={() => setParentSheetOpen(false)}
+          onConfirm={() => void handleBecomeParent()}
+          title={TIPO_ACCOUNT.passaGenitoreTitolo}
+        />
       ) : null}
     </div>
   );

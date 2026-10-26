@@ -1,5 +1,6 @@
 import type { OrganizationProfile, OrganizationRegistrationDefaults } from "@/types";
 
+import { ISCRIZIONE } from "@/copy/iscrizione";
 import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
 import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
@@ -59,8 +60,7 @@ function getDefaultProfile(stakeName = DEFAULT_STAKE_NAME): OrganizationProfile 
     youngWomenPresident: "",
     youngWomenCounselors: [],
     supportContact: "",
-    guestRegistrationHint:
-      "Se non fai il login, i tuoi dati verranno salvati solo per questa attività.",
+    guestRegistrationHint: ISCRIZIONE.completataSenzaAccount,
     minorConsentExampleImageUrl: "",
     minorConsentExampleImagePath: "",
     registrationDefaults: {

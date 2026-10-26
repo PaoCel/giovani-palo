@@ -6,6 +6,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
+import { FAMIGLIA } from "@/copy/famiglia";
 import { db } from "@/services/firebase/app";
 import { getDocCacheFirst, getDocsCacheFirst } from "@/services/firestore/cacheFirst";
 import type { ChildProfile, GenderRoleCategory } from "@/types";
@@ -56,7 +57,7 @@ function buildPayload(input: ChildWriteInput) {
   const lastName = input.lastName.trim();
 
   if (!firstName) {
-    throw new Error("Il nome del ragazzo/a è obbligatorio.");
+    throw new Error(FAMIGLIA.nomeObbligatorio);
   }
 
   return {
@@ -89,12 +90,25 @@ export const childrenService = {
     return snapshot.exists() ? mapChild(snapshot.id, snapshot.data()) : null;
   },
 
-  async createChild(parentUid: string, input: ChildWriteInput): Promise<ChildProfile> {
-    const reference = doc(getChildrenCollection(parentUid));
+  // Id e data di creazione decisi prima del primo tentativo: un "Salva"
+  // ripetuto dopo un errore di rete riscrive lo stesso figlio invece di
+  // crearne un secondo (la rule di update chiede `createdAt` invariato).
+  newChildDraft(parentUid: string) {
+    return { childId: doc(getChildrenCollection(parentUid)).id, createdAt: nowIso() };
+  },
+
+  async createChild(
+    parentUid: string,
+    input: ChildWriteInput,
+    draft?: { childId: string; createdAt: string },
+  ): Promise<ChildProfile> {
+    const reference = draft
+      ? getChildReference(parentUid, draft.childId)
+      : doc(getChildrenCollection(parentUid));
     const timestamp = nowIso();
     const payload = {
       ...buildPayload(input),
-      createdAt: timestamp,
+      createdAt: draft?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
 

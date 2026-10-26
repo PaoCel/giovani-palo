@@ -8,6 +8,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 
 import { db, functions } from "@/services/firebase/app";
+import { parseRecordNightResult } from "@/utils/recordNightResults";
 import type {
   RecordNightCategory,
   RecordNightEntry,
@@ -178,6 +179,7 @@ function asEntryStatus(value: unknown): RecordNightEntryStatus {
 
 export function mapRecordNightRecord(id: string, data: DocumentData): RecordNightRecord {
   return {
+    result: parseRecordNightResult(data.result),
     id,
     title: asString(data.title),
     category: asCategory(data.category),

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Home giovani · Prototipo sintetico</title>
+  <link rel="stylesheet" href="home.css">
+</head>
+<body>
+  <div class="demo-label">Anteprima di progetto · dati e fotografia sintetici</div>
+  <header class="topbar">
+    <a class="brand" href="?" aria-label="Home GUGD Italia"><img src="../../../public/brand-logo.png" alt="GUGD Italia"><span>GUGD <b>Italia</b></span></a>
+    <span class="stake">Palo delle Colline</span>
+    <button class="avatar" data-detail="Profilo" aria-label="Apri il profilo di Alex">A</button>
+  </header>
+  <div class="layout">
+    <aside class="desktop-nav" aria-label="Navigazione principale desktop">
+      <div class="nav-kicker">IL TUO PALO</div>
+      <h2>Ci vediamo qui.</h2>
+      <a href="?" class="active"><svg><use href="#home"/></svg>Home</a>
+      <button data-detail="Calendario"><svg><use href="#calendar"/></svg>Calendario</button>
+      <button data-detail="Attività"><svg><use href="#list"/></svg>Attività</button>
+      <button data-detail="Profilo"><svg><use href="#person"/></svg>Profilo</button>
+      <div class="nav-note"><img src="../../../src/assets/flusso-genitore/giovani.webp" alt=""><p>Le attività passano.<br>I ricordi restano.</p></div>
+    </aside>
+    <main id="main">
+      <section class="greeting"><span class="eyebrow">LA TUA AREA GIOVANI</span><h1>Ciao, Alex<span>.</span></h1><p>Le novità e i ricordi delle nostre attività.</p></section>
+      <div id="status" role="status"></div>
+      <section class="next-card" id="next-mobile" aria-labelledby="next-title">
+        <div class="next-content"><span class="tag dark-tag">LA TUA PROSSIMA ATTIVITÀ</span><h2 id="next-title">Una sera insieme</h2><p>7 novembre · 18:30<br>Centro delle Colline</p><div class="next-bottom"><span class="enrolled">Iscritto</span><button data-detail="Una sera insieme">Dettagli attività <span aria-hidden="true">↗</span></button></div></div>
+        <img class="next-art" src="../../../src/assets/flusso-genitore/giovani.webp" alt="">
+      </section>
+      <section id="live-card" class="live-card" hidden aria-labelledby="live-title"><span class="eyebrow">IN CORSO</span><h2 id="live-title">Un pomeriggio in compagnia</h2><p>Le foto iniziano da voi. Il post dell'album arriverà più avanti.</p><div><button class="upload" data-upload><svg><use href="#plus"/></svg>Aggiungi foto o video</button><button data-detail="Foto e video">Vedi tutte</button></div></section>
+      <section aria-labelledby="feed-title" class="feed-section">
+        <div class="section-heading"><div><span class="eyebrow">LA VITA DEL PALO</span><h2 id="feed-title">Dalle attività</h2></div><span class="private-tag"><svg><use href="#lock"/></svg>Nel tuo palo</span></div>
+        <div class="filters" role="group" aria-label="Filtra i contenuti"><button aria-pressed="true" data-filter="all">Tutto</button><button aria-pressed="false" data-filter="photo">Foto e video</button><button aria-pressed="false" data-filter="update">Aggiornamenti</button></div>
+        <div id="feed-content">
+          <article class="post gallery-post" data-type="photo">
+            <header class="post-head"><span class="author-mark"><svg><use href="#camera"/></svg></span><div><strong>Un pomeriggio in compagnia</strong><span>Foto e video · 24 ottobre</span></div></header>
+            <p class="post-copy">Una partita tira l'altra. E queste ce le teniamo.</p>
+            <button class="photo-open" data-photo aria-label="Apri la foto della partita e i commenti"><img src="assets/pomeriggio.webp" alt="Gruppo sintetico di giovani adulti che gioca a calcio balilla in cortile"><span class="photo-count"><svg><use href="#camera"/></svg>24 foto e video</span></button>
+            <div class="gallery-links"><button data-photo>Apri foto e commenti <span aria-hidden="true">↗</span></button><button data-detail="Foto e video">Vedi tutte</button></div>
+            <div class="upload-row"><span><i></i>Caricamenti aperti fino al 31 ottobre</span><button class="upload" data-upload><svg><use href="#plus"/></svg>Aggiungi foto o video</button></div>
+            <footer class="post-footer"><button class="like" aria-pressed="false" data-count="18"><svg><use href="#heart"/></svg><span>Mi piace</span><b>18</b></button><span>Reazione al post</span></footer>
+          </article>
+          <article class="post announcement" data-type="update"><header class="post-head"><span class="author-mark staff">G</span><div><strong>Staff del palo</strong><span>Aggiornamento · 23 ottobre</span></div></header><div class="notice-label">IL PROSSIMO INCONTRO</div><h3>Ci ritroviamo alle 18:30.</h3><p class="post-copy">Sabato 7 novembre, al Centro delle Colline. Trovi programma e informazioni nell'attività.</p><button class="text-link" data-detail="Una sera insieme">Dettagli attività <span aria-hidden="true">↗</span></button><footer class="post-footer"><button class="like" aria-pressed="false" data-count="7"><svg><use href="#heart"/></svg><span>Mi piace</span><b>7</b></button></footer></article>
+          <div class="feed-end"><span></span>Sei arrivato alle ultime novità<span></span></div>
+        </div>
+      </section>
+      <p class="prototype-note">Prototipo locale: ogni azione modifica soltanto questa anteprima.</p>
+    </main>
+    <aside class="right-rail"><div id="next-desktop"></div><div class="quiet-note"><span class="eyebrow">IL TUO SPAZIO</span><h3>Da una foto,<br>un altro ricordo.</h3><p>Apri la galleria dell'attività per vedere le foto, commentarle o aggiungere le tue.</p><button data-detail="Foto e video">Foto e video <span aria-hidden="true">↗</span></button></div></aside>
+  </div>
+  <nav class="bottom-nav" aria-label="Navigazione principale"><a href="?" aria-current="page"><svg><use href="#home"/></svg>Home</a><button data-detail="Calendario"><svg><use href="#calendar"/></svg>Calendario</button><button data-detail="Attività"><svg><use href="#list"/></svg>Attività</button><button data-detail="Profilo"><svg><use href="#person"/></svg>Profilo</button></nav>
+  <dialog id="viewer" aria-labelledby="viewer-title"><div class="viewer-top"><h2 id="viewer-title">Foto e video</h2><button class="icon-button" data-close aria-label="Chiudi foto"><svg><use href="#close"/></svg></button></div><img class="viewer-photo" src="assets/pomeriggio.webp" alt="Fotografia sintetica di una partita in cortile"><div class="viewer-body"><div class="viewer-actions"><button class="like" aria-pressed="false" data-count="5"><svg><use href="#heart"/></svg><span>Mi piace</span><b>5</b></button><button id="report-open">Segnala</button></div><p class="subtle">Foto sintetica · nessuna persona reale</p><h3>Commenti</h3><div class="comment"><strong>Sam</strong><p>La rivincita alla prossima!</p></div><p class="subtle">Commenti dimostrativi. L'invio reale non è attivo.</p><label for="comment">Scrivi un commento…</label><textarea id="comment" rows="2" placeholder="Scrivi un commento…"></textarea><div id="draft-actions"><button id="discard-draft">Scarta bozza</button><button class="solid" id="keep-draft">Continua a scrivere</button></div><button class="solid" id="comment-info">Invia (demo)</button><p id="comment-status" role="status"></p></div></dialog>
+  <dialog id="report" aria-labelledby="report-title"><div class="viewer-top"><h2 id="report-title">Segnala questa foto</h2><button class="icon-button" data-close aria-label="Chiudi segnalazione"><svg><use href="#close"/></svg></button></div><div class="viewer-body"><p>La foto verrà nascosta. Lo staff controllerà la segnalazione.</p><label for="reason">Motivo</label><select id="reason"><option>Ci sono io e voglio toglierla</option><option>Contenuto inappropriato</option><option>Non riguarda l'attività</option></select><p class="subtle">In questa anteprima puoi solo annullare: nessuna segnalazione viene inviata.</p><button class="solid" data-close>Annulla</button></div></dialog>
+  <dialog id="detail" aria-labelledby="detail-title"><div class="viewer-top"><h2 id="detail-title">Dettagli attività</h2><button class="icon-button" data-close aria-label="Chiudi dettaglio"><svg><use href="#close"/></svg></button></div><div class="viewer-body"><span class="eyebrow">DESTINAZIONE DEL PROTOTIPO</span><p id="detail-body"></p><p>La home porta alla superficie esistente. Programma, iscrizione e partecipazione restano nell'attività.</p><p class="subtle">Nessuna iscrizione, caricamento o modifica reale in questa anteprima.</p><button class="solid" data-close>Torna alla home</button></div></dialog>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg"><symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H15v-6H9v6H3z"/></symbol><symbol id="calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 2v6m10-6v6M3 11h18"/></symbol><symbol id="list" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol><symbol id="person" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol><symbol id="camera" viewBox="0 0 24 24"><path d="M8 5 9.5 3h5L16 5h4a2 2 0 0 1 2 2v12H2V7a2 2 0 0 1 2-2z"/><circle cx="12" cy="12" r="4"/></symbol><symbol id="heart" viewBox="0 0 24 24"><path d="M20.5 4.8a5.6 5.6 0 0 0-8.5 1 5.6 5.6 0 0 0-8.5-1C-2 10 6 16 12 21c6-5 14-11 8.5-16.2Z"/></symbol><symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V6a4 4 0 0 1 8 0v4"/></symbol><symbol id="plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol></svg>
+  <script src="home.js"></script>
+</body>
+</html>

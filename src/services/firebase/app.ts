@@ -26,13 +26,29 @@ export const db = initializeFirestore(firebaseApp, {
 export const storage = getStorage(firebaseApp);
 // Cloud Functions su europe-west1 (stessa region del progetto giovani-palo).
 export const functions = getFunctions(firebaseApp, "europe-west1");
+// Porte degli emulatori: quelle di firebase.room-test.json, oppure altre via
+// VITE_EMULATOR_PORT_* quando un'altra sessione usa già quelle (solo in dev).
+function emulatorPort(value: string | undefined, fallback: number) {
+  const port = Number(value);
+  return Number.isInteger(port) && port > 0 ? port : fallback;
+}
+
 if (useLocalEmulators) {
-  connectAuthEmulator(auth, "http://127.0.0.1:9199", { disableWarnings: true });
-  connectFirestoreEmulator(db, "127.0.0.1", 8180);
-  connectFunctionsEmulator(functions, "127.0.0.1", 5101);
+  const env = import.meta.env;
+  connectAuthEmulator(
+    auth,
+    `http://127.0.0.1:${emulatorPort(env.VITE_EMULATOR_PORT_AUTH, 9199)}`,
+    { disableWarnings: true },
+  );
+  connectFirestoreEmulator(db, "127.0.0.1", emulatorPort(env.VITE_EMULATOR_PORT_FIRESTORE, 8180));
+  connectFunctionsEmulator(
+    functions,
+    "127.0.0.1",
+    emulatorPort(env.VITE_EMULATOR_PORT_FUNCTIONS, 5101),
+  );
   // No Storage emulator is needed for room QA; point it at a closed local port
   // so an unrelated upload can never reach the real bucket in this mode.
-  connectStorageEmulator(storage, "127.0.0.1", 9299);
+  connectStorageEmulator(storage, "127.0.0.1", emulatorPort(env.VITE_EMULATOR_PORT_STORAGE, 9299));
 }
 export const googleProvider = new GoogleAuthProvider();
 

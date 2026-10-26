@@ -32,6 +32,7 @@ export interface AuthContextValue {
     genderRoleCategory: GenderRoleCategory;
     unitName: string;
     stakeId: string;
+    role?: "participant";
   }) => Promise<AuthSession>;
   completeParentProfile: (input: {
     firstName: string;
@@ -40,7 +41,6 @@ export interface AuthContextValue {
     city: string;
     stakeId: string;
   }) => Promise<AuthSession>;
-  switchToParentAccount: () => Promise<AuthSession>;
   changePassword: (nextPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
 }

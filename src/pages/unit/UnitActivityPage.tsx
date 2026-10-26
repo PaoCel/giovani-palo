@@ -1,3 +1,6 @@
+import "@/styles/camp-configuration.css";
+import { CAMP } from "@/copy/camp";
+import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -196,9 +199,11 @@ interface UnitCampAssignment {
 function CampAssignmentCell({
   assignment,
   registration,
+  groupName,
 }: {
   assignment: UnitCampAssignment | null;
   registration: Registration;
+  groupName: string;
 }) {
   const fallbackCommittee = registration.assignedCommittees[0];
   const patrolName = assignment?.patrolName ?? registration.assignedPatrolName;
@@ -211,7 +216,7 @@ function CampAssignmentCell({
   return (
     <div className="unit-consent-cell">
       {patrolName ? (
-        <span className="unit-badge unit-badge--ok" title="Pattuglia">
+        <span className="unit-badge unit-badge--ok" title={groupName}>
           {patrolName}
         </span>
       ) : null}
@@ -228,6 +233,7 @@ function RegistrationRow({
   registration,
   isTransportResolved,
   campAssignment,
+  groupName,
   showCampAssignment,
   requiresParentAuthorization,
   onToggleTransport,
@@ -237,6 +243,7 @@ function RegistrationRow({
   registration: Registration;
   isTransportResolved: boolean;
   campAssignment: UnitCampAssignment | null;
+  groupName: string;
   showCampAssignment: boolean;
   requiresParentAuthorization: boolean;
   onToggleTransport: () => void;
@@ -273,7 +280,7 @@ function RegistrationRow({
       </td>
       {showCampAssignment ? (
         <td className="unit-table__cell">
-          <CampAssignmentCell registration={registration} assignment={campAssignment} />
+          <CampAssignmentCell registration={registration} assignment={campAssignment} groupName={groupName} />
         </td>
       ) : null}
     </tr>
@@ -297,7 +304,7 @@ const initialData = {
   event: null as Awaited<ReturnType<typeof unitLeaderService.getUnitActivityDetail>>["event"],
   registrations: [] as Registration[],
   unitYouth: [] as UserProfile[],
-  campManagement: { committees: [], patrols: [], manualLeaders: [], updatedAt: "" },
+  campManagement: { groupLabel: "pattuglia" as const, committees: [], patrols: [], manualLeaders: [], updatedAt: "" },
   stats: { total: 0, needsTransport: 0, missingPhotoConsent: 0, missingParentConsent: 0 },
 };
 
@@ -306,6 +313,7 @@ type CampGroup =
       kind: "patrol";
       id: string;
       title: string;
+      responsibilities?: string;
       registrations: Registration[];
       roles: Record<string, CampPatrolRole>;
       manualLeaderNames: string[];
@@ -315,6 +323,7 @@ type CampGroup =
       kind: "committee";
       id: string;
       title: string;
+      responsibilities?: string;
       registrations: Registration[];
       roles: Record<string, "leader" | "member">;
       manualLeaderNames: string[];
@@ -527,6 +536,7 @@ export function UnitActivityPage() {
         kind: "committee",
         id: committee.id,
         title: committee.title,
+        responsibilities: committee.responsibilities,
         registrations,
         roles,
         manualLeaderNames,
@@ -576,6 +586,7 @@ export function UnitActivityPage() {
 
     return { groups, assignmentByRegistrationId };
   }, [data.campManagement, data.registrations, manualLeaderById, registrationById]);
+  const campGroupLabels = getCampGroupLabels(data.campManagement.groupLabel);
   const campGroups = campOrganization.groups;
   const selectedCampGroup =
     selectedCampGroupKey !== null
@@ -681,7 +692,7 @@ export function UnitActivityPage() {
           <div className="admin-section__head">
             <div>
               <h2>Organizzazione campeggio</h2>
-              <p className="subtle-text">Comitati e pattuglie completi del campeggio</p>
+              <p className="subtle-text">{`Comitati e ${campGroupLabels.plural.toLocaleLowerCase("it-IT")} del campeggio`}</p>
             </div>
             <Link className="button button--ghost button--small" to={`/admin/events/${eventId}/comitati`}>
               Gestisci
@@ -704,12 +715,12 @@ export function UnitActivityPage() {
                   type="button"
                 >
                   <span className="camp-ios-card__icon" aria-hidden="true">
-                    {group.kind === "committee" ? "◌" : "🧭"}
+                    {getCommitteeInitials(group.title)}
                   </span>
                   <span className="camp-ios-card__body">
                     <strong>{group.title}</strong>
                     <small>
-                      {group.kind === "committee" ? "Comitato" : "Pattuglia"} ·{" "}
+                      {group.kind === "committee" ? "Comitato" : campGroupLabels.singular} ·{" "}
                       {memberCount} {memberCount === 1 ? "persona" : "persone"}
                     </small>
                     <span className="camp-ios-card__preview">
@@ -758,6 +769,7 @@ export function UnitActivityPage() {
                     key={r.id}
                     registration={r}
                     campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
+                    groupName={campGroupLabels.singular}
                     showCampAssignment={isCamp}
                     requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
                     isTransportResolved={resolvedSet.has(r.id)}
@@ -800,10 +812,11 @@ export function UnitActivityPage() {
       {selectedCampGroup ? (
         <AppModal
           title={selectedCampGroup.title}
-          subtitle={selectedCampGroup.kind === "committee" ? "Comitato" : "Pattuglia"}
+          subtitle={selectedCampGroup.kind === "committee" ? "Comitato" : campGroupLabels.singular}
           size="compact"
           onClose={() => setSelectedCampGroupKey(null)}
         >
+          {selectedCampGroup.responsibilities ? <section><h4>{CAMP.incarico}</h4><p className="camp-config-responsibilities">{selectedCampGroup.responsibilities}</p></section> : null}
           <div className="camp-person-list">
             {selectedCampGroup.manualLeaderNames.map((fullName) => (
               <article className="camp-person-row" key={`manual-${fullName}`}>

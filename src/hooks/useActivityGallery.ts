@@ -1,29 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery } from "@/types";
 import { computeActivityUploadWindow, isGalleryUploadOpen } from "@/utils/galleryWindow";
+import { getAdminActionError } from "@/utils/adminErrors";
+import type { MemberAccess } from "@/utils/stakeMembership";
+import { PALO } from "@/copy/palo";
+import { PAROLE } from "@/copy/parole";
+
+const GALLERY_DENIED = PALO.soloMembriFoto;
 
 export interface ActivityGalleryAccess {
-  /** Utente con account nel palo: può vedere e (a finestra aperta) caricare. */
+  /** Membro attivo del palo (o staff): vede e, a finestra aperta, carica. */
   isMember: boolean;
   /** Admin o dirigente di unità del palo: toglie e modera. */
   isStaff: boolean;
   uid: string;
+  /** Perché non è membro: `waiting` e `out` hanno il loro testo, `loading` nessuno. */
+  access: MemberAccess;
 }
 
+// "Membro" viene da `stakes/{s}/members/{uid}` (docs/APPARTENENZA_AL_PALO.md,
+// «Client della fase 3»), mai da `users.stakeId`: stessa regola delle rules.
 export function useGalleryAccess(stakeId: string): ActivityGalleryAccess {
-  const { session } = useAuth();
-  const uid = session?.firebaseUser.uid ?? "";
-  if (!session?.isAuthenticated || session.isAnonymous || !stakeId) {
-    return { isMember: false, isStaff: false, uid };
-  }
-  const isSuperAdmin = session.profile.role === "super_admin";
-  const sameStake = session.profile.stakeId === stakeId;
-  const isMember = isSuperAdmin || sameStake;
-  const isStaff = isSuperAdmin || (sameStake && (session.isAdmin || session.isUnitLeader));
-  return { isMember, isStaff, uid };
+  const { access, isStaff, uid } = useStakeMembership(stakeId);
+  return { isMember: access === "member", isStaff, uid, access };
 }
 
 interface ActivityGalleryState {
@@ -43,33 +46,36 @@ export function useActivityGallery(
   event: Pick<Event, "id" | "startDate" | "endDate"> | null,
   enabled: boolean,
 ): ActivityGalleryState {
-  const [gallery, setGallery] = useState<Gallery | null>(null);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<string | null>(null);
-  const ensuredRef = useRef<string | null>(null);
+  const { session } = useAuth();
   const eventId = event?.id ?? "";
+  const context = `${session?.firebaseUser.uid ?? ""}:${stakeId}:${eventId}:${enabled}`;
+  const [state, setState] = useState<ActivityGalleryState & { key: string }>(() => ({
+    key: context, gallery: null, loading: enabled, error: null, uploadOpen: false,
+  }));
+  const ensuredRef = useRef<string | null>(null);
+  const current = state.key === context ? state : { gallery: null, loading: enabled, error: null };
+  const { gallery, loading, error } = current;
 
   useEffect(() => {
+    let active = true;
+    setState({ key: context, gallery: null, loading: enabled, error: null, uploadOpen: false });
     if (!enabled || !stakeId || !eventId) {
-      setGallery(null);
-      setLoading(false);
-      return undefined;
+      setState({ key: context, gallery: null, loading: false, error: null, uploadOpen: false });
+      return () => { active = false; };
     }
-    setLoading(true);
-    setError(null);
-    return galleriesService.subscribeGalleryByActivity(
-      stakeId,
-      eventId,
+    const unsubscribe = galleriesService.subscribeGalleryByActivity(
+      stakeId, eventId,
       (found) => {
-        setGallery(found);
-        setLoading(false);
+        if (active) setState({ key: context, gallery: found, loading: false, error: null, uploadOpen: false });
       },
       (subError) => {
-        setError(subError.message || "Impossibile caricare la galleria.");
-        setLoading(false);
+        if (!active) return;
+        setState({ key: context, gallery: null, loading: false, uploadOpen: false,
+          error: (subError as { code?: string }).code === "permission-denied" ? GALLERY_DENIED : PAROLE.erroreRete });
       },
     );
-  }, [enabled, stakeId, eventId]);
+    return () => { active = false; unsubscribe(); };
+  }, [context, enabled, stakeId, eventId]);
 
   const windowOpenByDates = event ? isGalleryUploadOpen(event, null) : false;
   const expected = event ? computeActivityUploadWindow(event) : null;
@@ -79,24 +85,25 @@ export function useActivityGallery(
     Boolean(gallery && expected) &&
     gallery!.uploadsWindowSource !== "manual" &&
     (gallery!.uploadsOpenFrom !== expected!.fromMs || gallery!.uploadsOpenUntil !== expected!.untilMs);
+  // Dopo una lettura fallita non si sa se la galleria c'è: niente `ensure`.
   const needsEnsure =
     enabled &&
     !loading &&
+    !error &&
     ((windowOpenByDates && (!gallery || gallery.uploadsOpenUntil === null)) || windowStale);
 
   useEffect(() => {
     if (!needsEnsure || !stakeId || !eventId) return;
-    const key = `${stakeId}:${eventId}`;
+    const key = context;
     if (ensuredRef.current === key) return;
     ensuredRef.current = key;
+    let active = true;
     galleriesService.ensureActivityGallery(stakeId, eventId).catch((ensureError: unknown) => {
-      setError(
-        ensureError instanceof Error && ensureError.message
-          ? ensureError.message
-          : "Impossibile aprire la galleria.",
-      );
+      // La callable risponde in italiano; i codici generici dell'SDK no.
+      if (active) setState(previous => previous.key === context ? { ...previous, error: getAdminActionError(ensureError, "Impossibile aprire la galleria.") } : previous);
     });
-  }, [needsEnsure, stakeId, eventId]);
+    return () => { active = false; };
+  }, [needsEnsure, stakeId, eventId, context]);
 
   const uploadOpen = Boolean(event && gallery && isGalleryUploadOpen(event, gallery));
   return { gallery, loading, error, uploadOpen };

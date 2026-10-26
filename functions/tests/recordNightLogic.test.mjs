@@ -426,6 +426,11 @@ function world(activityOverrides = {}) {
   db.seed("users/leader2", { role: "unit_leader", stakeId: "s2" });
   db.seed("users/acc1", { role: "participant", stakeId: "s1" });
   db.seed(`${ACTIVITY}/registrations/user_acc1`, { firstName: "Elena", lastName: "Gialli", registrationStatus: "active", genderRoleCategory: "accompagnatore", birthDate: "1985-03-02", unitName: "Unità B" });
+  // S2-2: proporre e sfidare è dei membri attivi del palo (members/{uid}), non
+  // di chi ha solo scelto il palo nel profilo.
+  for (const uid of ["u1", "u2", "u3", "p1", "kid", "acc1"]) {
+    db.seed(`stakes/s1/members/${uid}`, { status: "active" });
+  }
   const clockFn = () => new Date(clock.now);
   const participant = createRecordNightParticipantHandler({ db, clock: clockFn });
   const admin = createRecordNightAdminHandler({ db, clock: clockFn });

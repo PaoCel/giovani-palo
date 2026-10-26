@@ -1,5 +1,6 @@
 import { Suspense, lazy, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
+import { getSurveyHref } from "@/utils/surveyLinks";
 
 import { AppLoader } from "@/components/AppLoader";
 import { RouteErrorPanel } from "@/components/RouteErrorPanel";
@@ -13,7 +14,7 @@ import { ActivitiesPage } from "@/pages/public/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/public/ActivityDetailPage";
 import { HomePage } from "@/pages/public/HomePage";
 import { LoginPage } from "@/pages/auth/LoginPage";
-import { AdminRoute, CampRoute, ParentRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
+import { AdminRoute, CampRoute, FamilyRoute, ProtectedRoute, UnitLeaderRoute } from "@/routes/guards";
 
 // Le pagine pubbliche "calde" (home, lista attività, dettaglio, login)
 // restano nel bundle principale per il primo paint istantaneo. Tutto il
@@ -39,7 +40,17 @@ function LegacyActivityGalleryRedirect() {
   return <Navigate replace to={`/activities/${eventId}/foto`} />;
 }
 
+function LegacySurveyRedirect() {
+  const { eventId = "" } = useParams();
+  return <Navigate replace to={getSurveyHref(eventId)} />;
+}
+
 export const router = createBrowserRouter([
+  {
+    path: "/sondaggio/:surveySlug",
+    element: lazyPage(() => import("@/pages/public/SurveyPage"), "SurveyPage"),
+    errorElement: <RouteErrorPanel />,
+  },
   // Certificato della Notte dei Record da stampare: senza shell, così in
   // stampa esce solo il foglio.
   {
@@ -113,7 +124,7 @@ export const router = createBrowserRouter([
         element: lazyPage(() => import("@/pages/auth/PasswordResetPage"), "PasswordResetPage"),
       },
       { path: "/sondaggi", element: <Navigate replace to="/me/sondaggi" /> },
-      { path: "/sondaggi/:eventId", element: <Navigate replace to="/me/sondaggi" /> },
+      { path: "/sondaggi/:eventId", element: <LegacySurveyRedirect /> },
       { path: "/galleria", element: <Navigate replace to="/me" /> },
       { path: "/galleria/:galleryId", element: <Navigate replace to="/me" /> },
       { path: "*", element: <NotFoundPage /> },
@@ -197,7 +208,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <ParentRoute />,
+    element: <FamilyRoute />,
     errorElement: <RouteErrorPanel />,
     children: [
       {
@@ -241,6 +252,10 @@ export const router = createBrowserRouter([
           {
             path: "activities/:eventId",
             element: lazyPage(() => import("@/pages/unit/UnitActivityPage"), "UnitActivityPage"),
+          },
+          {
+            path: "persone",
+            element: lazyPage(() => import("@/pages/unit/UnitPeoplePage"), "UnitPeoplePage"),
           },
         ],
       },
@@ -322,6 +337,10 @@ export const router = createBrowserRouter([
               () => import("@/pages/admin/AdminGalleryDetailPage"),
               "AdminGalleryDetailPage",
             ),
+          },
+          {
+            path: "persone",
+            element: lazyPage(() => import("@/pages/admin/AdminPeoplePage"), "AdminPeoplePage"),
           },
           {
             path: "settings",

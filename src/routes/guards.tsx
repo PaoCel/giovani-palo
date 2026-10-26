@@ -5,9 +5,18 @@ import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
 import { campManagementService } from "@/services/firestore/campManagementService";
+import { canManageFamily, getAccountHomePath } from "@/utils/family";
+import { getSurveyHref } from "@/utils/surveyLinks";
 
 function isCampManagementAdminPath(pathname: string) {
   return /^\/admin\/events\/[^/]+\/(committees|comitati)$/.test(pathname.split("?")[0]);
+}
+
+// La propria iscrizione a un'attività ("La tua scheda" e la sua modifica): ci
+// arriva anche un dirigente di unità che partecipa lui (FLUSSO_GENITORE.md,
+// fase 6), altrimenti "Vai alla tua scheda" lo rimandava a /unit.
+function isOwnActivityPath(pathname: string) {
+  return /^\/me\/activities\/[^/]+(\/edit)?\/?$/.test(pathname.split("?")[0]);
 }
 
 function campEventIdFromPath(pathname: string) {
@@ -70,6 +79,12 @@ export function ProtectedRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
 
+  const surveyId = /^\/me\/sondaggi\/([^/]+)\/?$/.exec(location.pathname)?.[1];
+  if (surveyId) {
+    const href = getSurveyHref(surveyId);
+    if (href.startsWith("/sondaggio/")) return <Navigate replace to={href} />;
+  }
+
   if (loading) {
     return <AppLoader label="Verifica sessione..." />;
   }
@@ -87,7 +102,11 @@ export function ProtectedRoute() {
     return <Navigate replace to="/password-reset" />;
   }
 
-  if (session.isUnitLeader && !isCampManagementAdminPath(location.pathname)) {
+  if (
+    session.isUnitLeader &&
+    !isCampManagementAdminPath(location.pathname) &&
+    !isOwnActivityPath(location.pathname)
+  ) {
     return <Navigate replace to="/unit" />;
   }
 
@@ -180,6 +199,12 @@ export function CampRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
 
+  const legacyEventId = /^\/campeggio\/([^/]+)\/?$/.exec(location.pathname)?.[1];
+  if (legacyEventId && new URLSearchParams(location.search).get("tab") === "sondaggio") {
+    const href = getSurveyHref(legacyEventId);
+    if (href.startsWith("/sondaggio/")) return <Navigate replace to={href} />;
+  }
+
   if (loading) {
     return <AppLoader label="Apertura campeggio..." />;
   }
@@ -200,7 +225,8 @@ export function CampRoute() {
   return <Outlet />;
 }
 
-export function ParentRoute() {
+// Famiglia: per ogni account che può avere figli (G2), non solo `parent`.
+export function FamilyRoute() {
   const { loading, session } = useAuth();
   const location = useLocation();
 
@@ -221,13 +247,8 @@ export function ParentRoute() {
     return <Navigate replace to="/password-reset" />;
   }
 
-  if (!session.isParent) {
-    return (
-      <Navigate
-        replace
-        to={session.isAdmin ? "/admin" : session.isUnitLeader ? "/unit" : "/me"}
-      />
-    );
+  if (!canManageFamily(session)) {
+    return <Navigate replace to={getAccountHomePath(session.profile.role)} />;
   }
 
   return <Outlet />;

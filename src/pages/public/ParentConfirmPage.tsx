@@ -9,7 +9,9 @@ import {
 } from "@/components/ConsentChoices";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import { useAuth } from "@/hooks/useAuth";
+import { canManageFamily } from "@/utils/family";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
+import { FIRMA } from "@/copy/firma";
 import {
   PARENT_CONSENT_CHECKBOXES,
   SUPPORT_CONTACT_TEXT,
@@ -73,7 +75,8 @@ export function ParentConfirmPage() {
   // Chi arriva dal magic-link non è loggato; chi firma dall'app sì, e merita
   // una via di ritorno invece di "puoi chiudere questa pagina".
   const { session } = useAuth();
-  const isParentSession = Boolean(session?.isParent);
+  // Famiglia per ogni account che può avere figli (G2), non solo `parent`.
+  const familySession = canManageFamily(session);
   const [view, setView] = useState<ViewState>({ stage: "loading" });
   const [stepIndex, setStepIndex] = useState(0);
   const [consents, setConsents] = useState<ParentAuthorizationConsents>(INITIAL_CONSENTS);
@@ -82,6 +85,7 @@ export function ParentConfirmPage() {
   // Messaggio della callable da mostrare nel passo foto quando si torna indietro.
   const [photoStepNotice, setPhotoStepNotice] = useState<string | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const signatureRef = useRef<SignaturePadHandle>(null);
@@ -159,11 +163,11 @@ export function ParentConfirmPage() {
     const shouldUseStoredSignature = hasReusableSignature && !signatureDataUrl;
 
     if (!signatureDataUrl && !shouldUseStoredSignature) {
-      window.alert(
-        "Non sono riuscito a leggere la firma disegnata. Ridisegna la firma e riprova.",
-      );
+      setSignatureError(FIRMA.firmaIlleggibile);
       return;
     }
+
+    setSignatureError(null);
 
     setView({ stage: "submitting" });
 
@@ -241,7 +245,14 @@ export function ParentConfirmPage() {
         ) : null}
 
         {view.stage === "ready" && view.status !== "valid" ? (
-          <TokenInvalidPanel status={view.status} context={view.context} />
+          <TokenInvalidPanel context={view.context} status={view.status} />
+        ) : null}
+
+        {view.stage === "ready" &&
+        view.status === "valid" &&
+        view.context.canSignInApp &&
+        view.context.createdByMode === "self" ? (
+          <p className="parent-confirm-fineprint">{FIRMA.notaLinkAutorizzaOra}</p>
         ) : null}
 
         {view.stage === "ready" && view.status === "valid" ? (
@@ -257,10 +268,18 @@ export function ParentConfirmPage() {
             hasSignature={hasSignature}
             canSubmit={canSubmit}
             signatureRef={signatureRef}
-            onStepChange={setStepIndex}
+            onStepChange={(index) => {
+              setStepIndex(index);
+              setSignatureError(null);
+            }}
             onToggleConsent={toggleConsent}
             onChoicesChange={changeChoices}
-            onSignatureChange={setHasSignature}
+            signatureError={signatureError}
+            onSignatureChange={(value) => {
+              setHasSignature(value);
+              setSignatureError(null);
+            }}
+            onSignatureTouch={() => setSignatureError(null)}
             onConfirm={handleConfirm}
             onOpenReject={() => setShowRejectModal(true)}
           />
@@ -280,12 +299,12 @@ export function ParentConfirmPage() {
             <p className="parent-confirm-fineprint">
               Le scelte su foto e social si cambiano quando vuoi dal link nella mail con la
               copia firmata
-              {isParentSession ? " o dalla pagina famiglia" : ""}.
+              {familySession ? " o dalla pagina famiglia" : ""}.
             </p>
-            {isParentSession ? (
+            {familySession ? (
               <Link className="button button--primary" to="/family">
                 <AppIcon name="home" />
-                <span>Torna alla tua famiglia</span>
+                <span>{FIRMA.tornaAllaFamiglia}</span>
               </Link>
             ) : null}
           </StatusPanel>
@@ -352,10 +371,13 @@ interface ConfirmationWizardProps {
   hasSignature: boolean;
   canSubmit: boolean;
   signatureRef: React.RefObject<SignaturePadHandle | null>;
+  signatureError: string | null;
   onStepChange: (index: number) => void;
   onToggleConsent: (key: keyof ParentAuthorizationConsents) => void;
   onChoicesChange: (value: ConsentChoicesValue) => void;
   onSignatureChange: (hasSignature: boolean) => void;
+  // Ogni tocco sul riquadro (un tratto nuovo, "Cancella"): l'errore sparisce.
+  onSignatureTouch: () => void;
   onConfirm: () => void;
   onOpenReject: () => void;
 }
@@ -372,15 +394,18 @@ function ConfirmationWizard({
   hasSignature,
   canSubmit,
   signatureRef,
+  signatureError,
   onStepChange,
   onToggleConsent,
   onChoicesChange,
   onSignatureChange,
+  onSignatureTouch,
   onConfirm,
   onOpenReject,
 }: ConfirmationWizardProps) {
   const { session } = useAuth();
-  const isParentSession = Boolean(session?.isParent);
+  // Famiglia per ogni account che può avere figli (G2), non solo `parent`.
+  const familySession = canManageFamily(session);
   const step = WIZARD_STEPS[stepIndex];
   const isLastStep = stepIndex === WIZARD_STEPS.length - 1;
   const nextDisabled =
@@ -491,7 +516,7 @@ function ConfirmationWizard({
             ) : null}
             <p className="parent-confirm-fineprint">
               Potrai cambiare idea quando vuoi dal link nella mail con la copia firmata
-              {isParentSession ? " o dalla pagina famiglia" : ""}.
+              {familySession ? " o dalla pagina famiglia" : ""}.
             </p>
           </>
         ) : null}
@@ -516,16 +541,22 @@ function ConfirmationWizard({
                 attesta la tua dichiarazione.
               </p>
             )}
-            <div className="parent-confirm-signature-wrapper">
+            <div className="parent-confirm-signature-wrapper" onPointerDown={onSignatureTouch}>
               <SignaturePad
                 ref={signatureRef}
                 onChange={(hasContent) => onSignatureChange(hasContent)}
               />
             </div>
+            {signatureError ? (
+              <p className="consent-choices__error" role="alert">
+                <AppIcon name="bell" />
+                <span>{signatureError}</span>
+              </p>
+            ) : null}
             <p className="parent-confirm-fineprint">
               Cliccando "Confermo" dichiari di essere il genitore o tutore legale del minore e
               accetti i consensi sopra. Il consenso è raccolto tramite procedura elettronica
-              {isParentSession
+              {familySession
                 ? " dal tuo account genitore, autenticato su questa piattaforma."
                 : " con link unico inviato all'indirizzo email che ci hai fornito."}
             </p>
@@ -603,6 +634,9 @@ function TokenInvalidPanel({
   status: ParentTokenStatus;
   context: ParentAuthorizationContext;
 }) {
+  // Solo il genitore titolare dell'iscrizione può firmare da Famiglia: lo dice
+  // il server (un account genitore qualunque non basta).
+  const canSignInApp = Boolean(context.canSignInApp);
   const messages: Record<Exclude<ParentTokenStatus, "valid">, { title: string; body: string }> = {
     not_found: {
       title: "Link non valido",
@@ -620,13 +654,26 @@ function TokenInvalidPanel({
         "Hai già completato la procedura di autorizzazione con questo link. Non è necessario ripeterla. Se ricevi questo messaggio per errore contatta il dirigente.",
     },
     invalidated: {
-      title: "Link non più valido",
-      body:
-        "Questo link è stato sostituito da uno nuovo. Controlla l'email più recente che hai ricevuto e usa quel link al posto di questo.",
+      title: FIRMA.linkSostituitoTitolo,
+      body: canSignInApp ? FIRMA.linkSostituitoConAccount : FIRMA.linkSostituitoSenzaAccount,
     },
   };
 
-  const info = messages[status as Exclude<ParentTokenStatus, "valid">];
+  const registrationCancelled =
+    status === "invalidated" && context.reason === "registration_cancelled";
+  const notNeeded = status === "invalidated" && context.reason === "not_needed";
+  const info = registrationCancelled
+    ? { title: FIRMA.iscrizioneAnnullataTitolo, body: FIRMA.iscrizioneAnnullataCorpo }
+    : notNeeded
+      ? { title: FIRMA.nonServeTitolo, body: FIRMA.nonServeCorpo }
+    : status === "expired" && canSignInApp
+      ? { title: FIRMA.linkScadutoTitolo, body: FIRMA.linkScadutoConAccount }
+      : messages[status as Exclude<ParentTokenStatus, "valid">] ?? messages.not_found;
+  // Per un genitore entrato la strada è Famiglia: "Autorizza ora" crea un link nuovo.
+  const showFamilyLink =
+    canSignInApp &&
+    !notNeeded &&
+    (registrationCancelled || status === "invalidated" || status === "expired");
 
   return (
     <StatusPanel tone="info" title={info.title} icon="bell">
@@ -637,6 +684,12 @@ function TokenInvalidPanel({
           {context.activityTitle && context.participantName ? " - " : ""}
           {context.participantName || ""}
         </p>
+      ) : null}
+      {showFamilyLink ? (
+        <Link className="button button--primary" to="/family">
+          <AppIcon name="home" />
+          <span>{FIRMA.tornaAllaFamiglia}</span>
+        </Link>
       ) : null}
     </StatusPanel>
   );

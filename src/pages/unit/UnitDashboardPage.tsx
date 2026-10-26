@@ -2,8 +2,10 @@ import { Link } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
+import { FamilyHomeSection } from "@/components/family/FamilyHomeSection";
 import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
+import { MembershipQueueCards } from "@/components/membership/MembershipQueueCards";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { unitLeaderService, type UnitActivitySummary } from "@/services/firestore/unitLeaderService";
@@ -93,6 +95,10 @@ export function UnitDashboardPage() {
         </div>
       </section>
 
+      {unitId ? (
+        <MembershipQueueCards peoplePath="/unit/persone" stakeId={stakeId} unitId={unitId} />
+      ) : null}
+
       {!unitId ? (
         <div className="notice notice--warning">
           <div>
@@ -156,6 +162,9 @@ export function UnitDashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Figli del dirigente (G2): iscritti da qui, seguiti in Famiglia. */}
+      <FamilyHomeSection variant="unit" />
 
       <section className="admin-section">
         <div className="admin-section__head">

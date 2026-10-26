@@ -6,6 +6,10 @@
 // src/services/firestore/stakesService.ts: se cambiano la' (campi o testi),
 // cambiano anche qui.
 
+import { createRequire } from "node:module";
+
+const { buildActiveMember } = createRequire(import.meta.url)("../../functions/lib/stakeMembership.js");
+
 const STAKE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{2,39}$/;
 
 export function slugify(value) {
@@ -94,6 +98,15 @@ export function buildUserDocument({
     updatedAt: now,
     lastLoginAt: now,
   };
+}
+
+/**
+ * `stakes/{s}/members/{uid}` attivo per una persona che il tool conosce già
+ * (primo admin di un palo nuovo, account demo): senza, dopo S2 non vedrebbe
+ * galleria, record e sondaggi (docs/APPARTENENZA_AL_PALO.md).
+ */
+export function buildMemberDocument({ user, ref, now }) {
+  return buildActiveMember({ user, source: { kind: "staff_approval", ref }, at: new Date(now) });
 }
 
 /**
@@ -198,21 +211,23 @@ export async function createStake({ db, auth }, input) {
     batch.set(db.doc(`stakes/${stakeId}/units/${unit.id}`), buildUnitDocument({ ...unit, now }));
   }
   if (admin) {
+    const adminProfile = buildUserDocument({
+      firstName: admin.firstName,
+      lastName: admin.lastName,
+      email: admin.email,
+      role: "admin",
+      stake,
+      unit: admin.adminUnit,
+      genderRoleCategory: "dirigente",
+      // Segnaposto: senza data di nascita il completamento profilo blocca
+      // l'accesso; l'admin la corregge da /me.
+      birthDate: admin.birthDate || "1980-01-01",
+      now,
+    });
+    batch.set(db.doc(`users/${adminUid}`), adminProfile);
     batch.set(
-      db.doc(`users/${adminUid}`),
-      buildUserDocument({
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        email: admin.email,
-        role: "admin",
-        stake,
-        unit: admin.adminUnit,
-        genderRoleCategory: "dirigente",
-        // Segnaposto: senza data di nascita il completamento profilo blocca
-        // l'accesso; l'admin la corregge da /me.
-        birthDate: admin.birthDate || "1980-01-01",
-        now,
-      }),
+      db.doc(`stakes/${stakeId}/members/${adminUid}`),
+      buildMemberDocument({ user: adminProfile, ref: "tools/create-stake", now }),
     );
   }
   await batch.commit();

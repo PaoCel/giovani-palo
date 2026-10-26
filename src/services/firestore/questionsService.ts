@@ -22,22 +22,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function getRegistrationDocId(lookup: RegistrationLookup) {
-  if (lookup.parentUid && lookup.childId) {
-    return `child_${lookup.parentUid}_${lookup.childId}`;
-  }
-
-  if (lookup.userId) {
-    return `user_${lookup.userId}`;
-  }
-
-  if (lookup.anonymousUid) {
-    return `guest_${lookup.anonymousUid}`;
-  }
-
-  throw new Error("Sessione non valida.");
-}
-
 function getQuestionsCollection(
   stakeId: string,
   eventId: string,
@@ -102,17 +86,20 @@ function sortByCreatedAt(left: Question, right: Question) {
   return left.createdAt.localeCompare(right.createdAt);
 }
 
+// Le domande stanno sotto l'iscrizione che la pagina mostra, letta con il suo
+// id: un ospite che ha collegato un account resta `guest_<uid>`, e ricostruire
+// `user_<uid>` dalla sessione puntava a un'iscrizione che non esiste (rules:
+// exists() falso, domanda rifiutata).
 export const questionsService = {
   async listOwn(
     stakeId: string,
     eventId: string,
-    lookup: RegistrationLookup,
+    registrationId: string,
   ): Promise<Question[]> {
-    if (!lookup.userId && !lookup.anonymousUid) {
+    if (!registrationId) {
       return [];
     }
 
-    const registrationId = getRegistrationDocId(lookup);
     const snapshot = await getDocsCacheFirst(
       getQuestionsCollection(stakeId, eventId, registrationId),
     );
@@ -145,6 +132,7 @@ export const questionsService = {
   async create(
     stakeId: string,
     eventId: string,
+    registrationId: string,
     lookup: RegistrationLookup,
     authorFullName: string,
     input: QuestionWriteInput,
@@ -159,7 +147,6 @@ export const questionsService = {
       throw new Error("La domanda è troppo lunga (max 2000 caratteri).");
     }
 
-    const registrationId = getRegistrationDocId(lookup);
     const reference = doc(getQuestionsCollection(stakeId, eventId, registrationId));
     const timestamp = nowIso();
     const trimmedName = authorFullName.trim();
@@ -188,7 +175,7 @@ export const questionsService = {
   async update(
     stakeId: string,
     eventId: string,
-    lookup: RegistrationLookup,
+    registrationId: string,
     questionId: string,
     authorFullName: string,
     input: QuestionWriteInput,
@@ -203,7 +190,6 @@ export const questionsService = {
       throw new Error("La domanda è troppo lunga (max 2000 caratteri).");
     }
 
-    const registrationId = getRegistrationDocId(lookup);
     const trimmedName = authorFullName.trim();
 
     await updateDoc(getQuestionRef(stakeId, eventId, registrationId, questionId), {
@@ -217,10 +203,9 @@ export const questionsService = {
   async remove(
     stakeId: string,
     eventId: string,
-    lookup: RegistrationLookup,
+    registrationId: string,
     questionId: string,
   ): Promise<void> {
-    const registrationId = getRegistrationDocId(lookup);
     await deleteDoc(getQuestionRef(stakeId, eventId, registrationId, questionId));
   },
 

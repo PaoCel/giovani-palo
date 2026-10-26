@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ActivityGallery } from "@/components/gallery/ActivityGallery";
 import { SurveyAnswerView } from "@/components/survey/SurveyAnswerView";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { eventsService } from "@/services/firestore/eventsService";
 import { surveysService } from "@/services/firestore/surveysService";
 import type { Event } from "@/types";
@@ -28,6 +29,9 @@ export function CampHubPage() {
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId || DEFAULT_STAKE_ID;
   const homeHref = useHomeHref();
+  // Il sondaggio è dei membri: per gli altri la domanda non parte e la scheda
+  // mostra il motivo (SurveyAnswerView), non "non ancora disponibile".
+  const isMember = useStakeMembership(stakeId).access === "member";
 
   const [event, setEvent] = useState<Event | null>(null);
   const [hasSurvey, setHasSurvey] = useState(false);
@@ -48,6 +52,14 @@ export function CampHubPage() {
         if (!cancelled) setEvent(eventData);
       })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, stakeId]);
+
+  useEffect(() => {
+    if (!eventId || !stakeId || !isMember) return undefined;
+    let cancelled = false;
     surveysService
       .listActiveQuestions(stakeId, eventId)
       .then((questions) => {
@@ -62,7 +74,7 @@ export function CampHubPage() {
     return () => {
       cancelled = true;
     };
-  }, [eventId, stakeId]);
+  }, [eventId, stakeId, isMember]);
 
   function selectTab(next: CampTab) {
     setTab(next);
@@ -139,7 +151,7 @@ export function CampHubPage() {
         </section>
       ) : (
         <section className="camp-hub__panel">
-          {surveyChecked && !hasSurvey ? (
+          {isMember && surveyChecked && !hasSurvey ? (
             <div className="camp-empty">
               <AppIcon name="list" />
               <p>Il sondaggio del campeggio non è ancora disponibile. Torna più tardi.</p>

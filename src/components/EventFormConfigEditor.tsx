@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
+import { ADMIN } from "@/copy/admin";
 import type { CustomField, EventAudience, EventFormConfig, StandardFieldKey } from "@/types";
 import {
   type StandardFieldDefinition,
@@ -13,6 +14,7 @@ import { slugify } from "@/utils/slugify";
 interface EventFormConfigEditorProps {
   initialConfig: EventFormConfig;
   busy?: boolean;
+  onDirtyChange?: () => void;
   allowRoomFields?: boolean;
   eventAudience?: EventAudience;
   standardFieldDefinitions?: StandardFieldDefinition[];
@@ -34,6 +36,7 @@ function createEmptyCustomField(index: number): CustomField {
 export function EventFormConfigEditor({
   initialConfig,
   busy,
+  onDirtyChange,
   allowRoomFields = true,
   eventAudience = "congiunta",
   standardFieldDefinitions,
@@ -66,6 +69,7 @@ export function EventFormConfigEditor({
   }, [forceAudienceField, initialConfig]);
 
   function toggleStandardField(key: StandardFieldKey) {
+    onDirtyChange?.();
     if (forceAudienceField && key === "genderRoleCategory") {
       return;
     }
@@ -86,6 +90,7 @@ export function EventFormConfigEditor({
     fieldId: string,
     updater: (field: CustomField) => CustomField,
   ) {
+    onDirtyChange?.();
     setConfig((current) => ({
       ...current,
       customFields: current.customFields.map((field) =>
@@ -95,6 +100,7 @@ export function EventFormConfigEditor({
   }
 
   function removeCustomField(fieldId: string) {
+    onDirtyChange?.();
     setConfig((current) => ({
       ...current,
       customFields: current.customFields.filter((field) => field.id !== fieldId),
@@ -102,6 +108,7 @@ export function EventFormConfigEditor({
   }
 
   function addCustomField() {
+    onDirtyChange?.();
     setConfig((current) => ({
       ...current,
       customFields: [...current.customFields, createEmptyCustomField(current.customFields.length)],
@@ -170,7 +177,7 @@ export function EventFormConfigEditor({
               }))
             }
           />
-          <span>Richiedi login per modificare la registrazione</span>
+          <span>{ADMIN.richiediAccountPerModificare}</span>
         </label>
       </div>
 

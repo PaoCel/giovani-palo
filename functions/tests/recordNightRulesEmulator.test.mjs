@@ -38,7 +38,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const { initializeApp: initializeAdminApp, getApps } = require("firebase-admin/app");
-const { getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
+const { Timestamp, getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
 
 const PROJECT = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
 const FIRESTORE_HOST = process.env.FIRESTORE_EMULATOR_HOST || "";
@@ -201,6 +201,19 @@ const SEEDED_REGISTRATIONS = [
   ["listedAnon", activityPath, staffRegistration({})],
   ["adultOtherStake", activityPath, staffRegistration({})],
 ];
+// Appartenenza (S2): i record aperti li leggono i membri attivi del palo (stakes/{s}/members/{uid},
+// scritto dal server) e lo staff, non chiunque abbia users.stakeId. Qui chi nel test è "del palo";
+// "anon" ha un members attivo per errore (caso peggiore): resta negato perché anonimo.
+const ACTIVE_MEMBER_NAMES = [
+  "youth-a", "youth-b", "outsider", "parent", "parent-2", "adult-leader", "adult-companion",
+  "youth-accompanist", "listed-staff", "listed-elsewhere", "anon",
+];
+const activeMemberSeed = () => ({
+  status: "active", sources: [{ kind: "migration", ref: "a3-2026-10", at: Timestamp.now() }], previous: null,
+  staffRole: null, claimedUnitId: "", claimedUnitName: "", displayName: "Persona Prova", birthYear: null,
+  registrationHints: [], reviewNeeded: false, requestedAt: Timestamp.now(), decidedAt: Timestamp.now(),
+  decidedBy: "system", declineCount: 0, version: 1,
+});
 // Elenco staff per attività: [percorso attività, uid in elenco]
 const STAFF_LISTS = [
   [activityPath, [uid("listed-staff"), uid("listed-anon")]],
@@ -227,6 +240,9 @@ before(async () => {
   }
   for (const [, name, , profile] of ACTORS) {
     if (name && profile) seeds.push(adminDb.doc(`users/${uid(name)}`).set(profile));
+  }
+  for (const name of ACTIVE_MEMBER_NAMES) {
+    seeds.push(adminDb.doc(`stakes/${stakeId}/members/${uid(name)}`).set(activeMemberSeed()));
   }
   for (const [actor, path, data] of SEEDED_REGISTRATIONS) {
     const name = ACTORS.find(([key]) => key === actor)[1];

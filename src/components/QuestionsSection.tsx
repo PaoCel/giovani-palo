@@ -1,11 +1,14 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { SectionCard } from "@/components/SectionCard";
+import { DOMANDE } from "@/copy/domande";
 import { questionsService } from "@/services/firestore/questionsService";
 import type { AuthSession, Question, Registration } from "@/types";
 import { formatDateTime } from "@/utils/formatters";
 import { getRegistrationLookupFromSession } from "@/utils/session";
+import { isConnectionError, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface QuestionsSectionProps {
   stakeId: string;
@@ -30,6 +33,18 @@ export function QuestionsSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [editAnonymous, setEditAnonymous] = useState(false);
+  // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Numero del foglio: l'esito di una richiesta partita da un foglio
+  // precedente (altra iscrizione, altro account) non tocca quello di adesso.
+  const deleteRunRef = useRef(0);
+
+  function showDelete(questionId: string | null) {
+    deleteRunRef.current += 1;
+    setDeleteError(null);
+    setDeleteTarget(questionId);
+  }
 
   const isCancelled = registration.registrationStatus === "cancelled";
   const authorFullName =
@@ -39,6 +54,8 @@ export function QuestionsSection({
 
   useEffect(() => {
     let active = true;
+    // Altra iscrizione o altro account: il foglio di prima non vale più.
+    showDelete(null);
 
     async function load() {
       if (!session) {
@@ -50,8 +67,7 @@ export function QuestionsSection({
       setError(null);
 
       try {
-        const lookup = getRegistrationLookupFromSession(session, registration.childId);
-        const list = await questionsService.listOwn(stakeId, eventId, lookup);
+        const list = await questionsService.listOwn(stakeId, eventId, registration.id);
 
         if (active) {
           setQuestions(list);
@@ -76,7 +92,7 @@ export function QuestionsSection({
     return () => {
       active = false;
     };
-  }, [stakeId, eventId, session]);
+  }, [stakeId, eventId, session, registration.id]);
 
   async function handleCreate(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
@@ -101,6 +117,7 @@ export function QuestionsSection({
       const created = await questionsService.create(
         stakeId,
         eventId,
+        registration.id,
         lookup,
         authorFullName,
         { text, isAnonymous: draftAnonymous },
@@ -152,11 +169,10 @@ export function QuestionsSection({
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session, registration.childId);
       await questionsService.update(
         stakeId,
         eventId,
-        lookup,
+        registration.id,
         questionId,
         authorFullName,
         { text, isAnonymous: editAnonymous },
@@ -188,36 +204,46 @@ export function QuestionsSection({
     }
   }
 
-  async function handleDelete(questionId: string) {
-    if (!session) {
+  async function handleConfirmDelete() {
+    const questionId = deleteTarget;
+
+    if (!session || !questionId || busy) {
       return;
     }
 
-    const confirmed = window.confirm("Eliminare questa domanda?");
-
-    if (!confirmed) {
-      return;
-    }
-
+    const run = deleteRunRef.current;
     setBusy(true);
+    setDeleteError(null);
     setError(null);
     setInfo(null);
 
     try {
-      const lookup = getRegistrationLookupFromSession(session, registration.childId);
-      await questionsService.remove(stakeId, eventId, lookup, questionId);
+      // Senza rete la cancellazione aspetterebbe il server per sempre, col
+      // foglio bloccato: dopo il timeout si sblocca e lo si dice.
+      await withWriteTimeout(
+        questionsService.remove(stakeId, eventId, registration.id, questionId),
+      );
       setQuestions((current) => current.filter((question) => question.id !== questionId));
+
+      if (run !== deleteRunRef.current) {
+        return;
+      }
 
       if (editingId === questionId) {
         cancelEdit();
       }
 
+      showDelete(null);
       setInfo("Domanda eliminata.");
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile eliminare la domanda.",
+      if (run !== deleteRunRef.current) {
+        return;
+      }
+
+      setDeleteError(
+        isConnectionError(caughtError)
+          ? DOMANDE.erroreRete
+          : DOMANDE.errore,
       );
     } finally {
       setBusy(false);
@@ -360,7 +386,7 @@ export function QuestionsSection({
                         <button
                           className="button button--ghost button--small"
                           disabled={busy}
-                          onClick={() => void handleDelete(question.id)}
+                          onClick={() => showDelete(question.id)}
                           type="button"
                         >
                           <AppIcon name="trash" />
@@ -375,6 +401,21 @@ export function QuestionsSection({
           </ul>
         )}
       </div>
+
+      {deleteTarget ? (
+        <ConfirmSheet
+          body={DOMANDE.eliminaCorpo}
+          busy={busy}
+          busyLabel={DOMANDE.eliminazione}
+          cancelLabel={DOMANDE.tieni}
+          confirmLabel={DOMANDE.conferma}
+          error={deleteError}
+          onCancel={() => showDelete(null)}
+          onConfirm={() => void handleConfirmDelete()}
+          title={DOMANDE.eliminaTitolo}
+          tone="danger"
+        />
+      ) : null}
     </SectionCard>
   );
 }

@@ -19,6 +19,9 @@
 // consentUpdatedAt grezzo del contesto pubblico e le corse durante l'invio dei
 // completamenti (iscrizione annullata, email cambiata, prenotazione altrui),
 // expectedUpdatedAt obbligatorio, digest dell'elenco e stato di invio (sending/sent).
+// Conferma con un altro link pendente della stessa iscrizione (un reinvio partito
+// durante la firma): quello della firma diventa used, l'altro invalidated con
+// token_invalidated, il link dello stesso figlio in un'altra attività resta.
 //
 // Le email sono simulate: fuori produzione partono solo verso EMAIL_ALLOWLIST e
 // negli emulatori non è impostata, quindi nessuna mail esce (getEmailPolicy in
@@ -176,6 +179,33 @@ async function seedPendingSignature(id, stake = STAKE) {
   return { rawToken, tokenHash };
 }
 
+/**
+ * Un altro token pendente con lo stesso registrationId: il link di un reinvio
+ * partito durante la firma (stessa attività) o lo stesso figlio iscritto a
+ * un'altra attività. Ritorna l'hash.
+ */
+async function seedOtherPendingToken(id, { activityId = ACTIVITY, label, stake = STAKE }) {
+  const tokenHash = hashLinkToken(`${runId}-${id}-${label}-`.padEnd(64, "b"));
+  await adminDb.doc(`parentAuthorizationTokens/${tokenHash}`).set({
+    id: tokenHash,
+    tokenHash,
+    stakeId: stake,
+    activityId,
+    registrationId: id,
+    parentEmail: PARENT_EMAIL,
+    participantName: `Figlio ${id}`,
+    activityTitle: "Gita di test",
+    status: "pending",
+    createdAt: SEEDED_AT,
+    expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+    usedAt: null,
+    invalidatedAt: null,
+    createdByUserId: null,
+    createdByMode: "system",
+  });
+  return tokenHash;
+}
+
 function signatureDataUrl() {
   const png = new PNG({ width: 160, height: 60 });
   for (let x = 10; x < 150; x += 1) {
@@ -260,12 +290,16 @@ before(async () => {
         startDate: "2026-10-16T14:00:00.000Z",
         endDate: "2026-10-17T16:00:00.000Z",
         status: "registrations_open",
+        // Firma e rifiuto vogliono che l'autorizzazione serva ancora (83ac159):
+        // iscrizione in attesa, oppure minorenne in un'attività che la chiede.
+        requiresParentAuthorization: true,
       }),
     ),
     adminDb.doc(`stakes/${STAKE_COMPLETION}/activities/${ACTIVITY_2}`).set({
       title: "Seconda gita",
       startDate: "2026-11-16T14:00:00.000Z",
       status: "registrations_open",
+      requiresParentAuthorization: true,
     }),
   ]);
 });
@@ -424,6 +458,39 @@ describe("parentAuthorizationConfirm: le due scelte sono obbligatorie", () => {
       assert.equal(audit.length, 1);
       assert.equal(audit[0].photoConsent, photo);
     }
+  });
+});
+
+// Un reinvio partito mentre il genitore firmava lasciava valido il link nuovo:
+// la sua mail chiedeva una seconda firma.
+describe("parentAuthorizationConfirm: un altro link pendente della stessa iscrizione", () => {
+  const getToken = async (hash) => (await adminDb.doc(`parentAuthorizationTokens/${hash}`).get()).data();
+
+  test("firma con il link annotato: usato quello, invalidato l'altro con audit, intatto il link di un'altra attività", async () => {
+    const id = "conf-doppio";
+    const { rawToken, tokenHash } = await seedPendingSignature(id);
+    const reinvio = await seedOtherPendingToken(id, { label: "reinvio" });
+    const altraAttivita = await seedOtherPendingToken(id, { activityId: "gita-altra", label: "altra" });
+
+    const result = await who.anonimo.call("parentAuthorizationConfirm", {
+      token: rawToken,
+      consents: allConsents(),
+      signatureDataUrl: signatureDataUrl(),
+      photoConsent: "accepted",
+      socialPublicationConsent: "refused",
+    });
+    assert.equal(result.ok, true);
+
+    assert.equal((await getReg(STAKE, ACTIVITY, id)).parentAuthorization.status, "authorized");
+    assert.equal((await getToken(tokenHash)).status, "used", "link della firma");
+    assert.equal((await getToken(reinvio)).status, "invalidated", "il link del reinvio non vale più");
+    assert.deepEqual(
+      (await auditRows(STAKE, ACTIVITY, id, "token_invalidated")).map((row) => row.tokenId),
+      [reinvio],
+      "token_invalidated del solo link superato",
+    );
+    assert.equal((await getToken(altraAttivita)).status, "pending", "link dell'altra attività");
+    assert.deepEqual(await auditRows(STAKE, "gita-altra", id), [], "nessun evento nell'altra attività");
   });
 });
 

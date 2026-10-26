@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { ADMIN } from "@/copy/admin";
 import type { OrganizationProfile, StandardFieldKey } from "@/types";
 import {
   normalizeStandardFieldKeys,
@@ -250,7 +251,7 @@ export function OrganizationSettingsEditor({
               onChange={(event) =>
                 setValues((current) => ({ ...current, accountHelpText: event.target.value }))
               }
-              placeholder="Testo guida nella schermata account/login."
+              placeholder={ADMIN.testoGuidaAccountPlaceholder}
             />
           </label>
 
@@ -457,7 +458,7 @@ export function OrganizationSettingsEditor({
                 }))
               }
             />
-            <span>Richiedi login per modificare l'iscrizione</span>
+            <span>{ADMIN.richiediAccountPerModificare}</span>
           </label>
         </div>
 

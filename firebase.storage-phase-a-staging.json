@@ -1,0 +1,5 @@
+{
+  "storage": [
+    { "bucket": "giovani-palo-staging-eu", "rules": "storage.rules" }
+  ]
+}

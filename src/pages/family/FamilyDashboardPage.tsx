@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -10,8 +10,11 @@ import {
   type ConsentChoicesValue,
 } from "@/components/ConsentChoices";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
+import { MembershipBanner } from "@/components/membership/MembershipBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FAMIGLIA } from "@/copy/famiglia";
+import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { childrenService, type ChildWriteInput } from "@/services/firestore/childrenService";
@@ -22,9 +25,20 @@ import { stakesService } from "@/services/firestore/stakesService";
 import { unitsService } from "@/services/firestore/unitsService";
 import type { ChildProfile, Event, PhotoConsentDecision, Registration, Unit } from "@/types";
 import { isConsentStaleError } from "@/utils/callableError";
-import { getActivitiesPath, getActivityRegistrationPath } from "@/utils/activityLinks";
+import {
+  getActivitiesPath,
+  getActivityRegistrationPath,
+  withRegisterFor,
+} from "@/utils/activityLinks";
 import { formatDateOnly, formatEventWindow } from "@/utils/formatters";
+import {
+  getCancelErrorMessage,
+  getCancelRegistrationCopy,
+  shouldShowResumeSigning,
+  withCancelTimeout,
+} from "@/utils/familyCancel";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
+import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
 
 const AVATAR_PALETTE = ["#235d90", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
 
@@ -44,6 +58,9 @@ function getAvatarColor(seed: string) {
 }
 
 interface FamilyData {
+  // Account per cui sono stati letti: al cambio di account il primo render ha
+  // ancora i figli di quello di prima, e non si mostrano.
+  loadedFor: string;
   stakeId: string;
   children: ChildProfile[];
   registrations: Registration[];
@@ -52,6 +69,7 @@ interface FamilyData {
 }
 
 const initialData: FamilyData = {
+  loadedFor: "",
   stakeId: "",
   children: [],
   registrations: [],
@@ -94,6 +112,11 @@ export function FamilyDashboardPage() {
   const [childModalOpen, setChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<ChildProfile | null>(null);
   const [childForm, setChildForm] = useState<ChildFormState>(emptyChildForm);
+  // Id e data di creazione fissati all'apertura: un "Aggiungi" ripetuto dopo
+  // un errore di rete riscrive lo stesso figlio invece di crearne un altro.
+  const [childDraft, setChildDraft] = useState<{ childId: string; createdAt: string } | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [consentTarget, setConsentTarget] = useState<ConsentTarget | null>(null);
@@ -113,6 +136,16 @@ export function FamilyDashboardPage() {
   // asincrone di un dialogo chiuso o sostituito (Annulla durante la rilettura,
   // un altro figlio aperto nel frattempo) non devono toccarne lo stato.
   const consentDialogRef = useRef(0);
+  // "Annulla l'iscrizione" di un figlio: foglio di conferma, poi la stessa
+  // scrittura di /me.
+  const [cancelTarget, setCancelTarget] = useState<{
+    registration: Registration;
+    childName: string;
+  } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ChildProfile | null>(null);
 
   // Il genitore è già autenticato: non ha senso farlo passare dalla mail per
   // firmare. La callable emette un token a vita breve e apriamo la stessa
@@ -138,6 +171,49 @@ export function FamilyDashboardPage() {
     }
   }
 
+  function openCancelSheet(registration: Registration, child: ChildProfile) {
+    setCancelError(null);
+    setNotice(null);
+    setCancelTarget({ registration, childName: child.firstName || child.fullName });
+  }
+
+  function closeCancelSheet() {
+    if (cancelling) return;
+    setCancelTarget(null);
+    setCancelError(null);
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelTarget || cancelling) return;
+    const { registration } = cancelTarget;
+    setCancelling(true);
+    setCancelError(null);
+
+    try {
+      const updated = await withCancelTimeout(
+        registrationsService.cancelRegistrationById(
+          registration.stakeId,
+          registration.eventId,
+          registration.id,
+        ),
+      );
+      setData((current) => ({
+        ...current,
+        registrations: current.registrations.map((item) =>
+          item.id === registration.id && item.eventId === registration.eventId
+            ? updated ?? { ...item, registrationStatus: "cancelled" }
+            : item,
+        ),
+      }));
+      setCancelTarget(null);
+      setNotice(FAMIGLIA.annullata);
+    } catch (caughtError) {
+      setCancelError(getCancelErrorMessage(caughtError));
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   const { data, loading, error, setData, reload } = useAsyncData(
     async () => {
       if (!parentUid) {
@@ -154,11 +230,28 @@ export function FamilyDashboardPage() {
         stakeId ? unitsService.listActiveUnits(stakeId) : Promise.resolve([]),
       ]);
 
-      return { stakeId, children, registrations, events, units };
+      return { loadedFor: parentUid, stakeId, children, registrations, events, units };
     },
     [parentUid, session?.profile.stakeId],
     initialData,
   );
+  // Dati letti per questo account: al cambio di account (o se la lettura del
+  // nuovo fallisce) quelli di prima non si mostrano. Con un errore si vede
+  // l'avviso, non "Sto caricando".
+  const familyReady = !parentUid || data.loadedFor === parentUid;
+
+  // Cambio di account con la pagina aperta: i fogli dell'account di prima si
+  // chiudono (nome del figlio, iscrizione, scelte), nessuna scrittura parte.
+  useEffect(() => {
+    setRemoveTarget(null);
+    setCancelTarget(null);
+    // Come la chiusura del foglio: una rilettura o un salvataggio ancora in
+    // corso per l'account di prima non lo riaprono.
+    consentDialogRef.current += 1;
+    setConsentReloading(false);
+    setConsentTarget(null);
+    setChildModalOpen(false);
+  }, [parentUid]);
 
   const eventById = new Map(data.events.map((event) => [event.id, event]));
   const activeRegistrations = data.registrations.filter(
@@ -330,6 +423,7 @@ export function FamilyDashboardPage() {
   function openCreateChild() {
     setEditingChild(null);
     setChildForm(emptyChildForm);
+    setChildDraft(parentUid ? childrenService.newChildDraft(parentUid) : null);
     setActionError(null);
     setChildModalOpen(true);
   }
@@ -370,30 +464,50 @@ export function FamilyDashboardPage() {
       stakeId: data.stakeId,
     };
 
+    // Senza rete la scrittura aspetterebbe il server per sempre.
+    if (isOffline()) {
+      setActionError(FAMIGLIA.erroreRete);
+      return;
+    }
+
     setBusy(true);
     setActionError(null);
 
     try {
       if (editingChild) {
-        await childrenService.updateChild(parentUid, editingChild.id, input);
+        await withWriteTimeout(childrenService.updateChild(parentUid, editingChild.id, input));
       } else {
-        await childrenService.createChild(parentUid, input);
+        await withWriteTimeout(
+          childrenService.createChild(parentUid, input, childDraft ?? undefined),
+        );
       }
 
       setChildModalOpen(false);
       await reload();
     } catch (caughtError) {
+      // Senza rete la creazione resta in coda e la cache la conosce già: il
+      // figlio compare nella lista, così riaprire "Aggiungi" non ne crea un secondo.
+      if (!editingChild && isConnectionError(caughtError)) {
+        void childrenService
+          .listChildren(parentUid)
+          .then((children) => setData((current) => ({ ...current, children })))
+          .catch(() => undefined);
+      }
+
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile salvare il profilo del figlio.",
+        isConnectionError(caughtError)
+          ? FAMIGLIA.erroreRete
+          : caughtError instanceof Error && !("code" in caughtError)
+            ? caughtError.message
+            : FAMIGLIA.erroreSalvataggio,
       );
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleDeleteChild(child: ChildProfile) {
+  // "Rimuovi": prima il foglio di conferma, mai un dialogo del browser.
+  function handleDeleteChild(child: ChildProfile) {
     if (!parentUid) {
       return;
     }
@@ -409,10 +523,29 @@ export function FamilyDashboardPage() {
       return;
     }
 
+    setActionError(null);
+    setRemoveTarget(child);
+  }
+
+  async function handleConfirmRemove() {
+    const child = removeTarget;
+
+    // Solo un figlio dell'account di adesso, letto per lui.
     if (
-      typeof window !== "undefined" &&
-      !window.confirm(`Rimuovere il profilo di ${child.fullName || "questo figlio"}?`)
+      !parentUid ||
+      !child ||
+      busy ||
+      !familyReady ||
+      !data.children.some((item) => item.id === child.id)
     ) {
+      return;
+    }
+
+    // Senza rete la cancellazione aspetterebbe il server per sempre, col
+    // foglio bloccato.
+    if (isOffline()) {
+      setRemoveTarget(null);
+      setActionError(FAMIGLIA.erroreRete);
       return;
     }
 
@@ -420,16 +553,20 @@ export function FamilyDashboardPage() {
     setActionError(null);
 
     try {
-      await childrenService.deleteChild(parentUid, child.id);
+      await withWriteTimeout(childrenService.deleteChild(parentUid, child.id));
       setData((current) => ({
         ...current,
         children: current.children.filter((item) => item.id !== child.id),
       }));
+      setRemoveTarget(null);
     } catch (caughtError) {
+      setRemoveTarget(null);
       setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile rimuovere il profilo.",
+        isConnectionError(caughtError)
+          ? FAMIGLIA.erroreRete
+          : caughtError instanceof Error
+            ? caughtError.message
+            : "Impossibile rimuovere il profilo.",
       );
     } finally {
       setBusy(false);
@@ -437,7 +574,9 @@ export function FamilyDashboardPage() {
   }
 
   return (
-    <div className="page page--user-dashboard">
+    <div className="page page--user-dashboard page--family">
+      <MembershipBanner />
+
       <ActivityMediaHighlight />
 
       <section className="user-dashboard-section">
@@ -466,6 +605,14 @@ export function FamilyDashboardPage() {
           </div>
         ) : null}
 
+        {notice ? (
+          <div className="notice notice--info" role="status">
+            <div>
+              <p>{notice}</p>
+            </div>
+          </div>
+        ) : null}
+
         {staleDataWarning ? (
           <div className="notice notice--info">
             <div>
@@ -477,16 +624,16 @@ export function FamilyDashboardPage() {
           </div>
         ) : null}
 
-        {loading ? (
+        {(loading || !familyReady) && !error ? (
           <p className="subtle-text">Sto caricando i profili della famiglia...</p>
-        ) : data.children.length === 0 ? (
+        ) : !familyReady ? null : data.children.length === 0 ? (
           <EmptyState
             title="Nessun figlio collegato"
-            description="Aggiungi il profilo di un figlio per iscriverlo alle attività e seguirne lo stato."
+            description={FAMIGLIA.nessunFiglioDescrizione}
             action={
               <button className="button button--primary" onClick={openCreateChild} type="button">
                 <AppIcon name="plus" />
-                <span>Aggiungi figlio/a</span>
+                <span>{FAMIGLIA.aggiungiFiglio}</span>
               </button>
             }
           />
@@ -562,17 +709,34 @@ export function FamilyDashboardPage() {
                                   onClick={() => void handleAuthorizeNow(registration)}
                                   type="button"
                                 >
-                                  {busy ? "Apertura..." : "Autorizza ora"}
+                                  {busy ? FAMIGLIA.apertura : FAMIGLIA.autorizzaOra}
                                 </button>
                               ) : null}
                               <Link
                                 className="button button--ghost button--small"
-                                to={`${getActivityRegistrationPath(registration.eventId, registration.stakeId)}${getActivityRegistrationPath(registration.eventId, registration.stakeId).includes("?") ? "&" : "?"}child=${child.id}`}
+                                to={`${withRegisterFor(getActivityRegistrationPath(registration.eventId, registration.stakeId), "figlio")}&passo=modulo&child=${encodeURIComponent(child.id)}`}
                               >
                                 Gestisci
                               </Link>
                             </div>
                             {renderConsentRow(registration, child, false)}
+                            <div className="family-reg-extra">
+                              {shouldShowResumeSigning(registration) ? (
+                                <p className="family-reg-note">{FAMIGLIA.riprendiFirma}</p>
+                              ) : null}
+                              <button
+                                aria-label={fillCopy(FAMIGLIA.annullaIscrizioneDi, {
+                                  nome: child.firstName || child.fullName,
+                                  attivita: event?.title ?? FAMIGLIA.attivitaGenerica,
+                                })}
+                                className="family-reg-cancel"
+                                disabled={busy || cancelling}
+                                onClick={() => openCancelSheet(registration, child)}
+                                type="button"
+                              >
+                                {FAMIGLIA.annullaIscrizione}
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -606,7 +770,7 @@ export function FamilyDashboardPage() {
                     <button
                       className="button button--ghost button--small"
                       disabled={busy}
-                      onClick={() => void handleDeleteChild(child)}
+                      onClick={() => handleDeleteChild(child)}
                       type="button"
                     >
                       Rimuovi
@@ -619,12 +783,56 @@ export function FamilyDashboardPage() {
             <div className="inline-actions">
               <button className="button button--soft" onClick={openCreateChild} type="button">
                 <AppIcon name="plus" />
-                <span>Aggiungi un altro figlio/a</span>
+                <span>{FAMIGLIA.aggiungiFiglio}</span>
               </button>
             </div>
           </div>
         )}
       </section>
+
+      {removeTarget ? (
+        <AppModal
+          footer={
+            <div className="family-cancel-actions">
+              <button
+                className="button button--primary"
+                disabled={busy}
+                onClick={() => setRemoveTarget(null)}
+                type="button"
+              >
+                {FAMIGLIA.tieniProfilo}
+              </button>
+              <button
+                className="button button--danger"
+                disabled={busy}
+                onClick={() => void handleConfirmRemove()}
+                type="button"
+              >
+                {busy ? FAMIGLIA.rimozione : FAMIGLIA.confermaRimuovi}
+              </button>
+            </div>
+          }
+          onClose={() => {
+            if (!busy) setRemoveTarget(null);
+          }}
+          title={fillCopy(FAMIGLIA.rimuoviProfilo, {
+            nome: removeTarget.fullName || removeTarget.firstName,
+          })}
+        >
+          <p className="family-cancel-body">{FAMIGLIA.rimuoviCorpo}</p>
+        </AppModal>
+      ) : null}
+
+      {cancelTarget ? (
+        <CancelRegistrationSheet
+          busy={cancelling}
+          childName={cancelTarget.childName}
+          error={cancelError}
+          event={eventById.get(cancelTarget.registration.eventId) ?? null}
+          onClose={closeCancelSheet}
+          onConfirm={() => void handleConfirmCancel()}
+        />
+      ) : null}
 
       {consentTarget ? (
         <ConsentModal
@@ -646,7 +854,13 @@ export function FamilyDashboardPage() {
 
       {childModalOpen ? (
         <AppModal
-          title={editingChild ? "Modifica profilo figlio" : "Aggiungi figlio/a"}
+          title={
+            editingChild
+              ? fillCopy(FAMIGLIA.modificaProfilo, {
+                  nome: editingChild.fullName || editingChild.firstName,
+                })
+              : FAMIGLIA.aggiungiFiglio
+          }
           subtitle="I dati servono a precompilare le iscrizioni alle attività."
           onClose={() => setChildModalOpen(false)}
         >
@@ -718,6 +932,13 @@ export function FamilyDashboardPage() {
                 ))}
               </select>
             </label>
+
+            {/* L'errore nel modale: la pagina sotto è coperta e inerte. */}
+            {actionError ? (
+              <p className="form-error" role="alert">
+                {actionError}
+              </p>
+            ) : null}
 
             <div className="inline-actions">
               <button className="button button--primary" disabled={busy} type="submit">
@@ -826,6 +1047,63 @@ function ConsentModal({
           </p>
         ) : null}
         {problem ? <p className="subtle-text">{problem}</p> : null}
+      </div>
+    </AppModal>
+  );
+}
+
+// Conferma di "Annulla l'iscrizione" (docs/FLUSSO_GENITORE.md, H): la scelta
+// sicura viene prima, e chiudere il foglio non annulla niente.
+function CancelRegistrationSheet({
+  childName,
+  event,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  childName: string;
+  event: Event | null;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const copy = getCancelRegistrationCopy(childName, event);
+
+  return (
+    <AppModal
+      footer={
+        <div className="family-cancel-actions">
+          <button
+            className="button button--primary"
+            disabled={busy}
+            onClick={onClose}
+            type="button"
+          >
+            {FAMIGLIA.tieniIscrizione}
+          </button>
+          <button
+            className="button button--danger"
+            disabled={busy}
+            onClick={onConfirm}
+            type="button"
+          >
+            {busy ? FAMIGLIA.annullamento : FAMIGLIA.confermaAnnulla}
+          </button>
+        </div>
+      }
+      onClose={onClose}
+      title={copy.title}
+    >
+      <div className="stack">
+        <p className="family-cancel-body">{copy.body}</p>
+        {error ? (
+          <p className="consent-choices__error" role="alert">
+            <AppIcon name="bell" />
+            <span>{error}</span>
+          </p>
+        ) : null}
       </div>
     </AppModal>
   );

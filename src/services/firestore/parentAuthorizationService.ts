@@ -24,6 +24,14 @@ export interface ParentAuthorizationContext {
   hasReusableSignature?: boolean;
   expiresAt?: string | null;
   legalVersions?: ParentAuthorizationLegalVersions;
+  // Con status "invalidated": l'iscrizione è stata annullata (o non c'è più).
+  // registration_cancelled: annullata o cancellata; not_needed: non più in
+  // attesa e l'autorizzazione non serve (18 anni o più dopo una correzione).
+  reason?: "registration_cancelled" | "not_needed";
+  // "self" = link di "Autorizza ora" dall'account genitore (60 minuti).
+  createdByMode?: "self" | "system" | null;
+  // Chi è entrato è il genitore titolare dell'iscrizione: può firmare da Famiglia.
+  canSignInApp?: boolean;
 }
 
 interface ConfirmInput {

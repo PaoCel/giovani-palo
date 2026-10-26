@@ -2,6 +2,7 @@ import {
   collectionGroup,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromServer,
   setDoc,
@@ -10,6 +11,7 @@ import {
   query,
   where,
   deleteDoc,
+  onSnapshot,
   writeBatch,
 } from "firebase/firestore";
 
@@ -223,6 +225,7 @@ function mapRegistration(
       typeof data.assignedPatrolName === "string" ? data.assignedPatrolName : null,
     assignedPatrolRole: mapCampPatrolRole(data.assignedPatrolRole),
     assignedCommittees: mapAssignedCommittees(data.assignedCommittees),
+    createdBy: typeof data.createdBy === "string" ? data.createdBy : null,
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
   };
@@ -291,16 +294,6 @@ function getGenderFromAnswers(answers: RegistrationWriteInput["answers"]) {
   return getGenderRoleCategory(
     typeof answers.genderRoleCategory === "string" ? answers.genderRoleCategory : "",
   );
-}
-
-function mergeRoomPreferenceMatches(
-  source: unknown,
-  target: unknown,
-): RoomPreferenceMatches {
-  return {
-    ...parseRoomPreferenceMatches(source),
-    ...parseRoomPreferenceMatches(target),
-  };
 }
 
 function areRoomPreferenceMatchesEqual(
@@ -493,6 +486,30 @@ export const registrationsService = {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   },
 
+  // "Iscrizione inviata" segue l'iscrizione dal vivo: l'esito della mail di
+  // autorizzazione lo scrive il trigger dopo l'invio, la firma può arrivare
+  // da un'altra scheda. Un errore di ascolto lascia lo stato già mostrato.
+  watchRegistration(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    onChange: (registration: Registration | null) => void,
+  ) {
+    return onSnapshot(
+      getRegistrationReference(stakeId, eventId, registrationId),
+      (snapshot) => {
+        onChange(
+          snapshot.exists()
+            ? mapRegistration(eventId, stakeId, snapshot.id, snapshot.data())
+            : null,
+        );
+      },
+      (error) => {
+        console.warn("Iscrizione non più seguita dal vivo.", error);
+      },
+    );
+  },
+
   async getRegistrationById(stakeId: string, eventId: string, registrationId: string) {
     // Cache-first: path di visualizzazione (dettaglio attività, feed utente).
     // Dopo una scrittura il doc locale riflette già la modifica, quindi i
@@ -533,18 +550,21 @@ export const registrationsService = {
     const registrationId = getRegistrationDocId(lookup);
     const reference = getRegistrationReference(stakeId, eventId, registrationId);
     const snapshot = await getDoc(reference);
-    const guestReference =
-      lookup.userId
-        ? getRegistrationReference(stakeId, eventId, `guest_${lookup.userId}`)
-        : null;
+    // Ospite che ha poi collegato Google o un'email: stesso uid, quindi la sua
+    // iscrizione resta `guest_<uid>` e si aggiorna lì, come fa già
+    // getRegistrationByActor in lettura. Copiarla in `user_<uid>` era una
+    // create con stato, firma e assegnazioni già valorizzati, che le rules
+    // rifiutano; e l'id cambiato staccava token del genitore, domande, stanze,
+    // pattuglie e comitati (emulatore, 2026-10-19).
     const guestSnapshot =
-      lookup.userId && !snapshot.exists() && guestReference ? await getDoc(guestReference) : null;
-    const timestamp = nowIso();
-    const existing = snapshot.exists()
-      ? mapRegistration(eventId, stakeId, snapshot.id, snapshot.data())
-      : guestSnapshot?.exists()
-        ? mapRegistration(eventId, stakeId, guestSnapshot.id, guestSnapshot.data())
+      lookup.userId && !snapshot.exists()
+        ? await getDoc(getRegistrationReference(stakeId, eventId, `guest_${lookup.userId}`))
         : null;
+    const target = snapshot.exists() ? snapshot : guestSnapshot?.exists() ? guestSnapshot : null;
+    const timestamp = nowIso();
+    const existing = target
+      ? mapRegistration(eventId, stakeId, target.id, target.data())
+      : null;
     const fullName = input.fullName.trim();
     const names = splitFullName(fullName);
     const genderRoleCategory = getGenderFromAnswers(input.answers);
@@ -615,12 +635,12 @@ export const registrationsService = {
       updatedAt: timestamp,
     };
 
-    if (snapshot.exists()) {
+    if (target) {
       // Aggiorna solo i campi gestiti dal partecipante. Riscrivere l'intero
       // documento poteva includere una copia stale di parentAuthorization,
       // aggiornata in parallelo dalla Cloud Function, e le rules rifiutavano
       // correttamente il salvataggio con permission-denied.
-      await updateDoc(reference, {
+      await updateDoc(target.ref, {
         firstName: registrationPayload.firstName,
         lastName: registrationPayload.lastName,
         fullName: registrationPayload.fullName,
@@ -637,10 +657,6 @@ export const registrationsService = {
       });
     } else {
       await setDoc(reference, registrationPayload);
-    }
-
-    if (lookup.userId && guestSnapshot?.exists() && guestReference) {
-      await deleteDoc(guestReference);
     }
 
     if (lookup.userId) {
@@ -663,13 +679,23 @@ export const registrationsService = {
       }
     }
 
-    const savedRegistration = await this.getRegistrationById(stakeId, eventId, registrationId);
+    const savedRegistration = await this.getRegistrationById(
+      stakeId,
+      eventId,
+      target?.id ?? registrationId,
+    );
 
     return savedRegistration;
   },
 
   async cancelRegistration(stakeId: string, eventId: string, lookup: RegistrationLookup) {
-    const registrationId = getRegistrationDocId(lookup);
+    return this.cancelRegistrationById(stakeId, eventId, getRegistrationDocId(lookup));
+  },
+
+  // Famiglia annulla l'iscrizione di un figlio partendo dal documento già letto
+  // (`child_<genitore>_<figlio>`): stessa scrittura di /me, permessa dalle rules
+  // a chi ne è titolare tramite `parentUid`.
+  async cancelRegistrationById(stakeId: string, eventId: string, registrationId: string) {
     const reference = getRegistrationReference(stakeId, eventId, registrationId);
 
     await updateDoc(reference, {
@@ -686,8 +712,41 @@ export const registrationsService = {
     await deleteDoc(getRegistrationReference(stakeId, eventId, registrationId));
   },
 
-  // Admin cambia stato iscrizione (active/cancelled). Rules consentono
-  // qualunque update se isStakeAdmin.
+  // Iscrizione a mano dell'admin (docs/ADMIN_ISCRITTI.md): documento intero
+  // costruito da buildManualRegistrationDoc, id fissato all'apertura del
+  // foglio. Le rules (validAdminManualCreate) controllano forma e stato.
+  async adminCreateManualRegistration(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    document: Record<string, unknown>,
+  ) {
+    await setDoc(getRegistrationReference(stakeId, eventId, registrationId), document);
+  },
+
+  // Dopo un primo tentativo scaduto: se il documento c'è già (la scrittura è
+  // arrivata, e il trigger può averci già scritto l'autorizzazione) non si
+  // riscrive, perché le rules rifiuterebbero di cancellare quei campi.
+  async adminManualRegistrationExists(stakeId: string, eventId: string, registrationId: string) {
+    const snapshot = await getDocFromServer(getRegistrationReference(stakeId, eventId, registrationId));
+    return snapshot.exists();
+  },
+
+  // Correzione dei dati e richiesta di autorizzazione dall'admin: chiavi di
+  // buildAdminEditPatch / buildRequestAuthorizationPatch, nella lista delle
+  // rules (validAdminRegistrationUpdate).
+  async adminUpdateRegistration(
+    stakeId: string,
+    eventId: string,
+    registrationId: string,
+    patch: Record<string, unknown>,
+  ) {
+    await updateDoc(getRegistrationReference(stakeId, eventId, registrationId), patch);
+  },
+
+  // Admin cambia stato iscrizione: annullata, attiva o in attesa del genitore
+  // (planAdminReactivate). 'confirmed' e 'rejected_by_parent' li scrive solo
+  // il server (validAdminRegistrationUpdate).
   async adminSetRegistrationStatus(
     stakeId: string,
     eventId: string,
@@ -766,94 +825,6 @@ export const registrationsService = {
     });
 
     return this.getRegistrationById(stakeId, eventId, registrationId);
-  },
-
-  async linkAnonymousRegistrationsToUser(anonymousUid: string, userId: string) {
-    const snapshot = await getDocs(
-      query(collectionGroup(db, "registrations"), where("anonymousUid", "==", anonymousUid)),
-    );
-    let latestRegistration: Registration | null = null;
-
-    for (const registrationDocument of snapshot.docs) {
-      const context = getStakeAndEventFromRegistrationPath(registrationDocument.ref.path);
-
-      if (!context?.stakeId || !context.eventId) {
-        continue;
-      }
-
-      const { stakeId, eventId } = context;
-      const targetRegistrationId = `user_${userId}`;
-      const guestRegistration = mapRegistration(
-        eventId,
-        stakeId,
-        registrationDocument.id,
-        registrationDocument.data(),
-      );
-      const targetReference = getRegistrationReference(
-        stakeId,
-        eventId,
-        targetRegistrationId,
-      );
-      const targetSnapshot = await getDoc(targetReference);
-      const targetData = targetSnapshot.exists()
-        ? (targetSnapshot.data() as Record<string, unknown>)
-        : null;
-      const sourceData = registrationDocument.data() as Record<string, unknown>;
-      const timestamp = nowIso();
-
-      await setDoc(
-        targetReference,
-        {
-          ...sourceData,
-          ...targetData,
-          userId,
-          anonymousUid: null,
-          linkedLaterToUserId: userId,
-          anonymousTokenId:
-            (typeof targetData?.anonymousTokenId === "string"
-              ? targetData.anonymousTokenId
-              : guestRegistration.anonymousTokenId) ?? null,
-          answers: {
-            ...(sourceData.answers && typeof sourceData.answers === "object"
-              ? sourceData.answers
-              : {}),
-            ...(targetData?.answers && typeof targetData.answers === "object"
-              ? targetData.answers
-              : {}),
-          },
-          roomPreferenceMatches: mergeRoomPreferenceMatches(
-            sourceData.roomPreferenceMatches,
-            targetData?.roomPreferenceMatches,
-          ),
-          createdAt:
-            (typeof targetData?.createdAt === "string" ? targetData.createdAt : null) ??
-            guestRegistration.createdAt ??
-            timestamp,
-          updatedAt: timestamp,
-        },
-        { merge: true },
-      );
-
-      if (registrationDocument.id !== targetRegistrationId) {
-        await deleteDoc(registrationDocument.ref);
-      }
-
-      const linkedRegistration = await this.getRegistrationById(
-        stakeId,
-        eventId,
-        targetRegistrationId,
-      );
-
-      if (
-        linkedRegistration &&
-        (!latestRegistration ||
-          linkedRegistration.updatedAt.localeCompare(latestRegistration.updatedAt) > 0)
-      ) {
-        latestRegistration = linkedRegistration;
-      }
-    }
-
-    return latestRegistration;
   },
 
   async markRecoveryPdfGenerated(stakeId: string, eventId: string, registrationId: string) {

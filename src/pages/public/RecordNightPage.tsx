@@ -6,6 +6,8 @@ import "@/styles/recordNight.css";
 import { RecordNightGuestView } from "@/components/recordNight/GuestRecordNight";
 import { MyRecords, getEntryLabel, getJoinedLabel } from "@/components/recordNight/MyRecords";
 import { OpenRecords } from "@/components/recordNight/OpenRecords";
+import { RecordNightResults } from "@/components/recordNight/RecordNightResults";
+import { getRecordNightResultRecords } from "@/utils/recordNightResults";
 import { PersonPicker } from "@/components/recordNight/PersonPicker";
 import { ProposalSheet } from "@/components/recordNight/ProposalSheet";
 import {
@@ -30,6 +32,8 @@ import {
 } from "@/components/recordNight/hooks";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
+import { PALO } from "@/copy/palo";
 import { eventsService } from "@/services/firestore/eventsService";
 import {
   getRecordNightErrorMessage,
@@ -55,6 +59,7 @@ import {
   isRecordVisibleToParticipants,
 } from "@/utils/recordNight";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
+import { lockedMessageOf } from "@/utils/stakeMembership";
 
 interface BaseData {
   // false finché non c'è stata una lettura vera (anche durante l'avvio
@@ -169,7 +174,14 @@ export function RecordNightPage() {
 
   const { stakeId, event } = base.data;
   const enabled = event?.recordsEnabled === true;
-  const recordsKey = enabled && uid && stakeId ? `${stakeId}/${eventId}/${uid}` : "";
+  // Elenco, proposte e sfide sono dei membri del palo (docs/APPARTENENZA_AL_PALO.md,
+  // S2-2): chi è in coda o fuori non legge i record. Le proprie iscrizioni e il
+  // contesto restano leggibili, così ritirarsi è sempre possibile. Finché il
+  // documento members non arriva non parte nessuna lettura.
+  const { access } = useStakeMembership(stakeId);
+  const canReadList = access === "member";
+  const recordsKey =
+    enabled && uid && stakeId && access !== "loading" ? `${stakeId}/${eventId}/${uid}/${access}` : "";
 
   // Record, tentativi (propri e dei figli) e contesto: letture server-first,
   // rifatte dopo ogni azione.
@@ -177,13 +189,18 @@ export function RecordNightPage() {
   const requestRef = useRef(0);
 
   const loadRecords = useCallback(async () => {
-    if (!recordsKey || !uid) return;
     const request = ++requestRef.current;
+    if (!recordsKey || !uid) {
+      setRecordsState(null);
+      return;
+    }
     // Il contesto (per chi si agisce) è una callable a parte: se non risponde,
     // l'elenco dei record si mostra lo stesso.
     const [lists, contextResult] = await Promise.allSettled([
       Promise.all([
-        recordNightService.listRecords(stakeId, eventId),
+        canReadList
+          ? recordNightService.listRecords(stakeId, eventId)
+          : Promise.resolve([] as RecordNightRecord[]),
         recordNightService.listOwnEntries(stakeId, eventId, uid),
       ]),
       recordNightService.getContext(stakeId, eventId),
@@ -205,7 +222,9 @@ export function RecordNightPage() {
           contextResult.status === "fulfilled" ? contextResult.value : (previous?.context ?? null),
         error:
           lists.status === "rejected"
-            ? "Non riesco a caricare i record. Controlla la connessione e riprova."
+            ? isPermissionDenied(lists.reason)
+              ? PALO.soloMembriRecord
+              : "Non riesco a caricare i record. Controlla la connessione e riprova."
             : null,
         contextError:
           contextResult.status === "rejected"
@@ -214,15 +233,16 @@ export function RecordNightPage() {
         listsLoaded: lists.status === "fulfilled" || previous?.listsLoaded === true,
       };
     });
-  }, [eventId, recordsKey, stakeId, uid]);
+  }, [canReadList, eventId, recordsKey, stakeId, uid]);
 
   useEffect(() => {
     void loadRecords();
+    return () => { requestRef.current += 1; };
   }, [loadRecords]);
 
   const current = recordsState?.key === recordsKey ? recordsState : null;
   const context = current?.context ?? null;
-  const records = useMemo(() => current?.records ?? [], [current]);
+  const records = useMemo(() => canReadList ? current?.records ?? [] : [], [canReadList, current]);
   const recordsById = useMemo(
     () => new Map(records.map((record) => [record.id, record] as const)),
     [records],
@@ -274,7 +294,7 @@ export function RecordNightPage() {
   const recordWindow = event ? getRecordNightWindow(event, now) : "disabled";
   const closed = recordWindow === "closed";
   const closeAt = event ? getRecordNightCloseAt(event) : null;
-  const canAct = Boolean(person) && recordWindow === "open";
+  const canAct = canReadList && Boolean(person) && recordWindow === "open";
   const activeCount = countActiveEntries(personEntries);
   const atLimit = activeCount >= RECORD_NIGHT_MAX_ENTRIES;
 
@@ -309,6 +329,12 @@ export function RecordNightPage() {
   const [sheet, setSheet] = useState<SheetState>(null);
   const toastIdRef = useRef(0);
 
+  useEffect(() => {
+    setSheet(null);
+    setToast(null);
+    setAnnouncement("");
+  }, [recordsKey]);
+
   const dismissToast = useCallback(() => setToast(null), []);
 
   function showToast(next: Omit<RecordNightToastState, "id">) {
@@ -332,7 +358,7 @@ export function RecordNightPage() {
   }
 
   function handleChallenge(record: RecordNightRecord) {
-    if (!person) return;
+    if (!canReadList || !person) return;
     const { registrationId } = person;
     void runAction(async () => {
       await recordNightService.challenge(stakeId, eventId, record.id, registrationId);
@@ -363,7 +389,7 @@ export function RecordNightPage() {
 
   // Dal foglio: gli errori tornano al foglio, che li mostra e resta aperto.
   async function submitProposal(input: RecordNightProposalInput) {
-    if (busyRef.current || !person) return;
+    if (busyRef.current || !person || (!canReadList && sheet?.mode !== "edit")) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -385,7 +411,7 @@ export function RecordNightPage() {
   }
 
   async function challengeFromSheet(record: RecordNightRecord) {
-    if (busyRef.current || !person) return;
+    if (busyRef.current || !canReadList || !person) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -484,6 +510,15 @@ export function RecordNightPage() {
   const registrationPath = getActivityRegistrationPath(event.id, stakeId);
   const managePath = `/activities/${event.id}/record/gestisci${stakeId ? `?stake=${encodeURIComponent(stakeId)}` : ""}`;
   const hasSelf = people.some((item) => item.isSelf);
+  const resultRecords = getRecordNightResultRecords(records, event.endDate, now.getTime());
+  const hasResults = resultRecords.length > 0;
+  // Chi non è membro: la frase al posto dell'elenco e, finché le iscrizioni
+  // sono aperte, i tentativi già fatti da ritirare (ritirarsi resta sempre
+  // possibile, anche dopo essere usciti dal palo).
+  const lockedMessage = canReadList ? null : lockedMessageOf(access, "record");
+  const ownActiveEntries = (current?.entries ?? []).filter(
+    (entry) => entry.status === "approved" || entry.status === "pending",
+  );
 
   function renderJoinInvite() {
     // Nessuna persona per cui agire. Dopo la chiusura non serve; lo staff
@@ -521,8 +556,8 @@ export function RecordNightPage() {
 
   return (
     <div className="rn">
-      <RecordNightHero dayLabel={dayLabel} eventTitle={event.title} weekday={weekday} />
-      <RecordNightBoard closeAt={closeAt} closed={closed} now={now} weekday={weekday} />
+      <RecordNightHero dayLabel={dayLabel} eventTitle={event.title} weekday={weekday} hasResults={hasResults} />
+      {!hasResults ? <RecordNightBoard closeAt={closeAt} closed={closed} now={now} weekday={weekday} /> : null}
 
       {isStaff ? (
         <Link className="rn-manage" to={managePath}>
@@ -540,7 +575,7 @@ export function RecordNightPage() {
         </Link>
       ) : null}
 
-      <RecordNightRules />
+      {!hasResults ? <RecordNightRules /> : null}
 
       {current?.error ? (
         <div className="rn-notice rn-notice--error" role="alert">
@@ -569,9 +604,52 @@ export function RecordNightPage() {
 
       {recordsLoading ? <RecordNightLoading label="Sto caricando i record..." /> : null}
 
-      {current?.listsLoaded ? (
+      {current?.listsLoaded && !canReadList ? (
         <>
-          {person ? (
+          {lockedMessage ? (
+            <div className="rn-notice" role="status">
+              <RecordNightIcon name="lock" />
+              <span>{lockedMessage}</span>
+            </div>
+          ) : null}
+          {recordWindow === "open" && ownActiveEntries.length > 0 ? (
+            <section className="rn-section">
+              <div className="rn-section__head">
+                <h2 className="rn-h2">I tuoi record</h2>
+              </div>
+              <div className="rn-withdrawn">
+                <ul>
+                  {ownActiveEntries.map((entry) => (
+                    <li className="rn-withdrawn__row" key={entry.id}>
+                      <span className="rn-withdrawn__label">
+                        {getEntryLabel(entry, recordsById)}
+                      </span>
+                      {entry.kind === "proposal" && entry.status === "pending" && people.some(item => item.registrationId === entry.registrationId) ? (
+                        <button className="rn-btn rn-btn--sm" disabled={busy}
+                          onClick={() => { choosePerson(entry.registrationId); setSheet({ mode: "edit", entry }); }} type="button">Modifica</button>
+                      ) : null}
+                      <button
+                        className="rn-btn rn-btn--sm"
+                        disabled={busy}
+                        onClick={() => handleWithdraw(entry)}
+                        type="button"
+                      >
+                        <RecordNightIcon name="x" />
+                        Ritira
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {current?.listsLoaded && canReadList ? (
+        <>
+          {hasResults ? <RecordNightResults records={resultRecords} /> : null}
+          {!hasResults && person ? (
             <MyRecords
               activeCount={activeCount}
               busy={busy}
@@ -595,11 +673,11 @@ export function RecordNightPage() {
               }
               recordsById={recordsById}
             />
-          ) : context ? (
+          ) : !hasResults && context ? (
             renderJoinInvite()
           ) : null}
 
-          <OpenRecords
+          {!hasResults ? <OpenRecords
             atLimit={atLimit}
             busy={busy}
             canAct={canAct}
@@ -608,7 +686,7 @@ export function RecordNightPage() {
             onChallenge={handleChallenge}
             personName={personName}
             records={visibleRecords}
-          />
+          /> : null}
         </>
       ) : null}
 
@@ -633,7 +711,7 @@ export function RecordNightPage() {
         toast={toast}
       />
 
-      {sheet && person ? (
+      {sheet && person && (canReadList || sheet.mode === "edit") ? (
         <ProposalSheet
           entry={sheet.mode === "edit" ? sheet.entry : null}
           getErrorMessage={getRecordNightErrorMessage}

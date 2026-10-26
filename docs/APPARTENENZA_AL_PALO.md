@@ -96,10 +96,16 @@ Per il viaggio di domani nessuna di queste è pronta: se vuoi, ti preparo in
 privato (fuori dal repo) l'elenco dei 14 ragazzi con la foto senza risposta,
 da dare a chi scatta per l'album dello staff.
 
-### Stato di S1 (2026-10-16): costruito in locale, NON in produzione
+### Stato di S1: in produzione dal 2026-10-18
 
-Decisioni C1-a e C2-a approvate. Codice su `main`, nessun deploy (viaggio del
-16-18/10, galleria in uso). Dati prod riletti il 2026-10-16 in sola lettura:
+Rilasciata il 2026-10-18 nell'ordine rules → functions (`parentConsentGetContext`,
+`parentConsentUpdate`, `parentConsentRequestCompletion`, più `onRoomRegistrationUpdated`
+delle stanze) → hosting con service worker v19. Verificato: ruleset live identico a
+git, callable che rispondono con gli errori previsti, pagina `/parent-consent` con
+link non valido. La mail di completamento ai genitori non è ancora stata inviata.
+
+Decisioni C1-a e C2-a approvate. Codice costruito su `main` il 2026-10-16, deploy
+rimandato a dopo il viaggio del 16-18/10 (galleria in uso). Dati prod riletti il 2026-10-16 in sola lettura:
 
 | Attività | Firmate (non annullate) | Foto senza risposta | Social senza risposta | Con almeno una scelta mancante |
 | --- | --- | --- | --- | --- |
@@ -164,7 +170,7 @@ Firestore e Storage devono leggere per sapere se qualcuno è dentro.
 | --- | --- | --- |
 | `status` | `pending` \| `active` \| `declined` \| `withdrawn` \| `removed` \| `blocked` | `withdrawn` = richiesta ritirata dall'utente o uscita volontaria; `blocked` = rimozione per sicurezza, che nessun codice o invito riattiva (solo un admin) |
 | `sources` | array di `{kind, ref, at}` | tutti i motivi indipendenti di appartenenza: `migration`, `link_code`, `parent_link`, `manual_registration`, `staff_approval`, `staff_invite`. Togliere un motivo (es. "Scollega") non tocca gli altri |
-| `previous` | map \| null | stato e motivi prima dell'ultima azione, per "Annulla" |
+| `previous` | sempre `null` | dal 2026-10-22 lo stato di prima vive in `members/{uid}/staff/previous`, leggibile solo dallo staff (vedi «Cosa legge il richiedente») |
 | `staffRole` | `admin` \| `unit_leader` \| null | copia server del ruolo, così Storage non deve leggere anche il profilo |
 | `claimedUnitId`, `claimedUnitName` | string | unità dichiarata, per instradare la richiesta |
 | `displayName`, `birthYear` | string, int \| null | copie per la coda, niente data completa |
@@ -183,7 +189,7 @@ vuole entrare e cosa mostrano le pagine pubbliche. Non dà più nessun permesso.
 
 | Dato | Utente (sé) | Membro attivo | Dirigente di unità del palo | Admin del palo | Super admin |
 | --- | --- | --- | --- | --- | --- |
-| `members/{uid}` proprio | legge (senza `staffNote`: il campo vive in `members/{uid}/staff/note`, leggibile solo dallo staff) | legge | legge | legge | legge |
+| `members/{uid}` proprio | legge (senza `staffNote` né lo stato di prima: vivono in `members/{uid}/staff/note` e `staff/previous`, leggibili solo dallo staff) | legge | legge | legge | legge |
 | `members` del palo (list) | no | no | solo `claimedUnitId == ` la propria unità (la query deve filtrare per unità) | tutti | tutti |
 | Creare la richiesta | callable `request`, solo per sé, palo esistente, non anonimo, tetti | | | | |
 | Ritirare la richiesta, uscire dal palo | callable, per sé | | | | |
@@ -261,15 +267,22 @@ Script idempotente con dry-run (`functions/scripts/migrateStakeMembers.js`).
 Un'iscrizione libera non prova l'appartenenza, ma togliere oggi la galleria a
 135 persone durante l'anno sarebbe un costo vero. Proposta:
 
-| Gruppo (2026-10-15) | Quanti | Stato |
-| --- | --- | --- |
-| admin, unit_leader | 31 | `active`, `staffRole` |
-| participant/parent con almeno un'iscrizione non annullata nel palo (propria o di un figlio) | ~104 | `active` con `reviewNeeded: true` |
-| account senza iscrizioni | 45 | `pending`, etichetta "account esistente" |
+| Gruppo | 2026-10-15 | 2026-10-20 | Stato |
+| --- | --- | --- | --- |
+| admin, unit_leader | 31 | 31 (10 admin, 21 dirigenti) | `active`, `staffRole` |
+| participant/parent con almeno un'iscrizione inviata e non chiusa nel palo (propria, di un figlio, o da ospite poi collegato allo stesso account; non contano bozza, annullata, rifiutata dal genitore) | ~104 | 108 (101 participant, 7 parent) | `active` con `reviewNeeded: true` |
+| account senza iscrizioni | 45 | 41 (39 participant, 2 parent) | `pending`, etichetta "account esistente" |
+
+Riletti il 2026-10-20 in sola lettura (solo conteggi): 180 profili, tutti
+`roma-est`; dei 108 con iscrizione, 90 solo con iscrizioni proprie, 6 solo come
+genitore, 1 solo da ospite collegato, 11 misti. 8 participant non hanno
+un'unità nel profilo e una unità con un iscritto non ha dirigenti: quelle
+richieste vanno agli admin. 48 uid hanno iscrizioni ma nessun profilo (sessioni
+ospite): non diventano membri.
 
 Ogni dirigente trova in Persone "Conferma i membri della tua unità": elenco con
-"Lo conosco" (toglie `reviewNeeded`) e "Non lo conosco" (passa in coda, accesso
-sospeso). Dopo 30 giorni, chi è ancora da confermare compare agli admin in
+"Lo conosco" (toglie `reviewNeeded`) e "Non lo conosco" (accesso sospeso, la
+richiesta passa agli admin: scelta S2-3). Dopo 30 giorni, chi è ancora da confermare compare agli admin in
 evidenza. Ordine di deploy: script in dry-run, script reale, **poi** rules
 (altrimenti per qualche minuto nessuno vede la galleria), poi callable e client.
 
@@ -300,12 +313,494 @@ ripristina `previous` se `version` non è cambiata; l'annullamento entra nel log
 
 | Caso | Comportamento |
 | --- | --- |
-| Sceglie il palo sbagliato | dal banner "Ho sbagliato palo": scelta del palo, la richiesta vecchia passa a `withdrawn` |
+| Sceglie il palo sbagliato | dal banner "Ho sbagliato palo": scelta del palo, la richiesta vecchia passa a `withdrawn` (arriva con S3: oggi c'è un palo solo e il profilo non ha la scelta del palo) |
 | Dichiara l'unità sbagliata | la richiesta va al dirigente sbagliato, che con "Non è della mia unità" la passa agli admin (non è un rifiuto) |
 | Abbandona a metà registrazione | il profilo incompleto non crea richiesta; al prossimo accesso riparte da "Completa il profilo" (come oggi) |
 | Ha già un account membro e ne crea uno nuovo | il nuovo è `pending`; solo lo staff vede la nota "stesso nome e data di un membro attivo" e può rispondere "Ha già un account": all'utente arriva il testo unico di rifiuto più il link "Non ricordi con quale account sei entrato?" (aggiunto a ogni rifiuto, così non rivela niente) |
 | Non sa nulla e aspetta | dopo 48 ore in coda, push agli admin del palo (riuso `adminPushDevices`) |
 | Esce dal palo per sbaglio | "Esci dal palo" chiede conferma; dopo, "Chiedi di entrare" ripassa dalla coda (scelta deliberata: uscire è raro, rientrare deve essere verificato) |
+
+### Contratto di autorizzazione (2026-10-20)
+
+Scritto prima del codice applicativo di S2. Ogni cella ha un test
+nell'emulatore con l'SDK client, utenti veri dell'emulatore Auth e le query
+esatte dell'app di oggi (che per S2 è la "PWA vecchia"):
+`functions/tests/stakeMembershipContractEmulator.test.mjs`. Le rules Firestore
+lo applicano dal branch di S2; le celle Storage valgono dopo la fase B di
+`gugd-storage-eu` (stesse persone, blocco Storage dello stesso test). Le rules
+in `firestore.rules` sono la fonte: se una cella qui e una rule non dicono la
+stessa cosa, è un bug di una delle due.
+
+**Una regola sola.** Galleria, media, like, commenti, contenuti nascosti,
+record aperti, sondaggi e interazioni del feed sono dei **membri del palo**:
+chi ha `stakes/{s}/members/{uid}` con `status == 'active'`, oppure lo staff del
+palo (admin e dirigenti di unità, ruolo nel profilo assegnato da un admin).
+`users.stakeId` non dà più nessun permesso. Una sessione anonima non è mai
+membro, qualunque documento abbia. Lo staff ha sempre anche il proprio
+documento members attivo con `staffRole` (migrazione, trigger sul ruolo); il
+ramo "staff dal profilo" esiste perché un documento mancante non tolga la
+galleria a chi la modera, e i poteri dello staff (cancellare contenuti altrui,
+leggere segnalazioni) restano quelli del ruolo. Perché ruolo e appartenenza
+non divergano:
+
+- ogni uscita da `active` di chi ha `staffRole` (esce dal palo, rimosso,
+  bloccato, passato a un altro palo) lo riporta a `participant` e azzera
+  `staffRole` nella stessa transazione; "Annulla" li ripristina da `previous`;
+- l'ultimo admin del palo non può uscire, né essere rimosso o bloccato;
+- un ruolo staff si assegna solo a chi ha un palo nel profilo e non ha il
+  documento o è `pending` o `active` (le rules lo negano negli altri stati:
+  prima si riattiva, poi si promuove); il trigger su `users` porta il documento ad `active` con
+  `staffRole`; togliere il ruolo azzera `staffRole` e lascia l'appartenenza;
+- rimuovere o bloccare toglie l'uid anche dagli elenchi dello staff delle
+  attività del palo (`management/campStaff`, `management/recordNight`).
+
+**Chi.**
+
+| Sigla | Persona | Come si riconosce |
+| --- | --- | --- |
+| V | visitatore senza login | nessun `request.auth` |
+| O | sessione anonima (ospite) | `sign_in_provider == 'anonymous'`, anche con un profilo o un members che puntano al palo |
+| N | account senza documento members nel palo | profilo con `users.stakeId` uguale al palo, nessun `members/{uid}`: account nuovo, o creato dalla PWA vecchia prima che il trigger lo metta in coda |
+| P | in attesa | `status == 'pending'` |
+| M | membro attivo | `status == 'active'`, con o senza `reviewNeeded` |
+| F | fuori | `declined`, `withdrawn`, `removed`, `blocked` |
+| X | membro attivo di un altro palo | members attivo nel palo B, chiede sul palo A |
+| D | dirigente di unità del palo | ruolo `unit_leader` e `users.stakeId` del palo (assegnati da un admin) |
+| A | admin del palo, super admin | ruolo `admin` con `users.stakeId` del palo, o `super_admin` |
+
+Lo staff "in elenco" di un'attività (`staffUids` del campeggio o della Notte
+dei Record, scelto da un admin) vale solo per quella funzione e non dà
+appartenenza.
+
+**Firestore** (✓ permesso, ✗ negato; "propri" = documenti con il proprio uid).
+
+| Dato e operazione dell'app | V | O | N | P | M | F | X | D | A |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `members/{sé}` get, anche se non esiste | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `members/{altro}` get | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo chi ha dichiarato la sua unità | ✓ |
+| `members` list | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | solo `where('claimedUnitId','==',<sua unità>)` | ✓ |
+| `members/{uid}/staff/*` (note dello staff) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | get, solo la sua unità dichiarata | ✓ |
+| `members` scrittura da client | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| `galleries` `where('activityId','==',a)`, get | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `media` onSnapshot, `orderBy('createdAt','desc')` + `limit`, getDocs | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `media` create in batch con `mediaCount` +1 (finestra aperta, `uploadedBy` = sé) | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `media` delete in batch con `mediaCount` −1 | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
+| like di un media (get proprio, batch con `likeCount` ±1) | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| commenti di un media: list, create | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| commenti di un media: delete | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
+| `hiddenMedia` `where('uploadedBy','==',sé)` / tutti | ✗ | ✗ | ✗ | ✗ | propri | ✗ | ✗ | ✓ | ✓ |
+| `reports` (il client non li legge) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
+| `records` `where('status','==','open')` | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `records` senza filtro (gestione; anche lo staff in elenco) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ |
+| `recordEntries` `where('ownerUid','==',sé)` | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `surveyQuestions` `orderBy('order')` | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `surveyResponses` get per id, set della bozza e dell'invio | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| `surveyResponses` list (risultati) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| `feedPosts` `where('published','==',true)` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| like di un post: get del proprio | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| like di un post: batch con `likeCount` ±1 | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| commenti di un post (oggi nessun client) | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ | ✓ |
+
+Righe "incoerenti", provate apposta:
+
+| Caso | Esito |
+| --- | --- |
+| `users.stakeId` del palo, nessun members (N) | negato su tutto ciò che è dei membri: è il cuore di S2 |
+| `galleries/{g}/members/{uid}` o `users/{uid}/unlockedGalleries/{g}` presenti (codici galleria vecchi), nessun members attivo | negato: le rules non leggono mai quei documenti né `gallerySecrets` |
+| sessione anonima con un members `active` o con un profilo staff | negato |
+| D o A con il proprio members mancante o `removed` | permesso: decide il ruolo, e la callable che rimuove toglie anche il ruolo |
+| members `active` nel palo A, `users.stakeId` già cambiato verso B | permesso in A finché l'appartenenza in A non passa a `withdrawn` |
+| like mosso di 2, o senza il proprio documento like nello stesso batch; `mediaCount` mosso di 2 | negato |
+| ruolo `admin` o `unit_leader` assegnato da client a chi è `declined`, `withdrawn`, `removed` o `blocked` | negato |
+| query del dirigente su `members` senza il filtro della sua unità, con `in`, `!=`, `not-in`, `count()` senza filtro, `collectionGroup('members')` | negato |
+
+**Storage** (rilascio dopo la fase B di `gugd-storage-eu`; implementazione e
+prove nell'emulatore indipendenti dal bucket di produzione). Path
+`protected/stakes/{s}/galleries/{g}/media/{m}/{file}`; stesse persone,
+stessa regola. Membro = `members/{uid}` attivo; staff = `staffRole` su quel
+documento, e solo se il documento manca o non è attivo il profilo (ramo staff).
+Mai più di **due** documenti Firestore per richiesta: `members/{uid}` per
+primo, poi il profilo (solo per chi non è membro attivo) oppure `media/{m}`
+(solo per leggere un file altrui).
+
+| Operazione | V O N P F X | M | D A |
+| --- | --- | --- | --- |
+| get del proprio file prima che esista il doc media (`metadata.uploadedBy` = sé) | ✗ | ✓ | ✓ |
+| get di un file con il doc media | ✗ | ✓ | ✓ |
+| list della cartella del media (nomi senza token) | ✗ | ✓ | ✓ |
+| create di un file nuovo con `uploadedBy` = sé, immagine < 30 MB, video < 300 MB | ✗ | ✓ | ✓ |
+| delete | ✗ | propri | ✓ |
+
+Gli URL con token già distribuiti restano validi dopo una rimozione (vedi sopra
+"URL già distribuiti"); i link dei media nascosti li rigenera la callable.
+
+**Callable.**
+
+| Callable | Contratto |
+| --- | --- |
+| `activityGallery` | `ensure` e `report`: membro, letto da `members/{uid}` e non più dal profilo; `restore` e `delete`: staff (ruolo). Stessa regola delle rules: se una cambia, cambia anche l'altra |
+| `recordNightParticipant` | `context` resta com'è (solo le proprie iscrizioni). `propose` e `challenge`: iscrizione attiva all'attività **e** membro; `edit`, `withdraw`, `restore` dei propri tentativi: come oggi, così chi esce dal palo può ancora ritirarsi. Lo staff (ruolo o elenco dell'admin) non cambia |
+| `stakeMembership` (nuova) | `request` solo per sé, non anonimo, palo esistente, tetti; ritiro e uscita solo per sé; approva, rifiuta e "Non è della mia unità": D per la sua unità dichiarata, A per tutte; rimuovi, blocca, sblocca, riattiva: solo A, mai su sé stesso né sull'ultimo admin; "Lo conosco" / "Non lo conosco": D per la sua unità, A; "Annulla" passa la `version` vista e fallisce se è cambiata. Ogni transizione segue i punti su ruolo e appartenenza qui sopra, nella stessa transazione, e ricalcola tutto dal documento (trigger doppi o fuori ordine non cambiano l'esito) |
+| `unlockGalleryWithCode`, `setGallerySecretCode` | live in produzione, sorgente fuori dal repo (codici galleria tolti da Paolo, 2026-10-07); da cancellare nel rilascio di S2 (S2-1, approvata). Scrivono solo `galleries/{g}/members`, `users/{uid}/unlockedGalleries` e `gallerySecrets`, che nessuna rule legge per dare accesso: **nessuna delle due apre la galleria a chi non è membro**, oggi e dopo S2 (riga "codici galleria vecchi" sopra). Proposta di cancellarle: scelta S2-1 |
+
+**Chi scrive members** (solo server, Admin SDK): lo script di migrazione; la
+callable `stakeMembership`; un trigger su `users/{uid}` che (1) copia il ruolo
+staff in `staffRole` e attiva chi riceve un ruolo staff da un admin, (2) crea
+la richiesta `pending` quando un profilo completo sceglie un palo in cui non ha
+un documento (copre anche chi si registra con la PWA vecchia, che non chiama
+`request`), (3) al cambio di palo apre la richiesta nel palo nuovo senza
+toccare quella vecchia. `tools/create-stake.mjs` crea anche il members attivo
+del primo admin. Cancellazione account: members e note dello staff del uid in
+ogni palo, nella stessa pulizia, secondo il contratto seguente.
+
+**Cleanup della membership alla cancellazione account (contratto server).**
+Nessuna nuova UI: l'assistenza riceve già le richieste di cancellazione via
+email. Questo incremento cancella soltanto `stakes/{s}/members/{uid}` e tutti
+i suoi discendenti (`history`, `staff/note`, `staff/previous`, anche con il
+documento members assente); non modifica iscrizioni, PDF o altri dati con la
+conservazione già prevista. Scrive solo Admin SDK. Nessun accesso client nuovo,
+nessun indice nuovo: elenco dei documenti `stakes` esistenti, lettura diretta
+del members del solo UID richiesto e visita delle sue sottocollezioni. Mai
+`collectionGroup('members')`, che include gli sblocchi galleria legacy.
+
+Interfaccia pubblica in `functions/lib/stakeMembershipCleanup.js`:
+`cleanupDeletedUserMemberships({ db, auth, uid, dryRun = true,
+expectedMemberships })`. UID non vuoto, massimo 128 caratteri e senza `/`.
+Il risultato contiene `dryRun`, `memberships` (pali con almeno un documento
+nel sottoalbero del UID), `documents` (documenti esistenti nel piano),
+`deletedMemberships` e `deletedDocuments` (zero nel dry-run). Nessun nome,
+email, token o documento personale nel risultato o nei log dello script.
+
+Prima del piano e prima di ogni lotto di cancellazione devono essere assenti
+sia Auth (`getUser`: soltanto `auth/user-not-found` prova l'assenza) sia il
+profilo corrente `users/{uid}`. Le letture del profilo e le cancellazioni di
+ogni lotto sono nella stessa transazione; la verifica Auth viene ripetuta
+dentro il callback della transazione. Se account o profilo ricompaiono, il
+lotto non scrive e la pulizia si interrompe. Anche callable e riconciliazione
+rileggono identità Auth e profili nella transazione prima di scrivere:
+un'azione già partita prima della cancellazione del profilo non può lasciare
+members, history o note dopo la pulizia. La creazione amministrativa di un
+nuovo account con lo stesso UID durante la procedura non è consentita.
+
+Il dry-run esegue soltanto letture. L'applicazione richiede sempre
+`expectedMemberships`, intero non negativo identico al piano appena letto:
+nessuna scrittura se manca o differisce. Gli errori hanno `code` stabile:
+`invalid_uid`, `account_exists`, `profile_exists`,
+`expected_memberships_required`, `membership_count_changed`; errori Auth o
+Firestore diversi dall'assenza propagano senza essere trattati come assenza.
+Una cancellazione parziale può lasciare sottoalberi incompleti: la procedura
+si riprende con un nuovo dry-run e il suo numero atteso, senza checkpoint con
+dati personali. Ripetere su un UID già pulito restituisce zero.
+
+Script `functions/scripts/cleanupDeletedUserMemberships.js`:
+`--uid <uid> --project <project>` per il dry-run; aggiungere
+`--apply --expect-memberships <n>` per applicare. Sono obbligatori UID e
+progetto espliciti. Con progetto `demo-*` servono entrambi gli host locali
+degli emulatori Auth e Firestore; fuori dagli emulatori serve progetto reale
+esplicito e nessuna variabile host degli emulatori. Mai credenziali o UID nei
+log: solo modalità, progetto e conteggi. Errori di guardia o conteggio escono
+con codice 2; gli altri errori con codice 1.
+
+Il trigger gen2 esistente su `users/{uid}` gestisce anche delete e rilegge lo
+stato corrente. Se Auth o profilo esistono, ignora l'evento vecchio senza
+cancellare lo stato ricreato; gli altri errori propagano per il retry.
+Non copre automaticamente una cancellazione soltanto Auth. Procedura di
+assistenza obbligatoria: cancellazione Auth singola → cancellazione profilo →
+dry-run dello script → verifica dei conteggi → apply esplicito, con conferma
+fresca per ogni operazione di produzione. Nessun trigger Auth preview/gen1.
+
+**PWA vecchia** (bundle in cache, service worker v29): per M, D e A non cambia
+nulla. Per N, P e F (i 41 "account esistente" e chi si registra dopo la
+migrazione) le letture qui sotto passano da permesso a negato finché il client
+nuovo non arriva:
+
+| Dove | Cosa vede chi non è membro, con la PWA vecchia |
+| --- | --- |
+| home `/me`, `/unit`, `/admin`, famiglia | si aprono come prima: ogni lettura colpita ha il suo `catch`, nessun `Promise.all` cade |
+| galleria dell'attività | "Qualcosa non ha caricato" con il messaggio inglese di Firebase e sotto "La galleria si apre all'inizio dell'attività" (motivo sbagliato) |
+| card "foto" nelle home | resta senza miniature e invita a caricare le prime foto, ma il caricamento non parte |
+| post del feed su una galleria | titolo "Galleria" e "non ci sono ancora media"; like senza effetto |
+| commenti di una foto | "Nessun commento ancora"; l'invio mostra il messaggio inglese |
+| Notte dei Record | "Non riesco a caricare i record. Controlla la connessione e riprova." (motivo sbagliato) |
+| sondaggio | messaggio inglese e "Non ci sono ancora domande"; in `/me` la sezione sondaggi sparisce |
+| `activityGallery` `ensure` | finché la callable legge il profilo, crea la galleria anche per loro (senza mostrargliela): la versione che legge members va pubblicata subito dopo le rules, nello stesso rilascio |
+
+Quello che il telefono ha già scaricato resta visibile finché vive la cache
+(la lettura "cache prima" non cancella i dati quando il server nega, e gli URL
+con token restano validi): vale come per gli URL già distribuiti. Il client
+nuovo decide "membro" dal proprio documento members di quel palo, non da
+`users.stakeId` (oggi `useGalleryAccess`), e su un diniego svuota la cache di
+quella galleria.
+
+Nessuna pagina si rompe, ma i testi danno motivi falsi: il client nuovo
+(banner "in attesa", "Si sbloccano dopo la verifica") deve uscire subito dopo
+rules e callable, e i 41 "account esistente" non hanno iscrizioni, quindi
+difficilmente aprono una galleria nel frattempo.
+
+**Non cambia**: attività e unità pubbliche, iscriversi, le proprie iscrizioni
+e quelle dei figli, consensi, stanze, `recordEntries` proprie, Notte dei Record
+senza account, feed in lettura.
+
+**Ordine di deploy**: migrazione in dry-run → migrazione reale (con il numero
+visto nel dry-run) → rules Firestore e trigger su `users` nello stesso giro →
+callable (`activityGallery`, `recordNightParticipant`, `stakeMembership`) →
+client. Rules Storage con la fase B di `gugd-storage-eu` o dopo. Ogni passo con
+conferma di Paolo. S2 è efficace solo quando rules Firestore, rules Storage e
+le due callable leggono tutte `members`: finché una legge ancora il profilo,
+quella strada resta aperta a chi ha solo scelto il palo.
+
+### Callable e trigger: interfaccia (fase 2, 2026-10-20)
+
+Scritta prima del codice, come il contratto: i test della fase 2 la provano
+nell'emulatore Functions con utenti veri dell'Auth emulator e l'SDK client
+(`functions/tests/stakeMembership*Emulator.test.mjs`, config
+`firebase.membership-functions-test.json`).
+
+**`stakeMembership`** (callable gen2, `europe-west1`). Richiesta
+`{ action, stakeId, uid?, version? }`: `uid` è la persona su cui agisce lo
+staff, assente nelle azioni per sé. Ogni azione è una transazione che rilegge
+`members/{uid}` del palo, il profilo `users/{uid}` della persona e quello di
+chi chiama, e ricalcola tutto da lì: due chiamate insieme o ripetute non
+cambiano l'esito. Risposta `{ ok: true, action, status, version, changed }`;
+`changed: false` quando lo stato era già quello (nessuna scrittura, `version`
+invariata). Ogni scrittura incrementa `version`, mette in `members/{uid}/staff/previous` (solo staff; sul documento members `previous` resta `null`) lo stato
+di prima (`status`, `sources`, `staffRole`, `reviewNeeded`, `claimedUnitId`,
+`claimedUnitName`, `declineCount`, `decidedAt`, `decidedBy`, più `role` (il
+ruolo di prima), `roleAfter` (quello lasciato dall'azione) e `roleUnitId`
+(l'unità del profilo in quel momento) se l'azione ha cambiato `users.role`,
+`staffLists` se ha tolto l'uid dagli
+elenchi dello staff, `moved` se ha portato a `withdrawn` l'appartenenza in un
+altro palo) con `action` e `by`, e aggiunge una riga a
+`members/{uid}/history/{id}` (`action`, `by`, `at`, `fromStatus`,
+`toStatus`, `version`; solo server, nessuna rule la apre).
+
+| action | Chi | Da → a | Effetti nella stessa transazione |
+| --- | --- | --- | --- |
+| `request` | sé, non anonimo, `stakeId == users.stakeId`, profilo completo | nessun documento, `withdrawn`, `declined` (7 giorni dopo il rifiuto e `declineCount < 3`) → `pending`; `pending` e `active` → nessun cambio | `requestedAt`, unità, nome, anno e `registrationHints` dal profilo; `reviewNeeded: false`; ogni `pending` dello stesso uid in un altro palo → `withdrawn` |
+| `withdraw` | sé | `pending` → `withdrawn` | |
+| `leave` | sé | `active` → `withdrawn` | uscita dello staff (sotto) |
+| `approve` | D della unità dichiarata, A | `pending` → `active` | motivo `staff_approval` (`ref` = uid di chi approva), `reviewNeeded: false`; ogni `active` dello stesso uid in un altro palo → `withdrawn` con `movedToStakeId` |
+| `decline` | D della unità dichiarata, A | `pending` → `declined` | `declineCount + 1` |
+| `notMyUnit` | D della unità dichiarata | `pending` → `pending` con `claimedUnitId: ""` (la vedono gli admin) | `claimedUnitName` resta |
+| `confirmKnown` ("Lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `reviewNeeded: false` | |
+| `markUnknown` ("Non lo conosco") | D della unità dichiarata, A | `active` con `reviewNeeded` → `pending`, `reviewNeeded: false` | dal dirigente: anche `claimedUnitId: ""` (la richiesta passa agli admin, come "Non è della mia unità"; `claimedUnitName` resta); dall'admin l'unità non cambia (scelta S2-3) |
+| `remove` | A | `active` → `removed` | uscita dello staff, elenchi dello staff |
+| `block` | A | ogni stato tranne `blocked` → `blocked` | uscita dello staff, elenchi dello staff |
+| `unblock` | A | `blocked` → `pending` | |
+| `reactivate` | A | `removed` → stato, motivi e ruolo di `previous` (senza `previous` attivo: `active` con `staffRole: null`) | il ruolo torna solo se `users.stakeId` è ancora questo palo e, per un dirigente, `users.unitId` è ancora la sua unità (`previous.roleUnitId`) |
+| `undo` | A; D solo per le proprie azioni | ripristina `previous` se `version` è quella passata e l'ultima azione è dello staff | ruolo, elenchi e appartenenze spostate tornano come prima, ciascuno solo se nel frattempo non è cambiato; dopo, `previous: null` |
+
+`request` di chi ha già un ruolo staff del palo segue la regola 1 del trigger
+(sotto): l'appartenenza diventa subito `active` con `staffRole`, anche da
+`withdrawn` o `declined` (il super admin che è uscito tiene il ruolo e rientra
+così); da `removed` e `blocked` resta `invalid_state`. Come la regola 1, non
+chiede il profilo completo (gli admin migrati possono non avere un'unità).
+
+Uscita dello staff (`leave`, `remove`, `block`, e `decline`/`markUnknown` se
+la persona ha un ruolo staff): `users.role` → `participant` e `staffRole:
+null`; un `super_admin` tiene il ruolo (non è un ruolo del palo). L'ultimo
+admin del palo (nessun altro profilo con `role: admin` e lo stesso `stakeId`)
+non può fare `leave` né subire `remove` o `block`. Elenchi dello staff:
+`remove` e `block` tolgono l'uid da `management/campStaff` e
+`management/recordNight` di ogni attività del palo.
+
+Mai su sé stesso le azioni dello staff; un dirigente non agisce su chi ha un
+ruolo staff; un admin del palo non agisce su un `super_admin`.
+
+| Caso | Errore | `details.reason` |
+| --- | --- | --- |
+| senza login | `unauthenticated` | |
+| sessione anonima, ruolo che non basta, unità diversa, azione su sé stesso, dirigente su staff, admin su super admin | `permission-denied` | |
+| palo inesistente; `members` della persona inesistente (azioni dello staff) | `not-found` | |
+| `action`, `stakeId`, `uid` o `version` non validi | `invalid-argument` | |
+| stato di partenza che non ammette l'azione | `failed-precondition` | `invalid_state` |
+| `request` prima di 7 giorni dal rifiuto | `failed-precondition` | `cooldown` (con `retryAt` ISO) |
+| `request` dopo 3 rifiuti | `failed-precondition` | `too_many_declines` |
+| `request` su un palo diverso da `users.stakeId` / profilo incompleto | `failed-precondition` | `stake_not_chosen` / `profile_incomplete` |
+| ultimo admin | `failed-precondition` | `last_admin` |
+| `undo` con `version` cambiata / senza nulla da annullare | `failed-precondition` | `version_conflict` / `nothing_to_undo` |
+
+"Profilo completo" è `needsProfileCompletion` del client
+(`src/utils/profileCompletion.ts`): nome vero, unità, palo e, per chi non è
+genitore, data di nascita e gruppo; per il genitore il comune.
+
+**Trigger `onUserStakeMembership`** (`onDocumentWritten` su `users/{uid}`,
+`europe-west1`). Non usa i dati dell'evento: rilegge in una transazione il
+profilo attuale, l'utente Auth e i `members` del uid in ogni palo, così un
+evento doppio o fuori ordine dà lo stesso risultato. Sessioni anonime e
+profili cancellati: niente. Con `S = users.stakeId` (palo esistente):
+
+1. ruolo `admin`, `unit_leader` o `super_admin`: `members` di S assente →
+   `active` con `staffRole` e motivo `staff_approval` (`ref: "role"`);
+   `pending` o `active` → `active` con `staffRole`, `reviewNeeded: false`;
+   negli altri stati non scrive (le rules non assegnano il ruolo lì: un caso
+   così nasce solo dalla console);
+2. ruolo senza poteri: `staffRole: null` dove c'era, l'appartenenza resta;
+3. profilo completo senza `members` in S → `pending` come `request`
+   (non tocca mai un documento esistente, quindi non scavalca i tetti);
+4. nei pali diversi da S: `staffRole: null` dove c'era, e `pending` →
+   `withdrawn` (una richiesta aperta alla volta, quella del palo scelto);
+   gli `active` degli altri pali restano finché quello nuovo non è approvato.
+
+**`activityGallery`**: staff = profilo (`super_admin`, o `admin` /
+`unit_leader` con `stakeId` del palo, mai anonimo); membro = `members/{uid}`
+del palo `active`; altrimenti `permission-denied`. `ensure` e `report` a staff
+e membri, `restore` e `delete` allo staff.
+
+**`recordNightParticipant`**: `propose` e `challenge` vogliono, oltre
+all'iscrizione attiva, che chi chiama sia staff (stesso ramo del profilo) o
+membro attivo, altrimenti `permission-denied`; `context`, `edit`, `withdraw`,
+`restore` come prima.
+
+**Script S2-1** `functions/scripts/cleanupGalleryCodes.js`: dry-run di
+default, stampa solo conteggi in una riga JSON (`codeGalleries`,
+`gallerySecrets`, `galleryMembers`, `unlockedGalleries`, `deletes`). Con
+`--apply` porta ogni galleria `accessMode: "code_required"` o senza
+`accessMode` (la PWA vecchia la tratta come con codice) a `"open"` e
+cancella `stakes/*/gallerySecrets/*`, `stakes/*/galleries/*/members/*` e
+`users/*/unlockedGalleries/*`; fuori dall'emulatore vuole `--expect-galleries
+<n> --expect-deletes <m>` uguali al dry-run, altrimenti esce con 2 senza
+scrivere. Non tocca mai `stakes/*/members` (l'appartenenza di S2): per questo
+scorre le gallerie, non `collectionGroup('members')`. Idempotente.
+
+Decisioni tecniche della fase 2 (dentro la spec, da rivedere se Paolo le vede
+diverse): `request` solo per il palo scelto nel profilo (cambiare palo è
+salvare il profilo, poi ci pensa il trigger); `block` anche da `pending`,
+`declined`, `withdrawn` (ferma chi ripete le richieste); il trigger non
+riallinea unità e nome di una richiesta già aperta (il dirigente sbagliato usa
+"Non è della mia unità").
+
+### Aggiunte server della fase 3 (2026-10-21)
+
+Scritte prima del codice, come l'interfaccia della fase 2.
+
+**Nota dello staff "stesso nome e data"** (`stakes/{s}/members/{uid}/staff/note`,
+solo server; la leggono l'admin e il dirigente dell'unità dichiarata, mai il
+richiedente). Si calcola quando si apre una richiesta per iniziativa
+dell'utente: `request` che porta a `pending` e regola 3 del trigger. Mai sulle
+azioni dello staff (`markUnknown`, `unblock`), che non creano doppioni.
+
+- confronto: membri `active` dello stesso palo con lo stesso `birthYear`
+  (query di sole uguaglianze, nessun indice composto), poi i loro profili:
+  c'è nota se uno ha lo stesso nome normalizzato (minuscole, senza accenti e
+  spazi doppi, `fullName` o nome + cognome) **e** la stessa `birthDate`. Chi non
+  ha data di nascita (genitori) non riceve nota. Massimo 30 profili letti: oltre,
+  si confrontano i primi 30;
+- documento: `{ kind: "same_name_birth", matches: <n>, at }`; il testo lo
+  scrive il client ("Stesso nome e data di nascita di un membro attivo.").
+  Senza corrispondenze una nota vecchia dello stesso tipo si cancella, così una
+  richiesta riaperta non si porta dietro una nota scaduta;
+- calcolo fuori dalla transazione (solo un aiuto, come `registrationHints`),
+  scrittura dentro la transazione che apre la richiesta: se la lettura fallisce
+  la richiesta parte senza nota, e una nota di una richiesta precedente si
+  cancella comunque.
+
+**`hasAccount`** ("Ha già un account"): D della unità dichiarata, A; `pending` →
+`declined` con `declineCount + 1`, uscita dello staff come `decline`. Per
+l'utente è identico a un rifiuto (stesso testo unico e stesso link "Non ricordi
+con quale account sei entrato?", presente in ogni rifiuto). In
+`staff/previous` l'azione resta `decline`; il motivo vive solo nella riga di
+storia (`action: "hasAccount"`, che nessuna rule apre). "Annulla" come un
+rifiuto.
+
+**Promemoria dopo 48 ore** (`stakeMembershipQueueReminder`, `onSchedule` ogni
+giorno alle 18:00 Europe/Rome, `europe-west1`). Per ogni palo: `members` con
+`status == 'pending'` e `requestedAt` più vecchio di 48 ore. Se fra queste c'è
+almeno un uid non ancora avvisato, un push agli admin del palo (stessi
+dispositivi e stesso invio di `sendAdminPushForNewRegistration`): titolo
+"Richieste di accesso in attesa", corpo "{n} richieste aspettano da più di 2
+giorni." (una: "1 richiesta aspetta da più di 2 giorni."), link alla coda
+dell'admin (`/admin/persone`). Gli uid avvisati stanno in `stakes/{s}/private/membershipQueue`
+(`remindedUids`, solo server, nessuna rule lo apre), sostituiti a ogni giro
+con l'elenco attuale: una richiesta si ricorda una volta sola, e una che esce
+dalla coda e ci rientra si ricorda di nuovo. Se il push non arriva a nessun
+dispositivo (nessuno registrato, invii falliti) gli uid nuovi non contano come
+avvisati e si riprova al giro dopo. Il push dice il numero di tutte le
+richieste in ritardo, senza tetto.
+
+### Client della fase 3: superfici, stati e ritorni (2026-10-21)
+
+Il client decide "membro" da `stakes/{s}/members/{uid}` (ascolto in tempo
+reale, uno per palo e utente condiviso da tutta l'app), mai da
+`users.stakeId`. Staff = ruolo del profilo nel palo (stesso ramo delle rules).
+Finché il documento non è arrivato le superfici dei membri non mostrano né il
+contenuto né il lucchetto (niente lampi di "si sbloccano").
+
+**Utente**, banner in cima a `/me` e alla home famiglia (`/family`), sotto il
+saluto. Palo = quello scelto nel profilo. Nessun banner per staff, membri
+attivi (anche da confermare) e profili incompleti (c'è già "Completa il
+profilo").
+
+| Stato | Banner | Azioni → dove si va | Come si torna indietro |
+| --- | --- | --- | --- |
+| nessun documento, profilo completo | come `pending` | il client chiama `request` una volta (il trigger di solito l'ha già fatto) | |
+| `pending` | "Stiamo verificando che tu faccia parte del palo" + chi verifica (dirigenti dell'unità dichiarata o admin) | "Chi verifica?" → foglio informativo; "Ritira la richiesta" → foglio di conferma → `withdrawn`; "Ho sbagliato palo" arriva con S3, insieme alla scelta del palo | da `withdrawn`, "Chiedi di entrare" (nessun tetto) |
+| `declined` | testo unico di rifiuto, mai il motivo; sotto, il link "Non ricordi con quale account sei entrato?" | "Chiedi di nuovo" dal giorno di `retryAt` (prima: "Potrai chiedere di nuovo dal {data}."); dopo 3 rifiuti niente bottone | lo staff può annullare il rifiuto |
+| `withdrawn` | "Non fai parte di nessun palo" | "Chiedi di entrare" → `pending` | "Ritira la richiesta" |
+| `removed`, `blocked` | "Non fai più parte di questo palo" | nessuna (decide lo staff) | lo staff riattiva o sblocca |
+
+Superfici dei membri per chi non è membro (al posto dei testi falsi della PWA
+vecchia): card e pagina "Foto e video", "In evidenza" della home, Notte dei
+Record, sondaggi, commenti, like del feed. `pending` o nessun documento: "Si
+sbloccano dopo la verifica."; fuori (`declined`, `withdrawn`, `removed`,
+`blocked`): "Foto e video sono visibili solo ai membri del palo." (stesso
+schema per record e sondaggi). Le letture non partono: niente errori inglesi.
+
+**Uscire dal palo** (profilo di `/me` e `/family`, blocco "Palo", solo
+`active`): foglio di conferma con la scelta sicura per prima ("Resta nel
+palo"); a un admin dice che perde anche il ruolo. Dopo: banner `withdrawn`,
+"Chiedi di entrare" passa dalla coda (scelta deliberata della spec). Ultimo
+admin: il foglio mostra l'errore `last_admin` in italiano. Admin e dirigenti
+non hanno una pagina profilo (le route li portano a `/admin` e `/unit`): la
+loro uscita passa da un admin in S4 (Persone, "Rimuovi"), che toglie anche il
+ruolo. Dopo tre rifiuti, o oltre i 30 giorni della scheda "Rifiutate", in
+questa fase non c'è una strada nella UI: arriva con il codice dello staff (S3)
+e con Persone (S4).
+
+**Staff**, pagina "Persone" (`/admin/persone` e `/unit/persone`, voce di menu
+con il numero delle richieste; S4 ci aggiunge Membri, Staff e Rimossi). Tre
+schede, aggiornate in tempo reale:
+
+| Scheda | Cosa c'è (admin: tutto il palo; dirigente: `claimedUnitId` = sua unità) | Azioni | Dopo l'azione, e come si annulla |
+| --- | --- | --- | --- |
+| Richieste | `pending`, dal più vecchio: nome, unità dichiarata, anno, da quanto aspetta, attività a cui è iscritto (`registrationHints`), "Account esistente" (migrazione), "Passata dal dirigente" (`previous.action == notMyUnit`), "Il dirigente non lo conosce" (`previous.action == markUnknown` e unità svuotata), nota "Stesso nome e data di nascita di un membro attivo." | "Approva"; "Non lo conosco" (rifiuto); menu: "Non è della mia unità" (solo dirigente), "Ha già un account" | toast 5 s con "Annulla" (`undo` con la `version` della risposta); `version_conflict` → "Nel frattempo qualcuno ha cambiato questa persona." |
+| Da confermare | `active` con `reviewNeeded` (migrati); per l'admin in cima chi aspetta da più di 30 giorni (da `decidedAt`, il giorno della migrazione) | "Lo conosco"; "Non lo conosco": accesso sospeso; dal dirigente la richiesta passa agli admin e lui non la rivede, dall'admin torna nella coda | toast con "Annulla" (ripristina anche l'unità) |
+| Rifiutate | `declined` degli ultimi 30 giorni | "Annulla rifiuto" (solo admin, o il dirigente che ha rifiutato) → torna `pending` | rifiutare di nuovo dalla coda |
+
+Fuori dalle pagine dei membri, la card "Foto e video" della home durante
+un'attività resta visibile a chi è in coda o fuori, chiusa e con il motivo (le
+attività pubbliche le legge chiunque; la galleria no).
+
+Chi è in coda senza unità (passato agli admin con "Non è della mia unità" o
+"Non lo conosco", o con il profilo senza unità) legge nel banner "Lo conferma un
+admin del palo.", non più il dirigente dell'unità dichiarata.
+
+**Cosa legge il richiedente nel proprio documento** (review del 2026-10-22,
+deciso lo stesso giorno: "procedi"): le rules gli aprono tutto `members/{uid}`,
+quindi lo stato di prima, con l'ultima azione (`notMyUnit`, `markUnknown`,
+`decline`) e l'uid di chi l'ha fatta, sta in `members/{uid}/staff/previous`
+(rules di `staff/*`: admin e dirigente dell'unità dichiarata, mai il
+richiedente). Il server lo scrive nella stessa transazione del documento e lo
+rilegge per "Annulla" e "Riattiva"; senza stato di prima il documento si
+cancella. Sul documento members `previous` resta `null` (un valore vecchio non
+nullo vale ancora come stato di prima, finché la scrittura dopo lo azzera). La
+pagina Persone legge `staff/previous` per ogni richiesta e rifiutata (etichette
+"Passata dal dirigente" e "Il dirigente non lo conosce", "Annulla rifiuto" del
+dirigente solo sui propri rifiuti), come la nota dello staff.
+
+I dettagli dello staff sono memorizzati per palo, uid e versione. Una lettura
+fallita mostra l'errore della coda con "Riprova": la coda resta visibile, il
+nuovo tentativo rilegge i soli dettagli mancanti e ripristina etichette e
+azioni. Cambiare scheda o lasciare Persone non modifica alcuna richiesta.
+
+Approvare, rifiutare, confermare non chiedono conferma: il toast "Annulla" e la
+scheda "Rifiutate" sono la strada indietro (un foglio coprirebbe il toast).
+Rimuovere, bloccare, sbloccare e riattivare restano a S4 (Persone).
+
+Query (sole uguaglianze, nessun indice composto; il dirigente filtra sempre per
+`claimedUnitId`): `where('status','==','pending')`,
+`where('status','==','declined')`, `where('reviewNeeded','==',true)`; la nota
+dello staff con un `get` per persona in coda.
 
 ## Parte C. Primo passo: accesso e registrazione (esce con S3)
 
@@ -365,3 +860,15 @@ per un indirizzo sconosciuto). Il signup rivela comunque se un'email esiste:
 | A2 | Chi approva | a) admin + dirigenti dell'unità dichiarata; b) solo admin | **a**: 21 dirigenti conoscono i ragazzi, 10 admin non tutti |
 | A3 | Migrazione | a) attivi lo staff e chi ha un'iscrizione, ma "da confermare" dal proprio dirigente; 45 senza iscrizione in coda; b) attivi solo i 31 dello staff, tutti gli altri in coda (proposta di Codex); c) tutti attivi | **a**: nessuno perde la galleria dall'oggi al domani, e la verifica si fa comunque, distribuita sui dirigenti |
 | A4 | Pagine pubbliche per chi è in attesa | a) attività e iscrizioni libere, il resto bloccato; b) anche le attività bloccate | **a** |
+| S2-1 | Codici galleria (2026-10-20): `unlockGalleryWithCode` e `setGallerySecretCode` sono live senza sorgente nel repo; il client ha ancora il modulo del codice (irraggiungibile) e il pulsante del codice per le gallerie vecchie; in produzione restano una galleria con `accessMode: code_required`, il suo codice e 30 documenti di sblocco | a) cancellare le due functions, il codice client morto e il pulsante, portare quella galleria ad `open` e cancellare codice e documenti di sblocco, nel deploy di S2 dopo le rules; b) lasciare tutto (non apre niente, ma resta codice live che nessuno legge) | **a**, approvata il 2026-10-20 |
+| S2-2 | Notte dei Record per chi è iscritto all'attività ma ancora in attesa di verifica | a) elenco, proposte e sfide solo da membro (come dice la parte B: un'iscrizione libera non prova niente; ritirarsi resta sempre possibile); b) l'iscrizione all'attività basta, cioè l'elenco dei record si apre a chiunque si iscriva | **a**, approvata il 2026-10-20 |
+| S2-3 | "Non lo conosco" del dirigente su un membro migrato da confermare (2026-10-21) | a) torna in coda nella stessa unità, e il dirigente se lo ritrova come richiesta; b) passa agli admin come "Non è della mia unità", accesso sospeso | **b**, scelta da Paolo il 2026-10-22; dall'admin resta a |
+
+### Integrazione e regressione della revoca, 26 ottobre
+
+Su main conservati surveyGuest e Albo. Il foglio Record aperto si chiude
+alla revoca; richieste avviate con il vecchio accesso non riportano liste
+private. Le proprie proposte pendenti restano modificabili senza suggerimenti
+privati; ritiro e Annulla restano operativi. Verifica indipendente nel browser
+4/4 e contratto completo 1902/1902 con upload 300 MB. La nuova home restringe
+a parte la visibilità dei post e dei loro like/commenti: vedi HOME_SOCIAL.md.

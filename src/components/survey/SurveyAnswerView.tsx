@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { MemberLockedNote } from "@/components/membership/MemberLockedNote";
 import { PageHero } from "@/components/PageHero";
 import { SectionCard } from "@/components/SectionCard";
+import { PALO } from "@/copy/palo";
 import { useAuth } from "@/hooks/useAuth";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
 import { eventsService } from "@/services/firestore/eventsService";
 import {
   generateSurveyResponseId,
@@ -44,6 +47,16 @@ function buildEmptyAnswers(
     }
   }
   return next;
+}
+
+const LOAD_ERROR = "Non riesco a caricare il sondaggio. Controlla la connessione e riprova.";
+const SEND_ERROR = "Non sono riuscito a inviare le risposte. Riprova.";
+
+// Gli errori dell'SDK sono in inglese: un diniego (membro appena uscito, o
+// ospite) ha la frase del palo, il resto quella di rete o di invio.
+function surveyErrorMessage(error: unknown, fallback: string) {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === "permission-denied" ? PALO.soloMembriSondaggi : fallback;
 }
 
 function idKey(stakeId: string, eventId: string) {
@@ -111,24 +124,34 @@ export function SurveyAnswerView({
   backLabel = "Torna alla dashboard",
 }: SurveyAnswerViewProps) {
   const { session } = useAuth();
+  const { access } = useStakeMembership(stakeId);
+  // Chi è in coda o fuori dal palo non legge le domande: la lettura non parte.
+  // Mentre il documento members non è arrivato non parte nemmeno per gli altri.
+  // Senza account personale (ospite) vale come fuori: i sondaggi sono dei membri.
+  const locked = access === "waiting" || access === "out" || access === "guest";
+  const canLoad = access === "member";
   const [event, setEvent] = useState<Event | null>(null);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, SurveyAnswerEntry>>({});
-  const [responseId, setResponseId] = useState<string | null>(null);
+  const responseId = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const saveTimer = useRef<number | null>(null);
+  const savePending = useRef<Promise<void>>(Promise.resolve());
+  const submitLock = useRef(false);
   const category: GenderRoleCategory | "" =
-    session?.profile.genderRoleCategory ?? "";
+    session?.isAnonymous ? "" : session?.profile.genderRoleCategory ?? "";
 
   useEffect(() => {
-    if (!eventId || !stakeId) return;
+    if (!eventId || !stakeId || !canLoad) return undefined;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setSubmitted(false);
+    responseId.current = null;
     Promise.all([
       eventsService.getEventById(stakeId, eventId),
       surveysService.listActiveQuestions(stakeId, eventId),
@@ -164,12 +187,13 @@ export function SurveyAnswerView({
           }
         }
 
+        if (cancelled) return;
         setAnswers(initialAnswers);
-        setResponseId(activeId);
+        responseId.current = activeId;
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Errore caricamento sondaggio.");
+          setError(surveyErrorMessage(err, LOAD_ERROR));
         }
       })
       .finally(() => {
@@ -177,8 +201,9 @@ export function SurveyAnswerView({
       });
     return () => {
       cancelled = true;
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [eventId, stakeId]);
+  }, [eventId, stakeId, canLoad]);
 
   const hasContent = useMemo(() => {
     return Object.values(answers).some((entry) => {
@@ -203,16 +228,21 @@ export function SurveyAnswerView({
 
   async function persistDraft(nextAnswers: Record<string, SurveyAnswerEntry>) {
     if (!eventId) return;
-    try {
-      const targetId = responseId ?? generateSurveyResponseId();
+    const save = async () => {
+      if (submitLock.current) return;
+      const targetId = responseId.current ?? generateSurveyResponseId();
+      responseId.current = targetId;
       await surveysService.saveResponse(stakeId, eventId, targetId, {
         isDraft: true,
         category,
         answers: nextAnswers,
       });
       writeStoredResponseId(stakeId, eventId, targetId);
-      setResponseId(targetId);
       setSavedAt(new Date().toISOString());
+    };
+    try {
+      savePending.current = savePending.current.then(save, save);
+      await savePending.current;
     } catch (err) {
       // soft-fail: localStorage already saved
       console.warn("Errore salvataggio bozza sondaggio", err);
@@ -236,27 +266,31 @@ export function SurveyAnswerView({
   }
 
   async function submitFinal() {
-    if (!eventId) return;
+    if (!eventId || submitLock.current || submitted) return;
     if (!hasContent) {
       setError("Compila almeno una risposta prima di inviare.");
       return;
     }
     setSubmitting(true);
+    submitLock.current = true;
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
     setError(null);
     try {
-      const targetId = responseId ?? generateSurveyResponseId();
+      await savePending.current.catch(() => undefined);
+      const targetId = responseId.current ?? generateSurveyResponseId();
+      responseId.current = targetId;
       await surveysService.saveResponse(stakeId, eventId, targetId, {
         isDraft: false,
         category,
         answers,
       });
       writeStoredResponseId(stakeId, eventId, targetId);
-      setResponseId(targetId);
       setSubmitted(true);
       setSavedAt(new Date().toISOString());
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Errore invio.");
+      setError(surveyErrorMessage(err, SEND_ERROR));
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -270,7 +304,7 @@ export function SurveyAnswerView({
       // ignored
     }
     setAnswers(buildEmptyAnswers(questions));
-    setResponseId(null);
+    responseId.current = null;
     setSubmitted(false);
   }
 
@@ -288,10 +322,19 @@ export function SurveyAnswerView({
         />
       ) : null}
 
-      {loading ? <p className="subtle-text">Caricamento...</p> : null}
-      {error ? <p className="field-error">{error}</p> : null}
+      {locked ? (
+        <SectionCard title="Sondaggio non disponibile">
+          <MemberLockedNote access={access === "guest" ? "out" : access} kind="sondaggi" />
+          <Link className="button button--ghost" to={backHref}>
+            {backLabel}
+          </Link>
+        </SectionCard>
+      ) : null}
 
-      {!loading && questions.length === 0 ? (
+      {!locked && loading ? <p className="subtle-text">Caricamento...</p> : null}
+      {!locked && error ? <p className="field-error">{error}</p> : null}
+
+      {!locked && !loading && questions.length === 0 ? (
         <SectionCard title="Sondaggio non disponibile">
           <p>Non ci sono ancora domande per questa attività.</p>
           <Link className="button button--ghost" to={backHref}>
@@ -300,7 +343,7 @@ export function SurveyAnswerView({
         </SectionCard>
       ) : null}
 
-      {!loading && submitted ? (
+      {!locked && !loading && submitted ? (
         <SectionCard title="Risposte inviate, grazie!">
           <p>Le tue risposte sono state registrate. Grazie per il feedback.</p>
           <button type="button" className="button button--ghost" onClick={resetLocalDraft}>
@@ -309,12 +352,13 @@ export function SurveyAnswerView({
         </SectionCard>
       ) : null}
 
-      {!loading && !submitted && questions.length > 0 ? (
+      {!locked && !loading && !submitted && questions.length > 0 ? (
         <SectionCard
           title="Domande"
           description="Le risposte si salvano in automatico mentre compili. Il sondaggio è anonimo."
         >
           <div className="form-stack">
+            <fieldset disabled={submitting} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} className="form-stack">
             {questions.map((question) => (
               <SurveyQuestionField
                 key={question.id}
@@ -323,6 +367,7 @@ export function SurveyAnswerView({
                 onChange={(value) => setAnswerValue(question.id, value)}
               />
             ))}
+            </fieldset>
 
             <div className="chip-row">
               <button

@@ -56,7 +56,10 @@ export interface PreferenceLink {
 
 export const categoryLabels: Readonly<Record<RoomCategory, string>>;
 export function emptyRoomPlan(): RoomPlan;
+export function isRoomEligibleStatus(registration: unknown): boolean;
 export function eligibleRegistrations<T extends PlannerRegistration>(registrations: readonly T[]): T[];
+export function staleRegistrationIds(plan: RoomPlan, registrations: readonly PlannerRegistration[]): string[];
+export function removeRegistrationReferences(plan: RoomPlan, registrationIds: readonly string[]): Pick<RoomPlan, "assignments" | "adultGenders" | "lockedIds" | "couples"> | null;
 export function ageAt(birthDate: unknown, referenceDate: Date | string): number | null;
 export function validateRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string): string[];
 export function assignmentProblem(person: PlannerRegistration, room: Room, plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string): string | null;

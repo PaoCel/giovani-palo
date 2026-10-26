@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { ShareButton } from "@/components/ShareButton";
+import { HOME } from "@/copy/home";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { stakesService } from "@/services/firestore/stakesService";
@@ -18,7 +19,7 @@ const STEPS: { icon: "calendar" | "ticket" | "sparkles"; title: string; body: st
   {
     icon: "ticket",
     title: "Iscriviti",
-    body: "In pochi minuti, anche senza account. Per i minori il consenso è integrato.",
+    body: HOME.iscrivitiBody,
   },
   {
     icon: "sparkles",

@@ -129,16 +129,65 @@ function confirmedCoupleFor(plan, registrationId, registrationsById) {
   return null;
 }
 
+// Solo lo stato, senza id: il trigger lo usa sui documenti prima e dopo un
+// aggiornamento, dove l'id sta nel path.
+export function isRoomEligibleStatus(registration) {
+  if (!registration || typeof registration !== "object" || Array.isArray(registration)) return false;
+  const primaryStatus = text(registration.registrationStatus).toLowerCase();
+  const legacyStatus = text(registration.status).toLowerCase();
+  if (INELIGIBLE_STATUSES.has(primaryStatus) || INELIGIBLE_STATUSES.has(legacyStatus)) return false;
+  return primaryStatus ? ELIGIBLE_STATUSES.has(primaryStatus) : ELIGIBLE_STATUSES.has(legacyStatus);
+}
+
 export function eligibleRegistrations(registrations) {
   if (!Array.isArray(registrations)) return [];
-  return registrations.filter((registration) => {
-    if (!registration || typeof registration !== "object" || Array.isArray(registration)) return false;
-    if (!text(registration.id)) return false;
-    const primaryStatus = text(registration.registrationStatus).toLowerCase();
-    const legacyStatus = text(registration.status).toLowerCase();
-    if (INELIGIBLE_STATUSES.has(primaryStatus) || INELIGIBLE_STATUSES.has(legacyStatus)) return false;
-    return primaryStatus ? ELIGIBLE_STATUSES.has(primaryStatus) : ELIGIBLE_STATUSES.has(legacyStatus);
-  });
+  return registrations.filter((registration) => isRoomEligibleStatus(registration) && Boolean(text(registration.id)));
+}
+
+// Iscrizioni citate dal piano (assegnazioni, blocchi, sesso staff, coppie) che
+// non sono più idonee: annullate, rifiutate o cancellate.
+export function staleRegistrationIds(plan, registrations) {
+  const eligibleIds = new Set(eligibleRegistrations(registrations).map((registration) => registration.id));
+  const referenced = [
+    ...Object.keys(objectOrEmpty(plan?.assignments)),
+    ...(Array.isArray(plan?.lockedIds) ? plan.lockedIds : []),
+    ...Object.keys(objectOrEmpty(plan?.adultGenders)),
+    ...(Array.isArray(plan?.couples) ? plan.couples : []).flatMap((couple) => [couple?.firstId, couple?.secondId]),
+  ];
+  return [...new Set(referenced)].filter((id) => text(id) && !eligibleIds.has(id));
+}
+
+// Toglie dal piano ogni riferimento alle iscrizioni indicate. Se una persona
+// della coppia occupava la matrimoniale, libera anche il coniuge, che da solo
+// non può restarci. Restituisce null quando il piano non le citava.
+// Stessa logica per il trigger lato server e per il pulsante della bozza.
+export function removeRegistrationReferences(plan, registrationIds) {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
+  const removed = new Set(registrationIds);
+  const rooms = Array.isArray(plan.rooms) ? plan.rooms : [];
+  const previousLocked = Array.isArray(plan.lockedIds) ? plan.lockedIds : [];
+  const previousCouples = Array.isArray(plan.couples) ? plan.couples : [];
+  const assignments = { ...objectOrEmpty(plan.assignments) };
+  const adultGenders = { ...objectOrEmpty(plan.adultGenders) };
+  const released = new Set(removed);
+  for (const couple of previousCouples) {
+    if (!removed.has(couple?.firstId) && !removed.has(couple?.secondId)) continue;
+    for (const partnerId of [couple.firstId, couple.secondId]) {
+      const roomId = Object.hasOwn(assignments, partnerId) ? assignments[partnerId] : null;
+      if (roomId && rooms.some((room) => room?.id === roomId && room?.category === "couple")) released.add(partnerId);
+    }
+  }
+  let changed = false;
+  for (const id of released) {
+    if (Object.hasOwn(assignments, id)) { delete assignments[id]; changed = true; }
+  }
+  for (const id of removed) {
+    if (Object.hasOwn(adultGenders, id)) { delete adultGenders[id]; changed = true; }
+  }
+  const lockedIds = previousLocked.filter((id) => !released.has(id));
+  const couples = previousCouples.filter((couple) => !removed.has(couple?.firstId) && !removed.has(couple?.secondId));
+  if (!changed && lockedIds.length === previousLocked.length && couples.length === previousCouples.length) return null;
+  return { assignments, adultGenders, lockedIds, couples };
 }
 
 export function ageAt(birthDate, referenceDate) {
@@ -240,6 +289,11 @@ export function validateRoomPlan(plan, registrations, referenceDate) {
   const rooms = Array.isArray(plan.rooms) ? plan.rooms : [];
   const assignments = objectOrEmpty(plan.assignments);
   const eligible = registrationById(registrations);
+  const allById = new Map(
+    (Array.isArray(registrations) ? registrations : [])
+      .filter((registration) => text(registration?.id))
+      .map((registration) => [registration.id, registration]),
+  );
   const roomIds = new Set();
   const roomNames = new Set();
 
@@ -270,7 +324,11 @@ export function validateRoomPlan(plan, registrations, referenceDate) {
     const person = eligible.get(registrationId);
     const room = rooms.find((candidate) => candidate?.id === roomId);
     if (!person) {
-      errors.push(`Assegnazione riferita a un'iscrizione assente o non idonea: ${registrationId}.`);
+      // Annullata o rifiutata dopo l'assegnazione: col nome l'admin la ritrova.
+      const ineligible = allById.get(registrationId);
+      errors.push(ineligible && registrationName(ineligible)
+        ? `${registrationName(ineligible)}: L'iscrizione non è idonea al piano stanze.`
+        : `Assegnazione riferita a un'iscrizione assente o non idonea: ${registrationId}.`);
       continue;
     }
     if (!room) {

@@ -6,18 +6,25 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import { Link, useLocation } from "react-router-dom";
 
 import "@/styles/activityGallery.css";
 
 import { AppIcon } from "@/components/AppIcon";
 import { MediaLightbox } from "@/components/feed/MediaLightbox";
+import { GalleryConfirmSheet, getDeleteMediaCopy } from "@/components/gallery/GalleryConfirmSheet";
 import { ReportMediaSheet } from "@/components/gallery/ReportMediaSheet";
+import { GALLERIA } from "@/copy/galleria";
+import { PALO } from "@/copy/palo";
+import { PAROLE } from "@/copy/parole";
 import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { deleteMediaFolder } from "@/services/firebase/galleryUploadService";
 import { feedService } from "@/services/firestore/feedService";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, GalleryMedia, HiddenGalleryMedia } from "@/types";
+import { lockedMessageOf } from "@/utils/stakeMembership";
+import { isConnectionError, withWriteTimeout } from "@/utils/writeTimeout";
 
 interface ActivityGalleryProps {
   stakeId: string;
@@ -34,6 +41,12 @@ const HIDDEN_REASON_LABEL: Record<HiddenGalleryMedia["hiddenReason"], string> = 
   off_topic: "Segnalato come fuori tema",
 };
 
+// Gli errori dell'SDK sono in inglese: al diniego di un membro appena uscito si
+// risponde con la frase del palo, agli altri con quella di rete.
+function isPermissionMessage(message: string) {
+  return /insufficient permissions|permission[- ]denied/iu.test(message);
+}
+
 function previewOf(item: GalleryMedia) {
   return item.type === "image"
     ? item.thumbnailUrl ?? item.optimizedUrl ?? item.storageUrl ?? ""
@@ -41,7 +54,8 @@ function previewOf(item: GalleryMedia) {
 }
 
 export function ActivityGallery({ stakeId, event, initialView }: ActivityGalleryProps) {
-  const { isMember, isStaff, uid } = useGalleryAccess(stakeId);
+  const { isMember, isStaff, uid, access } = useGalleryAccess(stakeId);
+  const location = useLocation();
   const { pickMedia } = useUploadApi();
   const { gallery, loading: galleryLoading, error: galleryError, uploadOpen } =
     useActivityGallery(stakeId, event, isMember);
@@ -55,7 +69,35 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   const [filter, setFilter] = useState<MediaFilter>(initialView === "hidden" ? "hidden" : "all");
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [reporting, setReporting] = useState<GalleryMedia | null>(null);
+  // "Elimina" di un contenuto nascosto: prima il foglio, mai un dialogo del browser.
+  const [deletingHidden, setDeletingHidden] = useState<GalleryMedia | null>(null);
+  const [deleteHiddenBusy, setDeleteHiddenBusy] = useState(false);
+  const [deleteHiddenError, setDeleteHiddenError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const deletingHiddenId = deletingHidden?.id ?? null;
+  // Numero del foglio: l'esito di una richiesta partita da un foglio
+  // precedente non tocca quello di adesso.
+  const deleteHiddenRunRef = useRef(0);
+
+  function showDeleteHidden(item: GalleryMedia | null) {
+    deleteHiddenRunRef.current += 1;
+    setDeleteHiddenBusy(false);
+    setDeleteHiddenError(null);
+    setDeletingHidden(item);
+  }
+
+  // Il foglio "Elimina" di un nascosto vale finché quel contenuto è fra i
+  // nascosti (un altro responsabile può rimetterlo o eliminarlo) e per
+  // l'account che l'ha aperto.
+  useEffect(() => {
+    if (deletingHiddenId && !hidden.some((item) => item.id === deletingHiddenId)) {
+      showDeleteHidden(null);
+    }
+  }, [hidden, deletingHiddenId]);
+
+  useEffect(() => {
+    showDeleteHidden(null);
+  }, [uid]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const galleryId = gallery?.id ?? "";
@@ -66,7 +108,9 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
       setMediaLoading(false);
       return undefined;
     }
+    setMedia([]);
     setMediaLoading(true);
+    setError(null);
     return galleriesService.subscribeMedia(
       stakeId,
       galleryId,
@@ -75,7 +119,10 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
         setMediaLoading(false);
       },
       (subError) => {
-        setError(subError.message || "Impossibile caricare i contenuti.");
+        const denied = (subError as { code?: string }).code === "permission-denied";
+        setError(denied ? PALO.soloMembriFoto : PAROLE.erroreRete);
+        // Un diniego (rimosso mentre guardava) toglie anche quello già a schermo.
+        if (denied) setMedia([]);
         setMediaLoading(false);
       },
     );
@@ -162,7 +209,28 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
 
   const handleDeleteMedia = useCallback(
     async (item: GalleryMedia) => {
-      await galleriesService.deleteMedia(stakeId, item.galleryId, item.id);
+      // Il lightbox si chiude appena il contenuto sparisce dalla lista (cache
+      // locale, prima del server): l'esito lo dice la galleria. Il lightbox
+      // si chiude solo se mostra ancora questo contenuto, e un rifiuto del
+      // server che lo rimette in lista non lo riapre sopra l'avviso.
+      const closeIfShowing = () =>
+        setLightboxId((current) => (current === item.id ? null : current));
+      const deletion = galleriesService.deleteMedia(stakeId, item.galleryId, item.id);
+      try {
+        await withWriteTimeout(deletion);
+      } catch (caughtError) {
+        closeIfShowing();
+        setNotice(isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina);
+        if (isConnectionError(caughtError)) {
+          // La transazione può ancora arrivare al server dopo il timeout: i
+          // file si tolgono solo quando l'ha confermata.
+          void deletion
+            .then(() => deleteMediaFolder(stakeId, item.galleryId, item.id))
+            .catch(() => undefined);
+        }
+        throw caughtError;
+      }
+      closeIfShowing();
       await deleteMediaFolder(stakeId, item.galleryId, item.id);
     },
     [stakeId],
@@ -181,10 +249,24 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
     setLightboxId(null);
   }
 
-  async function handleDeleteHidden(item: GalleryMedia) {
-    if (!window.confirm("Eliminare definitivamente questo contenuto dalla galleria?")) return;
-    await galleriesService.deleteHiddenMedia(stakeId, item.galleryId, item.id);
-    setLightboxId(null);
+  async function handleConfirmDeleteHidden() {
+    const item = deletingHidden;
+    if (!item || deleteHiddenBusy) return;
+    const run = deleteHiddenRunRef.current;
+    setDeleteHiddenBusy(true);
+    setDeleteHiddenError(null);
+    try {
+      await galleriesService.deleteHiddenMedia(stakeId, item.galleryId, item.id);
+      setLightboxId((current) => (current === item.id ? null : current));
+      if (run === deleteHiddenRunRef.current) showDeleteHidden(null);
+    } catch (caughtError) {
+      if (run === deleteHiddenRunRef.current) {
+        setDeleteHiddenBusy(false);
+        setDeleteHiddenError(
+          isConnectionError(caughtError) ? GALLERIA.erroreRete : GALLERIA.erroreElimina,
+        );
+      }
+    }
   }
 
   function onPick(changeEvent: ChangeEvent<HTMLInputElement>) {
@@ -207,14 +289,45 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
   }
 
   const loading = galleryLoading || (Boolean(galleryId) && mediaLoading);
-  const shownError = error ?? galleryError;
+  const shownError =
+    error ?? (galleryError && isPermissionMessage(galleryError) ? PALO.soloMembriFoto : galleryError);
   const viewingHidden = filter === "hidden";
 
-  if (!isMember) {
+  // Finché il documento members non arriva né contenuto né lucchetto.
+  if (access === "loading") {
     return (
-      <div className="ag-empty">
-        <AppIcon name="lock" />
-        <p>Foto e video sono visibili solo a chi ha un account nel palo.</p>
+      <div className="ag">
+        <div className="ag-masonry" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div
+              key={index}
+              className="ag-skeleton"
+              style={{ height: `${8 + (index % 3) * 4}rem` }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!isMember) {
+    // Ospiti: il lucchetto più l'invito ad accedere; chi è in coda o fuori dal
+    // palo ha la sua frase e nessuna lettura è partita.
+    const lockedText = lockedMessageOf(access, "foto") ?? PALO.soloMembriFoto;
+    return (
+      <div className="ag">
+        <div className="ag-empty">
+          <AppIcon name="lock" />
+          <p>{lockedText}</p>
+          {access === "guest" ? (
+            <Link
+              className="ag-btn ag-btn--primary"
+              to={`/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+            >
+              Accedi per vedere foto e video
+            </Link>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -281,7 +394,7 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
             />
           ))}
         </div>
-      ) : !gallery ? (
+      ) : !gallery && galleryError ? null : !gallery ? (
         <div className="ag-empty">
           <AppIcon name="camera" />
           <p>
@@ -391,7 +504,9 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
                       <button
                         type="button"
                         className="media-lightbox__delete"
-                        onClick={() => void handleDeleteHidden(item)}
+                        onClick={() => {
+                          showDeleteHidden(item);
+                        }}
                       >
                         Elimina
                       </button>
@@ -411,6 +526,17 @@ export function ActivityGallery({ stakeId, event, initialView }: ActivityGallery
               </button>
             );
           }}
+        />
+      ) : null}
+
+      {deletingHidden ? (
+        <GalleryConfirmSheet
+          {...getDeleteMediaCopy(deletingHidden.type)}
+          body={GALLERIA.eliminaCorpo}
+          busy={deleteHiddenBusy}
+          error={deleteHiddenError}
+          onCancel={() => showDeleteHidden(null)}
+          onConfirm={() => void handleConfirmDeleteHidden()}
         />
       ) : null}
 

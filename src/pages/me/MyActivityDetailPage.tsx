@@ -1,23 +1,42 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import "@/styles/camp-configuration.css";
+import { CAMP } from "@/copy/camp";
+import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
+import { getSurveyHref } from "@/utils/surveyLinks";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/EmptyState";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { AppIcon } from "@/components/AppIcon";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { ANNULLA } from "@/copy/annulla";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { ShareButton } from "@/components/ShareButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useStakeMembership } from "@/hooks/useStakeMembership";
+import { childrenService } from "@/services/firestore/childrenService";
 import { eventFormsService } from "@/services/firestore/eventFormsService";
 import { registrationsService } from "@/services/firestore/registrationsService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import type { CampPublicMember, Registration } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
-import { getAbsoluteUrl, getActivityPath } from "@/utils/activityLinks";
+import { ATTIVITA } from "@/copy/attivita";
+import {
+  getAbsoluteUrl,
+  getActivityPath,
+  getActivityRegistrationPath,
+  withRegisterFor,
+} from "@/utils/activityLinks";
+import { canManageFamily, suggestsChildAfterOwn } from "@/utils/family";
 import { formatDateRange, formatDateTime } from "@/utils/formatters";
-import { getEventAudienceLabel, isCampEvent } from "@/utils/events";
+import {
+  getEventAudienceLabel,
+  getRegistrationAvailability,
+  isCampEvent,
+} from "@/utils/events";
 import { isParentAuthorizationAuthorized } from "@/utils/parentAuthorization";
 import {
   getRegistrationAnswerEntries,
@@ -25,6 +44,11 @@ import {
   getRegistrationStatusTone,
 } from "@/utils/registrations";
 import { getRegistrationLookupFromSession } from "@/utils/session";
+import {
+  getCancelErrorMessage,
+  getOwnCancelRegistrationCopy,
+  withCancelTimeout,
+} from "@/utils/familyCancel";
 
 // Card della Notte dei Record: caricata a parte (con il suo CSS) solo per le
 // attività che hanno il modulo attivo.
@@ -44,6 +68,7 @@ type PersonalCampCommittee = {
   id: string;
   title: string;
   emoji: string;
+  responsibilities: string;
   role: "leader" | "member";
   assignedCount: number;
   manualLeaderNames: string[];
@@ -53,10 +78,10 @@ type PersonalCampCommittee = {
 type YouthActivityTab =
   "registration" | "patrol" | "committees" | "gallery" | "survey";
 
-function getPatrolRoleLabel(role: string | null) {
+function getPatrolRoleLabel(role: string | null, leaderLabel = "Capo pattuglia") {
   switch (role) {
     case "leader":
-      return "Capo pattuglia";
+      return leaderLabel;
     case "supervisor":
       return "Supervisore";
     case "member":
@@ -73,10 +98,11 @@ function getCommitteeRoleLabel(role: string) {
 function getPublicMemberLabel(
   member: CampPublicMember,
   context: "committee" | "patrol",
+  leaderLabel?: string,
 ) {
   return context === "committee"
     ? getCommitteeRoleLabel(member.role)
-    : getPatrolRoleLabel(member.role);
+    : getPatrolRoleLabel(member.role, leaderLabel);
 }
 
 function getMemberPreview(members: CampPublicMember[]) {
@@ -124,10 +150,27 @@ export function MyActivityDetailPage() {
     ? `${session.firebaseUser.uid}:${session.isAnonymous}`
     : "none";
   const stakeId = session?.profile.stakeId ?? "";
+  // Il conteggio dei record si legge solo da membro del palo.
+  const { access: membershipAccess } = useStakeMembership(stakeId);
   const [busy, setBusy] = useState<null | "cancel">(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // "Annulla l'iscrizione": prima il foglio, mai un dialogo del browser.
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<YouthActivityTab>("registration");
+  // Figli dell'account (G2): "Iscrivi tuo figlio o tua figlia" segue la regola
+  // di "Iscrizione inviata". Prima di ogni return: è un hook.
+  const familyUid = session && canManageFamily(session) ? session.firebaseUser.uid : "";
+  const { data: family, error: familyError } = useAsyncData(
+    async () => ({
+      uid: familyUid,
+      count: familyUid ? (await childrenService.listChildren(familyUid)).length : 0,
+    }),
+    [familyUid],
+    { uid: "", count: 0 },
+  );
+  // Al cambio di account il primo render ha il conto di quello di prima.
+  const childCount = family.uid === familyUid ? family.count : 0;
 
   const { data, loading, error, setData } = useAsyncData(
     async () => {
@@ -256,6 +299,7 @@ export function MyActivityDetailPage() {
         id: committee.id,
         title: committee.title,
         emoji: committee.emoji,
+        responsibilities: committee.responsibilities,
         role,
         assignedCount:
           committee.leaderRegistrationIds.length +
@@ -277,6 +321,7 @@ export function MyActivityDetailPage() {
         id: committee.id,
         title: committee.title,
         emoji: "◌",
+        responsibilities: "",
         role: committee.role,
         assignedCount: 1,
         manualLeaderNames: [],
@@ -287,33 +332,65 @@ export function MyActivityDetailPage() {
     return { patrol, committees };
   }, [data]);
 
-  async function handleCancelRegistration() {
-    if (!session || !eventId || !stakeId) {
-      return;
-    }
-
-    const confirmed = window.confirm("Vuoi annullare questa iscrizione?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    setBusy("cancel");
+  // Cambio di account o di attività (Indietro/Avanti fra due schede) con il
+  // foglio aperto: si chiude, nessun annullamento parte per l'altra.
+  // Account e attività di adesso: l'esito di una richiesta partita con altri
+  // non tocca la pagina.
+  const contextKey = `${sessionKey}|${eventId ?? ""}`;
+  const contextKeyRef = useRef(contextKey);
+  contextKeyRef.current = contextKey;
+  useEffect(() => {
+    setCancelSheetOpen(false);
+    setCancelError(null);
     setFeedback(null);
-    setActionError(null);
+  }, [sessionKey, eventId]);
+  // I dati mostrati sono dell'attività nell'URL (durante un cambio di scheda
+  // restano un attimo quelli di prima).
+  const dataMatchesRoute = Boolean(data && data.event.id === eventId);
+
+  function openCancelSheet() {
+    if (!dataMatchesRoute) {
+      return;
+    }
+
+    setFeedback(null);
+    setCancelError(null);
+    setCancelSheetOpen(true);
+  }
+
+  async function handleConfirmCancel() {
+    if (!session || !eventId || !stakeId || busy !== null) {
+      return;
+    }
+
+    if (!dataMatchesRoute) {
+      setCancelSheetOpen(false);
+      return;
+    }
+
+    const startedFor = contextKey;
+    setBusy("cancel");
+    setCancelError(null);
 
     try {
-      const cancelledRegistration =
-        await registrationsService.cancelRegistration(
+      const cancelledRegistration = await withCancelTimeout(
+        registrationsService.cancelRegistration(
           stakeId,
           eventId,
           getRegistrationLookupFromSession(session),
-        );
+        ),
+      );
 
       if (!cancelledRegistration) {
         throw new Error(
           "Impossibile rileggere la registrazione dopo l'annullamento.",
         );
+      }
+
+      // Se nel frattempo scheda o account sono cambiati, la pagina nuova si
+      // rilegge da sola: niente esito né dati dell'altra.
+      if (contextKeyRef.current !== startedFor) {
+        return;
       }
 
       setData((current) =>
@@ -324,13 +401,12 @@ export function MyActivityDetailPage() {
             }
           : current,
       );
-      setFeedback("Iscrizione annullata correttamente.");
+      setCancelSheetOpen(false);
+      setFeedback(ANNULLA.annullata);
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile annullare l'iscrizione.",
-      );
+      if (contextKeyRef.current === startedFor) {
+        setCancelError(getCancelErrorMessage(caughtError));
+      }
     } finally {
       setBusy(null);
     }
@@ -356,6 +432,23 @@ export function MyActivityDetailPage() {
     ? getRegistrationAnswerEntries(data.formConfig, data.registration)
     : [];
   const isCancelled = data?.registration.registrationStatus === "cancelled";
+  // Adulto iscritto lui (dirigente, accompagnatore, o chi ha già figli: G2):
+  // da qui iscrive anche un figlio, finché le iscrizioni sono aperte. Stessa
+  // regola di "Iscrizione inviata".
+  const offerChild = Boolean(
+    data &&
+      session &&
+      data.formConfig &&
+      suggestsChildAfterOwn({
+        canManageFamily: Boolean(familyUid),
+        role: session.profile.role,
+        category: session.profile.genderRoleCategory,
+        // Lettura dei figli fallita: meglio un invito in più che uno perso.
+        hasChildren: childCount > 0 || Boolean(familyUid && familyError),
+      }) &&
+      getRegistrationAvailability(data.event, data.formConfig, session, { forChild: true }) ===
+        "open",
+  );
   // Solo un campeggio ha checklist zaino, pattuglie, comitati e area
   // /campeggio: per un viaggio (es. tempio) o un'attività standard la pagina
   // mostra cosa portare e la stanza, se comunicate, e il riepilogo iscrizione.
@@ -366,13 +459,14 @@ export function MyActivityDetailPage() {
   const registrationStatusDisplay = data
     ? getRegistrationStatusDisplay(data.registration)
     : null;
+  const campGroupLabels = getCampGroupLabels(data?.campManagement?.groupLabel);
   const tabDefinitions: Array<{
     id: YouthActivityTab;
     label: string;
     icon: "badge" | "users" | "list" | "eye" | "check";
   }> = [
     { id: "registration", label: "Iscrizione", icon: "badge" },
-    { id: "patrol", label: "Pattuglia", icon: "users" },
+    { id: "patrol", label: campGroupLabels.singular, icon: "users" },
     { id: "committees", label: "Comitati", icon: "list" },
     { id: "gallery", label: "Galleria", icon: "eye" },
     { id: "survey", label: "Sondaggio", icon: "check" },
@@ -459,6 +553,18 @@ export function MyActivityDetailPage() {
         </section>
       )}
 
+      {data && offerChild ? (
+        <div className="my-activity-child">
+          <Link
+            className="button button--soft"
+            to={withRegisterFor(getActivityRegistrationPath(data.event.id, stakeId), "figlio")}
+          >
+            <AppIcon name="plus" />
+            <span>{ATTIVITA.iscriviFiglio}</span>
+          </Link>
+        </div>
+      ) : null}
+
       {data ? (
         <ActivityMediaCard className="ag-card--inset" stakeId={stakeId} event={data.event} />
       ) : null}
@@ -466,7 +572,7 @@ export function MyActivityDetailPage() {
       {data?.event.recordsEnabled ? (
         <Suspense fallback={null}>
           <RecordNightEntryCard
-            canReadRecords={Boolean(session?.isAuthenticated && !session.isAnonymous)}
+            canReadRecords={membershipAccess === "member"}
             className="rn-entry--inset"
             event={data.event}
             stakeId={stakeId}
@@ -479,15 +585,6 @@ export function MyActivityDetailPage() {
           <div>
             <h3>Caricamento non riuscito</h3>
             <p>{error}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {actionError ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Azione non completata</h3>
-            <p>{actionError}</p>
           </div>
         </div>
       ) : null}
@@ -665,12 +762,10 @@ export function MyActivityDetailPage() {
                     <button
                       className="button button--ghost button--danger"
                       disabled={busy !== null}
-                      onClick={() => void handleCancelRegistration()}
+                      onClick={openCancelSheet}
                       type="button"
                     >
-                      {busy === "cancel"
-                        ? "Annullamento..."
-                        : "Annulla iscrizione"}
+                      {busy === "cancel" ? ANNULLA.annullamento : ANNULLA.annullaIscrizione}
                     </button>
                   </section>
                 ) : null}
@@ -680,7 +775,7 @@ export function MyActivityDetailPage() {
             {activeTab === "patrol" ? (
               <div className="camp-youth-screen">
                 <span className="camp-section-eyebrow">Il tuo gruppo</span>
-                <h2 className="camp-section-title">La tua pattuglia</h2>
+                <h2 className="camp-section-title">{campGroupLabels.your}</h2>
                 <p className="camp-section-sub">
                   Le persone con cui condividi turni, attività e vita di campo.
                 </p>
@@ -692,7 +787,7 @@ export function MyActivityDetailPage() {
                         className="camp-patrol-card__emoji"
                         aria-hidden="true"
                       >
-                        🧭
+                        <span className="camp-config-initials">{getCommitteeInitials(currentPatrol.name)}</span>
                       </div>
                       <h3>{currentPatrol.name}</h3>
                       <p>Con chi cammini durante il campeggio.</p>
@@ -700,7 +795,7 @@ export function MyActivityDetailPage() {
                         <div>
                           Ruolo
                           <b>
-                            {getPatrolRoleLabel(currentPatrol.role) || "Membro"}
+                            {getPatrolRoleLabel(currentPatrol.role, campGroupLabels.leader) || "Membro"}
                           </b>
                         </div>
                         <div>
@@ -728,7 +823,7 @@ export function MyActivityDetailPage() {
                           <span>
                             <strong>{member.fullName}</strong>
                             <small>
-                              {getPublicMemberLabel(member, "patrol") ||
+                              {getPublicMemberLabel(member, "patrol", campGroupLabels.leader) ||
                                 "Componente"}
                             </small>
                           </span>
@@ -741,8 +836,8 @@ export function MyActivityDetailPage() {
                   </>
                 ) : (
                   <EmptyState
-                    title="Nessuna pattuglia assegnata"
-                    description="Quando sarà assegnata, la vedrai qui."
+                    title={campGroupLabels.assigned}
+                    description={CAMP.gruppoAttesa}
                   />
                 )}
               </div>
@@ -776,7 +871,7 @@ export function MyActivityDetailPage() {
                               committeeIndex,
                             )}`}
                           >
-                            {committee.emoji}
+                            {getCommitteeInitials(committee.title)}
                           </span>
                           <span>
                             <h3>{committee.title}</h3>
@@ -793,6 +888,7 @@ export function MyActivityDetailPage() {
                             ? "Sei tra i responsabili di questo comitato."
                             : "Sei assegnato a questo comitato."}
                         </p>
+                        {committee.responsibilities ? <section><h4>{CAMP.incarico}</h4><p className="camp-config-responsibilities">{committee.responsibilities}</p></section> : null}
                         <div className="camp-committee-members">
                           {committee.manualLeaderNames.map(
                             (leaderName, index) => (
@@ -889,7 +985,7 @@ export function MyActivityDetailPage() {
                   </p>
                   <Link
                     className="camp-join-btn"
-                    to={`/campeggio/${data.event.id}?tab=sondaggio`}
+                    to={getSurveyHref(data.event.id)}
                   >
                     Vai al sondaggio
                   </Link>
@@ -898,6 +994,20 @@ export function MyActivityDetailPage() {
             ) : null}
           </section>
         </>
+      ) : null}
+
+      {cancelSheetOpen && data && dataMatchesRoute ? (
+        <ConfirmSheet
+          {...getOwnCancelRegistrationCopy(data.event)}
+          busy={busy === "cancel"}
+          busyLabel={ANNULLA.annullamento}
+          cancelLabel={ANNULLA.tieniIscrizione}
+          confirmLabel={ANNULLA.confermaAnnulla}
+          error={cancelError}
+          onCancel={() => setCancelSheetOpen(false)}
+          onConfirm={() => void handleConfirmCancel()}
+          tone="danger"
+        />
       ) : null}
     </div>
   );

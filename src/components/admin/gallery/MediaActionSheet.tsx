@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
+import { isTopLayer, useInertBackground } from "@/hooks/useModalLayer";
 import type { Gallery, GalleryMedia } from "@/types";
 
 interface MediaActionSheetProps {
@@ -25,9 +26,14 @@ export function MediaActionSheet({
   onMove,
   onDelete,
 }: MediaActionSheetProps) {
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  // Nella pila dei fogli: la conferma "Elimina" si apre sopra questo foglio, e
+  // Esc chiude solo quella.
+  useInertBackground(sheetRef);
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && isTopLayer(sheetRef.current)) onClose();
     }
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
@@ -47,6 +53,7 @@ export function MediaActionSheet({
       role="dialog"
       aria-modal="true"
       onClick={onClose}
+      ref={sheetRef}
     >
       <div
         className="media-sheet__panel"
@@ -115,10 +122,8 @@ export function MediaActionSheet({
             <button
               type="button"
               className="media-sheet__action media-sheet__action--danger"
-              onClick={() => {
-                onDelete();
-                onClose();
-              }}
+              // Il foglio resta aperto sotto la conferma: "Tieni" torna qui.
+              onClick={onDelete}
               disabled={busy}
             >
               <span className="media-sheet__icon">×</span>

@@ -4,9 +4,13 @@ import { NavLink, Link, Outlet, useLocation, useNavigate } from "react-router-do
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { InstallHint } from "@/components/InstallHint";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
+import { PAROLE } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { alertsService } from "@/services/firestore/alertsService";
 import type { Alert } from "@/types";
+import { getLoginPath } from "@/utils/activityLinks";
+import { getAccountHomePath } from "@/utils/family";
+import { needsProfileCompletion } from "@/utils/profileCompletion";
 import { getRoleLabel } from "@/utils/roles";
 
 export interface LayoutLink {
@@ -14,6 +18,8 @@ export interface LayoutLink {
   label: string;
   end?: boolean;
   icon?: AppIconName;
+  /** Numero da mostrare accanto alla voce (es. richieste di accesso in attesa). */
+  badge?: number;
 }
 
 interface ShellLayoutProps {
@@ -23,7 +29,6 @@ interface ShellLayoutProps {
   links?: LayoutLink[];
   actionLink?: LayoutLink;
   brandLabel?: string;
-  showDefaultAuthAction?: boolean;
 }
 
 function getSessionLabel(
@@ -46,14 +51,15 @@ function getSessionLabel(
   return "Sessione attiva";
 }
 
+const SHORT_BRAND_LABEL = "Attività GU GD";
+
 export function ShellLayout({
   area,
   eyebrow,
   title,
   links = [],
   actionLink,
-  brandLabel = "Attività GU GD",
-  showDefaultAuthAction = true,
+  brandLabel = SHORT_BRAND_LABEL,
 }: ShellLayoutProps) {
   const { session, signOut } = useAuth();
   const location = useLocation();
@@ -67,7 +73,26 @@ export function ShellLayout({
   const scrollFrameRef = useRef<number | null>(null);
   const showTopNav = area === "admin" && links.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
-  const showPublicBack = area === "public" && location.pathname !== "/";
+  // L'iscrizione ha la sua freccia, che torna al passo prima; «Chi sei?» e
+  // "I tuoi dati" dopo un account nuovo non ne hanno (FLUSSO_GENITORE.md, I).
+  const showPublicBack =
+    area === "public" &&
+    location.pathname !== "/" &&
+    !/^\/activities\/[^/]+\/register\/?$/u.test(location.pathname) &&
+    !(
+      location.pathname === "/login" &&
+      session &&
+      !session.isAnonymous &&
+      needsProfileCompletion(session.profile)
+    );
+  // "Accedi" per chi non è entrato (anche da ospite), con ritorno alla pagina
+  // corrente. Non su /login, dove azzererebbe il redirect già in corso.
+  const showAuthLink = location.pathname !== "/login";
+  // Da non entrati, sul telefono, il nome corto delle aree riservate: accanto
+  // ad "Accedi" il nome lungo andava su quattro righe, e su /login resta
+  // uguale alle altre pagine invece di cambiare.
+  const compactBrand =
+    area === "public" && !session?.isAuthenticated && brandLabel !== SHORT_BRAND_LABEL;
   const showAdminModeSwitch =
     Boolean(session?.isAdmin && !session.isAnonymous) && (area === "admin" || area === "user");
   const showMeta =
@@ -81,7 +106,9 @@ export function ShellLayout({
       : area === "unit"
         ? "/unit"
         : area === "family"
-          ? "/family"
+          ? session && !session.isParent
+            ? getAccountHomePath(session.profile.role)
+            : "/family"
           : area === "user"
             ? "/me"
             : session?.isAuthenticated && !session.isAnonymous
@@ -273,7 +300,7 @@ export function ShellLayout({
                 <span aria-hidden="true" className="topbar__back topbar__back--hidden" />
               )}
 
-              <Link className="brand" to={brandDestination}>
+              <Link className={compactBrand ? "brand brand--compact" : "brand"} to={brandDestination}>
                 <img
                   alt=""
                   aria-hidden="true"
@@ -282,7 +309,12 @@ export function ShellLayout({
                   src="/brand-logo.png"
                 />
                 <span>
-                  <strong>{brandLabel}</strong>
+                  <strong>
+                    <span className="brand__label">{brandLabel}</span>
+                    {compactBrand ? (
+                      <span className="brand__label brand__label--short">{SHORT_BRAND_LABEL}</span>
+                    ) : null}
+                  </strong>
                   {eyebrow ? <small>{eyebrow}</small> : null}
                 </span>
               </Link>
@@ -315,6 +347,7 @@ export function ShellLayout({
                   }
                 >
                   {link.label}
+                  {link.badge ? <span className="nav-badge">{link.badge}</span> : null}
                 </NavLink>
               ))}
             </nav>
@@ -427,10 +460,13 @@ export function ShellLayout({
                   Esci
                 </button>
               ) : null
-            ) : showDefaultAuthAction ? (
-              <Link className="button button--soft button--small" to="/login">
+            ) : showAuthLink ? (
+              <Link
+                className="button button--soft button--small topbar__auth-link"
+                to={getLoginPath(`${location.pathname}${location.search}`)}
+              >
                 <AppIcon name="user" />
-                Accedi
+                {PAROLE.accedi}
               </Link>
             ) : null}
           </div>
@@ -500,7 +536,12 @@ export function ShellLayout({
               }
             >
               {link.icon ? <AppIcon name={link.icon} /> : null}
-              {link.icon ? <span className="sr-only">{link.label}</span> : link.label}
+              {link.icon ? <span className={area === "user" ? "bottom-nav__label" : "sr-only"}>{link.label}</span> : link.label}
+              {link.badge ? (
+                <span aria-hidden="true" className="nav-badge nav-badge--corner">
+                  {link.badge}
+                </span>
+              ) : null}
             </NavLink>
           ))}
           {actionLink ? (
