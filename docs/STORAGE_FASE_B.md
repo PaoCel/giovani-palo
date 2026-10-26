@@ -1,0 +1,96 @@
+# Rilascio coordinato S2, home, attività e Storage UE
+
+Piano di rilascio, 26 ottobre 2026. La fase A è stata autorizzata ed eseguita:
+1196 oggetti copiati, verifiche di contenuto e metadati senza differenze,
+rules solo UE e default invariato. Questo piano B richiede una conferma
+fresca distinta; non autorizza le fasi C, D o E.
+
+## Risultato previsto
+
+- L'app e le Functions usano il bucket UE; le copie USA restano durante
+  l'aggiornamento delle vecchie PWA. L'informativa descrive questa transizione.
+- S2 distingue appartenenza verificata e ruolo dichiarato, apre le code ai
+  responsabili ed elimina il vecchio sistema dei codici galleria.
+- Home con feed e foto/commenti; creazione con pochi campi, bozza e
+  pubblicazione; comitati con incarichi e denominazione dei gruppi configurabili.
+- Revoche e cancellazioni galleria coprono entrambi i bucket. Tombstone e
+  precondizioni Storage proteggono anche da copie o tentativi tardivi.
+
+Programma con partecipazioni, alloggi e delega alla singola attività restano
+incrementi successivi del task attività, non vengono dichiarati consegnati qui.
+
+## Letture di produzione prima della conferma
+
+Controlli del 26 ottobre, tutti in sola lettura dopo la fase A:
+
+| Controllo | Esito |
+| --- | --- |
+| Migrazione S2 | 180 da creare: 31 staff, 108 da verificare, 41 in coda; 348 iscrizioni lette |
+| Vecchi codici galleria | 1 galleria da aggiornare, 31 documenti da eliminare |
+| Functions attive | 30, comprese le due callable obsolete dei codici |
+| Feed pubblicato | 8 post, tutti con visibilità esplicita; query esatta riuscita |
+| Indici live | Definizioni esistenti coerenti; il candidato aggiunge soltanto il composito feed pubblicato/visibilità |
+| Query ultimo admin | Riuscita, 10 profili admin del palo |
+| Scheduler/PubSub/Eventarc/Functions | API abilitate |
+| URL Storage | 3182 documenti letti, 297 da aggiornare, 875 campi; zero formati sconosciuti |
+| Iscrizioni con URL | 4: 2 confermate, 1 annullata, 1 autorizzazione pendente |
+| Autorizzazione pendente | Token presente, nessun errore email o cambio destinatario; nessun invio previsto dalla sola riscrittura URL |
+| Media nascosti | 0; nessuna riconciliazione legacy da applicare |
+| Service worker servito | v32; candidato preparato v33, ricontrollare prima del deploy |
+
+Il censimento separato dei file ha trovato 41 prefissi media senza documento
+visibile o nascosto, in 328 prefissi totali e quattro gallerie esistenti.
+Sono candidati da classificare, non dati da cancellare durante B. Nessuna
+riparazione o cancellazione di questi file è compresa nell'approvazione B.
+
+## Ordine operativo dopo approvazione
+
+Usare soltanto un clone isolato, pulito, del commit definitivo di `main`,
+uguale a `origin/main`. Registrare commit e hash dei sorgenti. Non usare una
+vecchia build o il branch storico Storage come sorgente di deploy.
+
+1. Ricontrollare i dry-run, il service worker live e i conteggi attesi. Se il
+   piano cambia, aggiornare il perimetro prima di applicarlo.
+2. Migrare S2 con `migrateStakeMembers.js --stake roma-est --apply
+   --expect-create 180`, poi verificare conteggi, staff attivo e secondo dry-run
+   senza nuove creazioni. Questa scrittura precede le rules che leggono members.
+3. Pubblicare Firestore rules e indici del candidato; attendere che gli indici
+   necessari siano utilizzabili. Pubblicare Storage rules sul target `main`,
+   che comprende **entrambi** i bucket. Il candidato richiede appartenenza
+   attiva anche per l'upload dello staff, mantenendo lettura e moderazione per
+   il fallback di ruolo. Tutti i 31 staff correnti sono inclusi nella migrazione.
+4. Pubblicare per nome tutte le Functions esportate dal candidato: l'inizializzazione
+   del bucket è condivisa. Includere membership/trigger/reminder, cleanup media
+   e `campManagementSave`; non aggiornare il solo hosting.
+5. Eseguire `cleanupGalleryCodes.js --apply --expect-galleries 1
+   --expect-deletes 31`; eliminare per nome `unlockGalleryWithCode` e
+   `setGallerySecretCode` in europe-west1. Nessun altro dato o funzione eliminato.
+6. Deploy del bundle già costruito, con service worker superiore a quello
+   realmente servito; verificare release e asset prima della prova nel browser.
+7. Rileggere il piano Storage e applicare `--phase all --apply` con lo stesso
+   checkpoint della fase A. Questo passaggio riallinea anche revoche avvenute
+   tra copia A e backend B; riscrive gli URL e verifica i download.
+   Il sync nuovo può eliminare copie di media con tombstone delete: conteggi
+   e tetto devono essere espliciti; non includere i candidati orfani censiti.
+8. Richiedere `VERIFY_OK`, oldRefs zero e nessun residuo tombstoned; verificare
+   rules live su entrambi i bucket, elenco Functions e applicazione loggata
+   con account reale. Provare upload sintetico, lettura, revoca e cleanup nel
+   perimetro QA autorizzato, senza modificare iscrizioni o consensi reali.
+
+L'operazione non è una transazione unica. Un errore interrompe i passi
+successivi; rileggere lo stato applicato prima di qualsiasi retry. Un deploy
+con risposta persa non si considera fallito senza controllo della release.
+
+## Dopo il passaggio
+
+La fase C richiede il proprio piano di sincronizzazione e osservazione del
+vecchio bucket. Le copie USA non vengono eliminate in B. Prima della fase E
+va adeguata anche l'allowlist server dei bucket: il server transitorio tratta
+l'assenza di una replica come errore, non come cleanup riuscito. Non rimuovere
+prematuramente i tombstone media e non usare recursiveDelete della galleria
+per cancellarli durante la transizione.
+
+Rollback prima della rimozione USA: commit precedente su main, rules/Functions/
+hosting con service worker ulteriormente aumentato, sync e URL nell'altro
+verso con checkpoint distinto. Anche il rollback in produzione richiede la
+conferma prevista; non cancellare file o riscrivere history per tornare indietro.
