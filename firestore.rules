@@ -1755,11 +1755,14 @@ service cloud.firestore {
             && managementId == 'camp'
             && request.resource.data.keys().hasOnly([
               'committees',
+              'groupLabel',
               'patrols',
               'manualLeaders',
               'updatedAt',
               'savedAt'
             ])
+            && (!('groupLabel' in request.resource.data)
+              || request.resource.data.groupLabel in ['pattuglia', 'gruppo', 'compagnia', 'team', 'squadra'])
             && request.resource.data.committees is list
             && request.resource.data.patrols is list
             && request.resource.data.manualLeaders is list
