@@ -223,3 +223,107 @@ Errori iniziali corretti: build con TS2345/TS2349 sulle firme dei tipi;
 primo runner concorrente con «L'attività è cambiata durante la modifica»
 alla rilettura cache-first. Esiti finali build e runner: EXIT=0. Prove,
 log e screenshot conservati in `.claude/qa-integrazione-creazione/`.
+
+
+## Secondo incremento: comitati e denominazione dei gruppi
+
+26 ottobre: estensione del piano campeggio esistente, senza concedere nuovi
+permessi né cambiare le assegnazioni. Per questo blocco i cinque ID storici
+restano stabili: crearne di arbitrari richiede prima l'adattamento dei mapper
+iscrizioni e dei client precedenti. Programma con partecipazioni, altri tipi
+di attività, delega e alloggi restano nei blocchi successivi.
+
+### Contratto dati prima dell'implementazione
+
+Percorso invariato `stakes/{s}/activities/{a}/management/camp`:
+`groupLabel` sceglie `pattuglia`, `gruppo`, `compagnia`, `team` o `squadra`;
+`committees[].responsibilities` è testo facoltativo, massimo 600 caratteri,
+`title` resta il titolo esistente (1–80 caratteri). Nessun incarico attribuisce
+privilegi. Gli ID e la cardinalità già prevista (un comitato e un gruppo per
+persona) restano invariati. I documenti precedenti hanno incarico vuoto e
+terminologia Pattuglia. Le callable ricevute da client precedenti conservano
+le nuove opzioni e le liste delle persone assenti nel payload, invece di azzerarle.
+Le liste vuote esplicite svuotano le assegnazioni del singolo comitato; un
+comitato omesso conserva tutti i suoi dati.
+
+Chi scrive: lo staff campeggio già autorizzato da `campManagementSave`,
+compresi admin e dirigenti di unità del palo, con gli stessi controlli server.
+Chi legge: staff e titolari già ammessi al piano dalle rules esistenti. La
+scheda personale mostra il proprio comitato e incarico; il piano completo
+resta leggibile dagli iscritti come prima, non si introduce una nuova promessa
+di riservatezza sugli incarichi. Nessun nome o dato sanitario aggiunto.
+Query invariata: lettura singola `management/camp`; niente nuovi indici.
+La allowlist del documento ammette `groupLabel`; nessuna nuova collection.
+La cancellazione account conserva il contratto già vigente per le iscrizioni;
+i nuovi campi sono configurazione dell'attività e non contengono uid.
+
+Il client nuovo invia la revisione vista, anche per il primo piano assente.
+Il server confronta e aggiorna `updatedAt` in transazione. Un salvataggio
+vecchio non sovrascrive il nuovo piano. Le sincronizzazioni delle proiezioni
+sulle iscrizioni restano a lotti: ogni lotto controlla che la revisione sia
+ancora quella appena salvata, così un salvataggio superato non ripristina
+le vecchie assegnazioni. Non si promette una transazione unica oltre 500 doc.
+Se la sincronizzazione fallisce dopo il commit, la callable dichiara esplicitamente
+`planSaved: true`: il client avvisa che il piano è salvato ma le assegnazioni
+vanno controllate, offre rilettura server e mantiene l'avviso nella sessione
+fino a un nuovo salvataggio completo. Non viene promesso rollback dei lotti.
+Il payload legacy senza `expectedUpdatedAt` resta compatibile e conserva il
+comportamento di ultima scrittura prevalente sul piano. Anche le scritture
+dirette dello staff già ammesse dalle rules restano compatibili: non passano
+dalla transazione della callable e non beneficiano della nuova guardia di
+concorrenza. La protezione dell'editor vale per i client nuovi; non promette
+il rifiuto dei salvataggi obsoleti iniziati da client precedenti. I privilegi
+restano quelli esistenti. Letture per modificare e recupero conflitti
+vengono dal server. Una revoca viene ricontrollata al salvataggio.
+
+### Stati, ritorni e finitura
+
+| Superficie / stato | Azione | Ritorno e recupero |
+| --- | --- | --- |
+| Riepilogo comitati | Apri comitato; scegli denominazione gruppi | Campi facoltativi, nessun nuovo passo prima della creazione attività |
+| Comitato in modifica | Titolo e Cosa deve fare, poi persone | Chiudi conserva la bozza nel piano; testo esplicito, nessun salvataggio implicito |
+| Piano modificato | Salva modifiche oppure Scarta modifiche | Scarta chiede conferma e ripristina il piano salvato, iscrizioni intatte |
+| Salvataggio in corso | Un invio per contesto | Pulsanti disattivati; timeout conserva la richiesta per il retry |
+| Rete / errore | Riprova con gli stessi dati | Bozza intatta, nessun messaggio di successo anticipato |
+| Conflitto | Ricarica piano salvato con conferma di scarto | Bozza conservata finché si conferma, niente overwrite della revisione nuova |
+| Vista personale / export | Titoli, incarichi e denominazione aggiornati | Nessun nuovo controllo di ruolo, dati sanitari esclusi |
+
+Finitura: token blu/sabbia, Manrope e Fraunces del progetto, nessuna emoji
+nelle superfici modificate; simboli testuali del comitato dalle iniziali.
+Target 44 px, campi 16 px, testo secondario almeno 13 px, nessun overflow
+320/390/430. Mockup e confronto reale in `.claude/mockups/moduli-camp/`.
+
+
+### Verifica del secondo incremento (in corso)
+
+Implementati titolo e incarico dei cinque comitati storici, denominazione dei
+gruppi nell'admin, nella scheda personale, nella vista del dirigente e nell'Excel.
+L'Excel include anche comitati e gruppi vuoti, così l'incarico non sparisce se
+nessuna persona è ancora assegnata. Emoji rimosse dalle card modificate; restano
+gli ID e i campi delle assegnazioni già esistenti.
+
+Il salvataggio confronta la revisione sul server, rilegge i privilegi in ogni
+transazione e protegge ciascun lotto delle proiezioni dalla sovrascrittura di
+un salvataggio superato. Un'iscrizione cancellata durante il salvataggio non
+viene ricreata. Client vecchi senza revisione restano compatibili; config nuova
+e comitati omessi si conservano. Un errore dopo il commit del piano dichiara
+che il piano è stato salvato e che le assegnazioni vanno controllate.
+
+Collaudo sul mini, copia e porte dedicate `demo-camp-config`: build TypeScript/
+Vite verde, 39 controlli browser reali su 320/390/430 (due admin, conflitto,
+scarto/ripensamento, navigazione protetta, titolo vuoto, iscrizioni intatte,
+vista giovane e denominazione dei gruppi), 14 regressioni esistenti staff
+campeggio e 55 controlli accenti verdi. Confronto mockup/app e screenshot
+preservati in `.claude/mockups/moduli-camp/`.
+Suite client finale: 1479/1479, zero skip, build verde. Test indipendenti:
+64/64 puri helper/copy e 26/26 emulati, zero salti, compresa concorrenza su
+501 iscrizioni ed errore di proiezione dopo il commit. I 17 casi SDK diretti
+verificano allowlist, cinque denominazioni, payload legacy, valori invalidi,
+lettura dell'iscritto, negazione delle scritture non autorizzate e revoca dello
+staff. Review indipendente PASS. Nessun deploy.
+
+Nel primo giro della suite client il test accenti richiedeva un index git
+nella copia QA e la guardia copy richiedeva la registrazione dei nuovi testi.
+Entrambi risolti, il secondo dall'autore dei test: il conteggio 1479/1479 sopra
+è il giro completo finale, con le dipendenze delle Functions installate e
+senza i nove salti iniziali dei controlli di contratto backend.

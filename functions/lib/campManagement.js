@@ -3,6 +3,7 @@ const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
 const { isAdultByAge } = require("./adultAge");
+const { normalizeCampConfiguration, assertCampRevision, nextCampRevision, CampConfigurationError } = require("./campConfiguration");
 
 const REGION = "europe-west1";
 
@@ -116,6 +117,7 @@ function normalizeCommittee(definition, source, claimedRegistrationIds, claimedM
     id: definition.id,
     title: asString(data.title) || definition.title,
     emoji: asString(data.emoji) || definition.emoji,
+    responsibilities: asString(data.responsibilities),
     leaderRegistrationIds,
     manualLeaderIds,
     memberRegistrationIds,
@@ -205,6 +207,7 @@ function normalizeCampManagement(source) {
   const claimedPatrolManualSupervisorIds = new Set();
 
   return {
+    groupLabel: data.groupLabel || "pattuglia",
     committees: COMMITTEE_DEFINITIONS.map((definition) =>
       normalizeCommittee(
         definition,
@@ -467,26 +470,49 @@ async function assertCampManager(db, request, stakeId, activityId) {
   return access;
 }
 
-async function syncRegistrationCampAssignments(db, registrationsSnapshot, plan, timestamp) {
+async function assertTransactionalCampManager(transaction, db, request, stakeId, activityId) {
+  assertSignedIn(request);
+  const uid = request.auth.uid;
+  const refs = campRefs(db, stakeId, activityId);
+  const [profile, staff, registration] = await Promise.all([
+    transaction.get(db.doc(`users/${uid}`)),
+    transaction.get(refs.staff),
+    transaction.get(refs.registrations.doc(`user_${uid}`)),
+  ]);
+  const access = resolveCampAccess({
+    profile: profile.exists ? profile.data() : null,
+    stakeId, uid,
+    staffUids: staffUidsOf(staff.exists ? staff.data() : null),
+    ownRegistration: registration.exists ? registration.data() : null,
+  });
+  if (!access) throw new HttpsError("permission-denied", "Non hai più il permesso di modificare questo piano.");
+}
+
+async function syncRegistrationCampAssignments(db, registrationsSnapshot, plan, timestamp, request, stakeId, activityId) {
   const patrolAssignments = buildPatrolAssignments(plan);
   const committeeAssignments = buildCommitteeAssignments(plan);
+  const planRef = db.doc(`stakes/${stakeId}/activities/${activityId}/management/camp`);
 
   for (let start = 0; start < registrationsSnapshot.docs.length; start += 400) {
-    const batch = db.batch();
-
-    for (const document of registrationsSnapshot.docs.slice(start, start + 400)) {
-      const patrolAssignment = patrolAssignments.get(document.id) || {};
-
-      batch.update(document.ref, {
-        assignedPatrolId: patrolAssignment.assignedPatrolId || null,
-        assignedPatrolName: patrolAssignment.assignedPatrolName || null,
-        assignedPatrolRole: patrolAssignment.assignedPatrolRole || null,
-        assignedCommittees: committeeAssignments.get(document.id) || [],
-        updatedAt: timestamp,
-      });
-    }
-
-    await batch.commit();
+    const documents = registrationsSnapshot.docs.slice(start, start + 400);
+    await db.runTransaction(async (transaction) => {
+      await assertTransactionalCampManager(transaction, db, request, stakeId, activityId);
+      const current = await transaction.get(planRef);
+      assertCampRevision(timestamp, current.exists ? current.data() : null);
+      // Re-read before updating: a registration deleted while saving stays deleted.
+      const live = await transaction.getAll(...documents.map((document) => document.ref));
+      for (const document of live) {
+        if (!document.exists) continue;
+        const patrolAssignment = patrolAssignments.get(document.id) || {};
+        transaction.update(document.ref, {
+          assignedPatrolId: patrolAssignment.assignedPatrolId || null,
+          assignedPatrolName: patrolAssignment.assignedPatrolName || null,
+          assignedPatrolRole: patrolAssignment.assignedPatrolRole || null,
+          assignedCommittees: committeeAssignments.get(document.id) || [],
+          updatedAt: timestamp,
+        });
+      }
+    });
   }
 }
 
@@ -518,24 +544,43 @@ const campManagementSave = onCall(
       throw new HttpsError("failed-precondition", "I comitati sono modificabili solo su attività camp.");
     }
 
-    const timestamp = nowIso();
-    const normalized = normalizeCampManagement({
-      ...(request.data?.plan && typeof request.data.plan === "object" ? request.data.plan : {}),
-      updatedAt: timestamp,
-    });
+    const planRef = activityRef.collection("management").doc("camp");
     const registrationsSnapshot = await activityRef.collection("registrations").get();
-    const linked = linkManualLeadersByName(registrationsSnapshot, normalized);
-    const publicPlan = attachPublicMembers(registrationsSnapshot, linked);
-
-    await activityRef.collection("management").doc("camp").set(
-      {
-        ...publicPlan,
-        savedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-
-    await syncRegistrationCampAssignments(db, registrationsSnapshot, publicPlan, timestamp);
+    let publicPlan;
+    try {
+      publicPlan = await db.runTransaction(async (transaction) => {
+        await assertTransactionalCampManager(transaction, db, request, stakeId, activityId);
+        const [saved, currentActivity] = await Promise.all([
+          transaction.get(planRef), transaction.get(activityRef),
+        ]);
+        if (!currentActivity.exists || currentActivity.data().activityType !== "camp") {
+          throw new HttpsError("failed-precondition", "I comitati sono modificabili solo su un campeggio esistente.");
+        }
+        const previous = saved.exists ? saved.data() : null;
+        assertCampRevision(request.data?.expectedUpdatedAt, previous);
+        const timestamp = nextCampRevision(previous?.updatedAt);
+        const input = request.data?.plan === undefined ? {} : request.data.plan;
+        const normalized = normalizeCampManagement({
+          ...normalizeCampConfiguration(input, previous || {}), updatedAt: timestamp,
+        });
+        const linked = linkManualLeadersByName(registrationsSnapshot, normalized);
+        const plan = attachPublicMembers(registrationsSnapshot, linked);
+        transaction.set(planRef, { ...plan, savedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return plan;
+      });
+      await syncRegistrationCampAssignments(db, registrationsSnapshot, publicPlan, publicPlan.updatedAt, request, stakeId, activityId);
+    } catch (error) {
+      if (publicPlan) {
+        logger.error("Camp assignment sync incomplete.", { stakeId, activityId, code: String(error?.code || "unknown") });
+        throw new HttpsError(
+          error instanceof CampConfigurationError || error instanceof HttpsError ? error.code : "unavailable",
+          "Il piano è salvato, ma alcune assegnazioni potrebbero non essere aggiornate. Ricarica il piano salvato, controlla le persone e salva di nuovo.",
+          { planSaved: true, updatedAt: publicPlan.updatedAt },
+        );
+      }
+      if (error instanceof CampConfigurationError) throw new HttpsError(error.code, error.message);
+      throw error;
+    }
 
     logger.info("Camp management saved.", {
       stakeId,

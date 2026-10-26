@@ -1,5 +1,7 @@
+import { normalizeCampGroupLabel } from "@/utils/campGroups";
 import {
   collection,
+  getDocFromServer,
   doc,
   getDocs,
   writeBatch,
@@ -39,7 +41,7 @@ interface CampManagementSaveResult {
 }
 
 const campManagementSaveCallable = httpsCallable<
-  { stakeId: string; activityId: string; plan: CampManagementPlan },
+  { stakeId: string; activityId: string; plan: CampManagementPlan; expectedUpdatedAt: string | null },
   CampManagementSaveResult
 >(functions, "campManagementSave");
 
@@ -241,6 +243,7 @@ function normalizeCommittee(
     id: definition.id,
     title: asString(data.title) || definition.title,
     emoji: asString(data.emoji) || definition.emoji,
+    responsibilities: asString(data.responsibilities),
     leaderRegistrationIds,
     manualLeaderIds,
     memberRegistrationIds,
@@ -334,6 +337,7 @@ function normalizeCampManagement(data: Record<string, unknown> | null): CampMana
   const claimedPatrolManualSupervisorIds = new Set<string>();
 
   return {
+    groupLabel: normalizeCampGroupLabel(data?.groupLabel),
     committees: COMMITTEE_DEFINITIONS.map((definition) =>
       normalizeCommittee(
         definition,
@@ -353,7 +357,7 @@ function normalizeCampManagement(data: Record<string, unknown> | null): CampMana
     manualLeaders: rawManualLeaders
       .map((leader, index) => normalizeManualLeader(leader, index))
       .filter((leader) => leader.fullName.trim()),
-    updatedAt: asString(data?.updatedAt) || timestamp,
+    updatedAt: asString(data?.updatedAt),
   };
 }
 
@@ -625,8 +629,9 @@ export const campManagementService = {
     return normalizeCampManagement(null);
   },
 
-  async getCampManagement(stakeId: string, eventId: string): Promise<CampManagementPlan> {
-    const snapshot = await getDocCacheFirst(getCampManagementReference(stakeId, eventId));
+  async getCampManagement(stakeId: string, eventId: string, serverOnly = false): Promise<CampManagementPlan> {
+    const reference = getCampManagementReference(stakeId, eventId);
+    const snapshot = await (serverOnly ? getDocFromServer(reference) : getDocCacheFirst(reference));
     return normalizeCampManagement(snapshot.exists() ? snapshot.data() : null);
   },
 
@@ -639,6 +644,7 @@ export const campManagementService = {
       stakeId,
       activityId: eventId,
       plan: input,
+      expectedUpdatedAt: input.updatedAt || null,
     });
 
     return normalizeCampManagement(result.data.plan as unknown as Record<string, unknown>);
