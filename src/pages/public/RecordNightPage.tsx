@@ -181,7 +181,7 @@ export function RecordNightPage() {
   const { access } = useStakeMembership(stakeId);
   const canReadList = access === "member";
   const recordsKey =
-    enabled && uid && stakeId && access !== "loading" ? `${stakeId}/${eventId}/${uid}` : "";
+    enabled && uid && stakeId && access !== "loading" ? `${stakeId}/${eventId}/${uid}/${access}` : "";
 
   // Record, tentativi (propri e dei figli) e contesto: letture server-first,
   // rifatte dopo ogni azione.
@@ -189,8 +189,11 @@ export function RecordNightPage() {
   const requestRef = useRef(0);
 
   const loadRecords = useCallback(async () => {
-    if (!recordsKey || !uid) return;
     const request = ++requestRef.current;
+    if (!recordsKey || !uid) {
+      setRecordsState(null);
+      return;
+    }
     // Il contesto (per chi si agisce) è una callable a parte: se non risponde,
     // l'elenco dei record si mostra lo stesso.
     const [lists, contextResult] = await Promise.allSettled([
@@ -234,11 +237,12 @@ export function RecordNightPage() {
 
   useEffect(() => {
     void loadRecords();
+    return () => { requestRef.current += 1; };
   }, [loadRecords]);
 
   const current = recordsState?.key === recordsKey ? recordsState : null;
   const context = current?.context ?? null;
-  const records = useMemo(() => current?.records ?? [], [current]);
+  const records = useMemo(() => canReadList ? current?.records ?? [] : [], [canReadList, current]);
   const recordsById = useMemo(
     () => new Map(records.map((record) => [record.id, record] as const)),
     [records],
@@ -290,7 +294,7 @@ export function RecordNightPage() {
   const recordWindow = event ? getRecordNightWindow(event, now) : "disabled";
   const closed = recordWindow === "closed";
   const closeAt = event ? getRecordNightCloseAt(event) : null;
-  const canAct = Boolean(person) && recordWindow === "open";
+  const canAct = canReadList && Boolean(person) && recordWindow === "open";
   const activeCount = countActiveEntries(personEntries);
   const atLimit = activeCount >= RECORD_NIGHT_MAX_ENTRIES;
 
@@ -325,6 +329,12 @@ export function RecordNightPage() {
   const [sheet, setSheet] = useState<SheetState>(null);
   const toastIdRef = useRef(0);
 
+  useEffect(() => {
+    setSheet(null);
+    setToast(null);
+    setAnnouncement("");
+  }, [recordsKey]);
+
   const dismissToast = useCallback(() => setToast(null), []);
 
   function showToast(next: Omit<RecordNightToastState, "id">) {
@@ -348,7 +358,7 @@ export function RecordNightPage() {
   }
 
   function handleChallenge(record: RecordNightRecord) {
-    if (!person) return;
+    if (!canReadList || !person) return;
     const { registrationId } = person;
     void runAction(async () => {
       await recordNightService.challenge(stakeId, eventId, record.id, registrationId);
@@ -367,6 +377,7 @@ export function RecordNightPage() {
   }
 
   function handleRestore(entryId: string) {
+    if (!canReadList) return;
     const entry = current?.entries.find((item) => item.id === entryId);
     const label = entry ? getEntryLabel(entry, recordsById) : "";
     void runAction(async () => {
@@ -379,7 +390,7 @@ export function RecordNightPage() {
 
   // Dal foglio: gli errori tornano al foglio, che li mostra e resta aperto.
   async function submitProposal(input: RecordNightProposalInput) {
-    if (busyRef.current || !person) return;
+    if (busyRef.current || !canReadList || !person) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -401,7 +412,7 @@ export function RecordNightPage() {
   }
 
   async function challengeFromSheet(record: RecordNightRecord) {
-    if (busyRef.current || !person) return;
+    if (busyRef.current || !canReadList || !person) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -697,7 +708,7 @@ export function RecordNightPage() {
         toast={toast}
       />
 
-      {sheet && person ? (
+      {sheet && person && canReadList ? (
         <ProposalSheet
           entry={sheet.mode === "edit" ? sheet.entry : null}
           getErrorMessage={getRecordNightErrorMessage}
