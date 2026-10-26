@@ -10,7 +10,7 @@ import { useUploadApi } from "@/app/providers/UploadManagerProvider";
 import { useActivityGallery, useGalleryAccess } from "@/hooks/useActivityGallery";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, GalleryMedia } from "@/types";
-import { computeActivityUploadWindow } from "@/utils/galleryWindow";
+import { computeActivityUploadWindow, isGalleryUploadOpen } from "@/utils/galleryWindow";
 
 export function activityMediaPath(eventId: string) {
   return `/activities/${eventId}/foto`;
@@ -59,12 +59,12 @@ interface ActivityMediaCardProps {
 export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCardProps) {
   const navigate = useNavigate();
   const { session } = useAuth();
-  const { isMember, access } = useGalleryAccess(stakeId);
+  const { isMember, canUpload, access } = useGalleryAccess(stakeId);
   const { pickMedia } = useUploadApi();
   const { gallery, loading, uploadOpen } = useActivityGallery(stakeId, event, isMember);
   const latest = useLatestMedia(stakeId, gallery?.id ?? "", 5);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const context = `${session?.firebaseUser.uid ?? ""}:${stakeId}:${event.id}:${access}:${gallery?.id ?? ""}:${uploadOpen}`;
+  const context = `${session?.firebaseUser.uid ?? ""}:${stakeId}:${event.id}:${access}:${gallery?.id ?? ""}:${uploadOpen}:${canUpload}`;
   const contextRef = useRef(context);
   contextRef.current = context;
   const pickerContext = useRef("");
@@ -100,12 +100,12 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
   }
 
   const mediaCount = gallery?.mediaCount ?? 0;
-  if (!loading && !uploadOpen && mediaCount === 0) return null;
+  if (!loading && (!canUpload || !uploadOpen) && mediaCount === 0) return null;
 
   function onPick(changeEvent: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(changeEvent.target.files ?? []);
     changeEvent.target.value = "";
-    if (!gallery || !isMember || !uploadOpen || !navigator.onLine || pickerContext.current !== contextRef.current || files.length === 0) return;
+    if (!gallery || !canUpload || !isGalleryUploadOpen(event, gallery) || !navigator.onLine || pickerContext.current !== contextRef.current || files.length === 0) return;
     pickMedia(files, gallery, mediaCount);
     navigate(galleryHref);
   }
@@ -155,7 +155,7 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
       ) : null}
 
       <div className="ag-card__actions">
-        {uploadOpen ? (
+        {canUpload && uploadOpen ? (
           <button
             type="button"
             className="ag-btn ag-btn--primary"
@@ -168,14 +168,14 @@ export function ActivityMediaCard({ stakeId, event, className }: ActivityMediaCa
         ) : null}
         {mediaCount > 0 ? (
           <Link
-            className={`ag-btn ${uploadOpen ? "ag-btn--soft" : "ag-btn--primary"}`}
+            className={`ag-btn ${canUpload && uploadOpen ? "ag-btn--soft" : "ag-btn--primary"}`}
             to={galleryHref}
           >
             Vedi tutte
           </Link>
         ) : null}
       </div>
-      {uploadOpen ? (
+      {canUpload && uploadOpen ? (
         <p className="ag-card__hint">
           Le vedono solo gli iscritti al palo con un account. Carica solo foto in cui le
           persone sono d'accordo.

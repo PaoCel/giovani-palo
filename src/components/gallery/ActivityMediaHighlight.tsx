@@ -81,12 +81,17 @@ function LockedActivityCard({ access, event }: { access: MemberAccess; event: Ev
 }
 
 function LiveActivityCard({ stakeId, event }: { stakeId: string; event: Event }) {
+  const { canUpload, uid } = useGalleryAccess(stakeId);
   const navigate = useNavigate();
   const { pickMedia } = useUploadApi();
   const { gallery, uploadOpen } = useActivityGallery(stakeId, event, true);
   const [latest, setLatest] = useState<GalleryMedia[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const galleryId = gallery?.id ?? "";
+  const uploadContext = `${uid}:${stakeId}:${event.id}:${galleryId}:${canUpload}:${uploadOpen}`;
+  const uploadContextRef = useRef(uploadContext);
+  uploadContextRef.current = uploadContext;
+  const pickerContext = useRef<string | null>(null);
 
   useEffect(() => {
     if (!galleryId) {
@@ -105,7 +110,7 @@ function LiveActivityCard({ stakeId, event }: { stakeId: string; event: Event })
   function onPick(changeEvent: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(changeEvent.target.files ?? []);
     changeEvent.target.value = "";
-    if (!gallery || files.length === 0) return;
+    if (!gallery || !canUpload || !isGalleryUploadOpen(event, gallery) || !navigator.onLine || pickerContext.current !== uploadContextRef.current || files.length === 0) return;
     pickMedia(files, gallery, mediaCount);
     navigate(href);
   }
@@ -149,18 +154,18 @@ function LiveActivityCard({ stakeId, event }: { stakeId: string; event: Event })
           </Link>
         ) : null}
         <div className="ag-live__actions">
-          {uploadOpen ? (
+          {canUpload && uploadOpen ? (
             <button
               type="button"
               className="ag-btn ag-btn--amber"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => { pickerContext.current = uploadContext; inputRef.current?.click(); }}
             >
               <AppIcon name="camera" />
               Aggiungi foto o video
             </button>
           ) : null}
           <Link className="ag-btn ag-btn--glass" to={href} aria-label="Vedi tutte le foto e i video">
-            {uploadOpen ? <AppIcon name="eye" /> : "Vedi tutte"}
+            {canUpload && uploadOpen ? <AppIcon name="eye" /> : "Vedi tutte"}
           </Link>
         </div>
       </article>

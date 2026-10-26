@@ -13,8 +13,10 @@ import { PAROLE } from "@/copy/parole";
 const GALLERY_DENIED = PALO.soloMembriFoto;
 
 export interface ActivityGalleryAccess {
-  /** Membro attivo del palo (o staff): vede e, a finestra aperta, carica. */
+  /** Membro attivo del palo o staff: può leggere la galleria. */
   isMember: boolean;
+  /** Upload consentito solo con appartenenza attiva, anche per lo staff. */
+  canUpload: boolean;
   /** Admin o dirigente di unità del palo: toglie e modera. */
   isStaff: boolean;
   uid: string;
@@ -25,8 +27,8 @@ export interface ActivityGalleryAccess {
 // "Membro" viene da `stakes/{s}/members/{uid}` (docs/APPARTENENZA_AL_PALO.md,
 // «Client della fase 3»), mai da `users.stakeId`: stessa regola delle rules.
 export function useGalleryAccess(stakeId: string): ActivityGalleryAccess {
-  const { access, isStaff, uid } = useStakeMembership(stakeId);
-  return { isMember: access === "member", isStaff, uid, access };
+  const { access, member, isStaff, uid } = useStakeMembership(stakeId);
+  return { isMember: access === "member", canUpload: access === "member" && member?.status === "active", isStaff, uid, access };
 }
 
 interface ActivityGalleryState {
