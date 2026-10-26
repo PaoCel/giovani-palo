@@ -258,3 +258,16 @@ PASS senza modifiche obbligatorie residue.
 
 La nuova home chiude separatamente la vecchia lettura pubblica dei post:
 contratto e test nel task gugd-home-social. Il rilascio di S2 resta da fare.
+
+### Collaudo finale del pacchetto unito
+
+Codice `main` 4831334, tree 303c32a88ae1710e5dd4e4df9e022daa9dda735b
+identico alla copia QA del mini. Build PASS; 1510/1510 client, contratto
+S2/Home 1975/1975 (Storage 300 MB incluso), query SDK 115/115, camp backend
+e rules 26/26, browser Home 8/8 e camp 39/39. Zero errori e zero salti;
+exit per suite e finale 0, log ricontrollati dal coordinamento. Processi QA
+finali arrestati. Nessuna operazione di produzione.
+
+Strumenti fase A Storage: 23/23 mock API/CLI e letture reali senza scritture;
+prossimo passo con conferma nel task gugd-storage-eu. Artefatti locali
+preservati in .claude/qa-rilascio-integrato/ e nelle cartelle di ogni blocco.

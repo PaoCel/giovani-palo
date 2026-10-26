@@ -16,7 +16,7 @@ blocked_by: [gugd-s2-appartenenza]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Primo incremento home nel client completo e verificato, pronto per integrazione su main; nessun deploy"
+stopped_at: "Primo incremento home nel client completo e verificato, integrato e pushato su main; nessun deploy"
 next: "Rilascio coordinato dopo Storage UE e S2; poi gestione post admin, contesto Famiglia e moduli successivi"
 verified: "Mini: build, 1480/1480 client, 1975/1975 contratto S2/home e zero salti, 8/8 browser reale Auth/Firestore, 5/5 cambi contesto, 8/8 test service indipendenti; review PASS. Produzione invariata, indici non rilasciati"
 links: [docs/HOME_SOCIAL.md, docs/HOME_SOCIAL_REVIEW.md, docs/prototypes/home-social/index.html, docs/GALLERIA_ATTIVITA.md]
@@ -91,3 +91,16 @@ Spec e verbale completo in HOME_SOCIAL.md. Questo incremento non chiude
 la consegna completa: Famiglia, editor post admin e ciclo di vita globale
 dei contenuti del feed restano nei criteri del task. Nessun nuovo ingresso
 alla pubblicazione libera, nessun deploy.
+
+### Collaudo finale del pacchetto unito
+
+Codice `main` 4831334, tree 303c32a88ae1710e5dd4e4df9e022daa9dda735b
+identico alla copia QA del mini. Build PASS; 1510/1510 client, contratto
+S2/Home 1975/1975 (Storage 300 MB incluso), query SDK 115/115, camp backend
+e rules 26/26, browser Home 8/8 e camp 39/39. Zero errori e zero salti;
+exit per suite e finale 0, log ricontrollati dal coordinamento. Processi QA
+finali arrestati. Nessuna operazione di produzione.
+
+Strumenti fase A Storage: 23/23 mock API/CLI e letture reali senza scritture;
+prossimo passo con conferma nel task gugd-storage-eu. Artefatti locali
+preservati in .claude/qa-rilascio-integrato/ e nelle cartelle di ogni blocco.

@@ -97,3 +97,21 @@ main sono appartenenza e privilegi S2 già collaudati. SHA-256 live:
 `8af57b7797c26e55283e770efba8c56501fe4fbac9d3e52202b5f68198f7c101`;
 candidato `34fd55bc41011d32f10c779d27a9a1535907acdcad79017cb249487e9ff103a2`.
 Ricontrollare stato e diff subito prima dell’operazione autorizzata.
+
+## Pacchetto coordinato da pubblicare dopo la preparazione
+
+Su main 4831334 sono integrati S2 con cleanup account, nuova home e viewer,
+creazione essenziale con bozza/pubblicazione esplicita e configurazione
+comitati/gruppi dei campeggi. Il collaudo sul codice unito è verde: build,
+1510 client, 1975 contratto S2/home, 115 query SDK, 26 backend/rules camp,
+8 scenari browser Home e 39 camp. Zero errori o salti. Questi numeri non
+sono una prova del rilascio: la produzione resta alla configurazione precedente.
+
+Dopo A, integrare il branch del passaggio Storage e collaudare la fusione
+prima di chiedere una nuova conferma per B. Il piano B dovrà comprendere
+rules e indici del feed, migrazione S2 aggiornata, Functions S2 e
+`campManagementSave`, tutte le Functions influenzate dal bucket, passaggio
+client/URL e hosting con service worker monotonico. Non pubblicare solo
+l’hosting: il vecchio backend camp ignorerebbe le nuove opzioni. Controllare
+le Functions effettive e i dry-run subito prima del rilascio; la copia A
+resta `--phase sync`, senza riscrittura URL o fase `all`.

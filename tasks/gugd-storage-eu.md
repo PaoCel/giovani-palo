@@ -16,7 +16,7 @@ blocked_by: ["decisione: conferma fresca per la fase A in produzione"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Strumenti fase A pronti e verificati per main; produzione invariata, bucket EU assente"
+stopped_at: "Strumenti fase A integrati e pushati su main; produzione invariata, bucket EU assente"
 next: "Conferma fresca per create/link, rules solo EU e sync; poi integrare e verificare il passaggio B prima di una nuova conferma deploy"
 verified: "23/23 test API simulata da altro autore, review PASS WITH CONCERNS per POST live non eseguite; inspect e create dry-run reali EXIT0, sync dry-run 1196 oggetti/1065,8 MB senza conflitti o cancellazioni, diff Storage live letto e limitato a S2"
 links: [docs/STORAGE_FASE_A.md]
@@ -95,3 +95,8 @@ differisce solo per appartenenza/privilegi S2 già testati.
 Nessun create/link/deploy/sync reale. Il task completo non è chiuso; la
 prossima azione è la fase A, con conferma fresca. Il passaggio effettivo del
 client richiede fase B e conferma separata.
+
+Il pacchetto coordinato main 4831334 (S2, home, creazione e camp) ha superato
+collaudo finale: build, 1510 client, 1975 contratto S2/home, 115 query SDK,
+26 backend/rules camp, 8 browser Home e 39 camp, tutti senza salti o errori.
+Nessun hosting, deploy rules/Functions o passaggio di bucket eseguito.
