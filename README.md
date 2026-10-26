@@ -19,7 +19,7 @@ This codebase is published as a portfolio piece. It is read-only for casual visi
 | Frontend | Vite 7 + React 19 + TypeScript + react-router-dom 7 |
 | Auth | Firebase Authentication (email/password, Google, anonymous-guest), run by Google from US data centers |
 | Database | Cloud Firestore (region `eur3`, Belgium + Netherlands) |
-| File storage | Cloud Storage for Firebase, bucket `giovani-palo-eu` in `europe-west1` (consent PDFs, signatures, parent documents, gallery media, public banners) |
+| File storage | Cloud Storage for Firebase: new bucket `giovani-palo-eu` in `europe-west1` (consent PDFs, signatures, parent documents, gallery media, public banners). Migration keeps copies in the previous `us-central1` bucket and supports older app versions until cutover monitoring and cleanup are complete |
 | Backend | Firebase Cloud Functions v2 (Node 22), region `europe-west1` |
 | Hosting | Firebase Hosting + PWA (service worker, web push notifications) |
 | PDF / spreadsheet | jsPDF for recovery PDFs, xlsx for admin exports |

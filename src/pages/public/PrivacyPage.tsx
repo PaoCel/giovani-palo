@@ -29,7 +29,7 @@ import { organizationService } from "@/services/firestore/organizationService";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
 
 const PRIVACY_EMAIL = "privacy@gugditalia.it";
-const LAST_REVIEWED = "16 ottobre 2026";
+const LAST_REVIEWED = "26 ottobre 2026";
 
 export function PrivacyPage() {
   const { data: organization } = useAsyncData(
@@ -211,7 +211,10 @@ export function PrivacyPage() {
                 <li>Cloud Firestore: profili, iscrizioni e autorizzazioni, nella regione UE
                   {" "}<code>eur3</code> (Belgio e Paesi Bassi).</li>
                 <li>Cloud Storage: autorizzazioni firmate in PDF, firme, documenti caricati dai
-                  genitori, foto e video della galleria, nella regione UE <code>europe-west1</code> (Belgio).</li>
+                  genitori, foto e video della galleria, nella regione UE <code>europe-west1</code> (Belgio).
+                  Durante il passaggio al nuovo archivio restano copie nel precedente bucket
+                  {" "}<code>us-central1</code> (Stati Uniti), usato anche dalle versioni dell&apos;app
+                  non ancora aggiornate, fino alla conclusione della migrazione.</li>
                 <li>Cloud Functions: logica lato server, nella regione UE <code>europe-west1</code> (Belgio).</li>
                 <li>Firebase Authentication: email, nome, password cifrata e, per l&apos;accesso
                   con Google, i dati base del profilo Google. Google gestisce questo servizio solo
@@ -276,11 +279,14 @@ export function PrivacyPage() {
       >
         <div className="surface-panel surface-panel--subtle">
           <p>
-            Il database e i file sono conservati nell&apos;Unione Europea: il database nella
-            regione <code>eur3</code> (Belgio e Paesi Bassi), i file e le funzioni lato server
-            nella regione <code>europe-west1</code> (Belgio). Fanno eccezione i dati di accesso
-            (Firebase Authentication), che Google gestisce dagli Stati Uniti, e i servizi di
-            consegna descritti fra i sub-fornitori.
+            Il database è conservato nella regione UE <code>eur3</code> (Belgio e Paesi Bassi).
+            Il nuovo archivio dei file e le funzioni lato server sono nella regione
+            {" "}<code>europe-west1</code> (Belgio). Durante la migrazione restano copie dei file
+            nel precedente archivio <code>us-central1</code> (Stati Uniti), anche per le
+            versioni dell&apos;app non ancora aggiornate. Le copie verranno eliminate al
+            termine del passaggio, dopo la verifica che il vecchio archivio non sia più usato.
+            Altri trattamenti fuori dall&apos;UE riguardano i dati di accesso
+            (Firebase Authentication) e i servizi di consegna descritti fra i sub-fornitori.
             L&apos;accesso è regolato da regole di sicurezza per ruolo (admin di palo,
             responsabile di unità, partecipante), validate lato server da Firebase Security Rules.
             La connessione è cifrata in HTTPS. I documenti sensibili (es. autorizzazioni dei minori)

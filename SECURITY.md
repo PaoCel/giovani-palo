@@ -11,7 +11,7 @@ Please email **privacy@gugditalia.it**. Disclosure is welcomed and will be credi
 | Item | Status |
 |---|---|
 | Database region | Cloud Firestore, EU multi-region `eur3` (Belgium + Netherlands) |
-| File storage region | Cloud Storage bucket `giovani-palo-eu`, `europe-west1` (Belgium): signed PDFs, signatures, parent documents, gallery media |
+| File storage region | New Cloud Storage bucket `giovani-palo-eu`, `europe-west1` (Belgium): signed PDFs, signatures, parent documents, gallery media. During migration, copies remain in `giovani-palo.firebasestorage.app`, `us-central1` (US), also used by older app versions; removal follows verification that the old bucket is no longer used |
 | Server region | Cloud Functions, `europe-west1` (Belgium) |
 | Authentication | Firebase Authentication, run by Google only from US data centers (no EU option); admin Google account uses MFA |
 | Authorization | Firestore Security Rules + Storage Security Rules — default deny, RBAC, key-allow-listed write payloads |
@@ -33,4 +33,4 @@ The Web Push **private** key is held as a Firebase secret (`WEB_PUSH_PRIVATE_KEY
 
 ## Last reviewed
 
-2026-10-16. Regions read from the platform APIs (bucket and database metadata), not from documentation.
+2026-10-26. Bucket regions verified through the platform APIs. EU preparation is complete; the app cutover requires a separate coordinated release. US copies remain until the separately approved cleanup.
