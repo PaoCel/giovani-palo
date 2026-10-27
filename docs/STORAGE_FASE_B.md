@@ -2,8 +2,8 @@
 
 Piano di rilascio, 26 ottobre 2026. La fase A è stata autorizzata ed eseguita:
 1196 oggetti copiati, verifiche di contenuto e metadati senza differenze,
-rules solo UE e default invariato. Questo piano B richiede una conferma
-fresca distinta; non autorizza le fasi C, D o E.
+rules solo UE e default invariato. Il rilascio B è stato autorizzato e
+pubblicato il 27 ottobre; il collaudo autenticato è ancora parziale. Le fasi C, D ed E restano separate.
 
 ## Risultato previsto
 
@@ -121,6 +121,44 @@ eliminati da entrambi i bucket, cleanup completo. Nessun dato reale usato.
 
 Dry-run del nuovo sync sul candidato: 1196 in sorgente, destinazione e checkpoint,
 1196 invariati, zero copie, patch, cancellazioni, conflitti o tombstone.
-Questo controllo è readonly; il passaggio client e la riscrittura degli URL
-restano da autorizzare. Il candidato esporta 33 Functions da aggiornare
+Questo controllo era readonly e precedeva la conferma del 27 ottobre.
+Il candidato esporta 33 Functions da aggiornare
 esplicitamente; le due callable obsolete vengono eliminate separatamente.
+
+## Esito reale del 27 ottobre
+
+Approvazione esplicita: «Vai avanti? Confermo». Operazioni dal clone pulito
+sul mini `~/qa/gugd-rilascio-b-20261027/app`, main e origin/main uguali a
+`d7c5ad68f0facf90cc696c94183d6cc0c1ec5d5b`; build EXIT0.
+
+| Passaggio | Esito verificato |
+| --- | --- |
+| Appartenenze | 180 create; post dry-run zero, 139 attive/41 pending, 31 staff attivi |
+| Rules | Firestore e Storage di entrambi i bucket identici al candidato via API |
+| Indice feed | READY via API, query esatta riuscita |
+| Functions | 33 ACTIVE; sette sorgenti critici dell'archivio live identici a main |
+| Codici galleria | 31 documenti rimossi, post dry-run zero; due callable obsolete assenti |
+| Hosting | v33, HTML e cinque asset serviti identici alla build |
+| Migrazione URL | 3331 documenti letti, 297 aggiornati/875 campi, zero errori |
+| Storage finale | VERIFY_OK, 1196/1196, zero mancanti/differenze/extra/oldRefs, cinque download 206 |
+| Consenso pendente | Token presente, email invariata, nessun errore rilevato dopo rewrite |
+
+La prima invocazione deploy Functions si è fermata prima degli aggiornamenti
+per la conferma CLI della policy retry. Rilanciata con --force e sempre i
+33 selettori espliciti; verificato nel planner della CLI mini 15.33 che le
+due obsolete erano escluse. L'indice si è completato mentre venivano
+aggiornate le Functions e prima del deploy hosting.
+
+Verifica browser reale parziale: Home partecipante pending e blocco dei
+contenuti riservati riusciti; larghezze CSS effettive 520/1632, nessun overflow.
+Il login dirigente richiede passkey personale. Credenziali Google CLI non
+accettate da signInWithIdp HTTP 400, prima di ogni mutazione QA: REST utente,
+upload/revoca/cancellazione live restano da completare, non sono PASS. Nessun
+account o ruolo creato, nessun consenso accettato.
+
+Lo smoke media preparato usa solo prefissi sintetici con checkpoint privato.
+Non crea una prima segnalazione visibile: quel ramo invierebbe push reali
+agli admin anche per una galleria non pubblicata. Seed hiddenMedia/lifecycle
+sintetico, trigger, ramo already_hidden e cleanup sono il perimetro autorizzato.
+Nessuna scrittura di questo smoke è ancora avvenuta. C/D/E e i 41 prefissi
+orfani restano fuori da B.

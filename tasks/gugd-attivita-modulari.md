@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: needs-paolo
+status: in-progress
 impact: 2
 urgency: 2
 effort: L
@@ -10,15 +10,15 @@ surface: [web, functions, rules]
 source: paolo
 opened: 2026-10-26
 started_at: 2026-10-26
-touched: 2026-10-26
+touched: 2026-10-27
 due:
-blocked_by: ["decisione: conferma fresca per il primo rilascio coordinato B"]
-branch:
-worktree:
+blocked_by: []
+branch: codex/gugd-momenti
+worktree: /Users/paolocelestini/.codex/worktrees/gugd-momenti/giovani-palo
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Creazione guidata e camp configurabili integrati nel pacchetto41a215c verificato; primi incrementi pronti ma non pubblicati"
-next: "Conferma B e deploy campManagementSave prima hosting; poi programma con iscrizioni, altri tipi, comitati arbitrari, alloggi e delega"
-verified: "Pacchetto finale 41a215c: build, 1524 client, 26 camp backend/rules indipendenti e 57 HTTP consensi. Ultimo giro camp UI 39/39 conserva gli stessi file camp; 64 puri/copy e 14 regressioni staff già verdi. Review PASS. Programma, alloggi e delega restano aperti; nessun deploy B"
+stopped_at: "Creazione guidata e camp pubblicati in B; programma info/turni nel worktree b37a2be, con test e review indipendenti in corso"
+next: "Concludere test indipendenti, review e collaudo programma, poi integrare su main; prossimo deploy con conferma fresca"
+verified: "B pubblicato. Programma isolato b37a2be: build e browser demo autore passano, suite esistente 1523/1524 (catalogo da registrare); test indipendenti e review in corso"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -116,3 +116,9 @@ review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
 Solo la preparazione fase A Storage è stata eseguita in produzione; questo
 incremento aspetta la conferma B. I task più ampi restano aperti per gli
 incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
+
+## Rilascio B pubblicato, 27 ottobre
+
+Creazione e camp online. Programma essenziale in codex/gugd-momenti: authoring, adesione, rinuncia/ripresa, capienza e revisioni. Test e review indipendenti in corso, nessun deploy del nuovo modulo.
+
+Esiti, approvazione e limiti in [STORAGE_FASE_B](../docs/STORAGE_FASE_B.md).

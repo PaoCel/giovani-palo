@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: needs-paolo
+status: blocked
 impact: 2
 urgency: 2
 effort: L
@@ -10,15 +10,15 @@ surface: [web, rules, functions, storage]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-20
-touched: 2026-10-26
+touched: 2026-10-27
 due:
-blocked_by: ["decisione: conferma fresca per il rilascio coordinato B"]
+blocked_by: ["autenticazione Google del dirigente per collaudo live"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "S2 integrato con Storage UE, home e attività su main 41a215c; contratto completo finale verificato, migrazione non applicata"
-next: "Dopo conferma B: ricontrollare dry-run180, migrare prima delle rules, pubblicare Functions/rules e rimuovere codici legacy secondo piano"
-verified: "Finale 41a215c: 1924 S2 + 51 Home sulle rules, upload 300 MB, 115 query SDK, 31 diretti Storage/PDF, 44 puri, 57 HTTP consensi e 26 camp; build e 1524 client, browser 8 Home + 6 upload + 5 contesto. Review PASS. Dry-run prod: 180 profili (31 staff, 108 da verificare, 41 in coda), cleanup 31 e query dei 10 admin riusciti. Nessuna migrazione S2 o deploy B"
+stopped_at: "S2 pubblicato: 180 appartenenze create, 31 staff attivi, codici legacy rimossi; Home pending verificata, code live da completare"
+next: "Dopo passkey, verificare code e camp senza modificare richieste reali; completare la verifica con ID token valido"
+verified: "Prod: 180 create, 139 attive/41 pending, 31 staff attivi, post dry-run zero, cleanup codici 31; rules live coincidenti. Code/browser dirigente non ancora verificati"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---
@@ -37,7 +37,7 @@ Claude: attivi staff e iscritti, questi ultimi da confermare).
 
 - rules Firestore e Storage leggono `members/{uid}` al posto di
   `users.stakeId` per galleria, media, like, commenti, segnalazioni, record,
-  sondaggi; Storage legge un solo documento Firestore per richiesta;
+  sondaggi; Storage rispetta il limite di due documenti Firestore per richiesta, inclusa la guardia lifecycle;
 - coda Richieste con approva, rifiuta, "Non è della mia unità", toast Annulla
   con `version`; stato "in attesa" per l'utente con le sue uscite;
 - migrazione A3 eseguita con dry-run e poi reale, prima delle rules;
@@ -280,3 +280,9 @@ review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
 Solo la preparazione fase A Storage è stata eseguita in produzione; questo
 incremento aspetta la conferma B. I task più ampi restano aperti per gli
 incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
+
+## Rilascio B pubblicato, 27 ottobre
+
+Migrazione eseguita prima delle rules, codice online e due callable obsolete rimosse. Home pending verificata; code e camp live attendono autenticazione personale. Nessuna richiesta reale modificata.
+
+Esiti, approvazione e limiti in [STORAGE_FASE_B](../docs/STORAGE_FASE_B.md).

@@ -1,7 +1,7 @@
 ---
 id: gugd-storage-eu
 title: "Storage in UE: fasi A-E della migrazione"
-status: needs-paolo
+status: blocked
 impact: 2
 urgency: 2
 effort: M
@@ -10,15 +10,15 @@ surface: [storage, rules, functions, web]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-26
-touched: 2026-10-26
+touched: 2026-10-27
 due:
-blocked_by: ["decisione: conferma fresca per il rilascio coordinato B"]
+blocked_by: ["autenticazione Google del dirigente per collaudo live"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Fase A live completata; passaggio B integrato su main 41a215c e collaudato, app ancora sul vecchio bucket"
-next: "Conferma fresca per piano docs/STORAGE_FASE_B.md, poi deploy coordinato e migrazioni; C/D/E restano separate"
-verified: "A live: 1196 copie identiche e token 206/senza 403; default invariato. B: build, 1524 client, 44 puri, 31 diretti, 1975 rules, 115 query, 57 HTTP consensi, 26 camp, browser 8 Home + 6 upload + 5 contesto. Review PASS e prova GCS reale token/CAS PASS. Sync finale readonly: 1196 invariati, zero azioni. Nessun deploy B"
+stopped_at: "B pubblicato da main d7c5ad6: migrazione 180, rules duali, 33 Functions, hosting v33 e VERIFY_OK; QA media live attende accesso dirigente"
+next: "Completare passkey e smoke media con cleanup sintetico, poi pianificare C; D/E separate"
+verified: "B live: 1196/1196 identici, oldRefs zero, 297 documenti/875 campi riscritti, 5 download 206; QA media live non ancora eseguita"
 links: [docs/STORAGE_FASE_A.md]
 done_at:
 ---
@@ -130,3 +130,9 @@ review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
 Solo la preparazione fase A Storage è stata eseguita in produzione; questo
 incremento aspetta la conferma B. I task più ampi restano aperti per gli
 incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
+
+## Rilascio B pubblicato, 27 ottobre
+
+B pubblicato e verifica Storage conclusa con VERIFY_OK. Copie USA conservate; C/D/E e orfani restano separati. Il collaudo media live attende la passkey Google del dirigente.
+
+Esiti, approvazione e limiti in [STORAGE_FASE_B](../docs/STORAGE_FASE_B.md).

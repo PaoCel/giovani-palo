@@ -1,7 +1,7 @@
 ---
 id: gugd-home-social
 title: "Home del palo più social: post, foto, commenti"
-status: needs-paolo
+status: blocked
 impact: 2
 urgency: 1
 effort: L
@@ -10,15 +10,15 @@ surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-26
-touched: 2026-10-26
+touched: 2026-10-27
 due:
-blocked_by: ["decisione: conferma fresca per il rilascio coordinato B"]
+blocked_by: ["autenticazione Google del dirigente per collaudo live"]
 branch:
 worktree:
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Home e guardie upload finali integrate su main 41a215c, browser reale8/8 e quattro viewport verificati; nessun deploy B"
-next: "Conferma e rilascio coordinato B; poi gestione post admin, contesto Famiglia e moduli successivi"
-verified: "Finale 41a215c, tree 74c544a: build, 1524 client, 1975 rules, 115 query; Home 8/8 con Auth/Firestore e screenshot a 320/390/430/1440 px; 6 guardie upload e 5 cambi contesto. Review PASS. Query prod: 8 post pubblicati tutti con visibilità esplicita, nessun post perso. Solo fase A Storage eseguita in produzione"
+stopped_at: "Primo incremento online con SW v33; asset live identici alla build, Home pending verificata; feed attivo e contesto dirigente da verificare live"
+next: "Concludere QA autenticata, poi editor post admin e contesto Famiglia già previsti"
+verified: "Home reale pending verificata a larghezze CSS 520/1632, nessun overflow; cache ripulite e asset live uguali alla build. Feed attivo non ancora verificato live"
 links: [docs/HOME_SOCIAL.md, docs/HOME_SOCIAL_REVIEW.md, docs/prototypes/home-social/index.html, docs/GALLERIA_ATTIVITA.md]
 done_at:
 ---
@@ -113,3 +113,9 @@ review PASS completati. Piano di rilascio in docs/STORAGE_FASE_B.md.
 Solo la preparazione fase A Storage è stata eseguita in produzione; questo
 incremento aspetta la conferma B. I task più ampi restano aperti per gli
 incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
+
+## Rilascio B pubblicato, 27 ottobre
+
+Primo incremento pubblicato. Verifica reale del partecipante pending riuscita; nessun dato riservato mostrato. Famiglia ed editor post admin restano aperti.
+
+Esiti, approvazione e limiti in [STORAGE_FASE_B](../docs/STORAGE_FASE_B.md).
