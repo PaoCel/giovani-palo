@@ -13,9 +13,12 @@ const ACTIVE_REGISTRATION_STATUSES = new Set([
 ]);
 function isMomentRegistrationActive(registration) {
   return (
-    Boolean(registration) &&
+    registration !== null &&
+    typeof registration === "object" &&
+    !Array.isArray(registration) &&
     registration.status !== "cancelled" &&
-    ACTIVE_REGISTRATION_STATUSES.has(registration.registrationStatus)
+    (registration.registrationStatus == null ||
+      ACTIVE_REGISTRATION_STATUSES.has(registration.registrationStatus))
   );
 }
 function registrationOwnerUid(id, data) {

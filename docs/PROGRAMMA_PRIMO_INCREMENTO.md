@@ -50,8 +50,11 @@ ownerUids (indice esplicito); i path estranei a moments restano esclusi.
 Nessuna collezione globale di iscritti viene scaricata dal client.
 
 Self e figli riusano identificazione e nomi del contesto RecordNight;
-registrazioni ammesse: active, confirmed, pending_parent_authorization,
-escluse draft/cancelled/rejected_by_parent e status legacy cancelled.
+registrazioni ammesse: active, confirmed, pending_parent_authorization.
+Per compatibilità con il mapper esistente, registrationStatus assente o null
+è legacy attivo, purché status non sia cancelled. Valori espliciti sconosciuti,
+submitted, waitlist, draft, cancelled e rejected_by_parent restano esclusi;
+una stringa vuota non è un'assenza. RecordNight conserva la propria semantica.
 Il genitore può agire solo sui figli con parentUid proprio e ID child proprio;
 non basta indovinare un ID. La lettura registered non richiede appartenenza
 al palo a un genitore che gestisce già un'iscrizione autorizzata.

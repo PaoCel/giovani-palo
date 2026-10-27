@@ -16,8 +16,8 @@ blocked_by: []
 branch: codex/gugd-momenti
 worktree: ../../.codex/worktrees/gugd-momenti/giovani-palo
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Programma essenziale implementato nel worktree: backend, rules e UI; build e walkthrough browser demo verdi. Da allineare compatibilità degli stati iscrizione legacy con il coordinamento, poi test e review indipendenti"
-next: "Confermare stati legacy, test indipendenti su factory/rules/cleanup/concorrenza, review server e confronto visivo finale; nessun merge finché il coordinamento non conclude B"
+stopped_at: "Programma essenziale implementato nel worktree; compatibilità legacy allineata al coordinamento. S2 possiede test indipendenti e glossario, reviewer separato assegnato"
+next: "Test indipendenti su factory/rules/cleanup/concorrenza e review server; correggere eventuali rilievi. Nessun merge/push/deploy da questo worktree"
 verified: "Build TypeScript/Vite mini EXIT0; quattro mockup390 e confronto mockup/reale renderizzati e aperti. Browser demo: authoring/pubblicazione, giovane/genitore, scelta esplicita tra figli, rinuncia/posto pieno/ripresa, annullamento bozza e conflitto tra schede PASS; zero errori pagina e overflow320/390/430. Textarea e footer visibili con altezza500 dopo correzione scroll. Suite client1523/1524: resta registrazione catalogo MOMENTI nel test glossario. Test indipendenti e review del nuovo modulo da assegnare; nessun suo deploy"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
@@ -134,5 +134,9 @@ sostituiscono i test permanenti di un altro autore. L'ultimo giro della suite
 client esistente fallisce soltanto con
 `src/copy/momenti.ts: MOMENTI non è in COPY (tests/glossary.test.mjs)`.
 La guardia accenti passa con un indice git locale QA di 604 file presenti;
-gli esempi .env non sono copiati nella QA. Resta da allineare col coordinamento
-la semantica degli stati legacy senza registrationStatus, submitted e waitlist.
+gli esempi .env non sono copiati nella QA. Decisione del coordinamento:
+registrationStatus assente/null è legacy attivo se status non è cancelled;
+la whitelist active/confirmed/pending_parent_authorization resta per gli
+stati espliciti. Submitted, waitlist e valori sconosciuti sono esclusi.
+Test permanenti e glossario appartengono a un autore distinto; nessun
+cambiamento alla semantica storica RecordNight.
