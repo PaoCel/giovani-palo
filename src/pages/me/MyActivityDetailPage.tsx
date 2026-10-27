@@ -10,6 +10,7 @@ import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { ANNULLA } from "@/copy/annulla";
+import { ActivityProgram } from "@/components/activities/ActivityProgram";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { QuestionsSection } from "@/components/QuestionsSection";
 import { ShareButton } from "@/components/ShareButton";
@@ -566,7 +567,8 @@ export function MyActivityDetailPage() {
       ) : null}
 
       {data ? (
-        <ActivityMediaCard className="ag-card--inset" stakeId={stakeId} event={data.event} />
+        <><ActivityProgram stakeId={stakeId} activityId={data.event.id} />
+        <ActivityMediaCard className="ag-card--inset" stakeId={stakeId} event={data.event} /></>
       ) : null}
 
       {data?.event.recordsEnabled ? (

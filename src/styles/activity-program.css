@@ -1,0 +1,236 @@
+.moments-panel {
+  display: grid;
+  gap: 1.1rem;
+  min-width: 0;
+}
+.moments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.moments-header h2 {
+  margin: 0;
+  font:
+    600 clamp(1.6rem, 4vw, 2rem) / 1.2 "Fraunces",
+    serif;
+  color: var(--heading);
+}
+.moments-mark {
+  width: 82px;
+  height: 82px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.moments-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.moments-day {
+  display: grid;
+  gap: 0.8rem;
+}
+.moments-day h3 {
+  margin: 0.7rem 0 0;
+  font:
+    800 13px/1.4 "Manrope",
+    sans-serif;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.moment-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 22px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+  overflow-wrap: anywhere;
+}
+.moment-card--signup {
+  background: #f7f0e7;
+}
+.moment-card h3,
+.moment-card h4 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--heading);
+}
+.moment-card--signup h3,
+.moment-card--signup h4 {
+  font-family: "Fraunces", serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.moment-card p {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.moment-card__title {
+  display: flex;
+  align-items: start;
+  gap: 0.8rem;
+}
+.moment-card__time {
+  color: var(--primary-strong);
+  font-weight: 800;
+  font-size: 15px;
+  min-width: 44px;
+  line-height: 1.7;
+}
+.moment-card__body {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+  flex: 1;
+}
+.moment-card__actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+.moment-card__actions .button {
+  min-height: 44px;
+}
+.moment-card__count {
+  display: grid;
+  gap: 0.35rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--surface-border-strong);
+  font-size: 14px;
+}
+.moment-pill {
+  display: inline-flex;
+  justify-self: start;
+  width: fit-content;
+  border-radius: 24px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0.3rem 0.65rem;
+}
+.moment-pill--draft {
+  background: var(--accent-soft);
+  color: #79531e;
+}
+.moment-pill--joined {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.moments-choice {
+  font-size: 16px;
+  cursor: pointer;
+  width: 100%;
+  min-height: 76px;
+  padding: 1rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 18px;
+  background: var(--surface-strong);
+  color: var(--text);
+  text-align: left;
+  display: grid;
+  gap: 0.3rem;
+}
+.moments-choice[aria-pressed="true"] {
+  border: 2px solid var(--primary);
+  background: var(--primary-soft);
+  padding: calc(1rem - 1px);
+}
+.moments-choice span {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.moments-editor {
+  display: grid;
+  gap: 1rem;
+  border: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+}
+.moments-editor .field {
+  margin: 0;
+}
+.moments-editor input,
+.moments-editor select,
+.moments-editor textarea,
+.moments-panel select {
+  font-size: 16px;
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+}
+.moments-editor textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.moments-options {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.8rem;
+}
+.moments-editor summary {
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 800;
+  padding: 0.6rem 0;
+}
+.moments-checkbox {
+  min-height: 44px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.moments-checkbox input {
+  min-height: 24px;
+  width: 24px;
+  flex-shrink: 0;
+}
+.moments-person {
+  display: grid;
+  gap: 0.5rem;
+}
+.moments-roster {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+.moments-roster li {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--surface-border);
+  font-size: 16px;
+}
+.moments-notice {
+  padding: 0.9rem 1rem;
+  background: var(--primary-soft);
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+@media (max-width: 350px) {
+  .moment-card {
+    padding: 1rem;
+  }
+  .moments-mark {
+    width: 65px;
+    height: 65px;
+  }
+  .moment-card__actions > .button {
+    flex: 1;
+  }
+}
