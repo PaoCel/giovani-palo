@@ -11,6 +11,7 @@ import { PAROLE } from "./parole.ts";
 const PARLANE_CON_UN_DIRIGENTE = "Se pensi sia un errore, parlane con un dirigente della tua unità.";
 
 export const PALO = {
+  completaProfilo: "Completa il profilo",
   // Banner, richiesta in attesa.
   attesaTitolo: "Stiamo verificando che tu faccia parte del palo",
   attesaCorpoUnita: "Lo conferma un dirigente di {unita} o un admin del palo. Intanto puoi iscriverti alle attività.",

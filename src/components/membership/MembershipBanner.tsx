@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import inviataUrl from "@/assets/flusso-genitore/inviata.webp";
+import ioUrl from "@/assets/flusso-genitore/io.webp";
+import genitoreUrl from "@/assets/flusso-genitore/genitore.webp";
 import { AppModal } from "@/components/AppModal";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { PALO } from "@/copy/palo";
+import { PROFILO } from "@/copy/profilo";
 import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -21,11 +24,12 @@ type Sheet = "who" | "withdraw" | "account" | null;
 /**
  * Banner dell'appartenenza al palo scelto, in cima a /me e alla home famiglia
  * (docs/APPARTENENZA_AL_PALO.md, «Client della fase 3»). Niente per lo staff,
- * i membri attivi e i profili incompleti.
+ * i membri attivi. Per i profili incompleti mostra solo il percorso dati.
  */
 export function MembershipBanner() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const stakeId = session?.profile.stakeId ?? "";
   const { access, member } = useStakeMembership(stakeId);
   useEnsureMembershipRequest();
@@ -41,6 +45,27 @@ export function MembershipBanner() {
     [showsSupport, stakeId],
     null,
   );
+
+  if (session && !session.isAnonymous && !profileComplete &&
+      (session.profile.role === "participant" || session.profile.role === "parent")) {
+    const home = pathname.startsWith("/family") ? "/family" : "/me";
+    return (
+      <section className="mship-banner" aria-label={PALO.completaProfilo}>
+        <div className="mship-banner__in">
+          <img alt="" className="mship-banner__art" src={session.isParent ? genitoreUrl : ioUrl} />
+          <div>
+            <h2 className="mship-banner__title">{PROFILO.titoloDati}</h2>
+            <p className="mship-banner__body">{session.isParent ? PROFILO.leadGenitoreAccedi : PROFILO.leadIo}</p>
+          </div>
+        </div>
+        <div className="mship-banner__actions">
+          <Link className="mship-btn mship-btn--soft" to={`/login?redirect=${encodeURIComponent(home)}`}>
+            {PALO.completaProfilo}
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   if (!banner) return null;
 

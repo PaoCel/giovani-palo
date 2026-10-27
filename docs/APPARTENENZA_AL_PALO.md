@@ -731,6 +731,15 @@ saluto. Palo = quello scelto nel profilo. Nessun banner per staff, membri
 attivi (anche da confermare) e profili incompleti (c'è già "Completa il
 profilo").
 
+Raccordo del 27 ottobre: nelle home Me e Famiglia il profilo incompleto ha
+un invito distinto «I tuoi dati», con «Completa il profilo» verso il percorso
+Accedi già autenticato. Non è un banner di richiesta di appartenenza e non
+avvia nuove scritture. Accedi offre «Vai alla tua pagina» per tornare senza
+un nuovo invio; solo «Salva e continua» salva i dati. Una scrittura già
+iniziata non viene annullata navigando via. Staff e profili completi restano
+fuori da questo invito. Serve a rendere vera la premessa del paragrafo sopra:
+la home precedente non mostrava nessun ingresso al completamento.
+
 | Stato | Banner | Azioni → dove si va | Come si torna indietro |
 | --- | --- | --- | --- |
 | nessun documento, profilo completo | come `pending` | il client chiama `request` una volta (il trigger di solito l'ha già fatto) | |

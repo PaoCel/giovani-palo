@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { AuthAccessPanel } from "@/components/AuthAccessPanel";
 import { ACCEDI } from "@/copy/accedi";
@@ -9,6 +9,8 @@ import {
   organizationService,
 } from "@/services/firestore/organizationService";
 import { getStoredPublicStakeId } from "@/utils/stakeSelection";
+import { needsProfileCompletion } from "@/utils/profileCompletion";
+import { canManageFamily } from "@/utils/family";
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -17,6 +19,11 @@ export function LoginPage() {
   // un'iscrizione da ospite); senza, la pagina parte da "Accedi".
   const initialMode = searchParams.get("scheda") === "crea" ? "signup" : "login";
   const { session } = useAuth();
+  const canReturnToHome = session && !session.isAnonymous &&
+    (session.profile.role === "participant" || session.profile.role === "parent") &&
+    needsProfileCompletion(session.profile);
+  const returnHome = session && canManageFamily(session) &&
+    (session.isParent || redirect === "/family") ? "/family" : "/me";
   // Chi ha già un profilo resta nel suo palo: il completamento profilo scrive
   // `stakeId` dell'organizzazione mostrata, e per un admin/dirigente le rules
   // rifiutano ogni cambio di palo (con più pali restava bloccato; un
@@ -32,6 +39,11 @@ export function LoginPage() {
   );
   return (
     <div className="page page--auth">
+      {canReturnToHome ? (
+        <Link className="button button--ghost" to={returnHome}>
+          {ACCEDI.vaiAllaTuaPagina}
+        </Link>
+      ) : null}
       {error ? (
         <div className="notice notice--warning">
           <div>

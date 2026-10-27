@@ -286,3 +286,13 @@ incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
 Migrazione eseguita prima delle rules, codice online e due callable obsolete rimosse. Home pending verificata; code e camp live attendono autenticazione personale. Nessuna richiesta reale modificata.
 
 Esiti, approvazione e limiti in [STORAGE_FASE_B](../docs/STORAGE_FASE_B.md).
+
+### Raccordo profilo incompleto, 27 ottobre
+
+Invito distinto al completamento nelle home Me e Famiglia, con ritorno
+esplicito da Accedi alla superficie di provenienza. Nessuna richiesta di
+appartenenza o submit aggiuntivo, permessi invariati. Chiude la premessa
+mancante della spec; secondo parere e review statica indipendenti PASS.
+Build sul mini e 65 test profilo/copy esistenti PASS sullo snapshot aggiornato.
+Verifica browser indipendente e pubblicazione nel prossimo bundle restano
+da completare; il codice live B non contiene ancora questo raccordo.
