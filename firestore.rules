@@ -1757,32 +1757,20 @@ service cloud.firestore {
         match /management/{managementId} {
           // Il piano camere `rooms` contiene solo ID delle iscrizioni: lettura
           // admin del palo, scrittura esclusivamente tramite callable Admin SDK.
-          // I permessi di scrittura client qui sotto restano limitati a `camp`.
+          // `camp` (comitati e gruppi, ogni tipo di attività) lo legge anche il
+          // dirigente di unità del palo; lo staff in elenco solo nel campeggio.
           allow get, list: if isStakeAdmin(stakeId)
+            || (managementId == 'camp' && isUnitLeaderOfStake(stakeId))
             || (managementId == 'camp' && isCampStaffOfActivity(stakeId, activityId))
             || (
               managementId == 'camp'
               && isNonAnonymousSignedIn()
               && hasOwnRegistration(stakeId, activityId)
             );
-          allow create, update: if isCampStaffOfActivity(stakeId, activityId)
-            && managementId == 'camp'
-            && request.resource.data.keys().hasOnly([
-              'committees',
-              'groupLabel',
-              'patrols',
-              'manualLeaders',
-              'updatedAt',
-              'savedAt'
-            ])
-            && (!('groupLabel' in request.resource.data)
-              || request.resource.data.groupLabel in ['pattuglia', 'gruppo', 'compagnia', 'team', 'squadra'])
-            && request.resource.data.committees is list
-            && request.resource.data.patrols is list
-            && request.resource.data.manualLeaders is list
-            && request.resource.data.updatedAt is string;
-          allow delete: if isCampStaffOfActivity(stakeId, activityId)
-            && managementId == 'camp';
+          // Nessuna scrittura client: dal 9 luglio 2026 (95635d9) il piano si
+          // salva solo con la callable campManagementSave; la scrittura diretta
+          // aggirava validazione, revisione e formato del piano.
+          allow create, update, delete: if false;
         }
 
         match /formFields/{fieldId} {
