@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: in-progress
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: L
@@ -16,8 +16,8 @@ blocked_by: []
 branch:
 worktree:
 session: a6d2a4ff-61bc-4d85-9056-0973a3afe2dc
-stopped_at: "Programma info/turni integrato su main il 31 ottobre, non deployato; review DeepSeek e 7 test indipendenti verdi"
-next: "Rilascio coordinato con conferma fresca: rules e indice entries.ownerUids, 5 Functions per nome, hosting con service worker successivo al live; poi comitati arbitrari, alloggi e delega"
+stopped_at: "Rilascio preparato: clone pulito d96a0f4 sul mini (~/qa/gugd-rilascio-momenti-20261031/app), 1524 test, build v34 index-DkO87-0I.js, dry-run rules/indici, 5 Functions e hosting verdi"
+next: "Su conferma fresca di Paolo: deploy nell'ordine di docs/PROGRAMMA_PRIMO_INCREMENTO.md (rules+indici, 5 Functions con --force, hosting), poi verifica live"
 verified: "Mini 31 ottobre, copia QA del branch 25e179b: client 1524/1524 (accenti in locale), build, puri 91/91, emulatore 58/58 più 7/7 nuovi di DeepSeek (mutazione sulla pulizia delle ricevute presa), browser 11/11 a 320/390/430. Review DeepSeek: nessun P1, P2 non accettato, P3 corretto. Non provati: produzione, Safari iOS, tastiera vera"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
