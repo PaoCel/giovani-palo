@@ -82,10 +82,20 @@ const CASES = [
   ["dirigente di unità non scrive il piano con il payload del campo", "unitLeader", false, (db) => setDoc(rooms(db), campPayload)],
   ["adulto staff non scrive il piano con il payload del campo", "adultStaff", false, (db) => setDoc(rooms(db), campPayload)],
   ["dirigente di unità non cancella il piano", "unitLeader", false, (db) => deleteDoc(rooms(db))],
-  // management/camp keeps its existing permissions.
+  // management/camp: letture invariate; dal quarto incremento (comitati e gruppi
+  // liberi) nessuna scrittura dal client, il piano si salva solo con la callable.
   ["dirigente di unità legge il documento campo", "unitLeader", true, (db) => getDocFromServer(camp(db))],
   ["giovane iscritto legge il documento campo", "youth", true, (db) => getDocFromServer(camp(db))],
-  ["adulto staff salva il documento campo", "adultStaff", true, (db) => setDoc(camp(db), campPayload)],
+  ["adulto staff in elenco legge il documento campo", "adultStaff", true, (db) => getDocFromServer(camp(db))],
+  ["admin del palo legge il documento campo", "admin", true, (db) => getDocFromServer(camp(db))],
+  ["admin di altro palo non legge il documento campo", "otherAdmin", false, (db) => getDocFromServer(camp(db))],
+  ["utente non autenticato non legge il documento campo", "signedOut", false, (db) => getDocFromServer(camp(db))],
+  ["adulto staff non salva il documento campo dal client", "adultStaff", false, (db) => setDoc(camp(db), campPayload)],
+  ["adulto staff non aggiorna il documento campo dal client", "adultStaff", false, (db) => updateDoc(camp(db), { updatedAt: "2026-10-31T00:00:00.000Z" })],
+  ["adulto staff non cancella il documento campo dal client", "adultStaff", false, (db) => deleteDoc(camp(db))],
+  ["admin del palo non salva il documento campo dal client", "admin", false, (db) => setDoc(camp(db), campPayload)],
+  ["dirigente di unità non salva il documento campo dal client", "unitLeader", false, (db) => setDoc(camp(db), campPayload)],
+  ["giovane iscritto non salva il documento campo dal client", "youth", false, (db) => setDoc(camp(db), campPayload)],
   // Stake floor plans: roomLayoutService.list and roomLayoutService.save
   ["admin del palo elenca le piante", "admin", true, (db) => getDocsFromServer(layouts(db))],
   ["super_admin di altro palo legge la pianta", "superAdmin", true, (db) => getDocFromServer(layout(db))],

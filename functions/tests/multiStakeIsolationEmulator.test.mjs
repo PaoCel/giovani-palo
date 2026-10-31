@@ -507,7 +507,15 @@ async function seedStake(key) {
     adminDb.doc(`parentAuthorizationTokens/${pendingToken}`).set(
       tokenDoc({ id: pendingToken, stakeId, activityId: "pub", registrationId: childPending }),
     ),
-    adminDb.doc(`${base}/camp/management/camp`).set({ committees: [], patrols: [], manualLeaders: [], updatedAt: "seed" }),
+    // Quarto incremento: il payload senza planFormat è accettato solo su un campeggio il
+    // cui piano ha esattamente i cinque comitati storici (come ogni piano creato dal server).
+    adminDb.doc(`${base}/camp/management/camp`).set({
+      committees: ["logistics", "wellbeing", "kitchen", "games", "spiritual"].map((id) => ({
+        id, title: id, emoji: "", responsibilities: "", leaderRegistrationIds: [], manualLeaderIds: [],
+        memberRegistrationIds: [], publicMembers: [], updatedAt: "seed",
+      })),
+      patrols: [], manualLeaders: [], updatedAt: "seed",
+    }),
     adminDb.doc(`${base}/pub/registrations/${partReg}/questions/q1`).set({
       eventId: "pub", stakeId, registrationId: partReg, authorUserId: participant.uid,
       authorAnonymousUid: null, authorName: participant.fullName, text: "Domanda di prova",
@@ -681,9 +689,6 @@ const RULE_CASES = [
     await updateDoc(activity, { title: "Temporanea 2" });
     await deleteDoc(activity);
     await updateDoc(doc(db, `stakes/${c.A.id}`), { updatedAt: iso() });
-    await setDoc(doc(db, `stakes/${c.A.id}/activities/camp/management/camp`), {
-      committees: [], patrols: [], manualLeaders: [], updatedAt: "controllo-rules",
-    });
     await setDoc(doc(db, `stakes/${c.A.id}/roomLayouts/foresteria`), {
       version: 1, name: "Foresteria", updatedAt: serverTimestamp(),
       floors: [{ id: "piano-terra", name: "Piano terra", width: 900, height: 600, outline: null, rooms: [], spaces: [], markers: [] }],
@@ -697,9 +702,6 @@ const RULE_CASES = [
     await listAll(db, `stakes/${c.B.id}/registrationAttempts`);
     await listAll(db, `stakes/${c.B.id}/activities/pub/consentAuditLogs`);
     await getOne(db, `stakes/${c.B.id}/activities/camp/management/camp`);
-    await setDoc(doc(db, `stakes/${c.B.id}/activities/camp/management/camp`), {
-      committees: [], patrols: [], manualLeaders: [], updatedAt: "controllo-rules",
-    });
     await listAll(db, `stakes/${c.B.id}/adminPushDevices`);
     await listAll(db, `stakes/${c.B.id}/activities/pub/transportNotes`);
     await getOne(db, `stakes/${c.B.id}/activities/priv/config/form`);
@@ -769,6 +771,24 @@ const RULE_CASES = [
   ["admin A non legge il piano campo di B", "adminA", false, (db, c) => getOne(db, `stakes/${c.B.id}/activities/camp/management/camp`)],
   ["admin A non scrive il piano campo di B", "adminA", false, (db, c) =>
     setDoc(doc(db, `stakes/${c.B.id}/activities/camp/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: iso() })],
+  // Quarto incremento: il piano non si scrive dal client nemmeno nel proprio palo (solo callable)
+  ["admin A non scrive il piano campo del proprio palo (solo callable)", "adminA", false, (db, c) =>
+    setDoc(doc(db, `stakes/${c.A.id}/activities/camp/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: "controllo-rules" })],
+  ["admin B non scrive il piano campo del proprio palo (solo callable)", "adminB", false, (db, c) =>
+    setDoc(doc(db, `stakes/${c.B.id}/activities/camp/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: "controllo-rules" })],
+  ["dirigente B non scrive il piano campo del proprio palo (solo callable)", "leaderB", false, (db, c) =>
+    setDoc(doc(db, `stakes/${c.B.id}/activities/camp/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: "controllo-rules" })],
+  ["admin B non scrive il piano del viaggio del proprio palo (solo callable)", "adminB", false, (db, c) =>
+    setDoc(doc(db, `stakes/${c.B.id}/activities/pub/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: "controllo-rules" })],
+  // Piano comitati e gruppi su ogni tipo di attività: lo legge il dirigente di unità del proprio palo
+  ["dirigente B legge il piano del viaggio del proprio palo (controllo positivo)", "leaderB", true, (db, c) =>
+    getOne(db, `stakes/${c.B.id}/activities/pub/management/camp`)],
+  ["dirigente A non legge il piano del viaggio di B", "leaderA", false, (db, c) =>
+    getOne(db, `stakes/${c.B.id}/activities/pub/management/camp`)],
+  ["admin A non legge il piano del viaggio di B", "adminA", false, (db, c) =>
+    getOne(db, `stakes/${c.B.id}/activities/pub/management/camp`)],
+  ["partecipante A non legge il piano del viaggio di B", "participantA", false, (db, c) =>
+    getOne(db, `stakes/${c.B.id}/activities/pub/management/camp`)],
   ["admin A non legge le domande di B (collectionGroup stakeId + eventId)", "adminA", false, (db, c) =>
     getDocsFromServer(query(collectionGroup(db, "questions"), where("stakeId", "==", c.B.id), where("eventId", "==", "pub")))],
   ["admin A non legge le domande di una iscrizione di B", "adminA", false, (db, c) =>
@@ -1258,6 +1278,32 @@ describe("CALLABLE: isolamento fra pali", () => {
     const savedByLeader = await actors.leaderB.call("campManagementSave", request(B.id, "camp"));
     assert.equal(savedByLeader.data.ok, true, "il dirigente di B salva nel proprio palo");
     assert.deepEqual(await campPlan(A.id), planABefore, "il palo A non è stato scritto dai salvataggi di B");
+  });
+
+  test("campManagementSave (formato 2) ed elenco nomi su un viaggio: nessun accesso fuori dal proprio palo", { timeout: 120_000 }, async () => {
+    const { A, B, actors } = x;
+    const body = { planFormat: 2, expectedUpdatedAt: null, plan: { committees: [], patrols: [], manualLeaders: [] } };
+    const roster = (stakeId) => ({ stakeId, activityId: "pub", action: "roster" });
+    const hasPlan = async (stakeId) => (await adminDb.doc(`stakes/${stakeId}/activities/pub/management/camp`).get()).exists;
+    for (const [name, label] of [["adminA", "admin A"], ["leaderA", "dirigente A"], ["participantA", "partecipante A"]]) {
+      await expectCallableCode(actors[name].call("campManagementSave", { stakeId: B.id, activityId: "pub", ...body }), "permission-denied", `${label} salva su B/pub`);
+      await expectCallableCode(actors[name].call("campManagementStaff", roster(B.id)), "permission-denied", `${label}: elenco nomi di B/pub`);
+    }
+    await expectCallableCode(actors.participantB.call("campManagementSave", { stakeId: B.id, activityId: "pub", ...body }), "permission-denied", "partecipante B salva");
+    await expectCallableCode(actors.participantB.call("campManagementStaff", roster(B.id)), "permission-denied", "partecipante B: elenco nomi");
+    await expectCallableCode(actors.signedOut.call("campManagementStaff", roster(B.id)), "unauthenticated", "senza login: elenco nomi");
+    assert.equal(await hasPlan(B.id), false, "i rifiuti non scrivono il piano di B");
+
+    const allowedKeys = ["firstName", "fullName", "genderRoleCategory", "id", "lastName", "registrationStatus", "status", "unitName"];
+    for (const name of ["adminB", "leaderB"]) {
+      const names = await actors[name].call("campManagementStaff", roster(B.id));
+      assert.ok(names.data.registrations.length > 0, `${name}: elenco nomi del proprio palo (controllo positivo)`);
+      for (const entry of names.data.registrations) assert.deepEqual(Object.keys(entry).sort(), allowedKeys, `${name}: ${entry.id}`);
+    }
+    const saved = await actors.leaderB.call("campManagementSave", { stakeId: B.id, activityId: "pub", ...body });
+    assert.equal(saved.data.ok, true, "il dirigente di B salva il piano del viaggio del proprio palo");
+    assert.equal(await hasPlan(B.id), true);
+    assert.equal(await hasPlan(A.id), false, "il palo A non è stato scritto");
   });
 
   test("roomMateSuggestions: il partecipante di A non interroga il palo B", { timeout: 120_000 }, async () => {

@@ -207,23 +207,29 @@ const patrolAssignment = {
 };
 const victimRegistration = (db) => doc(db, `${campPath}/registrations/user_${uid("victim")}`);
 
-test("dirigente di unità (ruolo assegnato dall'admin) resta staff del campeggio", async () => {
+// Dal quarto incremento (comitati e gruppi liberi) il piano management/camp non si
+// scrive più dal client, nemmeno da chi gestisce il campeggio: lo salva la callable
+// campManagementSave. Restano le letture e l'update dei soli campi di assegnazione.
+test("dirigente di unità (ruolo assegnato dall'admin) resta staff del campeggio: legge, non scrive il piano", async () => {
   await getDocs(collection(clients.leader.firestore, `${campPath}/registrations`));
   await getDoc(doc(clients.leader.firestore, `${campPath}/management/camp`));
-  await setDoc(doc(clients.leader.firestore, `${campPath}/management/camp`), campPlan);
+  await attemptDenied(setDoc(doc(clients.leader.firestore, `${campPath}/management/camp`), campPlan));
 });
 
-test("admin del palo gestisce il campeggio e legge l'elenco staff", async () => {
+test("admin del palo gestisce il campeggio e legge l'elenco staff, ma non scrive il piano dal client", async () => {
   await getDocs(collection(clients.admin.firestore, `${campPath}/registrations`));
-  await setDoc(doc(clients.admin.firestore, `${campPath}/management/camp`), campPlan);
+  await getDoc(doc(clients.admin.firestore, `${campPath}/management/camp`));
+  await attemptDenied(setDoc(doc(clients.admin.firestore, `${campPath}/management/camp`), campPlan));
   await getDoc(doc(clients.admin.firestore, `${campPath}/management/campStaff`));
 });
 
-test("uid in elenco con iscrizione attiva è staff: legge, scrive il piano, assegna pattuglie", async () => {
+test("uid in elenco con iscrizione attiva è staff: legge, assegna pattuglie, non scrive il piano dal client", async () => {
   const db = clients.listed.firestore;
   await getDocs(collection(db, `${campPath}/registrations`));
   await getDoc(victimRegistration(db));
-  await setDoc(doc(db, `${campPath}/management/camp`), campPlan);
+  await getDoc(doc(db, `${campPath}/management/camp`));
+  await attemptDenied(setDoc(doc(db, `${campPath}/management/camp`), campPlan));
+  await attemptDenied(deleteDoc(doc(db, `${campPath}/management/camp`)));
   await updateDoc(victimRegistration(db), patrolAssignment);
 });
 

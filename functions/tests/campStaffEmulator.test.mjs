@@ -364,10 +364,25 @@ test("campManagementStaff e campManagementSave: solo staff reale, mai la categor
     const savedByLeader = await leader.save();
     assert.equal(savedByLeader.ok, true);
     assert.equal((await adminDb.doc(`${campPath}/management/camp`).get()).exists, true);
-    // L'elenco vale per un solo campeggio: B non è staff dell'altra attività, e su una non camp
-    // nemmeno l'admin può salvare i comitati.
+    // L'elenco vale per un solo campeggio: B non è staff dell'altra attività e su una non camp
+    // lo staff in elenco non salva. Dal quarto incremento (comitati e gruppi liberi) admin e
+    // dirigenti di unità salvano il piano su ogni tipo, ma solo col formato 2: il payload
+    // del client precedente (questo `save()` di default) riceve failed-precondition col
+    // messaggio della spec, non un rifiuto "perché non è un campeggio".
     await expectCode(b.save({ activityId: tripId }), "permission-denied");
-    await expectCode(admin.save({ activityId: tripId }), "failed-precondition");
+    await expectCode(b.save({ activityId: tripId, planFormat: 2, expectedUpdatedAt: null }), "permission-denied");
+    await assert.rejects(admin.save({ activityId: tripId }), (error) => {
+      assert.equal(error?.code, "functions/failed-precondition");
+      assert.equal(error?.message, "Questa versione dell'app non può modificare il piano. Ricarica la pagina per aggiornarla.");
+      return true;
+    });
+    assert.equal((await adminDb.doc(`${tripPath}/management/camp`).get()).exists, false, "il rifiuto non scrive nulla");
+    const tripSaved = await admin.save({ activityId: tripId, planFormat: 2, expectedUpdatedAt: null, plan: { committees: [], patrols: [], manualLeaders: [] } });
+    assert.equal(tripSaved.ok, true, "l'admin salva il piano di un viaggio col formato 2");
+    assert.equal((await adminDb.doc(`${tripPath}/management/camp`).get()).exists, true);
+    const tripSavedByLeader = await leader.save({ activityId: tripId, planFormat: 2, expectedUpdatedAt: tripSaved.plan.updatedAt, plan: { committees: [], patrols: [], manualLeaders: [] } });
+    assert.equal(tripSavedByLeader.ok, true, "il dirigente di unità salva il piano di un viaggio col formato 2");
+    await expectCode(a.save({ activityId: tripId, planFormat: 2, expectedUpdatedAt: null }), "permission-denied");
 
     // --- iscrizione annullata: l'accesso cade anche con uid ancora in lista ---
     await adminDb.doc(`${campPath}/registrations/user_${b.uid}`).update({ registrationStatus: "cancelled" });

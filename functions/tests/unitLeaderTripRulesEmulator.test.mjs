@@ -6,11 +6,14 @@ import { deleteApp, initializeApp } from "firebase/app";
 import {
   collection,
   connectFirestoreEmulator,
+  deleteDoc,
   doc,
   getDocFromServer,
   getDocsFromServer,
   getFirestore,
   query,
+  setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -21,7 +24,11 @@ const { getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
 // Regressione 2026-09-15: il dirigente di unità apriva un viaggio (activityType
 // trip, overnight true) e la pagina falliva con permission-denied perché il
 // client leggeva management/camp, concesso al dirigente solo sui campeggi.
-// Queste sono le letture ESATTE di unitLeaderService.getUnitActivityDetail.
+// Dal quarto incremento (comitati e gruppi liberi, 31 ottobre) il piano
+// comitati/gruppi vale per ogni tipo di attività e il dirigente di unità del
+// palo lo legge anche sul viaggio; le iscrizioni restano fuori dal suo
+// perimetro (solo la propria unità, con filtro). Il piano non si scrive dal
+// client. Queste sono le letture ESATTE di unitLeaderService.getUnitActivityDetail.
 const PROJECT = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
 const FIRESTORE_HOST = process.env.FIRESTORE_EMULATOR_HOST || "";
 assert.match(PROJECT, /^demo-/u, "Usare esclusivamente un progetto demo-*");
@@ -48,7 +55,13 @@ const CASES = [
   ["dirigente legge l'attività viaggio", "leader", true, (db) => getDocFromServer(doc(db, tripPath))],
   ["dirigente elenca gli iscritti della propria unità al viaggio", "leader", true, (db) => getDocsFromServer(ownUnit(db, tripPath))],
   ["dirigente elenca i giovani della propria unità", "leader", true, (db) => getDocsFromServer(unitYouth(db))],
-  ["dirigente NON legge management/camp del viaggio (causa del bug)", "leader", false, (db) => getDocFromServer(doc(db, `${tripPath}/management/camp`))],
+  // Piano comitati e gruppi (quarto incremento): ogni tipo di attività, sola lettura
+  ["dirigente legge management/camp del viaggio (quarto incremento)", "leader", true, (db) => getDocFromServer(doc(db, `${tripPath}/management/camp`))],
+  ["dirigente non scrive management/camp del viaggio dal client", "leader", false, (db) => setDoc(doc(db, `${tripPath}/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: "x" })],
+  ["dirigente non aggiorna management/camp del viaggio dal client", "leader", false, (db) => updateDoc(doc(db, `${tripPath}/management/camp`), { updatedAt: "x" })],
+  ["dirigente non cancella management/camp del viaggio dal client", "leader", false, (db) => deleteDoc(doc(db, `${tripPath}/management/camp`))],
+  ["dirigente di altro palo non legge management/camp del viaggio", "otherLeader", false, (db) => getDocFromServer(doc(db, `${tripPath}/management/camp`))],
+  ["utente del palo senza iscrizione al viaggio non legge management/camp", "outsider", false, (db) => getDocFromServer(doc(db, `${tripPath}/management/camp`))],
   // Confine per unità
   ["dirigente non elenca gli iscritti di un'altra unità", "leader", false, (db) => getDocsFromServer(otherUnit(db, tripPath))],
   ["dirigente non elenca tutti gli iscritti senza filtro unità", "leader", false, (db) => getDocsFromServer(registrations(db, tripPath))],
@@ -56,6 +69,7 @@ const CASES = [
   // Sul campeggio il piano campo resta leggibile
   ["dirigente elenca gli iscritti della propria unità al campeggio", "leader", true, (db) => getDocsFromServer(ownUnit(db, campPath))],
   ["dirigente legge management/camp del campeggio", "leader", true, (db) => getDocFromServer(doc(db, `${campPath}/management/camp`))],
+  ["dirigente non scrive management/camp del campeggio dal client", "leader", false, (db) => setDoc(doc(db, `${campPath}/management/camp`), { committees: [], patrols: [], manualLeaders: [], updatedAt: "x" })],
 ];
 
 before(async () => {
@@ -79,6 +93,7 @@ before(async () => {
     adminDb.doc(`users/${uid("leader")}`).set({ role: "unit_leader", stakeId, unitId: "unit-1" }),
     adminDb.doc(`users/${uid("other-leader")}`).set({ role: "unit_leader", stakeId: "other-stake", unitId: "unit-1" }),
     adminDb.doc(`users/${uid("youth")}`).set({ role: "participant", stakeId, unitId: "unit-1", genderRoleCategory: "giovane_uomo" }),
+    adminDb.doc(`users/${uid("outsider")}`).set({ role: "participant", stakeId, unitId: "unit-1", genderRoleCategory: "giovane_uomo" }),
     adminDb.doc(tripPath).set(activity("Viaggio al tempio test", "trip")),
     adminDb.doc(campPath).set(activity("Campo test", "camp")),
     adminDb.doc(`${tripPath}/registrations/user_${uid("youth")}`).set(registration("youth", "unit-1")),
@@ -88,7 +103,7 @@ before(async () => {
     adminDb.doc(`${campPath}/management/camp`).set({ committees: [], patrols: [], manualLeaders: [], updatedAt: "" }),
   ]);
 
-  for (const [actor, name] of [["leader", "leader"], ["otherLeader", "other-leader"]]) {
+  for (const [actor, name] of [["leader", "leader"], ["otherLeader", "other-leader"], ["outsider", "outsider"]]) {
     const app = initializeApp({ apiKey: "demo-key", projectId: PROJECT }, `${actor}-${runId}`);
     const firestore = getFirestore(app);
     connectFirestoreEmulator(firestore, emulatorHost, Number(emulatorPort), {
@@ -115,6 +130,6 @@ for (const [description, actor, allowed, operation] of CASES) {
 after(async () => {
   await Promise.all(Object.values(clients).map(({ app }) => deleteApp(app)));
   await adminDb.recursiveDelete(adminDb.doc(`stakes/${stakeId}`));
-  await Promise.all(["leader", "other-leader", "youth"].map((name) => adminDb.doc(`users/${uid(name)}`).delete()));
+  await Promise.all(["leader", "other-leader", "youth", "outsider"].map((name) => adminDb.doc(`users/${uid(name)}`).delete()));
   await adminDb.terminate();
 });

@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInAnonymously } from "firebase/auth";
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from "firebase/functions";
-import { getFirestore as getClientFirestore, connectFirestoreEmulator, doc, getDocFromServer, setDoc, updateDoc, terminate } from "firebase/firestore";
+import { getFirestore as getClientFirestore, connectFirestoreEmulator, collection, doc, deleteDoc, getDocFromServer, getDocsFromServer, setDoc, updateDoc, terminate } from "firebase/firestore";
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
 assert.match(projectId, /^demo-[a-z0-9-]+$/u, "Progetto demo-* obbligatorio");
@@ -246,6 +246,10 @@ test("due salvataggi legacy su oltre 500 iscrizioni: nessuna proiezione vecchia 
 
 // Exact management/camp document operations through the authenticated client
 // SDK: Admin seeds only the identities, activity and registrations above.
+// Dal quarto incremento (comitati e gruppi liberi) nessun ruolo scrive il piano
+// dal client: create, update e delete sono negati, il piano passa dalla callable
+// campManagementSave. Le letture restano quelle di prima (dirigente di unità
+// compreso, anche fuori dal campeggio: vedi campCommitteesFreeEmulator).
 const clientPlanRef = (actor, fixture) => doc(actor.firestore, `stakes/${stakeId}/activities/${fixture.id}/management/camp`);
 const directPlan = (groupLabel) => ({ ...plan(), groupLabel, updatedAt: "2026-10-26T12:00:00.000Z" });
 async function rulesDenied(promise) {
@@ -253,40 +257,52 @@ async function rulesDenied(promise) {
 }
 
 for (const groupLabel of ["pattuglia", "gruppo", "compagnia", "team", "squadra"]) {
-  test(`rules SDK: staff può creare e leggere il piano con groupLabel ${groupLabel}`, async () => {
+  test(`rules SDK: l'admin legge il piano con groupLabel ${groupLabel} ma non lo scrive dal client`, async () => {
     const fixture = await activity();
     const ref = clientPlanRef(clients.admin, fixture);
-    await setDoc(ref, directPlan(groupLabel));
+    await rulesDenied(setDoc(ref, directPlan(groupLabel)));
+    assert.equal((await fixture.management.get()).exists, false, "la scrittura diretta non ha creato nulla");
+    await fixture.management.set(directPlan(groupLabel));
     assert.equal((await getDocFromServer(ref)).get("groupLabel"), groupLabel);
+    await rulesDenied(setDoc(ref, directPlan("team")));
+    await rulesDenied(deleteDoc(ref));
+    assert.equal((await fixture.management.get()).get("groupLabel"), groupLabel, "il piano salvato è intatto");
   });
 }
 
-test("rules SDK: documento legacy senza groupLabel resta scrivibile", async () => {
+test("rules SDK: documento legacy senza groupLabel non si scrive dal client; la callable lo salva con il predefinito", async () => {
   const fixture = await activity();
   const { groupLabel: omitted, ...legacy } = directPlan("team");
   const ref = clientPlanRef(clients.admin, fixture);
-  await setDoc(ref, legacy);
+  await rulesDenied(setDoc(ref, legacy));
+  await fixture.management.set(legacy);
   assert.equal(Object.hasOwn((await getDocFromServer(ref)).data(), "groupLabel"), false);
+  await rulesDenied(updateDoc(ref, { updatedAt: "2026-10-26T12:00:01.000Z" }));
+  const saved = await clients.admin.save(fixture.id, { plan: {}, expectedUpdatedAt: "2026-10-26T12:00:00.000Z" });
+  assert.equal(saved.plan.groupLabel, "pattuglia", "senza groupLabel salvato vale il predefinito del campeggio");
 });
 
-test("rules SDK: update legacy conserva il nuovo campo già scritto dal server", async () => {
+test("rules SDK: update diretto negato; il campo scritto dal server resta quello salvato", async () => {
   const fixture = await activity();
   await fixture.management.set(directPlan("compagnia"));
   const ref = clientPlanRef(clients.admin, fixture);
-  await updateDoc(ref, { updatedAt: "2026-10-26T12:00:01.000Z", patrols: [] });
+  await rulesDenied(updateDoc(ref, { updatedAt: "2026-10-26T12:00:01.000Z", patrols: [] }));
   assert.equal((await getDocFromServer(ref)).get("groupLabel"), "compagnia");
+  assert.equal((await getDocFromServer(ref)).get("updatedAt"), "2026-10-26T12:00:00.000Z", "nessun aggiornamento è passato");
 });
 
 for (const [name, groupLabel] of [["enum sconosciuto", "reparto"], ["null", null], ["numero", 1], ["oggetto", { value: "team" }]]) {
-  test(`rules SDK: groupLabel ${name} viene rifiutato senza modifiche`, async () => {
+  test(`groupLabel ${name} viene rifiutato senza modifiche, dal client e dalla callable`, async () => {
     const fixture = await activity();
     await fixture.management.set(directPlan("team"));
     await rulesDenied(updateDoc(clientPlanRef(clients.admin, fixture), { groupLabel }));
+    await denied(clients.admin.save(fixture.id, { plan: { groupLabel }, expectedUpdatedAt: "2026-10-26T12:00:00.000Z" }), "invalid-argument");
     assert.equal((await fixture.management.get()).get("groupLabel"), "team");
+    assert.equal((await fixture.management.get()).get("updatedAt"), "2026-10-26T12:00:00.000Z");
   });
 }
 
-test("rules SDK: campo extra viene rifiutato dall'allowlist anche per staff", async () => {
+test("rules SDK: un campo extra non può essere scritto dal client, nemmeno dall'admin", async () => {
   const fixture = await activity();
   await rulesDenied(setDoc(clientPlanRef(clients.admin, fixture), { ...directPlan("team"), unexpected: true }));
   assert.equal((await fixture.management.get()).exists, false);
@@ -300,6 +316,8 @@ test("rules SDK: il proprio iscritto legge groupLabel e incarico senza ottenere 
   assert.equal(saved.groupLabel, "squadra");
   assert.equal(saved.committees[0].responsibilities, "Prepara le attività");
   await rulesDenied(updateDoc(ref, { groupLabel: "team" }));
+  await rulesDenied(setDoc(ref, directPlan("team")));
+  await rulesDenied(deleteDoc(ref));
 });
 
 test("rules SDK: admin di altro palo non legge né scrive il piano", async () => {
@@ -308,6 +326,7 @@ test("rules SDK: admin di altro palo non legge né scrive il piano", async () =>
   const ref = clientPlanRef(clients.outside, fixture);
   await rulesDenied(getDocFromServer(ref));
   await rulesDenied(updateDoc(ref, { groupLabel: "gruppo" }));
+  await rulesDenied(deleteDoc(ref));
 });
 
 test("rules SDK: identità anonima non scrive il piano", async () => {
@@ -315,21 +334,33 @@ test("rules SDK: identità anonima non scrive il piano", async () => {
   await rulesDenied(setDoc(clientPlanRef(clients.anonymous, fixture), directPlan("team")));
 });
 
-test("rules SDK: dirigente del palo conserva la scrittura del piano", async () => {
+test("rules SDK: dirigente del palo legge il piano ma non lo scrive dal client", async () => {
   const fixture = await activity();
   const ref = clientPlanRef(clients.leader, fixture);
-  await setDoc(ref, directPlan("gruppo"));
+  await rulesDenied(setDoc(ref, directPlan("gruppo")));
+  assert.equal((await fixture.management.get()).exists, false);
+  await fixture.management.set(directPlan("gruppo"));
   assert.equal((await getDocFromServer(ref)).get("groupLabel"), "gruppo");
+  await rulesDenied(updateDoc(ref, { groupLabel: "team" }));
+  await rulesDenied(deleteDoc(ref));
+  assert.equal((await fixture.management.get()).get("groupLabel"), "gruppo");
 });
 
-test("rules SDK: staff esplicito può scrivere fino alla revoca", async () => {
+test("rules SDK: staff esplicito non scrive il piano dal client; legge le iscrizioni fino alla revoca", async () => {
   const fixture = await activity();
   await fixture.ref.collection("registrations").doc(`user_${clients.listed.uid}`).set({ registrationStatus: "confirmed" });
   const staffRef = fixture.ref.collection("management").doc("campStaff");
   await staffRef.set({ staffUids: [clients.listed.uid] });
   const ref = clientPlanRef(clients.listed, fixture);
-  await setDoc(ref, directPlan("team"));
+  const registrations = collection(clients.listed.firestore, `stakes/${stakeId}/activities/${fixture.id}/registrations`);
+  await rulesDenied(setDoc(ref, directPlan("team")));
+  assert.equal((await fixture.management.get()).exists, false);
+  assert.ok((await getDocsFromServer(registrations)).size > 0, "lo staff in elenco legge le iscrizioni del campeggio");
+  await fixture.management.set(directPlan("team"));
+  await rulesDenied(updateDoc(ref, { groupLabel: "squadra" }));
+  await rulesDenied(deleteDoc(ref));
   await staffRef.update({ staffUids: [] });
+  await rulesDenied(getDocsFromServer(registrations));
   await rulesDenied(updateDoc(ref, { groupLabel: "squadra" }));
   assert.equal((await fixture.management.get()).get("groupLabel"), "team");
 });
