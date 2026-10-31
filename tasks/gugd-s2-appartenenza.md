@@ -296,3 +296,7 @@ mancante della spec; secondo parere e review statica indipendenti PASS.
 Build sul mini e 65 test profilo/copy esistenti PASS sullo snapshot aggiornato.
 Verifica browser indipendente e pubblicazione nel prossimo bundle restano
 da completare; il codice live B non contiene ancora questo raccordo.
+
+Raccordo profilo `8facc3d` in produzione dal 31 ottobre con l'hosting del
+programma a momenti (service worker v34, `index-DkO87-0I.js`). La verifica
+browser indipendente del raccordo resta da fare.
