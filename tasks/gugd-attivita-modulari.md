@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: ready
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-10-26
 started_at: 2026-10-26
 touched: 2026-10-31
 due:
-blocked_by: []
-branch:
-worktree:
-session: a6d2a4ff-61bc-4d85-9056-0973a3afe2dc
-stopped_at: "Programma a momenti in produzione dal 2026-10-31 (d96a0f4): rules e indice, 5 Functions, hosting service worker v34 index-DkO87-0I.js"
-next: "Prima prova reale: un admin crea un momento in bozza su un'attività di prova; poi incremento successivo (comitati arbitrari, alloggi, delega)"
-verified: "Deploy 2026-10-31 dal clone pulito d96a0f4 sul mini, conferma di Paolo in chat: ruleset Firestore live uguale al commit, indice entries.ownerUids READY (collection e collection group), 38 Functions ACTIVE con le 5 nuove e retry sui tre trigger, callable UNAUTHENTICATED strutturate, HTML+sw+4 asset identici alla build su gugditalia.it e web.app, home pubblica senza errori. Prima: 1524 client, build, puri 91, emulatore 58+7, browser 11/11, review DeepSeek. Non provati: momento reale creato da un admin, percorso da loggati, Safari iOS"
+blocked_by: ["decisione: conferma del rilascio di comitati e gruppi liberi (rules, due Functions, hosting)"]
+branch: 
+worktree: 
+session: 905a5362-548d-40ee-8faa-06ff91e36473
+stopped_at: "Comitati e gruppi liberi integrati su main il 2026-10-31, non in produzione: comitati creati ed eliminati su ogni tipo di attività, roster per i dirigenti, scrittura SDK del piano chiusa"
+next: "Rilascio con conferma fresca di Paolo: rules, poi functions:campManagementSave e campManagementStaff, poi hosting; poi contratto della delega oppure finitura alloggi"
+verified: "Quarto incremento su emulatori demo-gugd-comitati sul mini: puri 92/92, callable e rules 41/41, browser 56/56 in tre giri a 320/390/430, suite camp/room/unit/multipalo aggiornate e verdi, 15 mutanti presi, build verde, client 1514/1524 (accenti 55/55 sull'Air, 9 skip contratto). Review Codex in tre giri, ultimo PASS WITH CONCERNS senza P1/P2; censimento prod in sola lettura. Non provati: rilascio, Safari iOS, conflitto fra due admin nel browser"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -202,3 +202,21 @@ Pubblicato su conferma di Paolo in chat, dal clone pulito `d96a0f4` sul mini
 
 Con l'hosting è uscito anche il raccordo profilo `8facc3d` (task
 `gugd-s2-appartenenza`). Nessun dato scritto in produzione per le verifiche.
+
+## Quarto incremento: comitati e gruppi liberi, 31 ottobre
+
+Scelte di Paolo in chat: questo incremento prima di delega e alloggi; comitati
+e gruppi su ogni tipo di attività; fuori dal campeggio gestiscono admin e
+dirigenti di unità, con i nomi solo via server; partenza dai cinque storici.
+Contratto, stati e ritorni, verifiche e review in docs/ATTIVITA_MODULARI.md.
+
+Server e rules, client, test, collaudo browser e review scritti da autori
+diversi; tre giri di review Codex, collaudo con quattro difetti trovati e
+corretti. Censimento in sola lettura della produzione: un solo piano salvato
+(campeggio, cinque storici), nessuna iscrizione con il vecchio
+`status: "cancelled"`.
+
+Rilascio non eseguito: serve conferma fresca. Ordine: rules (lettura del piano
+ai dirigenti, scrittura SDK chiusa), poi `campManagementSave` e
+`campManagementStaff`, poi hosting. Un hosting pubblicato prima delle Functions
+manderebbe `planFormat: 2` al server vecchio, che scarterebbe i comitati nuovi.

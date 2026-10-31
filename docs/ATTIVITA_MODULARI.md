@@ -327,3 +327,139 @@ nella copia QA e la guardia copy richiedeva la registrazione dei nuovi testi.
 Entrambi risolti, il secondo dall'autore dei test: il conteggio 1479/1479 sopra
 è il giro completo finale, con le dipendenze delle Functions installate e
 senza i nove salti iniziali dei controlli di contratto backend.
+
+
+## Quarto incremento: comitati e gruppi liberi (31 ottobre)
+
+Scelte di Paolo del 31 ottobre: questo incremento prima di delega e alloggi;
+comitati e gruppi su **ogni tipo di attività**, viaggio al tempio compreso;
+fuori dal campeggio gestiscono admin e dirigenti di unità, che vedono i nomi
+solo tramite il server; ogni attività parte dai cinque comitati storici,
+rinominabili ed eliminabili. Delega, alloggi e altri moduli restano dopo.
+
+### Contratto dati, prima del codice
+
+Percorso invariato `stakes/{s}/activities/{a}/management/camp` per tutti i
+tipi: il nome è storico, non si migra. Nessuna collection, nessun indice nuovo.
+`committees[]` diventa un elenco libero: `id` stabile scelto dal client
+(i cinque storici `logistics`, `wellbeing`, `kitchen`, `games`, `spiritual`
+oppure `c_` più 8–32 caratteri `[a-z0-9]`), titolo obbligatorio 1–80,
+incarico 0–600, massimo 20 comitati, zero ammesso. I comitati nuovi non hanno
+emoji: la UI mostra le iniziali. Cardinalità invariata: una persona sta in un
+solo comitato e in un solo gruppo. Nessun incarico dà permessi.
+
+Formato del salvataggio: il client nuovo invia `planFormat: 2` accanto a
+`plan` ed `expectedUpdatedAt` (obbligatoria, anche `null`). Con il formato 2
+l'elenco dei comitati è completo: un comitato assente è eliminato, le sue
+persone restano senza comitato e la sincronizzazione svuota le proiezioni
+`assignedCommittees` delle loro iscrizioni. Iscrizioni, consensi e firme non
+cambiano. Un payload senza `planFormat` (client precedenti, PWA in cache) resta
+accettato con la semantica di unione di oggi solo su un campeggio il cui piano
+ha esattamente i cinque comitati storici; altrimenti `failed-precondition`
+«Questa versione dell'app non può modificare il piano. Ricarica la pagina per
+aggiornarla.». Così un client vecchio non resuscita un comitato eliminato e
+non sposta in silenzio persone di un comitato che non vede.
+
+Senza documento salvato il piano parte dai cinque comitati storici con incarico
+vuoto; la denominazione dei gruppi parte da Pattuglie nel campeggio e da Gruppi
+negli altri tipi. Gli stessi cinque nomi di gruppo di oggi valgono ovunque.
+
+### Chi vede, chi scrive
+
+| Azione | Admin / super_admin | Dirigente di unità del palo | Staff campeggio in elenco | Iscritto, genitore | Altri |
+| --- | --- | --- | --- | --- | --- |
+| Salvare il piano (callable) | sì, ogni tipo | sì, ogni tipo | solo campeggio | no | no |
+| Leggere `management/camp` (SDK) | sì | sì, ogni tipo | solo campeggio | sì, come oggi | no |
+| Elenco nomi per assegnare (callable `roster`) | sì | sì | solo campeggio | no | no |
+| Leggere tutte le iscrizioni (SDK, dati sanitari) | sì | solo campeggio, come oggi | solo campeggio, come oggi | solo la propria | no |
+| Scrivere `management/camp` dal client (SDK) | no | no | no | no | no |
+
+Rules: la lettura di `management/camp` si estende a `isUnitLeaderOfStake` su
+ogni tipo; create/update/delete client diventano `false`. Il client salva solo
+con la callable dal 9 luglio 2026 (`95635d9`): la scrittura diretta era
+l'ultima via per aggirare validazione, revisione e formato. Registrations e
+proiezioni invariate: le scrive il server, lo staff campeggio conserva il suo
+update dei soli campi di assegnazione.
+
+Callable `campManagementStaff`, azione nuova `roster`: per chi può salvare il
+piano restituisce le iscrizioni attive con soli `id`, `firstName`, `lastName`,
+`fullName`, `genderRoleCategory`, `unitName`, `registrationStatus`, `status`.
+Nessuna data di nascita, risposta, dato sanitario o contatto; tetto 2.000
+iscrizioni. Le azioni `context`, `list` e `set` restano solo campeggio:
+l'elenco staff dà accesso ai dati sanitari ed è un'altra cosa.
+`campManagementSave` accetta ogni tipo e ricontrolla accesso e tipo nella
+transazione: un dirigente revocato durante il salvataggio riceve il rifiuto.
+
+### Stati, superfici e ritorni
+
+| Stato / superficie | Azione | Ritorno e recupero |
+| --- | --- | --- |
+| Elenco comitati | Aggiungi comitato (nome, cosa deve fare) | Annulla senza testo chiude; con testo chiede scarto. Il comitato resta nella bozza fino a Salva modifiche |
+| Limite raggiunto | Aggiungi disattivato con motivo «Massimo 20 comitati» | Elimina un comitato per aggiungerne un altro |
+| Comitato con persone | Elimina comitato: il foglio elenca le persone coinvolte | Annulla non cambia nulla; dopo la conferma le persone sono senza comitato nella bozza; Scarta modifiche ripristina tutto; dopo il salvataggio si ricrea e si riassegna, iscrizioni intatte |
+| Comitato vuoto | Elimina comitato con conferma breve | Scarta modifiche lo ripristina |
+| Dirigente su attività non campeggio | Organizzazione → Gestisci; nomi da `roster` | Caricamento, errore con Riprova, nessun elenco iscrizioni scaricato |
+| Client precedente | Salvataggio rifiutato con invito a ricaricare | Bozza locale intatta finché non ricarica |
+| Iscritto, attività non campeggio | Tab Comitati e gruppo se il piano è stato salvato | Nessuna tab con i soli valori predefiniti |
+| Salvataggio, rete, conflitto, cambio account | Come nel secondo incremento | Invariati |
+
+Finitura: token blu/sabbia, Manrope/Fraunces, niente emoji nelle superfici
+toccate, target 44 px, campi 16 px, nessun overflow a 320/390/430. Titoli
+generici: «Comitati» e «Organizzazione» invece di «campeggio» dove il tipo può
+essere un altro.
+
+### Verifiche richieste e rilascio
+
+Test scritti da un autore diverso: normalizzazione formato 2 e legacy, ID,
+limiti, eliminazione con svuotamento delle proiezioni, accesso per ruolo e tipo,
+`roster` senza campi sensibili, revoca durante il salvataggio, rules con
+letture e scritture identiche al client (scrittura SDK negata a tutti).
+Browser su emulatori: admin su viaggio, dirigente su viaggio via `roster`,
+iscritto in `/me`, campeggio invariato, 320/390/430. Rilascio con conferma
+fresca: rules, poi `campManagementSave` e `campManagementStaff`, poi hosting.
+
+### Verifica del quarto incremento (31 ottobre)
+
+Implementato sul branch `task/gugd-attivita-modulari`, nessun deploy. Server,
+rules e client scritti da autori diversi; test, collaudo browser e tre giri di
+review da altri autori e da un altro modello.
+
+Review di un altro modello, primo giro BLOCKED. Accettati e corretti: dati del
+contesto precedente visibili dopo cambio account/palo/attività (ora ogni
+risultato porta la chiave uid+palo+attività ed è usato solo se coincide, anche
+per gli esiti di annullamento e reinvio); cardinalità violata da un dirigente
+manuale collegato per nome a un'iscrizione già in un altro comitato (il formato
+2 rifiuta con «<nome> è in due comitati: <primo> e <secondo>. Togli una delle
+due assegnazioni e salva di nuovo.», la proiezione tiene comunque un solo
+comitato); target sotto 44 px. Non accettato: la lettura delle iscrizioni della
+propria unità da parte del dirigente su un viaggio è un permesso preesistente,
+invariato e fuori da questo contratto. Secondo giro: iscrizioni legacy con solo
+`status: "cancelled"` ora annullate anche nel mapper client, coerenti con il
+roster e con la Notte dei Record. Terzo giro PASS WITH CONCERNS: resta l'avviso
+di uscita dopo un salvataggio andato oltre il timeout, finché non si verifica.
+
+Censimento in sola lettura della produzione: 348 iscrizioni, nessuna con
+`status: "cancelled"` legacy; un solo `management/camp`, campeggio con i cinque
+comitati storici, quindi i client precedenti continuano a salvarlo.
+
+Il collaudo browser ha trovato e fatto correggere quattro difetti: foglio del
+comitato e del gruppo oltre i 320 px (piede impilato sotto 720 px, colonna del
+modale `minmax(0, 1fr)`), cancello comitati che trattava il viaggio come errore
+di rete, «Esci dal piano» che non ripristinava la bozza, nessun avviso
+`beforeunload`. La modifica a `.app-modal` è stata confrontata con `main` su
+cinque altri modali a 320/390/430: rettangoli identici entro 1 px.
+
+| Verifica (emulatori `demo-gugd-comitati` sul mini) | Esito |
+| --- | --- |
+| `campCommitteesFree.test.mjs` (puri, nuovo) | 92/92 |
+| `campCommitteesFreeEmulator.test.mjs` (callable e rules, nuovo) | 41/41 |
+| `campCommitteesFreeBrowser.test.mjs` (nuovo, 3 giri, font veri e di sistema) | 56/56 |
+| camp configuration, staff, self-declared, room rules, unit leader trip | 26, 14, 15, 45, 15: tutti verdi |
+| `multiStakeIsolationEmulator.test.mjs` | 151 pass, 2 skip voluti (seed demo) |
+| 15 mutanti del codice server e rules | tutti rossi |
+
+I test esistenti aggiornati riflettono il contratto nuovo (scrittura SDK del
+piano negata a tutti, lettura del dirigente sul viaggio), senza asserzioni
+indebolite. Non provati: errore e Riprova della sezione Organizzazione, conflitto
+fra due admin nel browser, browser diversi da Chromium headless, Safari iOS.
+Artefatti locali ignorati in `.claude/qa-comitati-liberi/`.
