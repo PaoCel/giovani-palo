@@ -304,7 +304,11 @@ export function MomentsAdminTab({
       const timedOut = /deadline-exceeded|unavailable|internal|unknown/.test(
         code,
       );
-      if ((actionError as { details?: { reason?: string } }).details?.reason === "moment_deleted") {
+      // A moment deleted by another admin is a conflict: offer the reload, not a retry.
+      if (
+        (actionError as { details?: { reason?: string } }).details?.reason === "moment_deleted" ||
+        code.includes("not-found")
+      ) {
         setConflict(true);
         setError(getAdminActionError(actionError, MOMENTI.erroreAzione));
         retry.current = null;

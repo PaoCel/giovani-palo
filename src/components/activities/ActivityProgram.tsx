@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { useAuth } from "@/hooks/useAuth";
 import { momentsService } from "@/services/firestore/momentsService";
@@ -49,6 +49,7 @@ function ProgramContent({
 }) {
   const [data, setData] = useState<MomentsContext | null>(null);
   const [personId, setPersonId] = useState("");
+  const personLabelId = useId();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ParticipantMoment | null>(null);
@@ -209,8 +210,12 @@ function ProgramContent({
       ) : null}
       {data && data.people.length > 1 ? (
         <label className="field moments-person">
-          <span className="field__label">{MOMENTI.scegliPersona}</span>
+          <span className="field__label" id={personLabelId}>
+            {MOMENTI.scegliPersona}
+          </span>
+          {/* The wrapping label would add the options to the accessible name. */}
           <select
+            aria-labelledby={personLabelId}
             className="input"
             value={personId}
             disabled={busy}
