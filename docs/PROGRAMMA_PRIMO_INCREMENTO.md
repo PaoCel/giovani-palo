@@ -206,3 +206,28 @@ momentsAdmin, momentsParticipant, onMomentRegistrationChanged,
 onMomentsActivityDeleted e onMomentsUserDeleted; infine hosting con service
 worker incrementato dalla versione effettivamente pubblicata. Nessuna
 migrazione delle attività o dei record esistenti è richiesta.
+
+### Preflight del 31 ottobre (sola lettura)
+
+| Superficie | Live | Candidato |
+| --- | --- | --- |
+| Firestore rules | identiche al rilascio B (`d7c5ad6`) | aggiunge solo i `match` negati di `moments`, `entries`, `momentDeletions` |
+| Storage rules | identiche a main | nessun deploy |
+| Indici | nessuno in più del file | un override: `entries.ownerUids` array-contains, anche collection group; usato solo dai momenti |
+| Functions | 33 gen2 in europe-west1 | 38: le 33 invariate più le 5 nuove, nessuna già presente |
+| Hosting | service worker v33, `index-Dn8OJrof.js` su entrambi i domini | v34, comprende anche il raccordo profilo `8facc3d` |
+
+Tre trigger nuovi hanno `retry: true`: la CLI vuole `--force`, sempre con i
+cinque selettori espliciti. Comandi, da un clone pulito del commit di rilascio
+uguale a `origin/main`, nell'ordine:
+
+1. `firebase deploy --project giovani-palo --only firestore:rules,firestore:indexes`,
+   poi ruleset live uguale al file e indice `READY`.
+2. `firebase deploy --project giovani-palo --force --only functions:momentsAdmin,functions:momentsParticipant,functions:onMomentRegistrationChanged,functions:onMomentsActivityDeleted,functions:onMomentsUserDeleted`,
+   poi 38 Functions `ACTIVE` e le due callable che rispondono con un errore
+   strutturato a una chiamata senza autenticazione.
+3. `npm ci && npm run build` nel clone, `firebase deploy --project giovani-palo --only hosting`,
+   poi service worker v34 e bundle identico alla build su gugditalia.it e web.app.
+
+Nessun dato scritto in produzione per la verifica: la prima prova reale è
+un momento in bozza creato da un admin su un'attività di prova.
