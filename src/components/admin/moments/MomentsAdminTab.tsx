@@ -126,7 +126,13 @@ export function MomentsAdminTab({
   const running = useRef(false),
     retry = useRef<MomentAdminRequest | null>(null);
   const formId = useId();
+  const mutationErrorRef = useRef<HTMLDivElement | null>(null);
   const editorOpen = Boolean(editor);
+  useEffect(() => {
+    if (!error || (!editorOpen && !preview)) return;
+    const frame = requestAnimationFrame(() => mutationErrorRef.current?.scrollIntoView({ block: "start" }));
+    return () => cancelAnimationFrame(frame);
+  }, [error, editorOpen, preview?.id]);
   useEffect(() => {
     if (!editorOpen) return;
     const form = document.getElementById(formId);
@@ -298,7 +304,11 @@ export function MomentsAdminTab({
       const timedOut = /deadline-exceeded|unavailable|internal|unknown/.test(
         code,
       );
-      if (code.includes("aborted")) {
+      if ((actionError as { details?: { reason?: string } }).details?.reason === "moment_deleted") {
+        setConflict(true);
+        setError(getAdminActionError(actionError, MOMENTI.erroreAzione));
+        retry.current = null;
+      } else if (code.includes("aborted")) {
         setConflict(true);
         setError(editor ? MOMENTI.conflitto : MOMENTI.conflittoStato);
         retry.current = null;
@@ -579,7 +589,7 @@ export function MomentsAdminTab({
             }}
           >
             {error ? (
-              <div className="notice notice--warning" role="alert">
+              <div className="notice notice--warning" role="alert" ref={mutationErrorRef}>
                 <p>{error}</p>
                 {conflict || uncertain ? (
                   <button
@@ -794,7 +804,7 @@ export function MomentsAdminTab({
           }
         >
           {error ? (
-            <div className="notice notice--warning" role="alert">
+            <div className="notice notice--warning" role="alert" ref={mutationErrorRef}>
               <p>{error}</p>
               {conflict || uncertain ? (
                 <button

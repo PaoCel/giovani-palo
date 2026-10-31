@@ -19,6 +19,11 @@ lo staff RecordNight e quello sanitario non concedono privilegi al programma.
 Pubblico iniziale fisso registered: iscritti e loro genitori, oltre agli admin.
 Pubblico anonimo, membri senza iscrizione, teaser e pubblicazione programmata
 restano successivi. RecordNight resta il modulo esistente, senza doppioni.
+Il testo event.program resta integro come «Programma generale», anche quando
+ci sono momenti: può contenere condizioni e informazioni del PDF firmato non
+replicate nei momenti. Il nuovo blocco partecipante si chiama «Appuntamenti e
+iscrizioni»; l'admin legge che gli appuntamenti affiancano il programma
+generale. Nessuna scomparsa asincrona del testo e nessuna nuova proiezione.
 
 ## Ownership e query, prima del codice
 
@@ -48,6 +53,24 @@ Scritture, capienze, proprietà e revoche sono ricontrollate in transazione.
 Per il cleanup account è necessaria la query collection-group entries per
 ownerUids (indice esplicito); i path estranei a moments restano esclusi.
 Nessuna collezione globale di iscritti viene scaricata dal client.
+
+Fencing della cancellazione: `activities/{a}/momentDeletions/{momentId}`
+conserva solo deletedAt Timestamp server, senza titolo, nome, UID o contenuto.
+La cancellazione di una bozza vuota crea la ricevuta nella stessa transazione
+che elimina il momento. Una create controlla l'assenza della ricevuta nella
+propria transazione: un retry vecchio non può ricreare quell'ID. Ogni save
+controlla la ricevuta anche se un momento è stato ripristinato accidentalmente
+da strumenti esterni, senza riabilitare il riuso dell'ID. Il client deve
+iniziare esplicitamente un momento nuovo, con ID nuovo. Un retry delete sul
+momento assente resta idempotente e non riscrive la ricevuta. Se la ricevuta
+non esiste ancora, delete la crea anche per un ID assente, impedendo che una
+create ancora in volo applichi una richiesta ormai annullata. Tutti gli accessi
+SDK alla ricevuta sono negati; non contiene riferimenti personali e non
+richiede cleanup account. Il cleanup dell'attività elimina anche queste
+ricevute, a lotti con controllo transazionale che l'attività non sia ricreata.
+Nessun TTL: il fencing deve restare valido per tutta la vita dell'attività.
+Le ricevute non entrano nel conteggio massimo di 50 momenti; costo aggiuntivo
+di una lettura per save/delete, una scrittura per prima cancellazione dell'ID.
 
 Self e figli riusano identificazione e nomi del contesto RecordNight;
 registrazioni ammesse: active, confirmed, pending_parent_authorization.
@@ -121,6 +144,9 @@ contatore fornito dal client viene usato come prova di proprietà.
   delete restituisce {deleted:true,moment:null}; è idempotente anche dopo il
   timeout. Draft/delete richiedono assenza di qualunque entry, comprese quelle
   ritirate; delete solo draft/hidden. publish parte da draft, show da hidden.
+  Una save create su ID cancellato risponde failed-precondition con
+  details.reason=moment_deleted; la bozza locale non viene inviata con un ID
+  nuovo automaticamente. Ricarica programma chiude la bozza non più presente.
 - roster usa momentId e restituisce {entries:[{registrationId,displayName,
   status:approved}]}; nessun dato sanitario o nome fuori dal roster attivo.
 - momentsParticipant.context → {serverNow,people,moments}; people include isSelf e
@@ -171,3 +197,12 @@ Le entry hanno revision monotona: un vecchio tentativo di rinuncia ritentato
 dopo un ripristino più recente risponde aborted e non ritira il nuovo posto.
 Anche i cambi di sistema incrementano la revisione soltanto quando cambiano
 lo stato effettivo; le consegne duplicate non la fanno avanzare a vuoto.
+
+## Ordine di rilascio
+
+Dopo test, review, integrazione e conferma fresca: prima firestore.rules e
+l'indice collection-group entries.ownerUids, poi le cinque Functions
+momentsAdmin, momentsParticipant, onMomentRegistrationChanged,
+onMomentsActivityDeleted e onMomentsUserDeleted; infine hosting con service
+worker incrementato dalla versione effettivamente pubblicata. Nessuna
+migrazione delle attività o dei record esistenti è richiesta.

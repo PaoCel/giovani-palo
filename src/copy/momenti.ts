@@ -1,7 +1,8 @@
 import { PAROLE } from "./parole.ts";
 export const MOMENTI = {
   programma: "Programma",
-  ilProgramma: "Il programma",
+  ilProgramma: "Appuntamenti e iscrizioni",
+  programmaGenerale: "Programma generale",
   nuovo: "Aggiungi momento",
   titoloNuovo: "Nuovo momento",
   tipoDomanda: "Che cosa vuoi aggiungere?",
@@ -22,7 +23,7 @@ export const MOMENTI = {
   chiusura: "Chiusura iscrizioni",
   finestraDefault: "Iscrizioni aperte dalla pubblicazione fino all'inizio.",
   introduzione:
-    "Aggiungi i momenti della tua attività. Solo gli admin vedono le bozze; pubblichi quando sono pronti.",
+    "Gli appuntamenti affiancano il programma generale. Solo gli admin vedono le bozze; pubblichi quando sono pronti.",
   vuoto: "Il programma comincia da un momento.",
   nuovoAiuto:
     "Inizia da quello che serve. Potrai aggiungere i dettagli anche dopo.",

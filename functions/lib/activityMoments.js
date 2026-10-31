@@ -226,8 +226,20 @@ function createMomentsAdminHandler({ db, clock = () => new Date() } = {}) {
           })),
         };
       }
-      if (!snap.exists && input.action === "delete")
+      const deletionRef = parent.collection("momentDeletions").doc(input.momentId);
+      const deletion = input.action === "delete" || input.action === "save"
+        ? await tx.get(deletionRef) : null;
+      if (!snap.exists && input.action === "delete") {
+        // Fence an in-flight create too. Repeated deletes keep the receipt intact.
+        if (!deletion.exists) tx.create(deletionRef, { deletedAt: FieldValue.serverTimestamp() });
         return { deleted: true, moment: null };
+      }
+      if (input.action === "save" && deletion.exists)
+        throw new HttpsError(
+          "failed-precondition",
+          "Questo momento è stato eliminato. Ricarica il programma; per aggiungerne un altro, crea un momento nuovo.",
+          { reason: "moment_deleted" },
+        );
       if (!snap.exists && input.action !== "save")
         throw new HttpsError("not-found", "Momento non trovato.");
       const fingerprint = requestFingerprint(input);
@@ -294,6 +306,7 @@ function createMomentsAdminHandler({ db, clock = () => new Date() } = {}) {
               "failed-precondition",
               "Nascondi il momento prima di eliminarlo.",
             );
+          if (!deletion.exists) tx.create(deletionRef, { deletedAt: FieldValue.serverTimestamp() });
           tx.delete(ref);
           return { deleted: true, moment: null };
         }
@@ -780,6 +793,17 @@ async function cleanupDeletedMomentsActivity(db, ids) {
       if ((await tx.get(parent)).exists) return false;
       const current = await tx.get(moment);
       if (current.exists) tx.delete(moment);
+      return true;
+    });
+    if (!removed) return false;
+  }
+  for (;;) {
+    const receipts = await parent.collection("momentDeletions").limit(200).get();
+    if (receipts.empty) break;
+    const removed = await runTransactionWithRetry(db, async (tx) => {
+      if ((await tx.get(parent)).exists) return false;
+      const current = await tx.getAll(...receipts.docs.map((snap) => snap.ref));
+      for (const snap of current) if (snap.exists) tx.delete(snap.ref);
       return true;
     });
     if (!removed) return false;

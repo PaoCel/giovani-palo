@@ -16,8 +16,8 @@ blocked_by: []
 branch: codex/gugd-momenti
 worktree: ../../.codex/worktrees/gugd-momenti/giovani-palo
 session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Programma essenziale implementato nel worktree; compatibilità legacy allineata al coordinamento. S2 possiede test indipendenti e glossario, reviewer separato assegnato"
-next: "Test indipendenti su factory/rules/cleanup/concorrenza e review server; correggere eventuali rilievi. Nessun merge/push/deploy da questo worktree"
+stopped_at: "Test indipendente RED riproduce create ritentata dopo delete che ricrea bozza; fix receipt minimale, cleanup parent e deny SDK implementati, GREEN e review in corso. Compatibilità legacy allineata"
+next: "Confermare GREEN receipt/retrydelete/nuovoID/cleanup/SDKdeny, completare matrice e review indipendenti. Nessun merge/push/deploy da questo worktree"
 verified: "Build TypeScript/Vite mini EXIT0; quattro mockup390 e confronto mockup/reale renderizzati e aperti. Browser demo: authoring/pubblicazione, giovane/genitore, scelta esplicita tra figli, rinuncia/posto pieno/ripresa, annullamento bozza e conflitto tra schede PASS; zero errori pagina e overflow320/390/430. Textarea e footer visibili con altezza500 dopo correzione scroll. Suite client1523/1524: resta registrazione catalogo MOMENTI nel test glossario. Test indipendenti e review del nuovo modulo da assegnare; nessun suo deploy"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
@@ -140,3 +140,14 @@ la whitelist active/confirmed/pending_parent_authorization resta per gli
 stati espliciti. Submitted, waitlist e valori sconosciuti sono esclusi.
 Test permanenti e glossario appartengono a un autore distinto; nessun
 cambiamento alla semantica storica RecordNight.
+
+Review del programma: test indipendente RED reale save→delete→retry della
+create ricreava il documento. Correzione: receipt server-only momentDeletions
+con solo deletedAt, letta in transazione da ogni save e scritta nella stessa
+transazione della cancellazione. ID assenti cancellati esplicitamente sono
+marcati; repeat delete non riscrive la ricevuta. Limite 50 riferito ai momenti,
+nuovo UUID esplicito richiesto per creare dopo una cancellazione. Cleanup
+dell'attività esteso a receipt orfane con guardia sulla ricreazione del parent.
+Nessun nome, titolo o UID nella ricevuta, deny SDK esplicito e nessun TTL.
+UI con errore specifico, salvataggio vecchio bloccato e Ricarica che chiude la
+bozza cancellata, senza cambiare automaticamente ID. GREEN ancora da ricevere.
