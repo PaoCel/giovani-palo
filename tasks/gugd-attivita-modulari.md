@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: needs-paolo
+status: ready
 impact: 2
 urgency: 2
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-10-26
 started_at: 2026-10-26
 touched: 2026-10-31
 due:
-blocked_by: ["decisione: conferma del rilascio di comitati e gruppi liberi (rules, due Functions, hosting)"]
+blocked_by: []
 branch: 
 worktree: 
 session: 905a5362-548d-40ee-8faa-06ff91e36473
-stopped_at: "Comitati e gruppi liberi integrati su main il 2026-10-31, non in produzione: comitati creati ed eliminati su ogni tipo di attività, roster per i dirigenti, scrittura SDK del piano chiusa"
-next: "Rilascio con conferma fresca di Paolo: rules, poi functions:campManagementSave e campManagementStaff, poi hosting; poi contratto della delega oppure finitura alloggi"
-verified: "Quarto incremento su emulatori demo-gugd-comitati sul mini: puri 92/92, callable e rules 41/41, browser 56/56 in tre giri a 320/390/430, suite camp/room/unit/multipalo aggiornate e verdi, 15 mutanti presi, build verde, client 1514/1524 (accenti 55/55 sull'Air, 9 skip contratto). Review Codex in tre giri, ultimo PASS WITH CONCERNS senza P1/P2; censimento prod in sola lettura. Non provati: rilascio, Safari iOS, conflitto fra due admin nel browser"
+stopped_at: "Comitati e gruppi liberi in produzione dal 2026-10-31 (fb5db11): rules, campManagementSave e campManagementStaff, hosting con service worker v35 index-CPKMWvmb.js"
+next: "Prima prova reale: un admin crea un comitato su un viaggio di prova e lo elimina; poi incremento successivo (contratto della delega oppure finitura alloggi)"
+verified: "Rilascio 2026-10-31 dal clone pulito fb5db11 sul mini, conferma di Paolo in chat: ruleset live 0bb59f8a uguale al file, le due callable aggiornate rispondono UNAUTHENTICATED anche alla nuova azione roster, 38 Functions, HTML+sw v35+bundle identici alla build su gugditalia.it e web.app, home pubblica senza errori in console. Prima: puri 92/92, emulatore 41/41, browser 56/56 in tre giri, suite camp/room/unit/multipalo verdi, build e client 1514/1524, review Codex in tre giri. Non provati: comitato reale creato da un admin, Safari iOS"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -220,3 +220,18 @@ Rilascio non eseguito: serve conferma fresca. Ordine: rules (lettura del piano
 ai dirigenti, scrittura SDK chiusa), poi `campManagementSave` e
 `campManagementStaff`, poi hosting. Un hosting pubblicato prima delle Functions
 manderebbe `planFormat: 2` al server vecchio, che scarterebbe i comitati nuovi.
+
+## Rilascio di comitati e gruppi liberi, 31 ottobre
+
+Pubblicato su conferma di Paolo in chat, dal clone pulito `fb5db11` sul mini
+(`~/qa/gugd-rilascio-comitati-20261031/app`). Prima del deploy: ruleset live
+uguale a `main` precedente (`676afc74…`), solo commit di documentazione dopo
+l'ultimo hosting, 38 Functions, service worker v34.
+
+| Passo | Esito |
+| --- | --- |
+| Firestore rules | ruleset `0bb59f8a…` uguale al file |
+| `campManagementSave`, `campManagementStaff` | aggiornate; `roster` senza login risponde UNAUTHENTICATED (la versione vecchia avrebbe detto «Azione non valida.») |
+| Hosting | service worker v35, `index-CPKMWvmb.js`, HTML/sw/bundle identici alla build su entrambi i domini |
+
+Nessun dato scritto in produzione per le verifiche.

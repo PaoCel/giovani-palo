@@ -420,7 +420,7 @@ fresca: rules, poi `campManagementSave` e `campManagementStaff`, poi hosting.
 
 ### Verifica del quarto incremento (31 ottobre)
 
-Implementato sul branch `task/gugd-attivita-modulari`, nessun deploy. Server,
+In produzione dal 31 ottobre (`fb5db11`, service worker v35). Server,
 rules e client scritti da autori diversi; test, collaudo browser e tre giri di
 review da altri autori e da un altro modello.
 
