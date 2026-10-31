@@ -3,10 +3,20 @@ const logger = require("firebase-functions/logger");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
 const { isAdultByAge } = require("./adultAge");
-const { normalizeCampConfiguration, assertCampRevision, nextCampRevision, CampConfigurationError } = require("./campConfiguration");
+const {
+  normalizeCampConfiguration,
+  assertCampRevision,
+  nextCampRevision,
+  readPlanFormat,
+  assertLegacyPlanEditable,
+  isHistoricCommitteeId,
+  isValidCommitteeId,
+  CampConfigurationError,
+} = require("./campConfiguration");
 
 const REGION = "europe-west1";
 
+// Default dei piani nuovi e titolo/emoji di ripiego dei cinque comitati storici.
 const COMMITTEE_DEFINITIONS = [
   { id: "logistics", title: "Logistica e Materiali", emoji: "🧱" },
   { id: "wellbeing", title: "Benessere e Supporto", emoji: "🛋️" },
@@ -116,7 +126,8 @@ function normalizeCommittee(definition, source, claimedRegistrationIds, claimedM
   return {
     id: definition.id,
     title: asString(data.title) || definition.title,
-    emoji: asString(data.emoji) || definition.emoji,
+    // I comitati nuovi (`c_…`) non hanno emoji: la UI mostra le iniziali.
+    emoji: isHistoricCommitteeId(definition.id) ? asString(data.emoji) || definition.emoji : "",
     responsibilities: asString(data.responsibilities),
     leaderRegistrationIds,
     manualLeaderIds,
@@ -178,28 +189,36 @@ function normalizePatrol(
   };
 }
 
+function committeeDefinition(id) {
+  return COMMITTEE_DEFINITIONS.find((definition) => definition.id === id) || { id, title: "", emoji: "" };
+}
+
+// Payload dei client precedenti: solo i cinque comitati storici, nell'ordine di
+// sempre; a parità di ID vince l'ultimo, quelli mancanti tornano ai default.
+function historicCommittees(committees) {
+  const committeeById = new Map();
+  for (const item of Array.isArray(committees) ? committees : []) {
+    if (ownObject(item) && isHistoricCommitteeId(item.id)) committeeById.set(item.id, item);
+  }
+  return COMMITTEE_DEFINITIONS.map((definition) => committeeById.get(definition.id) || { id: definition.id });
+}
+
 function normalizeCampManagement(source) {
   const data =
     source && typeof source === "object" && !Array.isArray(source) ? source : {};
   const timestamp = nowIso();
-  const rawCommittees = Array.isArray(data.committees) ? data.committees : [];
+  // Senza elenco salvato il piano parte dai cinque comitati storici.
+  const rawCommittees = Array.isArray(data.committees)
+    ? data.committees
+    : COMMITTEE_DEFINITIONS.map((definition) => ({ id: definition.id }));
   const rawPatrols = Array.isArray(data.patrols) ? data.patrols : [];
   const rawManualLeaders = Array.isArray(data.manualLeaders) ? data.manualLeaders : [];
-  const committeeById = new Map();
-
-  for (const item of rawCommittees) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const id = item.id;
-    if (
-      id === "logistics" ||
-      id === "wellbeing" ||
-      id === "kitchen" ||
-      id === "games" ||
-      id === "spiritual"
-    ) {
-      committeeById.set(id, item);
-    }
-  }
+  const committeeIds = new Set();
+  const committees = rawCommittees.filter((item) => {
+    if (!ownObject(item) || !isValidCommitteeId(item.id) || committeeIds.has(item.id)) return false;
+    committeeIds.add(item.id);
+    return true;
+  });
 
   const claimedCommitteeRegistrationIds = new Set();
   const claimedManualLeaderIds = new Set();
@@ -208,10 +227,10 @@ function normalizeCampManagement(source) {
 
   return {
     groupLabel: data.groupLabel || "pattuglia",
-    committees: COMMITTEE_DEFINITIONS.map((definition) =>
+    committees: committees.map((item) =>
       normalizeCommittee(
-        definition,
-        committeeById.get(definition.id),
+        committeeDefinition(item.id),
+        item,
         claimedCommitteeRegistrationIds,
         claimedManualLeaderIds,
       ),
@@ -319,44 +338,66 @@ function buildPatrolAssignments(plan) {
   return assignments;
 }
 
-function buildCommitteeAssignments(plan) {
-  const assignments = new Map();
+// Voci comitato per iscrizione nell'ordine dell'elenco: guide, dirigenti manuali
+// collegati per nome, membri. Gli ID diretti sono già unici fra i comitati; il
+// collegamento per nome può invece portare la stessa iscrizione in un secondo.
+function committeeEntries(plan) {
   const manualLeaderById = new Map(plan.manualLeaders.map((leader) => [leader.id, leader]));
-
-  function addAssignment(registrationId, assignment) {
-    if (!registrationId) return;
-    assignments.set(registrationId, [...(assignments.get(registrationId) || []), assignment]);
-  }
+  const entries = [];
 
   for (const committee of plan.committees) {
     for (const registrationId of committee.leaderRegistrationIds) {
-      addAssignment(registrationId, {
-        id: committee.id,
-        title: committee.title,
-        role: "leader",
-      });
+      entries.push({ registrationId, committee, role: "leader" });
     }
-
     for (const manualLeaderId of committee.manualLeaderIds) {
-      const linkedRegistrationId = manualLeaderById.get(manualLeaderId)?.linkedRegistrationId;
-      if (!linkedRegistrationId) continue;
-      addAssignment(linkedRegistrationId, {
-        id: committee.id,
-        title: committee.title,
-        role: "leader",
-      });
+      const leader = manualLeaderById.get(manualLeaderId);
+      if (!leader?.linkedRegistrationId) continue;
+      entries.push({ registrationId: leader.linkedRegistrationId, committee, role: "leader", manualLeader: leader });
     }
-
     for (const registrationId of committee.memberRegistrationIds) {
-      addAssignment(registrationId, {
-        id: committee.id,
-        title: committee.title,
-        role: "member",
-      });
+      entries.push({ registrationId, committee, role: "member" });
     }
   }
 
+  return entries.filter((entry) => entry.registrationId);
+}
+
+// Una persona sta in un solo comitato: nella proiezione vale la prima voce
+// nell'ordine dell'elenco, anche per i payload dei client precedenti.
+function buildCommitteeAssignments(plan) {
+  const assignments = new Map();
+
+  for (const { registrationId, committee, role } of committeeEntries(plan)) {
+    if (assignments.has(registrationId)) continue;
+    assignments.set(registrationId, [{ id: committee.id, title: committee.title, role }]);
+  }
+
   return assignments;
+}
+
+// Formato 2: la stessa iscrizione in due comitati diversi (anche tramite un
+// dirigente manuale collegato per nome) rifiuta il salvataggio.
+function assertSingleCommittee(registrationsSnapshot, plan) {
+  const firstByRegistrationId = new Map();
+
+  for (const entry of committeeEntries(plan)) {
+    const first = firstByRegistrationId.get(entry.registrationId);
+    if (!first) {
+      firstByRegistrationId.set(entry.registrationId, entry);
+      continue;
+    }
+    if (first.committee.id === entry.committee.id) continue;
+
+    const registration = registrationsSnapshot.docs.find((document) => document.id === entry.registrationId);
+    const name =
+      getPublicName(registration ? registration.data() || {} : {}) ||
+      asString((first.manualLeader || entry.manualLeader)?.fullName).trim() ||
+      "Una persona";
+    throw new HttpsError(
+      "invalid-argument",
+      `${name} è in due comitati: ${first.committee.title} e ${entry.committee.title}. Togli una delle due assegnazioni e salva di nuovo.`,
+    );
+  }
 }
 
 function linkManualLeadersByName(registrationsSnapshot, plan) {
@@ -419,6 +460,18 @@ function resolveCampAccess({ profile, stakeId, uid, staffUids, ownRegistration }
     : null;
 }
 
+// Comitati e gruppi su ogni tipo di attività: admin e dirigenti di unità del palo
+// ovunque, lo staff in elenco solo se l'attività è un campeggio (l'elenco dà
+// accesso ai dati sanitari ed è scelto per il campeggio).
+function resolvePlanAccess({ activityType, ...input }) {
+  const access = resolveCampAccess(input);
+  return access === "listed" && activityType !== "camp" ? null : access;
+}
+
+function activityTypeOf(snapshot) {
+  return snapshot && snapshot.exists ? (snapshot.data() || {}).activityType : undefined;
+}
+
 function campRefs(db, stakeId, activityId) {
   const activityRef = db.doc(`stakes/${stakeId}/activities/${activityId}`);
   return {
@@ -441,51 +494,60 @@ async function loadCampAccess(db, request, stakeId, activityId) {
   assertSignedIn(request);
   const uid = request.auth.uid;
   const refs = campRefs(db, stakeId, activityId);
-  const userDoc = await db.doc(`users/${uid}`).get();
+  const [userDoc, activity] = await Promise.all([db.doc(`users/${uid}`).get(), refs.activityRef.get()]);
   const profile = userDoc.exists ? userDoc.data() || {} : null;
-  const direct = resolveCampAccess({ profile, stakeId, uid });
-  if (direct) return { access: direct, refs };
+  const activityType = activityTypeOf(activity);
+  const direct = resolvePlanAccess({ profile, stakeId, uid, activityType });
+  if (direct) return { access: direct, refs, activity };
+  if (activityType !== "camp") return { access: null, refs, activity };
 
   const staffSnap = await refs.staff.get();
   const staffUids = staffUidsOf(staffSnap.exists ? staffSnap.data() : null);
-  if (!staffUids.includes(uid)) return { access: null, refs };
+  if (!staffUids.includes(uid)) return { access: null, refs, activity };
   const registrationSnap = await refs.registrations.doc(`user_${uid}`).get();
   return {
-    access: resolveCampAccess({
+    access: resolvePlanAccess({
       profile,
       stakeId,
       uid,
+      activityType,
       staffUids,
       ownRegistration: registrationSnap.exists ? registrationSnap.data() : null,
     }),
     refs,
+    activity,
   };
 }
 
 async function assertCampManager(db, request, stakeId, activityId) {
-  const { access } = await loadCampAccess(db, request, stakeId, activityId);
-  if (!access) {
+  const loaded = await loadCampAccess(db, request, stakeId, activityId);
+  if (!loaded.access) {
     throw new HttpsError("permission-denied", "Servono privilegi comitato/pattuglia.");
   }
-  return access;
+  return loaded;
 }
 
+// Rilegge ruolo, elenco staff e tipo dell'attività nella transazione: una revoca
+// (o un cambio di tipo che toglie lo staff in elenco) blocca la scrittura.
 async function assertTransactionalCampManager(transaction, db, request, stakeId, activityId) {
   assertSignedIn(request);
   const uid = request.auth.uid;
   const refs = campRefs(db, stakeId, activityId);
-  const [profile, staff, registration] = await Promise.all([
+  const [profile, staff, registration, activity] = await Promise.all([
     transaction.get(db.doc(`users/${uid}`)),
     transaction.get(refs.staff),
     transaction.get(refs.registrations.doc(`user_${uid}`)),
+    transaction.get(refs.activityRef),
   ]);
-  const access = resolveCampAccess({
+  const access = resolvePlanAccess({
     profile: profile.exists ? profile.data() : null,
     stakeId, uid,
+    activityType: activityTypeOf(activity),
     staffUids: staffUidsOf(staff.exists ? staff.data() : null),
     ownRegistration: registration.exists ? registration.data() : null,
   });
   if (!access) throw new HttpsError("permission-denied", "Non hai più il permesso di modificare questo piano.");
+  return { access, activity };
 }
 
 async function syncRegistrationCampAssignments(db, registrationsSnapshot, plan, timestamp, request, stakeId, activityId) {
@@ -530,40 +592,47 @@ const campManagementSave = onCall(
     if (!stakeId || !activityId) {
       throw new HttpsError("invalid-argument", "stakeId e activityId sono obbligatori.");
     }
+    let planFormat;
+    try {
+      planFormat = readPlanFormat(request.data);
+    } catch (error) {
+      if (error instanceof CampConfigurationError) throw new HttpsError(error.code, error.message);
+      throw error;
+    }
 
-    await assertCampManager(db, request, stakeId, activityId);
-
-    const activityRef = db.doc(`stakes/${stakeId}/activities/${activityId}`);
-    const activitySnapshot = await activityRef.get();
+    const { refs, activity: activitySnapshot } = await assertCampManager(db, request, stakeId, activityId);
     if (!activitySnapshot.exists) {
       throw new HttpsError("not-found", "Attività non trovata.");
     }
 
-    const activity = activitySnapshot.data() || {};
-    if (activity.activityType !== "camp") {
-      throw new HttpsError("failed-precondition", "I comitati sono modificabili solo su attività camp.");
-    }
-
+    const activityRef = refs.activityRef;
     const planRef = activityRef.collection("management").doc("camp");
     const registrationsSnapshot = await activityRef.collection("registrations").get();
     let publicPlan;
     try {
       publicPlan = await db.runTransaction(async (transaction) => {
-        await assertTransactionalCampManager(transaction, db, request, stakeId, activityId);
-        const [saved, currentActivity] = await Promise.all([
-          transaction.get(planRef), transaction.get(activityRef),
-        ]);
-        if (!currentActivity.exists || currentActivity.data().activityType !== "camp") {
-          throw new HttpsError("failed-precondition", "I comitati sono modificabili solo su un campeggio esistente.");
+        const { activity: currentActivity } = await assertTransactionalCampManager(transaction, db, request, stakeId, activityId);
+        const saved = await transaction.get(planRef);
+        if (!currentActivity.exists) {
+          throw new HttpsError("not-found", "Attività non trovata.");
         }
+        const activityType = activityTypeOf(currentActivity);
         const previous = saved.exists ? saved.data() : null;
+        if (planFormat !== 2) assertLegacyPlanEditable(activityType, previous);
         assertCampRevision(request.data?.expectedUpdatedAt, previous);
         const timestamp = nextCampRevision(previous?.updatedAt);
         const input = request.data?.plan === undefined ? {} : request.data.plan;
+        const configured = normalizeCampConfiguration(input, previous || {}, {
+          planFormat,
+          defaultGroupLabel: activityType === "camp" ? "pattuglia" : "gruppo",
+        });
         const normalized = normalizeCampManagement({
-          ...normalizeCampConfiguration(input, previous || {}), updatedAt: timestamp,
+          ...configured,
+          committees: planFormat === 2 ? configured.committees : historicCommittees(configured.committees),
+          updatedAt: timestamp,
         });
         const linked = linkManualLeadersByName(registrationsSnapshot, normalized);
+        if (planFormat === 2) assertSingleCommittee(registrationsSnapshot, linked);
         const plan = attachPublicMembers(registrationsSnapshot, linked);
         transaction.set(planRef, { ...plan, savedAt: FieldValue.serverTimestamp() }, { merge: true });
         return plan;
@@ -586,6 +655,7 @@ const campManagementSave = onCall(
       stakeId,
       activityId,
       uid: request.auth.uid,
+      planFormat,
       committees: publicPlan.committees.length,
       patrols: publicPlan.patrols.length,
       registrationsSynced: registrationsSnapshot.size,
@@ -657,6 +727,45 @@ async function listStaffCandidates(refs) {
   );
 }
 
+const MAX_ROSTER_REGISTRATIONS = 2000;
+
+// Voce dell'elenco nomi per assegnare comitati e gruppi: solo nome, categoria,
+// unità e stato. Mai data di nascita, risposte, dati sanitari, contatti o uid.
+function toRosterEntry(id, data) {
+  return {
+    id,
+    firstName: asString(data.firstName),
+    lastName: asString(data.lastName),
+    fullName: getPublicName(data),
+    genderRoleCategory: asGenderRoleCategory(data.genderRoleCategory),
+    unitName: getPublicUnitName(data),
+    registrationStatus: asString(data.registrationStatus),
+    status: asString(data.status),
+  };
+}
+
+async function listRosterRegistrations(refs) {
+  // Proiezione: il server non carica nemmeno risposte e dati sanitari.
+  const snapshot = await refs.registrations
+    .select("firstName", "lastName", "fullName", "genderRoleCategory", "unitName", "unitNameSnapshot", "registrationStatus", "status")
+    .limit(MAX_ROSTER_REGISTRATIONS + 1)
+    .get();
+  if (snapshot.size > MAX_ROSTER_REGISTRATIONS) {
+    throw new HttpsError("failed-precondition", "L'attività ha più di 2.000 iscrizioni: l'elenco dei nomi non è disponibile.");
+  }
+  return snapshot.docs
+    .filter((document) => isRosterRegistration(document.data()))
+    .map((document) => toRosterEntry(document.id, document.data() || {}));
+}
+
+// Stessa idea dell'editor admin: annullata se lo dice `registrationStatus` o il
+// vecchio `status`; un'iscrizione legacy senza `registrationStatus` resta attiva.
+function isRosterRegistration(registration) {
+  return ownObject(registration)
+    && registration.registrationStatus !== "cancelled"
+    && registration.status !== "cancelled";
+}
+
 // Aggiunge o toglie un uid da `staffUids`. Aggiungere richiede una iscrizione
 // `user_<uid>` non annullata a questo campeggio.
 async function setStaffMember(db, refs, { uid, enabled }, adminUid) {
@@ -692,12 +801,21 @@ const campManagementStaff = onCall(
     if (!stakeId || !activityId) {
       throw new HttpsError("invalid-argument", "stakeId e activityId sono obbligatori.");
     }
-    if (!["context", "list", "set"].includes(action)) {
+    if (!["context", "list", "set", "roster"].includes(action)) {
       throw new HttpsError("invalid-argument", "Azione non valida.");
     }
 
-    const { access, refs } = await loadCampAccess(db, request, stakeId, activityId);
-    const activitySnapshot = await refs.activityRef.get();
+    const { access, refs, activity: activitySnapshot } = await loadCampAccess(db, request, stakeId, activityId);
+    // Nomi per assegnare comitati e gruppi: chi può salvare il piano, su ogni tipo.
+    if (action === "roster") {
+      if (!access) {
+        throw new HttpsError("permission-denied", "Servono privilegi comitato/pattuglia.");
+      }
+      if (!activitySnapshot.exists) {
+        throw new HttpsError("not-found", "Attività non trovata.");
+      }
+      return { ok: true, registrations: await listRosterRegistrations(refs) };
+    }
     if (!activitySnapshot.exists || activitySnapshot.data()?.activityType !== "camp") {
       throw new HttpsError("failed-precondition", "L'elenco staff esiste solo per i campeggi.");
     }
@@ -726,6 +844,12 @@ module.exports = {
   campManagementSave,
   campManagementStaff,
   resolveCampAccess,
+  resolvePlanAccess,
   nextStaffUids,
   isAdultByAge,
+  normalizeCampManagement,
+  historicCommittees,
+  buildCommitteeAssignments,
+  assertSingleCommittee,
+  toRosterEntry,
 };
