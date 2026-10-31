@@ -10,16 +10,16 @@ surface: [web, functions, rules]
 source: paolo
 opened: 2026-10-26
 started_at: 2026-10-26
-touched: 2026-10-27
+touched: 2026-10-31
 due:
 blocked_by: []
-branch: codex/gugd-momenti
-worktree: /Users/paolocelestini/.codex/worktrees/gugd-momenti/giovani-palo
-session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Creazione guidata e camp pubblicati in B; programma info/turni nel worktree b37a2be, con test e review indipendenti in corso"
-next: "Concludere test indipendenti, review e collaudo programma, poi integrare su main; prossimo deploy con conferma fresca"
-verified: "B pubblicato. Programma isolato b37a2be: build e browser demo autore passano, suite esistente 1523/1524 (catalogo da registrare); test indipendenti e review in corso"
-links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/AUTONOMIA_MULTI_PALO.md]
+branch:
+worktree:
+session: a6d2a4ff-61bc-4d85-9056-0973a3afe2dc
+stopped_at: "Programma info/turni integrato su main il 31 ottobre, non deployato; review DeepSeek e 7 test indipendenti verdi"
+next: "Rilascio coordinato con conferma fresca: rules e indice entries.ownerUids, 5 Functions per nome, hosting con service worker successivo al live; poi comitati arbitrari, alloggi e delega"
+verified: "Mini 31 ottobre, copia QA del branch 25e179b: client 1524/1524 (accenti in locale), build, puri 91/91, emulatore 58/58 più 7/7 nuovi di DeepSeek (mutazione sulla pulizia delle ricevute presa), browser 11/11 a 320/390/430. Review DeepSeek: nessun P1, P2 non accettato, P3 corretto. Non provati: produzione, Safari iOS, tastiera vera"
+links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
 
@@ -122,3 +122,68 @@ incrementi successivi, senza richiedere una nuova richiesta di ripartenza.
 Creazione e camp online. Programma essenziale in codex/gugd-momenti: authoring, adesione, rinuncia/ripresa, capienza e revisioni. Test e review indipendenti in corso, nessun deploy del nuovo modulo.
 
 Esiti, approvazione e limiti in [STORAGE_FASE_B](../docs/STORAGE_FASE_B.md).
+
+## Terzo incremento: programma essenziale, 27 ottobre
+
+Triage: impatto 2, urgenza 2, sforzo L; parte nello stesso task su worktree
+separato, senza interferire con il rilascio B autorizzato e in corso.
+Confermato dal coordinamento e dal secondo parere: tipi info e turni, tipo
+immutabile anche in bozza. Il primo turno ha un solo slot con capienza
+richiesta. Etichette Solo informazione / Attività con iscrizione; titolo,
+luogo e orari restano se si cambia tipo prima del primo salvataggio.
+Spec incrementale: docs/PROGRAMMA_PRIMO_INCREMENTO.md. Nessun collegamento
+S3 inventato, nessuna migrazione RecordNight o delega implicita.
+
+Checkpoint di implementazione: i controlli browser dell'autore usano soltanto
+fixture nel progetto demo, senza origini produzione raggiungibili. Non
+sostituiscono i test permanenti di un altro autore. L'ultimo giro della suite
+client esistente fallisce soltanto con
+`src/copy/momenti.ts: MOMENTI non è in COPY (tests/glossary.test.mjs)`.
+La guardia accenti passa con un indice git locale QA di 604 file presenti;
+gli esempi .env non sono copiati nella QA. Decisione del coordinamento:
+registrationStatus assente/null è legacy attivo se status non è cancelled;
+la whitelist active/confirmed/pending_parent_authorization resta per gli
+stati espliciti. Submitted, waitlist e valori sconosciuti sono esclusi.
+Test permanenti e glossario appartengono a un autore distinto; nessun
+cambiamento alla semantica storica RecordNight.
+
+Review del programma: test indipendente RED reale save→delete→retry della
+create ricreava il documento. Correzione: receipt server-only momentDeletions
+con solo deletedAt, letta in transazione da ogni save e scritta nella stessa
+transazione della cancellazione. ID assenti cancellati esplicitamente sono
+marcati; repeat delete non riscrive la ricevuta. Limite 50 riferito ai momenti,
+nuovo UUID esplicito richiesto per creare dopo una cancellazione. Cleanup
+dell'attività esteso a receipt orfane con guardia sulla ricreazione del parent.
+Nessun nome, titolo o UID nella ricevuta, deny SDK esplicito e nessun TTL.
+UI con errore specifico, salvataggio vecchio bloccato e Ricarica che chiude la
+bozza cancellata, senza cambiare automaticamente ID. GREEN ancora da ricevere.
+
+## Integrazione su main, 31 ottobre
+
+Ripreso dal worktree Codex fermo dal 27 ottobre con 11 file non committati
+(checkpoint `22be02f`). Il secondo giro indipendente del 27 era già verde
+(147/147), ma i test erano cambiati dopo: rilanciati in una copia QA pulita
+sul mini.
+
+Review di un altro modello (DeepSeek v4 pro, 0,29 $): nessun P1. Il P2 «limite
+di 50 momenti non atomico con due creazioni concorrenti» non è accettato: la
+documentazione Firestore garantisce transazioni serializzabili, quindi due
+creazioni non possono leggere entrambe 49 momenti (dedotto, non provato;
+l'emulatore non lo dimostrerebbe). Il P3 è corretto: un'azione di stato su un
+momento eliminato da un altro admin ora mostra il conflitto con «Ricarica
+programma», come `moment_deleted`.
+
+Il collaudo browser ha trovato un difetto di accessibilità: la select «Per chi
+vuoi iscriverti?» sta dentro la sua label e il nome accessibile comprendeva le
+opzioni. Ora usa `aria-labelledby`. Le altre select dell'app seguono lo
+stesso schema: task `gugd-select-etichette`.
+
+L'harness browser non dipende più dalla cache di vite né dalla versione di
+Chromium: preambolo React Refresh, import CJS pre-bundled, Local Network Access
+disattivata per la pagina servita da Playwright, `VITE_EMULATOR_PROJECT_ID`.
+
+Sette test nuovi di DeepSeek (0,14 $) in
+`functions/tests/activityMomentsGapsEmulator.test.mjs`: show dopo hide, azione
+su momento eliminato, retry da un altro admin, cleanup di attività e account
+a lotti, due figli sullo stesso turno. Togliendo la pulizia delle ricevute
+falliscono i due test attesi.

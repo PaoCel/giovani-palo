@@ -1932,6 +1932,19 @@ service cloud.firestore {
           allow delete: if isStakeAdmin(stakeId);
         }
 
+        // Program authoring, audiences and ownership are checked by the
+        // momentsAdmin/momentsParticipant callables. No SDK shortcut, even staff.
+        match /moments/{momentId} {
+          allow read, write: if false;
+          match /entries/{entryId} {
+            allow read, write: if false;
+          }
+        }
+        // Minimal server receipt: a late create cannot resurrect a deleted ID.
+        match /momentDeletions/{momentId} {
+          allow read, write: if false;
+        }
+
         // Notte dei Record (docs/NOTTE_DEI_RECORD.md). Record e tentativi li scrive
         // solo la callable (Admin SDK): i client leggono e basta.
         // `records`: testi approvati da un admin ma scritti da minori, quindi mai

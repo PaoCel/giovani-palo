@@ -3,6 +3,8 @@ import { Suspense, lazy } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
+import { ActivityProgram } from "@/components/activities/ActivityProgram";
+import { MOMENTI } from "@/copy/momenti";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { AppLoader } from "@/components/AppLoader";
 import { EmptyState } from "@/components/EmptyState";
@@ -360,6 +362,7 @@ export function ActivityDetailPage() {
         </div>
       </section>
 
+      {event ? <ActivityProgram stakeId={data.stakeId} activityId={event.id} /> : null}
       {event ? <ActivityMediaCard stakeId={data.stakeId} event={event} /> : null}
 
       {event?.recordsEnabled ? (
@@ -420,7 +423,7 @@ export function ActivityDetailPage() {
 
       {event?.program ? (
         <SectionCard
-          title="Programma"
+          title={MOMENTI.programmaGenerale}
           description="Panoramica rapida dell'attività."
         >
           <div className="surface-panel surface-panel--subtle">

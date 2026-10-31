@@ -36,6 +36,8 @@ import {
 } from "@/components/admin/registrations/registrationLabels";
 import { ModalFeedback } from "@/components/admin/ModalFeedback";
 import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
+import { MomentsAdminTab } from "@/components/admin/moments/MomentsAdminTab";
+import { MOMENTI } from "@/copy/momenti";
 import { RecordNightAdminTab } from "@/components/admin/recordNight/RecordNightAdminTab";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
@@ -98,6 +100,7 @@ import { DEFAULT_STAKE_ID } from "@/config/app";
 
 type AdminEventTab =
   | "details"
+  | "program"
   | "committees"
   | "registrations"
   | "consents"
@@ -334,6 +337,8 @@ function getAdminEventTabFromPath(pathname: string, search = ""): AdminEventTab 
     return "stats";
   }
 
+  if (new URLSearchParams(search).get("tab") === "program") return "program";
+
   // La scheda Record vive sulla rotta di base con `?tab=records` (nessuna
   // rotta nuova da registrare); `/records` è riconosciuto se la si aggiunge.
   if (
@@ -348,6 +353,8 @@ function getAdminEventTabFromPath(pathname: string, search = ""): AdminEventTab 
 
 function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
   switch (tab) {
+    case "program":
+      return `/admin/events/${eventId}?tab=program`;
     case "committees":
       return `/admin/events/${eventId}/comitati`;
     case "registrations":
@@ -462,8 +469,10 @@ export function AdminEventDetailPage() {
   campDraftDirtyRef.current = campDraftDirty;
   const campLoadedContextRef = useRef("");
   const campGroupLabels = getCampGroupLabels(campDraft.groupLabel);
+  const [momentsDirty, setMomentsDirty] = useState(false);
+  const [momentsPending, setMomentsPending] = useState(false);
   const campNavigationBlocker = useBlocker(({ currentLocation, nextLocation }) =>
-    campDraftDirty && Boolean(session) && nextLocation.pathname !== "/login" &&
+    (campDraftDirty || momentsDirty || momentsPending) && Boolean(session) && nextLocation.pathname !== "/login" &&
     (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search),
   );
   const [manualLeaderName, setManualLeaderName] = useState("");
@@ -2405,6 +2414,7 @@ export function AdminEventDetailPage() {
           <AppIcon name="list" />
           <span>Dettagli</span>
         </button>
+        {session?.isAdmin ? <button aria-pressed={activeTab === "program"} className={activeTab === "program" ? "admin-subtabs__item admin-subtabs__item--active" : "admin-subtabs__item"} onClick={() => openTab("program")} type="button"><AppIcon name="calendar" /><span>{MOMENTI.programma}</span></button> : null}
         <button
           aria-pressed={activeTab === "committees"}
           className={
@@ -3733,6 +3743,8 @@ export function AdminEventDetailPage() {
         </section>
       ) : null}
 
+      {activeTab === "program" && session?.isAdmin ? <MomentsAdminTab key={`${session.firebaseUser.uid}|${session.profile.role}|${stakeId}|${resolvedEventId}`} stakeId={stakeId} activityId={resolvedEventId} startDate={resolvedEvent.startDate} activityDraft={resolvedEvent.status === "draft"} onDirtyChange={setMomentsDirty} onPendingChange={setMomentsPending} /> : null}
+
       {activeTab === "records" && resolvedEvent.recordsEnabled ? (
         <RecordNightAdminTab
           canManageStaff={session?.isAdmin === true}
@@ -4638,10 +4650,10 @@ export function AdminEventDetailPage() {
       ) : null}
 
       {campNavigationBlocker.state === "blocked" ? (
-        <ConfirmSheet title={CAMP.uscitaTitolo} body={campSaving ? CAMP.uscitaInCorso : CAMP.uscitaCorpo}
-          cancelLabel={CAMP.continuaModifica} confirmLabel={CAMP.esci}
+        <ConfirmSheet title={momentsPending ? MOMENTI.uscitaInCorsoTitolo : momentsDirty ? MOMENTI.scartaTitolo : CAMP.uscitaTitolo} body={momentsPending ? MOMENTI.uscitaInCorso : momentsDirty ? MOMENTI.scartaCorpo : campSaving ? CAMP.uscitaInCorso : CAMP.uscitaCorpo}
+          cancelLabel={CAMP.continuaModifica} confirmLabel={momentsDirty || momentsPending ? MOMENTI.esci : CAMP.esci}
           onCancel={() => campNavigationBlocker.reset()} onConfirm={() => {
-            setCampDraftDirty(false); campNavigationBlocker.proceed();
+            setCampDraftDirty(false); setMomentsDirty(false); setMomentsPending(false); campNavigationBlocker.proceed();
           }} />
       ) : null}
 
