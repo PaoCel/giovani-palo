@@ -20,7 +20,9 @@ const { createMomentsAdminHandler } = require("../lib/activityMoments.js");
 const app = initializeApp({ projectId }, `independent-browser-${randomUUID()}`);
 const db = getFirestore(app), auth = getAuth(app), adminHandler = createMomentsAdminHandler({ db });
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE);
-const browser = await chromium.launch();
+// The harness page is fulfilled by Playwright, so Chromium treats it as non-loopback
+// and Local Network Access would block the loopback emulators.
+const browser = await chromium.launch({ args: ["--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests"] });
 const suffix = randomUUID().slice(0, 10), stakeId = `qa-moments-independent-browser-${suffix}`;
 const activityIds = ["editor", "participation", "context-b"].map(name => `${name}-${suffix}`);
 const password = "qa-moments-browser-only123";
@@ -28,9 +30,11 @@ const actors = {}, contexts = [];
 const request = (who, data) => ({ auth: { uid: who.uid, token: { firebase: { sign_in_provider: "password" } } }, data: { stakeId, ...data } });
 const activityRef = id => db.doc(`stakes/${stakeId}/activities/${id}`);
 const future = new Date(Date.now() + 86400000).toISOString();
-const html = `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+const html = `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>t=>t;window.__vite_plugin_react_preamble_installed__=true;</script><script type="module">
 import React from '/node_modules/.vite/deps/react.js';
-import {createRoot} from '/node_modules/.vite/deps/react-dom_client.js';
+// Pre-bundled CJS deps expose a default export only when served outside Vite transforms.
+import * as ReactDomClient from '/node_modules/.vite/deps/react-dom_client.js';
+const createRoot = ReactDomClient.createRoot ?? ReactDomClient.default.createRoot;
 import {auth,db,firebaseApp} from '/src/services/firebase/app.ts';
 import {useLocalEmulators} from '/src/services/firebase/config.ts';
 import {signInWithEmailAndPassword} from '/node_modules/.vite/deps/firebase_auth.js';
