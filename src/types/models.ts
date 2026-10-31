@@ -39,12 +39,9 @@ export type ActivityType =
   | "camp"
   | "multi_day";
 
-export type CampCommitteeId =
-  | "logistics"
-  | "wellbeing"
-  | "kitchen"
-  | "games"
-  | "spiritual";
+// I cinque storici (logistics, wellbeing, kitchen, games, spiritual) oppure
+// `c_` più 8–32 caratteri [a-z0-9]: vedi isValidCommitteeId in utils/campGroups.
+export type CampCommitteeId = string;
 export type CampCommitteeRole = "leader" | "member";
 export type CampPatrolRole = "leader" | "supervisor" | "member";
 
@@ -91,6 +88,19 @@ export interface CampPatrolPlan {
   memberRegistrationIds: string[];
   publicMembers: CampPublicMember[];
   updatedAt: string;
+}
+
+// Riga dell'elenco nomi per assegnare (callable campManagementStaff, azione
+// `roster`): niente date di nascita, risposte, contatti o dati sanitari.
+export interface CampRosterEntry {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  genderRoleCategory: GenderRoleCategory | "";
+  unitName: string;
+  registrationStatus: RegistrationStatus;
+  status: "active" | "cancelled";
 }
 
 export interface CampManagementPlan {

@@ -113,6 +113,7 @@ export const unitLeaderService = {
     registrations: Registration[];
     unitYouth: UserProfile[];
     campManagement: CampManagementPlan;
+    campManagementAvailable: boolean;
     stats: UnitActivityStats;
   }> {
     const [event, registrations, unitYouth] = await Promise.all([
@@ -121,15 +122,35 @@ export const unitLeaderService = {
       usersService.listUnitYouth(stakeId, unitId),
     ]);
 
-    // Pattuglie e comitati esistono solo per i campeggi, e le rules concedono
-    // management/camp al dirigente di unità solo se activityType == 'camp':
-    // leggerlo su un viaggio (es. tempio) rispondeva permission-denied e faceva
-    // fallire l'intera pagina, iscritti compresi.
-    const campManagement =
-      event && isCampEvent(event)
-        ? await campManagementService.getCampManagement(stakeId, activityId)
-        : campManagementService.getDefaultCampManagement();
+    // Comitati e gruppi valgono per ogni tipo di attività e le rules danno al
+    // dirigente di unità la lettura di management/camp su ogni tipo. Sul
+    // campeggio la lettura resta quella di prima; sugli altri tipi un errore
+    // (per esempio rules non ancora aggiornate) non fa fallire la pagina:
+    // `campManagementAvailable` lo dice alla sezione Organizzazione.
+    let campManagement = campManagementService.getDefaultCampManagement(event?.activityType);
+    let campManagementAvailable = Boolean(event);
+    if (event && isCampEvent(event)) {
+      campManagement = await campManagementService.getCampManagement(stakeId, activityId);
+    } else if (event) {
+      try {
+        campManagement = await campManagementService.getCampManagement(
+          stakeId,
+          activityId,
+          false,
+          event.activityType,
+        );
+      } catch {
+        campManagementAvailable = false;
+      }
+    }
 
-    return { event, registrations, unitYouth, campManagement, stats: computeStats(registrations, event) };
+    return {
+      event,
+      registrations,
+      unitYouth,
+      campManagement,
+      campManagementAvailable,
+      stats: computeStats(registrations, event),
+    };
   },
 };

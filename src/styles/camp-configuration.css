@@ -10,3 +10,39 @@
 .camp-config-initials { font: 800 20px/1 "Manrope", sans-serif; }
 
 .camp-config-panel .field__hint, .camp-config-fields .field__hint { font-size: 13px; font-weight: 400; line-height: 1.55; color: var(--muted); }
+
+/* Comitati liberi: aggiunta con motivo del limite e persone coinvolte da un'eliminazione. */
+.camp-committee-add { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; margin-top: .85rem; }
+.camp-committee-add .button { max-width: 100%; }
+.camp-committee-add__hint { font-size: 13px; line-height: 1.55; color: var(--muted); }
+.camp-confirm-people { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+.camp-confirm-people strong { min-width: 0; overflow-wrap: anywhere; }
+.camp-confirm-people span { flex-shrink: 0; }
+
+/* Bersagli di tocco da 44 px senza cambiare .button--small e .chip nel resto
+   dell'app: la x dei dirigenti manuali (margini negativi, la pill resta
+   compatta) e il link Gestisci della sezione Organizzazione. */
+.camp-manual-chip { max-width: 100%; }
+.chip__button.camp-chip-remove {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  min-width: 2.75rem; min-height: 2.75rem; margin: -.5rem -.55rem -.5rem -.2rem;
+  padding: 0; border-radius: 999px; font-size: 1.05rem; line-height: 1;
+}
+.chip__button.camp-chip-remove:focus-visible { outline: 2px solid var(--primary); outline-offset: -4px; }
+.chip__button.camp-chip-remove:disabled { cursor: not-allowed; opacity: .55; }
+.button.camp-organization-manage { min-height: 2.75rem; flex-shrink: 0; }
+
+/* Piede dei fogli di comitati e gruppi: su telefono i tasti uno sotto
+   l'altro, il principale per primo e l'eliminazione in fondo, staccata; da
+   720 px su una riga, con l'eliminazione a sinistra. Stesso schema di
+   .admin-sheet-footer, senza toccare gli altri modali. */
+.app-modal__footer > .camp-sheet-footer { flex: 1 1 100%; min-width: 0; display: grid; gap: .6rem; }
+.camp-sheet-actions { display: grid; gap: .5rem; min-width: 0; }
+.camp-sheet-actions .button { width: 100%; min-height: 2.75rem; padding-inline: .9rem; white-space: normal; }
+.camp-sheet-actions .camp-sheet-actions__danger { margin-top: .4rem; }
+@media (min-width: 720px) {
+  .camp-sheet-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+  .camp-sheet-actions .button { width: auto; }
+  .camp-sheet-actions .camp-sheet-actions__secondary { order: -1; }
+  .camp-sheet-actions .camp-sheet-actions__danger { order: -2; margin: 0 auto 0 0; }
+}

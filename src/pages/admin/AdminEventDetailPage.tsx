@@ -1,7 +1,15 @@
 import { useBlocker } from "react-router-dom";
 import "@/styles/camp-configuration.css";
 import { CAMP, CAMP_GROUPS } from "@/copy/camp";
-import { getCampGroupLabels, getCommitteeInitials, normalizeCampGroupLabel } from "@/utils/campGroups";
+import {
+  createCommitteeId,
+  getCampGroupLabels,
+  getCommitteeInitials,
+  MAX_COMMITTEE_RESPONSIBILITIES,
+  MAX_COMMITTEE_TITLE,
+  MAX_COMMITTEES,
+  normalizeCampGroupLabel,
+} from "@/utils/campGroups";
 import { RoomManagementPanel } from "@/components/admin/RoomManagementPanel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -43,11 +51,17 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
-import { campManagementService } from "@/services/firestore/campManagementService";
+import {
+  campManagementService,
+  getCampStaffErrorMessage,
+} from "@/services/firestore/campManagementService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { organizationService } from "@/services/firestore/organizationService";
 import { questionsService } from "@/services/firestore/questionsService";
-import { registrationsService } from "@/services/firestore/registrationsService";
+import {
+  mapRosterRegistration,
+  registrationsService,
+} from "@/services/firestore/registrationsService";
 import { usersService } from "@/services/firestore/usersService";
 import {
   parentAuthorizationService,
@@ -56,6 +70,7 @@ import {
 } from "@/services/firestore/parentAuthorizationService";
 import type {
   CampCommitteeId,
+  CampCommitteePlan,
   CampManagementPlan,
   CampPatrolPlan,
   CampPatrolRole,
@@ -154,6 +169,42 @@ function createLocalId(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}`;
+}
+
+// Nome e "Cosa deve fare" di un comitato: gli stessi campi nel foglio del
+// comitato e in quello del comitato nuovo.
+function CommitteeDetailsFields({
+  title,
+  responsibilities,
+  onChange,
+}: {
+  title: string;
+  responsibilities: string;
+  onChange: (field: "title" | "responsibilities", value: string) => void;
+}) {
+  return (
+    <>
+      <label className="field">
+        <span className="field__label">{CAMP.nomeComitato}</span>
+        <input
+          className="input"
+          maxLength={MAX_COMMITTEE_TITLE}
+          onChange={(input) => onChange("title", input.target.value)}
+          value={title}
+        />
+      </label>
+      <label className="field">
+        <span className="field__label">{CAMP.incarico}</span>
+        <textarea
+          className="input camp-config-textarea"
+          maxLength={MAX_COMMITTEE_RESPONSIBILITIES}
+          onChange={(input) => onChange("responsibilities", input.target.value)}
+          value={responsibilities}
+        />
+        <span className="field__hint">{CAMP.incaricoAiuto}</span>
+      </label>
+    </>
+  );
 }
 
 function buildDistribution<T>(
@@ -383,6 +434,8 @@ function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
 // rotta, il foglio si chiude e nessuna azione parte per l'oggetto sbagliato.
 type AdminConfirm =
   | { kind: "removePatrol"; patrolId: string }
+  | { kind: "removeCommittee"; committeeId: string }
+  | { kind: "discardNewCommittee" }
   | { kind: "discardCamp" }
   | { kind: "reloadCamp" }
   | { kind: "deleteQuestion"; questionId: string }
@@ -402,6 +455,7 @@ export function AdminEventDetailPage() {
   const routeTab = getAdminEventTabFromPath(location.pathname, location.search);
   const isCampManagementTab = routeTab === "committees";
   const isStatsTab = routeTab === "stats";
+  const isAdminSession = session?.isAdmin === true;
   const isCampManagerOnly = isCampManagementTab && Boolean(session && !session.isAdmin);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -471,10 +525,30 @@ export function AdminEventDetailPage() {
   const campGroupLabels = getCampGroupLabels(campDraft.groupLabel);
   const [momentsDirty, setMomentsDirty] = useState(false);
   const [momentsPending, setMomentsPending] = useState(false);
+  // Foglio "Aggiungi comitato": il comitato entra nella bozza solo da qui.
+  const [newCommittee, setNewCommittee] = useState<{
+    title: string;
+    responsibilities: string;
+  } | null>(null);
+  const newCommitteeHasText = Boolean(
+    newCommittee && (newCommittee.title.trim() || newCommittee.responsibilities.trim()),
+  );
   const campNavigationBlocker = useBlocker(({ currentLocation, nextLocation }) =>
-    (campDraftDirty || momentsDirty || momentsPending) && Boolean(session) && nextLocation.pathname !== "/login" &&
+    (campDraftDirty || newCommitteeHasText || momentsDirty || momentsPending) && Boolean(session) && nextLocation.pathname !== "/login" &&
     (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search),
   );
+  // Ricarica, chiusura della scheda o navigazione fuori dall'app con una bozza
+  // del piano non salvata: avviso del browser, come nel programma a momenti.
+  const campUnsaved = campDraftDirty || newCommitteeHasText || campSaving;
+  useEffect(() => {
+    if (!campUnsaved) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [campUnsaved]);
   const [manualLeaderName, setManualLeaderName] = useState("");
   const [selectedCampCommitteeId, setSelectedCampCommitteeId] =
     useState<CampCommitteeId | null>(null);
@@ -512,6 +586,7 @@ export function AdminEventDetailPage() {
     setAddManualOpen(false);
     setEditRegistrationId(null);
     setRequestAuthorizationId(null);
+    setNewCommittee(null);
   }, [confirmContextKey]);
   // Account e attività di adesso (vuoto dopo l'uscita dalla pagina): l'esito
   // di una richiesta partita su un'altra attività, o prima di Indietro, non
@@ -525,88 +600,147 @@ export function AdminEventDetailPage() {
     };
   }, [eventContextKey]);
 
-  const { data, loading, error } = useAsyncData(
+  // I risultati appartengono al contesto per cui sono stati chiesti (account,
+  // palo, attività, ruolo admin): useAsyncData conserva l'ultimo risultato
+  // durante il nuovo caricamento e anche se fallisce, quindi la pagina usa i
+  // dati solo se la chiave coincide con quella corrente. Altrimenti sono
+  // assenti (caricamento o errore): niente nomi, roster o piano del contesto
+  // precedente a schermo né copiati nella bozza dei comitati.
+  const dataContextKey = `${eventContextKey}|${isAdminSession ? "admin" : "staff"}`;
+  const { data: loadedData, loading: loadingAnyContext, error } = useAsyncData(
     async () => {
-      if (!eventId) {
-        return null;
-      }
+      const contextKey = dataContextKey;
+      const load = async () => {
+        if (!eventId) {
+          return null;
+        }
 
-      if (isCampManagementTab) {
-        const [workspace, campManagement] = await Promise.all([
+        if (isCampManagementTab) {
+          // Chi non è admin, fuori dal campeggio, non legge le iscrizioni via SDK
+          // (contengono dati sanitari): evento, piano dal server e soli nomi
+          // dalla callable `roster`. Sul campeggio il percorso resta quello di prima.
+          if (!isAdminSession) {
+            const event = await eventsService.getEventById(stakeId, eventId);
+
+            if (!event) {
+              return null;
+            }
+
+            if (!isCampEvent(event)) {
+              const [savedPlan, roster] = await Promise.all([
+                campManagementService.getSavedCampManagement(stakeId, eventId, true),
+                campManagementService.getRoster(stakeId, eventId).catch((caughtError: unknown) => {
+                  throw new Error(getCampStaffErrorMessage(caughtError));
+                }),
+              ]);
+
+              return {
+                workspace: {
+                  event,
+                  formConfig: null,
+                  registrations: roster.map((entry) =>
+                    mapRosterRegistration(stakeId, eventId, entry),
+                  ),
+                },
+                organization: null,
+                registrationsPerEvent: [],
+                campManagement:
+                  savedPlan ?? campManagementService.getDefaultCampManagement(event.activityType),
+              };
+            }
+          }
+
+          const [workspace, savedPlan] = await Promise.all([
+            adminEventsService.getAdminEventWorkspace(stakeId, eventId),
+            campManagementService.getSavedCampManagement(stakeId, eventId, true),
+          ]);
+
+          if (!workspace) {
+            return null;
+          }
+
+          return {
+            workspace,
+            organization: null,
+            registrationsPerEvent: [],
+            campManagement:
+              savedPlan ?? campManagementService.getDefaultCampManagement(workspace.event.activityType),
+          };
+        }
+
+        const [workspace, organization, savedPlan] = await Promise.all([
           adminEventsService.getAdminEventWorkspace(stakeId, eventId),
-          campManagementService.getCampManagement(stakeId, eventId, true),
+          organizationService.getProfile(stakeId),
+          campManagementService.getSavedCampManagement(stakeId, eventId, true),
         ]);
 
         if (!workspace) {
           return null;
         }
 
+        const campManagement =
+          savedPlan ?? campManagementService.getDefaultCampManagement(workspace.event.activityType);
+
+        // Le statistiche di confronto (rank + media iscritti tra eventi) vivono
+        // solo nella tab "stats". Caricare le iscrizioni di TUTTI gli eventi ad
+        // ogni apertura della scheda era un N+1 che rallentava ogni visita:
+        // ora si paga solo quando serve davvero.
+        const registrationsPerEvent = isStatsTab
+          ? await Promise.all(
+              (await adminEventsService.listAdminEvents(stakeId)).map(
+                async (event) => ({
+                  eventId: event.id,
+                  registrations:
+                    await registrationsService.listRegistrationsByEvent(
+                      stakeId,
+                      event.id,
+                    ),
+                }),
+              ),
+            )
+          : [];
+
         return {
           workspace,
-          organization: null,
-          registrationsPerEvent: [],
+          organization,
+          registrationsPerEvent,
           campManagement,
         };
-      }
-
-      const [workspace, organization, campManagement] = await Promise.all([
-        adminEventsService.getAdminEventWorkspace(stakeId, eventId),
-        organizationService.getProfile(stakeId),
-        campManagementService.getCampManagement(stakeId, eventId, true),
-      ]);
-
-      if (!workspace) {
-        return null;
-      }
-
-      // Le statistiche di confronto (rank + media iscritti tra eventi) vivono
-      // solo nella tab "stats". Caricare le iscrizioni di TUTTI gli eventi ad
-      // ogni apertura della scheda era un N+1 che rallentava ogni visita:
-      // ora si paga solo quando serve davvero.
-      const registrationsPerEvent = isStatsTab
-        ? await Promise.all(
-            (await adminEventsService.listAdminEvents(stakeId)).map(
-              async (event) => ({
-                eventId: event.id,
-                registrations:
-                  await registrationsService.listRegistrationsByEvent(
-                    stakeId,
-                    event.id,
-                  ),
-              }),
-            ),
-          )
-        : [];
-
-      return {
-        workspace,
-        organization,
-        registrationsPerEvent,
-        campManagement,
       };
+      return { contextKey, payload: await load() };
     },
-    [eventContextKey, eventId, isCampManagementTab, isStatsTab, refreshKey, stakeId],
-    null,
+    [dataContextKey, eventId, isCampManagementTab, isStatsTab, refreshKey, stakeId],
+    { contextKey: "", payload: null },
   );
+  const dataSettled = loadedData.contextKey === dataContextKey;
+  const data = dataSettled ? loadedData.payload : null;
+  // Finché il contesto corrente non ha un esito (riuscito o errore) la pagina
+  // è in caricamento, anche nel render prima che l'effetto lo segnali.
+  const loading = loadingAnyContext || (!dataSettled && !error);
 
   const questionsEnabled =
     !isCampManagementTab && data?.workspace.event.questionsEnabled === true;
   const [questionsRefreshKey, setQuestionsRefreshKey] = useState(0);
+  const questionsContextKey = `${dataContextKey}|${questionsEnabled ? "on" : "off"}`;
   const {
-    data: questions,
-    loading: questionsLoading,
+    data: loadedQuestions,
+    loading: questionsLoadingAnyContext,
     error: questionsError,
-  } = useAsyncData<Question[]>(
+  } = useAsyncData<{ contextKey: string; items: Question[] }>(
     async () => {
+      const contextKey = questionsContextKey;
       if (!eventId || !questionsEnabled) {
-        return [];
+        return { contextKey, items: [] };
       }
 
-      return questionsService.listAllForEvent(stakeId, eventId);
+      return { contextKey, items: await questionsService.listAllForEvent(stakeId, eventId) };
     },
-    [eventId, stakeId, questionsEnabled, questionsRefreshKey],
-    [],
+    [eventId, stakeId, questionsContextKey, questionsEnabled, questionsRefreshKey],
+    { contextKey: "", items: [] },
   );
+  const questionsSettled = loadedQuestions.contextKey === questionsContextKey;
+  const questions = questionsSettled ? loadedQuestions.items : [];
+  const questionsLoading = questionsLoadingAnyContext || (!questionsSettled && !questionsError);
 
   const event = data?.workspace.event ?? null;
   const formConfig = data?.workspace.formConfig ?? null;
@@ -615,15 +749,18 @@ export function AdminEventDetailPage() {
   const modalCreatedBy =
     registrations.find((registration) => registration.id === registrationModalId)
       ?.createdBy ?? null;
-  const { data: modalCreatorName } = useAsyncData<string | null>(
+  const { data: modalCreator } = useAsyncData<{ uid: string; name: string | null }>(
     async () => {
-      if (!modalCreatedBy) return null;
+      if (!modalCreatedBy) return { uid: "", name: null };
       const profile = await usersService.getProfile(modalCreatedBy).catch(() => null);
-      return profile?.fullName || null;
+      return { uid: modalCreatedBy, name: profile?.fullName || null };
     },
     [modalCreatedBy],
-    null,
+    { uid: "", name: null },
   );
+  // Il nome vale solo per chi ha creato l'iscrizione aperta adesso.
+  const modalCreatorName =
+    modalCreatedBy && modalCreator.uid === modalCreatedBy ? modalCreator.name : null;
   const campManagement = useMemo(
     () =>
       data?.campManagement ?? campManagementService.getDefaultCampManagement(),
@@ -643,6 +780,7 @@ export function AdminEventDetailPage() {
       setCampSyncWarning(false);
       setSelectedCampCommitteeId(null);
       setSelectedCampPatrolId(null);
+      setNewCommittee(null);
     }
   }, [campManagement, eventContextKey]);
 
@@ -841,6 +979,15 @@ export function AdminEventDetailPage() {
             <div>
               <h3>Dettaglio non disponibile</h3>
               <p>{error}</p>
+              {!loading ? (
+                <button
+                  className="button button--ghost"
+                  onClick={() => setRefreshKey((current) => current + 1)}
+                  type="button"
+                >
+                  {CAMP.riprova}
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -1011,6 +1158,7 @@ export function AdminEventDetailPage() {
   const pageModalOpen = Boolean(
     registrationModal ||
       selectedCampCommittee ||
+      newCommittee ||
       selectedCampPatrol ||
       excelExportModalOpen ||
       addManualOpen,
@@ -1037,6 +1185,104 @@ export function AdminEventDetailPage() {
     if (campSaving) return;
     setCampDraftDirty(true);
     setCampDraft((current) => ({ ...current, committees: current.committees.map((committee) => committee.id === committeeId ? { ...committee, [field]: value } : committee) }));
+  }
+
+  const committeeLimitReached = campDraft.committees.length >= MAX_COMMITTEES;
+
+  function openNewCommittee() {
+    if (campSaving || committeeLimitReached) return;
+    setActionError(null);
+    setActionInfo(null);
+    setNewCommittee({ title: "", responsibilities: "" });
+  }
+
+  function updateNewCommittee(field: "title" | "responsibilities", value: string) {
+    setNewCommittee((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  // Annulla, Esc o tocco fuori: senza testo si chiude, con testo chiede lo scarto.
+  function requestCloseNewCommittee() {
+    if (!newCommittee) return;
+    if (newCommittee.title.trim() || newCommittee.responsibilities.trim()) {
+      showConfirm({ kind: "discardNewCommittee" });
+      return;
+    }
+    setNewCommittee(null);
+  }
+
+  // Il comitato entra nella bozza (si salva solo con "Salva modifiche") e si
+  // apre il suo foglio per assegnare le persone.
+  function addNewCommittee() {
+    if (!newCommittee || campSaving || committeeLimitReached) return;
+    const title = newCommittee.title.trim();
+    const responsibilities = newCommittee.responsibilities.trim();
+    if (!title || title.length > MAX_COMMITTEE_TITLE) {
+      setActionError(CAMP.erroreNome);
+      return;
+    }
+    if (responsibilities.length > MAX_COMMITTEE_RESPONSIBILITIES) {
+      setActionError(CAMP.erroreIncarico);
+      return;
+    }
+    const committee: CampCommitteePlan = {
+      id: createCommitteeId(campDraft.committees.map((entry) => entry.id)),
+      title,
+      emoji: "",
+      responsibilities,
+      leaderRegistrationIds: [],
+      manualLeaderIds: [],
+      memberRegistrationIds: [],
+      publicMembers: [],
+      updatedAt: new Date().toISOString(),
+    };
+    setCampDraftDirty(true);
+    setCampDraft((current) => ({ ...current, committees: [...current.committees, committee] }));
+    setActionError(null);
+    setNewCommittee(null);
+    setSelectedCampCommitteeId(committee.id);
+  }
+
+  // Elimina dalla bozza: le persone restano iscritte e senza comitato;
+  // "Scarta modifiche" lo ripristina finché non si salva.
+  function removeCommittee(committeeId: CampCommitteeId) {
+    if (campSaving) return;
+    setCampDraftDirty(true);
+    setCampDraft((current) => ({
+      ...current,
+      committees: current.committees.filter((committee) => committee.id !== committeeId),
+    }));
+    setSelectedCampCommitteeId(null);
+    setActionError(null);
+  }
+
+  function getCommitteePeople(committee: CampCommitteePlan) {
+    const publicNameById = new Map(
+      committee.publicMembers.map((member) => [member.registrationId, member.fullName]),
+    );
+    const nameOf = (registrationId: string) => {
+      const registration =
+        activeRegistrationById.get(registrationId) ?? registrationLookupById.get(registrationId);
+      return registration
+        ? getRegistrationDisplayName(registration)
+        : publicNameById.get(registrationId) || "Non trovato";
+    };
+    return [
+      ...committee.leaderRegistrationIds.map((registrationId) => ({
+        key: `leader-${registrationId}`,
+        name: nameOf(registrationId),
+        role: "Dirigente",
+      })),
+      ...committee.manualLeaderIds.map((leaderId) => ({
+        key: `manual-${leaderId}`,
+        name: manualLeaderById.get(leaderId)?.fullName ?? "Dirigente",
+        role: "Dirigente manuale",
+      })),
+      ...committee.memberRegistrationIds.map((registrationId) => ({
+        key: `member-${registrationId}`,
+        name: nameOf(registrationId),
+        role: "Giovane",
+      })),
+    ];
   }
 
   function updateCommitteeRegistration(
@@ -1317,11 +1563,14 @@ export function AdminEventDetailPage() {
   }) {
     const input = options?.draftOverride ?? campDraft;
     if (!campSaveRef.current) {
-      if (input.committees.some((committee) => !committee.title.trim() || committee.title.trim().length > 80)) {
+      if (input.committees.some((committee) => !committee.title.trim() || committee.title.trim().length > MAX_COMMITTEE_TITLE)) {
         setActionError(CAMP.erroreNome); return false;
       }
-      if (input.committees.some((committee) => committee.responsibilities.trim().length > 600)) {
+      if (input.committees.some((committee) => committee.responsibilities.trim().length > MAX_COMMITTEE_RESPONSIBILITIES)) {
         setActionError(CAMP.erroreIncarico); return false;
+      }
+      if (input.committees.length > MAX_COMMITTEES) {
+        setActionError(fillCopy(CAMP.massimoComitati, { numero: String(MAX_COMMITTEES) })); return false;
       }
     }
     setBusy("saveCampManagement");
@@ -1373,10 +1622,10 @@ export function AdminEventDetailPage() {
     const startedFor = eventContextRef.current;
     setBusy("saveCampManagement");
     try {
-      const saved = await campManagementService.getCampManagement(stakeId, resolvedEventId, true);
+      const saved = await campManagementService.getCampManagement(stakeId, resolvedEventId, true, resolvedEvent.activityType);
       if (eventContextRef.current !== startedFor) return;
       setCampDraft(saved); setCampDraftDirty(false); setCampConflict(false);
-      setSelectedCampCommitteeId(null); setSelectedCampPatrolId(null);
+      setSelectedCampCommitteeId(null); setSelectedCampPatrolId(null); setNewCommittee(null);
       setActionError(null); showConfirm(null);
     } catch (error) {
       if (eventContextRef.current === startedFor) setConfirmError(getAdminActionError(error, ADMIN.erroreSalvaCampo));
@@ -2065,6 +2314,8 @@ export function AdminEventDetailPage() {
   const confirmView = ((): null | {
     title: string;
     body: string;
+    // Persone coinvolte (eliminazione di un comitato), elencate sotto il testo.
+    people?: Array<{ key: string; name: string; role: string }>;
     cancelLabel: string;
     confirmLabel: string;
     busyLabel: string;
@@ -2089,6 +2340,45 @@ export function AdminEventDetailPage() {
           busyLabel: ADMIN.salvataggio,
           busy: busy === "saveCampManagement",
           onConfirm: guard(handleReloadCamp),
+        };
+      }
+      case "removeCommittee": {
+        const committee = campDraft.committees.find(
+          (entry) => entry.id === confirmSheet.committeeId,
+        );
+        if (!committee) return null;
+        const people = getCommitteePeople(committee);
+        return {
+          title: fillCopy(CAMP.eliminaComitatoTitolo, {
+            nome: committee.title.trim() || CAMP.nomeComitato,
+          }),
+          body: people.length > 0 ? CAMP.eliminaComitatoPersone : CAMP.eliminaComitatoVuoto,
+          people,
+          cancelLabel: CAMP.tieniComitato,
+          confirmLabel: CAMP.eliminaComitato,
+          busyLabel: ADMIN.salvataggio,
+          // Un salvataggio in corso blocca la bozza: il foglio aspetta.
+          busy: campSaving,
+          onConfirm: () => {
+            if (campSaving) return;
+            removeCommittee(committee.id);
+            showConfirm(null);
+          },
+        };
+      }
+      case "discardNewCommittee": {
+        if (!newCommittee) return null;
+        return {
+          title: CAMP.scartaComitatoTitolo,
+          body: CAMP.scartaComitatoCorpo,
+          cancelLabel: CAMP.continuaModifica,
+          confirmLabel: CAMP.scartaComitato,
+          busyLabel: CAMP.scartaComitato,
+          busy: false,
+          onConfirm: () => {
+            setNewCommittee(null);
+            showConfirm(null);
+          },
         };
       }
       case "removePatrol": {
@@ -2244,6 +2534,15 @@ export function AdminEventDetailPage() {
           <div>
             <h3>Dettaglio non disponibile</h3>
             <p>{error}</p>
+            {!loading ? (
+              <button
+                className="button button--ghost"
+                onClick={() => setRefreshKey((current) => current + 1)}
+                type="button"
+              >
+                {CAMP.riprova}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -2335,39 +2634,45 @@ export function AdminEventDetailPage() {
               url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
             />
           ) : null}
-          <button
-            aria-label="Modifica attività"
-            className="activity-ios-action"
-            onClick={() => {
-              setActionInfo(null);
-              setEditorInitialStep("overview");
-              setEditModalOpen(true);
-            }}
-            title="Modifica"
-            type="button"
-          >
-            <AppIcon name="pencil" />
-          </button>
-          <button
-            aria-label="Rendi pubblica"
-            className="activity-ios-action"
-            disabled={busy === "delete"}
-            onClick={() => void handlePublish()}
-            title="Pubblica"
-            type="button"
-          >
-            <AppIcon name="globe" />
-          </button>
-          <button
-            aria-label="Cancella attività"
-            className="activity-ios-action activity-ios-action--danger"
-            disabled={busy !== null}
-            onClick={() => showConfirm({ kind: "deleteActivity" })}
-            title="Cancella"
-            type="button"
-          >
-            <AppIcon name="trash" />
-          </button>
+          {/* Modifica, pubblicazione e cancellazione sono solo degli admin: chi
+              gestisce i comitati da dirigente o staff non le vede. */}
+          {!isCampManagerOnly ? (
+            <>
+              <button
+                aria-label="Modifica attività"
+                className="activity-ios-action"
+                onClick={() => {
+                  setActionInfo(null);
+                  setEditorInitialStep("overview");
+                  setEditModalOpen(true);
+                }}
+                title="Modifica"
+                type="button"
+              >
+                <AppIcon name="pencil" />
+              </button>
+              <button
+                aria-label="Rendi pubblica"
+                className="activity-ios-action"
+                disabled={busy === "delete"}
+                onClick={() => void handlePublish()}
+                title="Pubblica"
+                type="button"
+              >
+                <AppIcon name="globe" />
+              </button>
+              <button
+                aria-label="Cancella attività"
+                className="activity-ios-action activity-ios-action--danger"
+                disabled={busy !== null}
+                onClick={() => showConfirm({ kind: "deleteActivity" })}
+                title="Cancella"
+                type="button"
+              >
+                <AppIcon name="trash" />
+              </button>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -2695,7 +3000,7 @@ export function AdminEventDetailPage() {
           <article className="surface-panel surface-panel--subtle admin-roster">
             <div className="section-head admin-roster__head">
               <div>
-                <h3>Comitati campeggio</h3>
+                <h3>Comitati</h3>
                 <p>
                   Dirigenti a capo e giovani membri. Ogni persona può stare in
                   un solo comitato.
@@ -2768,12 +3073,12 @@ export function AdminEventDetailPage() {
               {campDraft.manualLeaders.length > 0 ? (
                 <div className="chip-row admin-chip-row">
                   {campDraft.manualLeaders.map((leader) => (
-                    <span className="chip" key={leader.id}>
+                    <span className="chip camp-manual-chip" key={leader.id}>
                       {leader.fullName}
                       {leader.linkedRegistrationId ? " · collegato" : ""}
                       <button
                         aria-label={`Rimuovi ${leader.fullName}`}
-                        className="chip__button"
+                        className="chip__button camp-chip-remove"
                         onClick={() => removeManualLeader(leader.id)}
                         disabled={campSaving}
                         type="button"
@@ -2836,6 +3141,31 @@ export function AdminEventDetailPage() {
                   </button>
                 );
               })}
+            </div>
+
+            {campDraft.committees.length === 0 ? (
+              <EmptyState
+                title={CAMP.nessunComitato}
+                description={CAMP.primoComitato}
+              />
+            ) : null}
+
+            <div className="camp-committee-add">
+              <button
+                aria-describedby={committeeLimitReached ? "camp-committee-limit" : undefined}
+                className="button button--secondary"
+                disabled={campSaving || committeeLimitReached}
+                onClick={openNewCommittee}
+                type="button"
+              >
+                <AppIcon name="plus" />
+                <span>{CAMP.aggiungiComitato}</span>
+              </button>
+              {committeeLimitReached ? (
+                <span className="camp-committee-add__hint" id="camp-committee-limit">
+                  {fillCopy(CAMP.massimoComitati, { numero: String(MAX_COMMITTEES) })}
+                </span>
+              ) : null}
             </div>
           </article>
 
@@ -3875,27 +4205,44 @@ export function AdminEventDetailPage() {
           size="wide"
           onClose={closeCampModal}
           footer={
-            <>
+            // Su telefono i tasti uno sotto l'altro: il principale per primo,
+            // l'eliminazione in fondo e staccata; da 720 px su una riga.
+            <div className="camp-sheet-footer">
               <ModalFeedback error={actionError} />
-              {campConflict ? <button className="button button--secondary" onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
-              <button
-                className="button button--ghost"
-                onClick={closeCampModal}
-                type="button"
-              >
-                {campDraftDirty ? CAMP.continuaDopo : "Chiudi"}
-              </button>
-              <button
-                className="button button--primary"
-                disabled={busy === "saveCampManagement" || loading || campConflict}
-                onClick={() =>
-                  void handleSaveCampManagement({ closeModal: true })
-                }
-                type="button"
-              >
-                {busy === "saveCampManagement" ? "Salvataggio..." : campSaving ? CAMP.verificaSalvataggio : "Salva e chiudi"}
-              </button>
-            </>
+              <div className="camp-sheet-actions">
+                <button
+                  className="button button--primary"
+                  disabled={busy === "saveCampManagement" || loading || campConflict}
+                  onClick={() =>
+                    void handleSaveCampManagement({ closeModal: true })
+                  }
+                  type="button"
+                >
+                  {busy === "saveCampManagement" ? "Salvataggio..." : campSaving ? CAMP.verificaSalvataggio : "Salva e chiudi"}
+                </button>
+                {campConflict ? <button className="button button--secondary camp-sheet-actions__secondary" onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
+                <button
+                  className="button button--ghost camp-sheet-actions__secondary"
+                  onClick={closeCampModal}
+                  type="button"
+                >
+                  {campDraftDirty ? CAMP.continuaDopo : "Chiudi"}
+                </button>
+                <button
+                  className="button button--ghost button--danger camp-sheet-actions__danger"
+                  disabled={campSaving}
+                  onClick={() =>
+                    showConfirm({
+                      kind: "removeCommittee",
+                      committeeId: selectedCampCommittee.id,
+                    })
+                  }
+                  type="button"
+                >
+                  {CAMP.eliminaComitato}
+                </button>
+              </div>
+            </div>
           }
         >
           <fieldset className="camp-modal-stack camp-config-fields" disabled={campSaving}>
@@ -3906,8 +4253,11 @@ export function AdminEventDetailPage() {
               </div>
             ) : null}
 
-            <label className="field"><span className="field__label">{CAMP.nomeComitato}</span><input className="input" value={selectedCampCommittee.title} maxLength={80} onChange={(input) => updateCommitteeDetails(selectedCampCommittee.id, "title", input.target.value)} /></label>
-            <label className="field"><span className="field__label">{CAMP.incarico}</span><textarea className="input camp-config-textarea" value={selectedCampCommittee.responsibilities} maxLength={600} onChange={(input) => updateCommitteeDetails(selectedCampCommittee.id, "responsibilities", input.target.value)} /><span className="field__hint">{CAMP.incaricoAiuto}</span></label>
+            <CommitteeDetailsFields
+              onChange={(field, value) => updateCommitteeDetails(selectedCampCommittee.id, field, value)}
+              responsibilities={selectedCampCommittee.responsibilities}
+              title={selectedCampCommittee.title}
+            />
             {campDraftDirty ? <p className="field__hint">{CAMP.continuaAiuto}</p> : null}
 
             <div className="camp-ios-summary">
@@ -4068,6 +4418,44 @@ export function AdminEventDetailPage() {
         </AppModal>
       ) : null}
 
+      {newCommittee ? (
+        <AppModal
+          title={CAMP.nuovoComitato}
+          subtitle={CAMP.nuovoComitatoAiuto}
+          onClose={requestCloseNewCommittee}
+          footer={
+            <div className="camp-sheet-footer">
+              <ModalFeedback error={actionError} />
+              <div className="camp-sheet-actions">
+                <button
+                  className="button button--primary"
+                  disabled={campSaving || committeeLimitReached || !newCommittee.title.trim()}
+                  onClick={addNewCommittee}
+                  type="button"
+                >
+                  {CAMP.aggiungiComitato}
+                </button>
+                <button
+                  className="button button--ghost camp-sheet-actions__secondary"
+                  onClick={requestCloseNewCommittee}
+                  type="button"
+                >
+                  {CAMP.annulla}
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <fieldset className="camp-modal-stack camp-config-fields" disabled={campSaving}>
+            <CommitteeDetailsFields
+              onChange={updateNewCommittee}
+              responsibilities={newCommittee.responsibilities}
+              title={newCommittee.title}
+            />
+          </fieldset>
+        </AppModal>
+      ) : null}
+
       {selectedCampPatrol ? (
         <AppModal
           title={selectedCampPatrol.name}
@@ -4075,40 +4463,42 @@ export function AdminEventDetailPage() {
           size="wide"
           onClose={closeCampModal}
           footer={
-            <>
+            <div className="camp-sheet-footer">
               <ModalFeedback error={actionError} />
-              {campConflict ? <button className="button button--secondary" onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
-              <button
-                className="button button--ghost"
-                onClick={closeCampModal}
-                type="button"
-              >
-                {campDraftDirty ? CAMP.continuaDopo : "Chiudi"}
-              </button>
-              <button
-                className="button button--ghost button--danger"
-                disabled={busy === "saveCampManagement" || loading || campConflict}
-                onClick={() =>
-                  showConfirm({
-                    kind: "removePatrol",
-                    patrolId: selectedCampPatrol.id,
-                  })
-                }
-                type="button"
-              >
-                Elimina e salva
-              </button>
-              <button
-                className="button button--primary"
-                disabled={busy === "saveCampManagement" || loading || campConflict}
-                onClick={() =>
-                  void handleSaveCampManagement({ closeModal: true })
-                }
-                type="button"
-              >
-                {busy === "saveCampManagement" ? "Salvataggio..." : campSaving ? CAMP.verificaSalvataggio : "Salva e chiudi"}
-              </button>
-            </>
+              <div className="camp-sheet-actions">
+                <button
+                  className="button button--primary"
+                  disabled={busy === "saveCampManagement" || loading || campConflict}
+                  onClick={() =>
+                    void handleSaveCampManagement({ closeModal: true })
+                  }
+                  type="button"
+                >
+                  {busy === "saveCampManagement" ? "Salvataggio..." : campSaving ? CAMP.verificaSalvataggio : "Salva e chiudi"}
+                </button>
+                {campConflict ? <button className="button button--secondary camp-sheet-actions__secondary" onClick={() => showConfirm({ kind: "reloadCamp" })} type="button">{CAMP.ricarica}</button> : null}
+                <button
+                  className="button button--ghost camp-sheet-actions__secondary"
+                  onClick={closeCampModal}
+                  type="button"
+                >
+                  {campDraftDirty ? CAMP.continuaDopo : "Chiudi"}
+                </button>
+                <button
+                  className="button button--ghost button--danger camp-sheet-actions__danger"
+                  disabled={busy === "saveCampManagement" || loading || campConflict}
+                  onClick={() =>
+                    showConfirm({
+                      kind: "removePatrol",
+                      patrolId: selectedCampPatrol.id,
+                    })
+                  }
+                  type="button"
+                >
+                  Elimina e salva
+                </button>
+              </div>
+            </div>
           }
         >
           <fieldset className="camp-modal-stack camp-config-fields" disabled={campSaving}>
@@ -4653,7 +5043,11 @@ export function AdminEventDetailPage() {
         <ConfirmSheet title={momentsPending ? MOMENTI.uscitaInCorsoTitolo : momentsDirty ? MOMENTI.scartaTitolo : CAMP.uscitaTitolo} body={momentsPending ? MOMENTI.uscitaInCorso : momentsDirty ? MOMENTI.scartaCorpo : campSaving ? CAMP.uscitaInCorso : CAMP.uscitaCorpo}
           cancelLabel={CAMP.continuaModifica} confirmLabel={momentsDirty || momentsPending ? MOMENTI.esci : CAMP.esci}
           onCancel={() => campNavigationBlocker.reset()} onConfirm={() => {
-            setCampDraftDirty(false); setMomentsDirty(false); setMomentsPending(false); campNavigationBlocker.proceed();
+            // Uscire scarta la bozza come "Scarta modifiche", senza scritture:
+            // tornando alla tab si ritrova il piano salvato di questo contesto.
+            setCampDraft(campManagement); setCampDraftDirty(false); setNewCommittee(null);
+            setSelectedCampCommitteeId(null); setSelectedCampPatrolId(null); setManualLeaderName(""); showConfirm(null);
+            setMomentsDirty(false); setMomentsPending(false); campNavigationBlocker.proceed();
           }} />
       ) : null}
 
@@ -4669,7 +5063,18 @@ export function AdminEventDetailPage() {
           onConfirm={confirmView.onConfirm}
           title={confirmView.title}
           tone="danger"
-        />
+        >
+          {confirmView.people && confirmView.people.length > 0 ? (
+            <ul className="plain-list plain-list--compact camp-confirm-people">
+              {confirmView.people.map((person) => (
+                <li key={person.key}>
+                  <strong>{person.name}</strong>
+                  <span>{person.role}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </ConfirmSheet>
       ) : null}
     </div>
   );

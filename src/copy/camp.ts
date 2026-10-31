@@ -1,3 +1,5 @@
+import { ISCRIZIONE } from "./iscrizione.ts";
+
 export const CAMP = {
   gruppoEtichetta: "Come chiamiamo i gruppi?",
   gruppoAiuto: "Cambia il nome nell'attività. Le persone restano assegnate agli stessi gruppi.",
@@ -30,6 +32,27 @@ export const CAMP = {
   salvato: "Comitati e gruppi salvati.",
   verificaSalvataggio: "Verifica salvataggio",
   salvataggioInCorso: "Il salvataggio è ancora in corso. Attendi l'esito prima di modificare il piano.",
+  // Comitati liberi su ogni tipo di attività (docs/ATTIVITA_MODULARI.md, quarto incremento).
+  aggiungiComitato: "Aggiungi comitato",
+  nessunComitato: "Nessun comitato",
+  primoComitato: "Crea il primo comitato e assegna i partecipanti.",
+  nuovoComitato: "Nuovo comitato",
+  nuovoComitatoAiuto: "Poi assegni le persone. Il comitato resta nella bozza finché salvi le modifiche.",
+  massimoComitati: "Massimo {numero} comitati",
+  annulla: "Annulla",
+  scartaComitatoTitolo: "Scartare il nuovo comitato?",
+  scartaComitatoCorpo: "Il nome e l'incarico scritti andranno persi. Il piano non cambia.",
+  scartaComitato: "Scarta comitato",
+  eliminaComitato: "Elimina comitato",
+  eliminaComitatoTitolo: "Eliminare il comitato «{nome}»?",
+  eliminaComitatoPersone: "Queste persone restano iscritte e saranno senza comitato. Vale dopo Salva modifiche: fino ad allora Scarta modifiche lo ripristina.",
+  eliminaComitatoVuoto: "Nessuna persona è assegnata. Vale dopo Salva modifiche: fino ad allora Scarta modifiche lo ripristina.",
+  tieniComitato: "Tieni il comitato",
+  organizzazioneVuota: "Nessun comitato e {gruppi}.",
+  organizzazioneErrore: "Non è stato possibile caricare comitati e gruppi.",
+  riprova: ISCRIZIONE.riprova,
+  gruppoAttivitaSub: "Le persone con cui condividi l'attività.",
+  gruppoAttivitaCard: "Con chi sei durante l'attività.",
 } as const;
 
 export const CAMP_GROUPS = {

@@ -154,7 +154,9 @@ export function MyActivityDetailPage() {
   // Il conteggio dei record si legge solo da membro del palo.
   const { access: membershipAccess } = useStakeMembership(stakeId);
   const [busy, setBusy] = useState<null | "cancel">(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  // Esito legato al contesto (sessione|palo|attività) in cui è nato: dopo un
+  // cambio non compare, nemmeno nel render prima dell'effetto di pulizia.
+  const [feedback, setFeedback] = useState<{ contextKey: string; message: string } | null>(null);
   // "Annulla l'iscrizione": prima il foglio, mai un dialogo del browser.
   const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -173,10 +175,22 @@ export function MyActivityDetailPage() {
   // Al cambio di account il primo render ha il conto di quello di prima.
   const childCount = family.uid === familyUid ? family.count : 0;
 
-  const { data, loading, error, setData } = useAsyncData(
+  // Il risultato appartiene al contesto per cui è stato chiesto (account,
+  // palo, attività): useAsyncData conserva l'ultimo risultato durante il nuovo
+  // caricamento e anche se fallisce, quindi si usa solo con la chiave
+  // corrente. Così iscrizione, comitati e gruppo di un altro account o di
+  // un'altra attività non restano a schermo.
+  const dataContextKey = `${sessionKey}|${stakeId}|${eventId ?? ""}`;
+  const {
+    data: loadedData,
+    loading: loadingAnyContext,
+    error,
+    setData: setLoadedData,
+  } = useAsyncData(
     async () => {
+      const contextKey = dataContextKey;
       if (!eventId || !stakeId) {
-        return null;
+        return { contextKey, payload: null };
       }
 
       const bundle = await userActivitiesService.getForSessionEvent(
@@ -185,7 +199,7 @@ export function MyActivityDetailPage() {
       );
 
       if (!bundle) {
-        return null;
+        return { contextKey, payload: null };
       }
 
       const formConfig = await eventFormsService.getFormConfig(
@@ -194,13 +208,19 @@ export function MyActivityDetailPage() {
       );
 
       return {
-        ...bundle,
-        formConfig,
+        contextKey,
+        payload: {
+          ...bundle,
+          formConfig,
+        },
       };
     },
-    [eventId, sessionKey, stakeId],
-    null,
+    [dataContextKey, eventId, sessionKey, stakeId],
+    { contextKey: "", payload: null },
   );
+  const dataSettled = loadedData.contextKey === dataContextKey;
+  const data = dataSettled ? loadedData.payload : null;
+  const loading = loadingAnyContext || (!dataSettled && !error);
 
   const personalCampOrganization = useMemo(() => {
     if (!data) {
@@ -333,18 +353,19 @@ export function MyActivityDetailPage() {
     return { patrol, committees };
   }, [data]);
 
-  // Cambio di account o di attività (Indietro/Avanti fra due schede) con il
-  // foglio aperto: si chiude, nessun annullamento parte per l'altra.
-  // Account e attività di adesso: l'esito di una richiesta partita con altri
-  // non tocca la pagina.
-  const contextKey = `${sessionKey}|${eventId ?? ""}`;
-  const contextKeyRef = useRef(contextKey);
-  contextKeyRef.current = contextKey;
+  // Cambio di account, palo o attività (Indietro/Avanti fra due schede) con
+  // il foglio aperto: si chiude, nessun annullamento parte per l'altra.
+  // Account, palo e attività di adesso (`dataContextKey`): l'esito di una
+  // richiesta partita in un altro contesto non tocca la pagina.
+  const contextKeyRef = useRef(dataContextKey);
+  contextKeyRef.current = dataContextKey;
   useEffect(() => {
     setCancelSheetOpen(false);
     setCancelError(null);
     setFeedback(null);
-  }, [sessionKey, eventId]);
+  }, [dataContextKey]);
+  const visibleFeedback =
+    feedback && feedback.contextKey === dataContextKey ? feedback.message : null;
   // I dati mostrati sono dell'attività nell'URL (durante un cambio di scheda
   // restano un attimo quelli di prima).
   const dataMatchesRoute = Boolean(data && data.event.id === eventId);
@@ -369,7 +390,7 @@ export function MyActivityDetailPage() {
       return;
     }
 
-    const startedFor = contextKey;
+    const startedFor = dataContextKey;
     setBusy("cancel");
     setCancelError(null);
 
@@ -394,16 +415,20 @@ export function MyActivityDetailPage() {
         return;
       }
 
-      setData((current) =>
-        current
+      // Solo nel payload del contesto in cui l'annullamento è partito.
+      setLoadedData((current) =>
+        current.contextKey === startedFor && current.payload
           ? {
               ...current,
-              registration: cancelledRegistration,
+              payload: {
+                ...current.payload,
+                registration: cancelledRegistration,
+              },
             }
           : current,
       );
       setCancelSheetOpen(false);
-      setFeedback(ANNULLA.annullata);
+      setFeedback({ contextKey: startedFor, message: ANNULLA.annullata });
     } catch (caughtError) {
       if (contextKeyRef.current === startedFor) {
         setCancelError(getCancelErrorMessage(caughtError));
@@ -450,10 +475,14 @@ export function MyActivityDetailPage() {
       getRegistrationAvailability(data.event, data.formConfig, session, { forChild: true }) ===
         "open",
   );
-  // Solo un campeggio ha checklist zaino, pattuglie, comitati e area
-  // /campeggio: per un viaggio (es. tempio) o un'attività standard la pagina
-  // mostra cosa portare e la stanza, se comunicate, e il riepilogo iscrizione.
+  // Solo un campeggio ha checklist zaino, galleria e sondaggio nelle schede
+  // e area /campeggio: per un viaggio (es. tempio) o un'attività standard la
+  // pagina mostra cosa portare e la stanza, se comunicate, e il riepilogo
+  // iscrizione. Comitati e gruppo valgono per ogni tipo, ma fuori dal
+  // campeggio compaiono solo se il piano è stato salvato: mai le schede con i
+  // soli valori predefiniti.
   const isCamp = data ? isCampEvent(data.event) : false;
+  const showOrganization = Boolean(data && (isCamp || data.campPlanSaved));
   const whatToBring = data?.event.whatToBring.trim() ?? "";
   const assignedRoomName =
     data && !isCancelled ? data.registration.assignedRoomName : null;
@@ -466,12 +495,21 @@ export function MyActivityDetailPage() {
     label: string;
     icon: "badge" | "users" | "list" | "eye" | "check";
   }> = [
-    { id: "registration", label: "Iscrizione", icon: "badge" },
-    { id: "patrol", label: campGroupLabels.singular, icon: "users" },
-    { id: "committees", label: "Comitati", icon: "list" },
-    { id: "gallery", label: "Galleria", icon: "eye" },
-    { id: "survey", label: "Sondaggio", icon: "check" },
-  ];
+    { id: "registration" as const, label: "Iscrizione", icon: "badge" as const },
+    { id: "patrol" as const, label: campGroupLabels.singular, icon: "users" as const },
+    { id: "committees" as const, label: "Comitati", icon: "list" as const },
+    { id: "gallery" as const, label: "Galleria", icon: "eye" as const },
+    { id: "survey" as const, label: "Sondaggio", icon: "check" as const },
+  ].filter((tab) =>
+    tab.id === "registration" ||
+    (showOrganization && (tab.id === "patrol" || tab.id === "committees")) ||
+    isCamp,
+  );
+  // Una scheda che qui non esiste (aperta su un'altra attività, piano non
+  // salvato) torna all'iscrizione.
+  const visibleTab: YouthActivityTab = tabDefinitions.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : "registration";
   const currentPatrol = personalCampOrganization.patrol;
   const currentCommittees = personalCampOrganization.committees;
 
@@ -591,25 +629,25 @@ export function MyActivityDetailPage() {
         </div>
       ) : null}
 
-      {feedback ? (
+      {visibleFeedback ? (
         <div className="notice notice--info">
           <div>
             <h3>Aggiornamento completato</h3>
-            <p>{feedback}</p>
+            <p>{visibleFeedback}</p>
           </div>
         </div>
       ) : null}
 
       {data ? (
         <>
-          {isCamp ? (
+          {tabDefinitions.length > 1 ? (
           <section className="camp-trail-nav" aria-label="Menu attività">
             <div className="camp-trail-track" role="tablist">
               {tabDefinitions.map((tab) => (
                 <button
-                  aria-selected={activeTab === tab.id}
+                  aria-selected={visibleTab === tab.id}
                   className={
-                    activeTab === tab.id
+                    visibleTab === tab.id
                       ? "camp-trail-stop camp-trail-stop--active"
                       : "camp-trail-stop"
                   }
@@ -629,7 +667,7 @@ export function MyActivityDetailPage() {
           ) : null}
 
           <section className="camp-youth-tab-panel" role="tabpanel">
-            {activeTab === "registration" ? (
+            {visibleTab === "registration" ? (
               <div className="camp-youth-stack">
                 {session?.firebaseUser.uid && isCamp ? (
                   <CampPackingChecklist
@@ -774,12 +812,14 @@ export function MyActivityDetailPage() {
               </div>
             ) : null}
 
-            {activeTab === "patrol" ? (
+            {visibleTab === "patrol" ? (
               <div className="camp-youth-screen">
                 <span className="camp-section-eyebrow">Il tuo gruppo</span>
                 <h2 className="camp-section-title">{campGroupLabels.your}</h2>
                 <p className="camp-section-sub">
-                  Le persone con cui condividi turni, attività e vita di campo.
+                  {isCamp
+                    ? "Le persone con cui condividi turni, attività e vita di campo."
+                    : CAMP.gruppoAttivitaSub}
                 </p>
 
                 {currentPatrol ? (
@@ -792,7 +832,7 @@ export function MyActivityDetailPage() {
                         <span className="camp-config-initials">{getCommitteeInitials(currentPatrol.name)}</span>
                       </div>
                       <h3>{currentPatrol.name}</h3>
-                      <p>Con chi cammini durante il campeggio.</p>
+                      <p>{isCamp ? "Con chi cammini durante il campeggio." : CAMP.gruppoAttivitaCard}</p>
                       <div className="camp-patrol-meta">
                         <div>
                           Ruolo
@@ -845,10 +885,10 @@ export function MyActivityDetailPage() {
               </div>
             ) : null}
 
-            {activeTab === "committees" ? (
+            {visibleTab === "committees" ? (
               <div className="camp-youth-screen">
                 <span className="camp-section-eyebrow">Servizio</span>
-                <h2 className="camp-section-title">Comitati del campeggio</h2>
+                <h2 className="camp-section-title">{isCamp ? "Comitati del campeggio" : "Comitati"}</h2>
                 <p className="camp-section-sub">
                   Qui vedi il tuo comitato e le persone con cui lo prepari.
                 </p>
@@ -936,7 +976,7 @@ export function MyActivityDetailPage() {
               </div>
             ) : null}
 
-            {activeTab === "gallery" ? (
+            {visibleTab === "gallery" ? (
               <div className="camp-youth-screen">
                 <span className="camp-section-eyebrow">Ricordi</span>
                 <h2 className="camp-section-title">Galleria foto e video</h2>
@@ -966,7 +1006,7 @@ export function MyActivityDetailPage() {
               </div>
             ) : null}
 
-            {activeTab === "survey" ? (
+            {visibleTab === "survey" ? (
               <div className="camp-youth-screen">
                 <span className="camp-section-eyebrow">Post evento</span>
                 <h2 className="camp-section-title">Sondaggio</h2>

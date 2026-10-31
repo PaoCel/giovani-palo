@@ -50,7 +50,7 @@ export const ADMIN = {
   tieniPattuglia: "Tieni la pattuglia",
   confermaEliminaPattuglia: "Sì, elimina e salva",
   salvataggio: PAROLE.salvataggio,
-  erroreSalvaCampo: "Impossibile salvare comitati e pattuglie.",
+  erroreSalvaCampo: "Impossibile salvare comitati e gruppi.",
 
   // Domande per il caminetto, viste dall'admin.
   eliminaDomandaTitolo: DOMANDE.eliminaTitolo,

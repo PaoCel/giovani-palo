@@ -1,7 +1,8 @@
 import "@/styles/camp-configuration.css";
 import { CAMP } from "@/copy/camp";
+import { fillCopy } from "@/copy/parole";
 import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -305,8 +306,12 @@ const initialData = {
   registrations: [] as Registration[],
   unitYouth: [] as UserProfile[],
   campManagement: { groupLabel: "pattuglia" as const, committees: [], patrols: [], manualLeaders: [], updatedAt: "" },
+  campManagementAvailable: false,
   stats: { total: 0, needsTransport: 0, missingPhotoConsent: 0, missingParentConsent: 0 },
 };
+// Stato senza dati: prima del primo esito e per un contesto che non ha ancora
+// risposto (vedi `contextKey` nella pagina).
+const initialState = { contextKey: "", ...initialData };
 
 type CampGroup =
   | {
@@ -385,20 +390,56 @@ export function UnitActivityPage() {
   const unitId = session?.profile.unitId ?? "";
   const [selectedCampGroupKey, setSelectedCampGroupKey] = useState<string | null>(null);
   const [resendingRegistrationId, setResendingRegistrationId] = useState<string | null>(null);
-  const [actionInfo, setActionInfo] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // Esiti legati al contesto (account|palo|unità|attività) in cui sono nati:
+  // si filtrano durante il render, così non compaiono nemmeno nel primo
+  // render dopo un cambio, prima dell'effetto di pulizia.
+  const [actionInfo, setActionInfo] = useState<{ contextKey: string; message: string } | null>(null);
+  const [actionError, setActionError] = useState<{ contextKey: string; message: string } | null>(null);
 
-  const { data, loading, error, reload } = useAsyncData(
-    () => unitLeaderService.getUnitActivityDetail(stakeId, eventId, unitId),
-    [stakeId, eventId, unitId],
-    initialData,
+  // I risultati appartengono al contesto per cui sono stati chiesti (account,
+  // palo, unità, attività): useAsyncData conserva l'ultimo risultato durante
+  // il nuovo caricamento e anche se fallisce, quindi si usano solo con la
+  // chiave corrente. Altrimenti la pagina è in caricamento o in errore, senza
+  // iscritti, comitati o gruppi del contesto precedente.
+  const contextKey = `${session?.firebaseUser.uid ?? ""}|${stakeId}|${unitId}|${eventId}`;
+  const contextKeyRef = useRef(contextKey);
+  contextKeyRef.current = contextKey;
+  const { data: loadedData, loading: loadingAnyContext, error, reload } = useAsyncData(
+    async () => ({
+      ...(await unitLeaderService.getUnitActivityDetail(stakeId, eventId, unitId)),
+      contextKey,
+    }),
+    [contextKey, stakeId, eventId, unitId],
+    initialState,
   );
+  const dataSettled = loadedData.contextKey === contextKey;
+  const data: typeof loadedData = dataSettled ? loadedData : initialState;
+  const loading = loadingAnyContext || (!dataSettled && !error);
 
-  const { data: resolvedIds, setData: setResolvedIds } = useAsyncData(
-    () => unitTransportNotesService.listResolved(stakeId, eventId),
-    [stakeId, eventId],
-    [] as string[],
+  const { data: loadedResolved, setData: setLoadedResolved } = useAsyncData(
+    async () => ({
+      contextKey,
+      ids: await unitTransportNotesService.listResolved(stakeId, eventId),
+    }),
+    [contextKey, stakeId, eventId],
+    { contextKey: "", ids: [] as string[] },
   );
+  const resolvedIds = loadedResolved.contextKey === contextKey ? loadedResolved.ids : [];
+  function setResolvedIds(ids: string[]) {
+    setLoadedResolved({ contextKey, ids });
+  }
+
+  // Cambio di account, palo o attività: niente foglio né esito dell'altro contesto.
+  useEffect(() => {
+    setSelectedCampGroupKey(null);
+    setActionInfo(null);
+    setActionError(null);
+  }, [contextKey]);
+
+  const visibleActionInfo =
+    actionInfo && actionInfo.contextKey === contextKey ? actionInfo.message : null;
+  const visibleActionError =
+    actionError && actionError.contextKey === contextKey ? actionError.message : null;
 
   const resolvedSet = useMemo(() => new Set(resolvedIds), [resolvedIds]);
 
@@ -420,6 +461,7 @@ export function UnitActivityPage() {
   }
 
   async function handleResendParentAuthorization(registration: Registration) {
+    const startedFor = contextKey;
     setResendingRegistrationId(registration.id);
     setActionInfo(null);
     setActionError(null);
@@ -435,14 +477,22 @@ export function UnitActivityPage() {
         throw new Error("L'email non è partita. Riprova o contatta la presidenza di palo.");
       }
 
-      setActionInfo(`Email di autorizzazione reinviata per ${registration.fullName}.`);
+      // Risposta arrivata dopo un cambio di account o di attività: niente esito.
+      if (contextKeyRef.current !== startedFor) return;
+      setActionInfo({
+        contextKey: startedFor,
+        message: `Email di autorizzazione reinviata per ${registration.fullName}.`,
+      });
       reload();
     } catch (caughtError) {
-      setActionError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Impossibile reinviare l'email di autorizzazione.",
-      );
+      if (contextKeyRef.current !== startedFor) return;
+      setActionError({
+        contextKey: startedFor,
+        message:
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Impossibile reinviare l'email di autorizzazione.",
+      });
     } finally {
       setResendingRegistrationId(null);
     }
@@ -592,10 +642,18 @@ export function UnitActivityPage() {
     selectedCampGroupKey !== null
       ? campGroups.find((group) => `${group.kind}:${group.id}` === selectedCampGroupKey) ?? null
       : null;
-  // Checklist zaino, pattuglie e comitati esistono solo per i campeggi: un
-  // viaggio con pernottamento (activityType trip) non li mostra.
+  // La checklist zaino esiste solo per i campeggi; comitati e gruppi valgono
+  // per ogni tipo di attività (docs/ATTIVITA_MODULARI.md, quarto incremento):
+  // la sezione Organizzazione c'è sempre, così "Gestisci" resta raggiungibile
+  // anche con zero comitati e zero gruppi.
   const isCamp = Boolean(data.event && isCampEvent(data.event));
-  const showCampOrganization = isCamp && campGroups.length > 0;
+  const showOrganization = Boolean(data.event);
+  const showAssignmentColumn =
+    isCamp ||
+    data.registrations.some((registration) => {
+      const assignment = campOrganization.assignmentByRegistrationId.get(registration.id);
+      return Boolean(assignment?.patrolName || assignment?.committeeTitle);
+    });
 
   return (
     <div className="page page--activity-ios page--unit-activity">
@@ -644,20 +702,20 @@ export function UnitActivityPage() {
         </div>
       ) : null}
 
-      {actionInfo ? (
+      {visibleActionInfo ? (
         <div className="notice notice--info">
           <div>
             <h3>Email inviata</h3>
-            <p>{actionInfo}</p>
+            <p>{visibleActionInfo}</p>
           </div>
         </div>
       ) : null}
 
-      {actionError ? (
+      {visibleActionError ? (
         <div className="notice notice--warning">
           <div>
             <h3>Reinvio non riuscito</h3>
-            <p>{actionError}</p>
+            <p>{visibleActionError}</p>
           </div>
         </div>
       ) : null}
@@ -687,17 +745,31 @@ export function UnitActivityPage() {
         </section>
       )}
 
-      {!loading && showCampOrganization ? (
+      {!loading && showOrganization ? (
         <section className="activity-ios-panel admin-section">
           <div className="admin-section__head">
             <div>
-              <h2>Organizzazione campeggio</h2>
-              <p className="subtle-text">{`Comitati e ${campGroupLabels.plural.toLocaleLowerCase("it-IT")} del campeggio`}</p>
+              <h2>Organizzazione</h2>
+              <p className="subtle-text">{`Comitati e ${campGroupLabels.plural.toLocaleLowerCase("it-IT")}`}</p>
             </div>
-            <Link className="button button--ghost button--small" to={`/admin/events/${eventId}/comitati`}>
+            <Link className="button button--ghost button--small camp-organization-manage" to={`/admin/events/${eventId}/comitati`}>
               Gestisci
             </Link>
           </div>
+          {!data.campManagementAvailable ? (
+            <div className="inline-actions">
+              <p className="subtle-text">{CAMP.organizzazioneErrore}</p>
+              <button className="button button--ghost" onClick={reload} type="button">
+                {CAMP.riprova}
+              </button>
+            </div>
+          ) : campGroups.length === 0 ? (
+            <p className="subtle-text">
+              {fillCopy(CAMP.organizzazioneVuota, {
+                gruppi: campGroupLabels.empty.toLocaleLowerCase("it-IT"),
+              })}
+            </p>
+          ) : (
           <div className="camp-ios-grid">
             {campGroups.map((group) => {
               const memberCount = getCampGroupMemberCount(group);
@@ -732,6 +804,7 @@ export function UnitActivityPage() {
               );
             })}
           </div>
+          )}
         </section>
       ) : null}
 
@@ -760,7 +833,7 @@ export function UnitActivityPage() {
                   <th>Stato</th>
                   <th>Trasporto</th>
                   <th>Consensi</th>
-                  {isCamp ? <th>Campeggio</th> : null}
+                  {showAssignmentColumn ? <th>{isCamp ? "Campeggio" : "Organizzazione"}</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -770,7 +843,7 @@ export function UnitActivityPage() {
                     registration={r}
                     campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
                     groupName={campGroupLabels.singular}
-                    showCampAssignment={isCamp}
+                    showCampAssignment={showAssignmentColumn}
                     requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
                     isTransportResolved={resolvedSet.has(r.id)}
                     onToggleTransport={() => void handleToggleTransport(r.id)}
@@ -801,7 +874,7 @@ export function UnitActivityPage() {
             <table className="unit-table unit-table--unregistered">
               <tbody>
                 {notRegistered.map((y) => (
-                  <NotRegisteredRow columns={isCamp ? 5 : 4} key={y.id} youth={y} />
+                  <NotRegisteredRow columns={showAssignmentColumn ? 5 : 4} key={y.id} youth={y} />
                 ))}
               </tbody>
             </table>

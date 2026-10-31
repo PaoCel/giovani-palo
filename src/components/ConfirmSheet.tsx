@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { AppModal } from "@/components/AppModal";
 
 interface ConfirmSheetProps {
@@ -11,6 +13,8 @@ interface ConfirmSheetProps {
   error?: string | null;
   // "danger" per le azioni che tolgono qualcosa (annullare, eliminare).
   tone?: "neutral" | "danger";
+  // Dettagli sotto il testo (per esempio le persone coinvolte da un'eliminazione).
+  children?: ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -26,6 +30,7 @@ export function ConfirmSheet({
   busy = false,
   error,
   tone = "neutral",
+  children,
   onCancel,
   onConfirm,
 }: ConfirmSheetProps) {
@@ -56,6 +61,7 @@ export function ConfirmSheet({
     >
       <div className="stack">
         <p className="family-cancel-body">{body}</p>
+        {children}
         {error ? (
           <p className="form-error" role="alert">
             {error}

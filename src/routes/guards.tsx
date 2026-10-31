@@ -45,9 +45,19 @@ function CampStaffGate({ session, pathname }: {
       .then((context) => {
         if (!cancelled) setState(context.isStaff ? "allowed" : "denied");
       })
-      .catch(() => {
-        // Rete o server: non è un "no", non mando lo staff vero a /me.
-        if (!cancelled) setState("error");
+      .catch((caughtError: unknown) => {
+        if (cancelled) return;
+        // Il server ha risposto "no" (per esempio "L'elenco staff esiste solo
+        // per i campeggi." su un viaggio, o accesso negato): Riprova non può
+        // riuscire, vale come "non sei staff".
+        const code = (caughtError as { code?: unknown } | null)?.code;
+        if (code === "functions/failed-precondition" || code === "functions/permission-denied") {
+          setState("denied");
+          return;
+        }
+        // Rete o server non raggiungibile: non è un "no", non mando lo staff
+        // vero a /me.
+        setState("error");
       });
     return () => {
       cancelled = true;

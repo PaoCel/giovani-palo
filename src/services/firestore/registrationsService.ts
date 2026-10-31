@@ -23,6 +23,7 @@ import { usersService } from "@/services/firestore/usersService";
 import type {
   CampCommitteeAssignment,
   CampPatrolRole,
+  CampRosterEntry,
   GenderRoleCategory,
   Registration,
   RegistrationLookup,
@@ -30,6 +31,7 @@ import type {
   RegistrationStatus,
   RegistrationWriteInput,
 } from "@/types";
+import { isValidCommitteeId } from "@/utils/campGroups";
 import { getAudienceRestrictionMessage, isEventAudienceEligible } from "@/utils/events";
 import { getGenderRoleCategory, getYouthGroupLabel } from "@/utils/profile";
 import { resolveRegistrationStatusOnSave } from "@/utils/registrationStatus";
@@ -74,13 +76,8 @@ function mapAssignedCommittees(value: unknown): CampCommitteeAssignment[] {
       if (!item || typeof item !== "object" || Array.isArray(item)) return null;
       const data = item as Record<string, unknown>;
       const id = data.id;
-      if (
-        id !== "logistics" &&
-        id !== "wellbeing" &&
-        id !== "kitchen" &&
-        id !== "games" &&
-        id !== "spiritual"
-      ) {
+      // Comitati liberi: i cinque storici o `c_…` (quarto incremento).
+      if (!isValidCommitteeId(id)) {
         return null;
       }
 
@@ -184,7 +181,13 @@ function mapRegistration(
       typeof data.linkedLaterToUserId === "string" ? data.linkedLaterToUserId : null,
     parentUid: typeof data.parentUid === "string" ? data.parentUid : null,
     childId: typeof data.childId === "string" ? data.childId : null,
-    status: data.registrationStatus === "cancelled" ? "cancelled" : "active",
+    // Campo legacy: alcune iscrizioni vecchie portano solo `status: "cancelled"`
+    // (stessa regola del server, functions/lib/recordNight.js
+    // isRegistrationActive). Lo stato salvato, se noto, resta quello.
+    status:
+      data.registrationStatus === "cancelled" || data.status === "cancelled"
+        ? "cancelled"
+        : "active",
     registrationStatus:
       data.registrationStatus === "draft" ||
       data.registrationStatus === "submitted" ||
@@ -195,7 +198,9 @@ function mapRegistration(
       data.registrationStatus === "pending_parent_authorization" ||
       data.registrationStatus === "rejected_by_parent"
         ? data.registrationStatus
-        : "active",
+        : data.status === "cancelled"
+          ? "cancelled"
+          : "active",
     parentAuthorization:
       data.parentAuthorization && typeof data.parentAuthorization === "object"
         ? (data.parentAuthorization as Registration["parentAuthorization"])
@@ -229,6 +234,24 @@ function mapRegistration(
     createdAt: typeof data.createdAt === "string" ? data.createdAt : nowIso(),
     updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : nowIso(),
   };
+}
+
+// Riga dell'elenco nomi (`roster`) nella forma usata dall'editor dei comitati:
+// i campi assenti (contatti, risposte, consensi) restano vuoti.
+export function mapRosterRegistration(
+  stakeId: string,
+  eventId: string,
+  entry: CampRosterEntry,
+): Registration {
+  return mapRegistration(eventId, stakeId, entry.id, {
+    firstName: entry.firstName,
+    lastName: entry.lastName,
+    fullName: entry.fullName,
+    genderRoleCategory: entry.genderRoleCategory,
+    unitNameSnapshot: entry.unitName,
+    registrationStatus: entry.registrationStatus,
+    status: entry.status,
+  });
 }
 
 function getEventRegistrationsCollection(stakeId: string, eventId: string) {

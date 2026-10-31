@@ -1,27 +1,28 @@
-import { normalizeCampGroupLabel } from "@/utils/campGroups";
 import {
-  collection,
-  getDocFromServer,
-  doc,
-  getDocs,
-  writeBatch,
-} from "firebase/firestore";
+  getDefaultCampGroupLabel,
+  isValidCommitteeId,
+  normalizeCampGroupLabel,
+} from "@/utils/campGroups";
+import { getDocFromServer, doc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
 import { db, functions } from "@/services/firebase/app";
 import { getDocCacheFirst } from "@/services/firestore/cacheFirst";
 import type {
-  CampCommitteeAssignment,
+  ActivityType,
   CampCommitteeId,
   CampCommitteePlan,
   CampManagementPlan,
   CampManualLeader,
   CampPatrolPlan,
-  CampPatrolRole,
   CampPublicMember,
+  CampRosterEntry,
   GenderRoleCategory,
+  RegistrationStatus,
 } from "@/types";
 
+// I cinque comitati con cui parte ogni attività senza piano salvato. Sono
+// rinominabili ed eliminabili; i comitati aggiunti dopo non hanno emoji.
 const COMMITTEE_DEFINITIONS: Array<{
   id: CampCommitteeId;
   title: string;
@@ -40,8 +41,16 @@ interface CampManagementSaveResult {
   registrationsSynced: number;
 }
 
+// Formato 2: `plan.committees` è l'elenco completo (un comitato omesso è
+// eliminato) ed `expectedUpdatedAt` è la revisione vista, anche null.
 const campManagementSaveCallable = httpsCallable<
-  { stakeId: string; activityId: string; plan: CampManagementPlan; expectedUpdatedAt: string | null },
+  {
+    stakeId: string;
+    activityId: string;
+    plan: CampManagementPlan;
+    expectedUpdatedAt: string | null;
+    planFormat: 2;
+  },
   CampManagementSaveResult
 >(functions, "campManagementSave");
 
@@ -65,6 +74,7 @@ interface CampStaffResult {
   canManageStaff?: boolean;
   candidates?: unknown;
   staffUids?: unknown;
+  registrations?: unknown;
 }
 
 const campManagementStaffCallable = httpsCallable<
@@ -84,6 +94,37 @@ function mapCampStaffCandidate(value: unknown): CampStaffCandidate | null {
     unitName: asString(item.unitName),
     isAdult: item.isAdult === true,
     isStaff: item.isStaff === true,
+  };
+}
+
+const REGISTRATION_STATUSES: readonly RegistrationStatus[] = [
+  "draft",
+  "submitted",
+  "confirmed",
+  "waitlist",
+  "active",
+  "cancelled",
+  "pending_parent_authorization",
+  "rejected_by_parent",
+];
+
+function mapRosterEntry(value: unknown): CampRosterEntry | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = value as Record<string, unknown>;
+  const id = asString(item.id);
+  if (!id) return null;
+  const firstName = asString(item.firstName).trim();
+  const lastName = asString(item.lastName).trim();
+  const registrationStatus = REGISTRATION_STATUSES.find((status) => status === item.registrationStatus) ?? "active";
+  return {
+    id,
+    firstName,
+    lastName,
+    fullName: asString(item.fullName).trim() || [firstName, lastName].filter(Boolean).join(" "),
+    genderRoleCategory: asGenderRoleCategory(item.genderRoleCategory),
+    unitName: asString(item.unitName).trim(),
+    registrationStatus,
+    status: item.status === "cancelled" || registrationStatus === "cancelled" ? "cancelled" : "active",
   };
 }
 
@@ -113,19 +154,6 @@ function uniqueStrings(values: string[]) {
     });
 }
 
-function normalizeName(value: string) {
-  return value
-    .trim()
-    .toLocaleLowerCase("it-IT")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-function isAdultCategory(value: unknown) {
-  return value === "dirigente" || value === "accompagnatore";
-}
-
 function asGenderRoleCategory(value: unknown): GenderRoleCategory | "" {
   return value === "giovane_uomo" ||
     value === "giovane_donna" ||
@@ -133,17 +161,6 @@ function asGenderRoleCategory(value: unknown): GenderRoleCategory | "" {
     value === "accompagnatore"
     ? value
     : "";
-}
-
-function getPublicName(data: Record<string, unknown>) {
-  return (
-    asString(data.fullName) ||
-    [asString(data.firstName), asString(data.lastName)].filter(Boolean).join(" ")
-  ).trim();
-}
-
-function getPublicUnitName(data: Record<string, unknown>) {
-  return (asString(data.unitNameSnapshot) || asString(data.unitName)).trim();
 }
 
 function normalizeManualLeader(source: unknown, index: number): CampManualLeader {
@@ -204,7 +221,7 @@ function normalizePublicMembers(
 }
 
 function normalizeCommittee(
-  definition: (typeof COMMITTEE_DEFINITIONS)[number],
+  definition: { id: CampCommitteeId; title: string; emoji: string },
   source: unknown,
   claimedRegistrationIds: Set<string>,
   claimedManualLeaderIds: Set<string>,
@@ -310,24 +327,32 @@ function normalizePatrol(
   };
 }
 
-function normalizeCampManagement(data: Record<string, unknown> | null): CampManagementPlan {
-  const timestamp = nowIso();
-  const rawCommittees = Array.isArray(data?.committees) ? data.committees : [];
+// Documento assente: i cinque comitati storici con incarico vuoto e la
+// denominazione del tipo di attività. Documento presente: l'elenco salvato,
+// nell'ordine salvato, anche vuoto; si scartano solo ID non validi o ripetuti.
+// Un documento senza l'elenco (piani storici) riparte dai cinque.
+function normalizeCampManagement(
+  data: Record<string, unknown> | null,
+  activityType?: ActivityType | null,
+): CampManagementPlan {
+  const rawCommittees = Array.isArray(data?.committees) ? data.committees : null;
   const rawPatrols = Array.isArray(data?.patrols) ? data.patrols : [];
   const rawManualLeaders = Array.isArray(data?.manualLeaders) ? data.manualLeaders : [];
-  const committeeById = new Map<CampCommitteeId, unknown>();
+  const historicById = new Map(COMMITTEE_DEFINITIONS.map((definition) => [definition.id, definition]));
+  const committeeSources: Array<{ id: CampCommitteeId; source: unknown }> = [];
 
-  for (const item of rawCommittees) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const id = (item as Record<string, unknown>).id;
-    if (
-      id === "logistics" ||
-      id === "wellbeing" ||
-      id === "kitchen" ||
-      id === "games" ||
-      id === "spiritual"
-    ) {
-      committeeById.set(id, item);
+  if (rawCommittees) {
+    const seen = new Set<string>();
+    for (const item of rawCommittees) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const id = (item as Record<string, unknown>).id;
+      if (!isValidCommitteeId(id) || seen.has(id)) continue;
+      seen.add(id);
+      committeeSources.push({ id, source: item });
+    }
+  } else {
+    for (const definition of COMMITTEE_DEFINITIONS) {
+      committeeSources.push({ id: definition.id, source: null });
     }
   }
 
@@ -337,11 +362,14 @@ function normalizeCampManagement(data: Record<string, unknown> | null): CampMana
   const claimedPatrolManualSupervisorIds = new Set<string>();
 
   return {
-    groupLabel: normalizeCampGroupLabel(data?.groupLabel),
-    committees: COMMITTEE_DEFINITIONS.map((definition) =>
+    groupLabel: normalizeCampGroupLabel(
+      data?.groupLabel,
+      data ? "pattuglia" : getDefaultCampGroupLabel(activityType),
+    ),
+    committees: committeeSources.map(({ id, source }) =>
       normalizeCommittee(
-        definition,
-        committeeById.get(definition.id),
+        historicById.get(id) ?? { id, title: "", emoji: "" },
+        source,
         claimedCommitteeRegistrationIds,
         claimedManualLeaderIds,
       ),
@@ -365,208 +393,14 @@ function getCampManagementReference(stakeId: string, eventId: string) {
   return doc(db, "stakes", stakeId, "activities", eventId, "management", "camp");
 }
 
-function getRegistrationsCollection(stakeId: string, eventId: string) {
-  return collection(db, "stakes", stakeId, "activities", eventId, "registrations");
-}
-
-function buildPatrolAssignments(plan: CampManagementPlan) {
-  const assignments = new Map<
-    string,
-    { patrolId: string; patrolName: string; role: CampPatrolRole }
-  >();
-
-  for (const patrol of plan.patrols) {
-    const patrolName = patrol.name.trim();
-    if (!patrol.id || !patrolName) continue;
-
-    for (const registrationId of patrol.memberRegistrationIds) {
-      assignments.set(registrationId, {
-        patrolId: patrol.id,
-        patrolName,
-        role: "member",
-      });
-    }
-
-    for (const registrationId of patrol.supervisorRegistrationIds) {
-      assignments.set(registrationId, {
-        patrolId: patrol.id,
-        patrolName,
-        role: "supervisor",
-      });
-    }
-
-    if (patrol.leaderRegistrationId) {
-      assignments.set(patrol.leaderRegistrationId, {
-        patrolId: patrol.id,
-        patrolName,
-        role: "leader",
-      });
-    }
-  }
-
-  return assignments;
-}
-
-function buildCommitteeAssignments(plan: CampManagementPlan) {
-  const assignments = new Map<string, CampCommitteeAssignment[]>();
-  const manualLeaderById = new Map(plan.manualLeaders.map((leader) => [leader.id, leader]));
-
-  function addAssignment(registrationId: string, assignment: CampCommitteeAssignment) {
-    if (!registrationId) return;
-    assignments.set(registrationId, [...(assignments.get(registrationId) ?? []), assignment]);
-  }
-
-  for (const committee of plan.committees) {
-    for (const registrationId of committee.leaderRegistrationIds) {
-      addAssignment(registrationId, {
-        id: committee.id,
-        title: committee.title,
-        role: "leader",
-      });
-    }
-
-    for (const manualLeaderId of committee.manualLeaderIds) {
-      const linkedRegistrationId = manualLeaderById.get(manualLeaderId)?.linkedRegistrationId;
-      if (!linkedRegistrationId) continue;
-      addAssignment(linkedRegistrationId, {
-        id: committee.id,
-        title: committee.title,
-        role: "leader",
-      });
-    }
-
-    for (const registrationId of committee.memberRegistrationIds) {
-      addAssignment(registrationId, {
-        id: committee.id,
-        title: committee.title,
-        role: "member",
-      });
-    }
-  }
-
-  return assignments;
-}
-
-async function linkManualLeadersByName(stakeId: string, eventId: string, plan: CampManagementPlan) {
-  const snapshot = await getDocs(getRegistrationsCollection(stakeId, eventId));
-  const adultRegistrationIdByName = new Map<string, string>();
-
-  for (const document of snapshot.docs) {
-    const data = document.data();
-    if (!isAdultCategory(data.genderRoleCategory)) continue;
-    const fullName =
-      typeof data.fullName === "string"
-        ? data.fullName
-        : [asString(data.firstName), asString(data.lastName)].filter(Boolean).join(" ");
-    const normalized = normalizeName(fullName);
-    if (normalized && !adultRegistrationIdByName.has(normalized)) {
-      adultRegistrationIdByName.set(normalized, document.id);
-    }
-  }
-
-  return {
-    registrationsSnapshot: snapshot,
-    plan: {
-      ...plan,
-      manualLeaders: plan.manualLeaders.map((leader) => ({
-        ...leader,
-        linkedRegistrationId: adultRegistrationIdByName.get(normalizeName(leader.fullName)) ?? null,
-      })),
-    },
-  };
-}
-
-function buildPublicMember(
-  registrationsById: Map<string, Record<string, unknown>>,
-  registrationId: string,
-  role: CampPublicMember["role"],
-): CampPublicMember | null {
-  const registration = registrationsById.get(registrationId);
-
-  if (!registration) {
-    return null;
-  }
-
-  const fullName = getPublicName(registration);
-
-  if (!fullName) {
-    return null;
-  }
-
-  return {
-    registrationId,
-    fullName,
-    genderRoleCategory: asGenderRoleCategory(registration.genderRoleCategory),
-    unitName: getPublicUnitName(registration),
-    role,
-  };
-}
-
-function attachPublicMembers(
-  registrationsSnapshot: Awaited<ReturnType<typeof getDocs>>,
-  plan: CampManagementPlan,
-): CampManagementPlan {
-  const registrationsById = new Map<string, Record<string, unknown>>();
-
-  for (const document of registrationsSnapshot.docs) {
-    registrationsById.set(document.id, document.data() as Record<string, unknown>);
-  }
-
-  return {
-    ...plan,
-    committees: plan.committees.map((committee) => ({
-      ...committee,
-      publicMembers: [
-        ...committee.leaderRegistrationIds.map((registrationId) =>
-          buildPublicMember(registrationsById, registrationId, "leader"),
-        ),
-        ...committee.memberRegistrationIds.map((registrationId) =>
-          buildPublicMember(registrationsById, registrationId, "member"),
-        ),
-      ].filter((member): member is CampPublicMember => Boolean(member)),
-    })),
-    patrols: plan.patrols.map((patrol) => ({
-      ...patrol,
-      publicMembers: [
-        patrol.leaderRegistrationId
-          ? buildPublicMember(registrationsById, patrol.leaderRegistrationId, "leader")
-          : null,
-        ...patrol.supervisorRegistrationIds.map((registrationId) =>
-          buildPublicMember(registrationsById, registrationId, "supervisor"),
-        ),
-        ...patrol.memberRegistrationIds.map((registrationId) =>
-          buildPublicMember(registrationsById, registrationId, "member"),
-        ),
-      ].filter((member): member is CampPublicMember => Boolean(member)),
-    })),
-  };
-}
-
-async function syncRegistrationCampAssignments(
-  registrationsSnapshot: Awaited<ReturnType<typeof getDocs>>,
-  plan: CampManagementPlan,
-  timestamp: string,
-) {
-  const patrolAssignments = buildPatrolAssignments(plan);
-  const committeeAssignments = buildCommitteeAssignments(plan);
-
-  for (let start = 0; start < registrationsSnapshot.docs.length; start += 450) {
-    const batch = writeBatch(db);
-
-    for (const document of registrationsSnapshot.docs.slice(start, start + 450)) {
-      const patrolAssignment = patrolAssignments.get(document.id);
-
-      batch.update(document.ref, {
-        assignedPatrolId: patrolAssignment?.patrolId ?? null,
-        assignedPatrolName: patrolAssignment?.patrolName ?? null,
-        assignedPatrolRole: patrolAssignment?.role ?? null,
-        assignedCommittees: committeeAssignments.get(document.id) ?? [],
-        updatedAt: timestamp,
-      });
-    }
-
-    await batch.commit();
-  }
+async function readSavedCampManagement(
+  stakeId: string,
+  eventId: string,
+  serverOnly: boolean,
+): Promise<CampManagementPlan | null> {
+  const reference = getCampManagementReference(stakeId, eventId);
+  const snapshot = await (serverOnly ? getDocFromServer(reference) : getDocCacheFirst(reference));
+  return snapshot.exists() ? normalizeCampManagement(snapshot.data()) : null;
 }
 
 export function getCampStaffErrorMessage(error: unknown) {
@@ -625,14 +459,45 @@ export const campManagementService = {
     return asStringArray(result.data.staffUids);
   },
 
-  getDefaultCampManagement(): CampManagementPlan {
-    return normalizeCampManagement(null);
+  // Nomi per assegnare persone a comitati e gruppi, per chi può salvare il
+  // piano su ogni tipo di attività: solo i campi elencati in CampRosterEntry,
+  // mai l'elenco completo delle iscrizioni.
+  async getRoster(stakeId: string, eventId: string): Promise<CampRosterEntry[]> {
+    const result = await campManagementStaffCallable({
+      stakeId,
+      activityId: eventId,
+      action: "roster",
+    });
+    return Array.isArray(result.data.registrations)
+      ? result.data.registrations
+          .map(mapRosterEntry)
+          .filter((item): item is CampRosterEntry => item !== null)
+      : [];
   },
 
-  async getCampManagement(stakeId: string, eventId: string, serverOnly = false): Promise<CampManagementPlan> {
-    const reference = getCampManagementReference(stakeId, eventId);
-    const snapshot = await (serverOnly ? getDocFromServer(reference) : getDocCacheFirst(reference));
-    return normalizeCampManagement(snapshot.exists() ? snapshot.data() : null);
+  getDefaultCampManagement(activityType?: ActivityType | null): CampManagementPlan {
+    return normalizeCampManagement(null, activityType);
+  },
+
+  // Il piano salvato, oppure null se il documento non esiste: chi deve
+  // distinguere un piano mai salvato dai valori predefiniti (scheda personale
+  // fuori dal campeggio) parte da qui.
+  async getSavedCampManagement(
+    stakeId: string,
+    eventId: string,
+    serverOnly = false,
+  ): Promise<CampManagementPlan | null> {
+    return readSavedCampManagement(stakeId, eventId, serverOnly);
+  },
+
+  async getCampManagement(
+    stakeId: string,
+    eventId: string,
+    serverOnly = false,
+    activityType?: ActivityType | null,
+  ): Promise<CampManagementPlan> {
+    const saved = await readSavedCampManagement(stakeId, eventId, serverOnly);
+    return saved ?? normalizeCampManagement(null, activityType);
   },
 
   async saveCampManagement(
@@ -645,6 +510,7 @@ export const campManagementService = {
       activityId: eventId,
       plan: input,
       expectedUpdatedAt: input.updatedAt || null,
+      planFormat: 2,
     });
 
     return normalizeCampManagement(result.data.plan as unknown as Record<string, unknown>);

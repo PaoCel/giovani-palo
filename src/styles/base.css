@@ -4303,6 +4303,9 @@ p.admin-person-fields__note {
   max-height: min(88dvh, 52rem);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Colonna mai più larga del foglio: un piede troppo largo a 320 px non
+     allarga anche intestazione e corpo (la x di chiusura restava tagliata). */
+  grid-template-columns: minmax(0, 1fr);
   border-radius: 1.6rem;
   border: 1px solid rgba(16, 28, 48, 0.08);
   background:
