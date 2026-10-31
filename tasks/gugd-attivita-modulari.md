@@ -1,7 +1,7 @@
 ---
 id: gugd-attivita-modulari
 title: "Attività guidate: programma, gruppi, comitati e alloggi"
-status: needs-paolo
+status: ready
 impact: 2
 urgency: 2
 effort: L
@@ -16,9 +16,9 @@ blocked_by: []
 branch:
 worktree:
 session: a6d2a4ff-61bc-4d85-9056-0973a3afe2dc
-stopped_at: "Rilascio preparato: clone pulito d96a0f4 sul mini (~/qa/gugd-rilascio-momenti-20261031/app), 1524 test, build v34 index-DkO87-0I.js, dry-run rules/indici, 5 Functions e hosting verdi"
-next: "Su conferma fresca di Paolo: deploy nell'ordine di docs/PROGRAMMA_PRIMO_INCREMENTO.md (rules+indici, 5 Functions con --force, hosting), poi verifica live"
-verified: "Mini 31 ottobre, copia QA del branch 25e179b: client 1524/1524 (accenti in locale), build, puri 91/91, emulatore 58/58 più 7/7 nuovi di DeepSeek (mutazione sulla pulizia delle ricevute presa), browser 11/11 a 320/390/430. Review DeepSeek: nessun P1, P2 non accettato, P3 corretto. Non provati: produzione, Safari iOS, tastiera vera"
+stopped_at: "Programma a momenti in produzione dal 2026-10-31 (d96a0f4): rules e indice, 5 Functions, hosting service worker v34 index-DkO87-0I.js"
+next: "Prima prova reale: un admin crea un momento in bozza su un'attività di prova; poi incremento successivo (comitati arbitrari, alloggi, delega)"
+verified: "Deploy 2026-10-31 dal clone pulito d96a0f4 sul mini, conferma di Paolo in chat: ruleset Firestore live uguale al commit, indice entries.ownerUids READY (collection e collection group), 38 Functions ACTIVE con le 5 nuove e retry sui tre trigger, callable UNAUTHENTICATED strutturate, HTML+sw+4 asset identici alla build su gugditalia.it e web.app, home pubblica senza errori. Prima: 1524 client, build, puri 91, emulatore 58+7, browser 11/11, review DeepSeek. Non provati: momento reale creato da un admin, percorso da loggati, Safari iOS"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -187,3 +187,18 @@ Sette test nuovi di DeepSeek (0,14 $) in
 su momento eliminato, retry da un altro admin, cleanup di attività e account
 a lotti, due figli sullo stesso turno. Togliendo la pulizia delle ricevute
 falliscono i due test attesi.
+
+## Rilascio del programma a momenti, 31 ottobre
+
+Pubblicato su conferma di Paolo in chat, dal clone pulito `d96a0f4` sul mini
+(`~/qa/gugd-rilascio-momenti-20261031/app`), nell'ordine di
+`docs/PROGRAMMA_PRIMO_INCREMENTO.md`:
+
+| Passo | Esito |
+| --- | --- |
+| Firestore rules e indici | ruleset `676afc74…` uguale al file; `entries.ownerUids` READY |
+| 5 Functions con `--force` | create, 38 ACTIVE, callable `UNAUTHENTICATED` strutturate |
+| Hosting | service worker v34, `index-DkO87-0I.js`, 6 file identici alla build su entrambi i domini |
+
+Con l'hosting è uscito anche il raccordo profilo `8facc3d` (task
+`gugd-s2-appartenenza`). Nessun dato scritto in produzione per le verifiche.
