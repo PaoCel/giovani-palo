@@ -43,10 +43,15 @@ export function emptyRoomPlan() {
     // Finché è false il piano resta una bozza per soli admin; con true la
     // callable scrive a ogni iscrizione assegnata il nome della sua stanza.
     published: false,
+    // Con true gli accompagnatori senza stanza dormono in un'altra struttura:
+    // nessuna stanza staff obbligatoria e nessuna riservata dalla proposta.
+    staffElsewhere: false,
     revision: 0,
     updatedAt: "",
   };
 }
+
+export const MISSING_STAFF_ROOM = "Riserva almeno una stanza agli accompagnatori, oppure indica che sono alloggiati altrove.";
 
 function objectOrEmpty(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -283,7 +288,10 @@ export function assignmentProblem(person, room, plan, registrations, referenceDa
   return null;
 }
 
-export function validateRoomPlan(plan, registrations, referenceDate) {
+// `allowMissingStaffRoom` serve alla bozza del client: le stanze si aggiungono
+// in qualsiasi ordine e la stanza staff mancante resta un problema del
+// salvataggio. Il server valida sempre senza opzioni.
+export function validateRoomPlan(plan, registrations, referenceDate, options = {}) {
   const errors = [];
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) return ["Il piano stanze non è valido."];
   const rooms = Array.isArray(plan.rooms) ? plan.rooms : [];
@@ -297,8 +305,13 @@ export function validateRoomPlan(plan, registrations, referenceDate) {
   const roomIds = new Set();
   const roomNames = new Set();
 
-  if (rooms.length > 0 && !rooms.some((room) => room?.category === "staff_male" || room?.category === "staff_female")) {
-    errors.push("Riserva almeno una stanza non coppia allo staff.");
+  if (
+    rooms.length > 0
+    && plan.staffElsewhere !== true
+    && options?.allowMissingStaffRoom !== true
+    && !rooms.some((room) => room?.category === "staff_male" || room?.category === "staff_female")
+  ) {
+    errors.push(MISSING_STAFF_ROOM);
   }
   for (const room of rooms) {
     if (!room || typeof room !== "object" || !text(room.id)) {
@@ -436,13 +449,14 @@ function roomPlanClone(plan) {
     adultGenders: { ...objectOrEmpty(plan?.adultGenders) },
     couples: (Array.isArray(plan?.couples) ? plan.couples : []).map((couple) => ({ ...couple })),
     published: plan?.published === true,
+    staffElsewhere: plan?.staffElsewhere === true,
     revision: Number.isInteger(plan?.revision) ? plan.revision : 0,
     updatedAt: text(plan?.updatedAt),
   };
 }
 
 function ensureReservedStaffRoom(candidate) {
-  if (candidate.rooms.length === 0) return;
+  if (candidate.rooms.length === 0 || candidate.staffElsewhere) return;
   if (candidate.rooms.some((room) => room.category === "staff_male" || room.category === "staff_female")) return;
   const occupied = candidate.rooms
     .filter((room) => room.category === "unassigned")

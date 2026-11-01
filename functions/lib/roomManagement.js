@@ -101,13 +101,18 @@ function parseIdMap(value, label, valueParser) {
 function parsePlan(source) {
   // `published` è opzionale: i piani salvati prima della pubblicazione non
   // ce l'hanno e il client può rimandarli così come li ha letti.
+  // `staffElsewhere` è opzionale per i client precedenti: se manca, il
+  // salvataggio conserva il valore già salvato (vedi il handler).
   assertExactKeys(
     source,
-    ["rooms", "assignments", "lockedIds", "adultGenders", "couples", "published", "revision", "updatedAt"],
+    ["rooms", "assignments", "lockedIds", "adultGenders", "couples", "published", "staffElsewhere", "revision", "updatedAt"],
     "Piano stanze",
   );
   if (source.published !== undefined && typeof source.published !== "boolean") {
     throw new HttpsError("invalid-argument", "Il flag di pubblicazione deve essere true o false.");
+  }
+  if (source.staffElsewhere !== undefined && typeof source.staffElsewhere !== "boolean") {
+    throw new HttpsError("invalid-argument", "Il flag degli accompagnatori alloggiati altrove deve essere true o false.");
   }
   if (!Array.isArray(source.rooms) || source.rooms.length > MAX_ROOMS) {
     throw new HttpsError("invalid-argument", `Il piano può contenere al massimo ${MAX_ROOMS} stanze.`);
@@ -161,6 +166,7 @@ function parsePlan(source) {
     adultGenders: { ...adultGenders },
     couples,
     published: source.published === true,
+    ...(source.staffElsewhere === undefined ? {} : { staffElsewhere: source.staffElsewhere }),
     revision: source.revision,
     updatedAt: source.updatedAt,
   };
@@ -264,15 +270,21 @@ function createRoomManagementSaveHandler({ db, clock = () => new Date() } = {}) 
         throw new HttpsError("aborted", "Il piano è stato modificato da un altro amministratore. Ricaricalo e riprova.");
       }
 
+      // Un client precedente non conosce `staffElsewhere` e non lo invia (o lo
+      // perde in una proposta calcolata dal suo core): vale quello salvato.
+      const plan = {
+        ...incoming,
+        staffElsewhere: incoming.staffElsewhere ?? currentSnapshot.data()?.staffElsewhere === true,
+      };
       const registrations = registrationData(registrationsSnapshot);
-      const errors = core.validateRoomPlan(incoming, registrations, referenceDate(activity));
+      const errors = core.validateRoomPlan(plan, registrations, referenceDate(activity));
       if (errors.length) {
         throw new HttpsError("invalid-argument", errors.slice(0, 20).join(" "), {
           errors: errors.slice(0, 50),
         });
       }
       const updatedAt = clock().toISOString();
-      const next = { ...incoming, revision: currentRevision + 1, updatedAt };
+      const next = { ...plan, revision: currentRevision + 1, updatedAt };
       transaction.set(planRef, { ...next, savedAt: FieldValue.serverTimestamp() });
       // Stanze comunicate ai partecipanti nella stessa transazione del piano:
       // piano e iscrizioni non possono divergere. Le rules bloccano queste

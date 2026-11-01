@@ -21,6 +21,8 @@ export interface RoomPlan {
   couples: Array<{ firstId: string; secondId: string; confirmed: boolean }>;
   /** Con true ogni iscritto assegnato vede il nome della propria stanza. Assente nei piani salvati prima della funzione. */
   published?: boolean;
+  /** Con true gli accompagnatori senza stanza sono alloggiati altrove. Assente nei piani salvati prima della funzione. */
+  staffElsewhere?: boolean;
   revision: number;
   updatedAt: string;
 }
@@ -61,7 +63,10 @@ export function eligibleRegistrations<T extends PlannerRegistration>(registratio
 export function staleRegistrationIds(plan: RoomPlan, registrations: readonly PlannerRegistration[]): string[];
 export function removeRegistrationReferences(plan: RoomPlan, registrationIds: readonly string[]): Pick<RoomPlan, "assignments" | "adultGenders" | "lockedIds" | "couples"> | null;
 export function ageAt(birthDate: unknown, referenceDate: Date | string): number | null;
-export function validateRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string): string[];
+export const MISSING_STAFF_ROOM: string;
+export function validateRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string, options?: {
+  allowMissingStaffRoom?: boolean;
+}): string[];
 export function assignmentProblem(person: PlannerRegistration, room: Room, plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string): string | null;
 export function buildPreferenceLinks(registrations: readonly PlannerRegistration[]): PreferenceLink[];
 export function proposeRoomPlan(plan: RoomPlan, registrations: readonly PlannerRegistration[], referenceDate: Date | string, options?: {
