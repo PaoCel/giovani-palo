@@ -13,12 +13,12 @@ started_at: 2026-10-26
 touched: 2026-11-01
 due:
 blocked_by: []
-branch: 
-worktree: 
+branch:
+worktree:
 session: 7be9efb8-04e9-4029-879d-561580f24098
-stopped_at: "Quinto incremento (finitura alloggi) completato e verificato sul branch, c97a50b: build, client, 72 puri, 48 emulatore, 35/35 browser a 320/390/430, review Codex in due giri"
-next: "Rilascio con conferma fresca di Paolo: functions:roomManagementSave, poi hosting (service worker v36); poi contratto della delega"
-verified: "Quinto incremento sul mini: build verde, client 1548/1549 (accenti 55/55 sull'Air), roomBulk 25/25, stanze 72/72, emulatore 48/48, mutanti 16/16 rossi, browser 35/35 a 320/390/430 con font veri; test e collaudo di altri autori; review Codex BLOCKED poi PASS WITH CONCERNS, rilievi corretti. Non provati: import Excel/CSV, pianta caricata, client precedente reale, Safari iOS. Nessun deploy"
+stopped_at: "Finitura alloggi in produzione dal 2026-11-01 (99f0509): roomManagementSave e hosting con service worker v36 index-CtjRBYGE.js"
+next: "Prima prova reale: un admin aggiunge stanze in blocco su un'attività con pernottamento di prova e prova Accompagnatori alloggiati altrove; poi contratto della delega al responsabile (ambiti, durata, pubblicazione, comunicazione, ulteriore delega, revoca, dati sanitari esclusi)"
+verified: "Rilascio 2026-11-01 dal clone pulito 99f0509 sul mini, conferma di Paolo in chat: prima del deploy ruleset 0bb59f8a uguale al file, 38 Functions ACTIVE, sorgente live di roomManagementSave uguale a main precedente; dopo, sorgente live uguale al clone, ACTIVE, risposta senza login UNAUTHENTICATED strutturata; hosting v36 con 8/8 file identici alla build su gugditalia.it e web.app, home pubblica senza errori in console. Prima: build, client 1548/1549 (accenti 55/55 sull'Air), roomBulk 25/25, stanze 72/72, emulatore 48/48, mutanti 16/16, browser 35/35 a 320/390/430, review Codex BLOCKED poi PASS WITH CONCERNS. Non provati: import Excel/CSV, pianta caricata, client precedente reale, Safari iOS"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -247,3 +247,18 @@ fino a 50 per volta, stato vuoto senza import obbligatorio, riepilogo Alloggio
 nella tab Stanze con apertura dell'editor sul campo. Rules invariate.
 Contratto e verifiche in docs/ATTIVITA_MODULARI.md. Rilascio da fare con
 conferma fresca: `functions:roomManagementSave`, poi hosting.
+
+## Rilascio della finitura alloggi, 1° novembre
+
+Pubblicato su conferma di Paolo in chat, dal clone pulito `99f0509` sul mini
+(`~/qa/gugd-rilascio-alloggi-20261101/app`). Prima del deploy: ruleset live
+`0bb59f8a…` uguale al file, 38 Functions ACTIVE, sorgente live di
+`roomManagementSave` uguale a `main` prima dell'incremento, hosting v35.
+
+| Passo | Esito |
+| --- | --- |
+| `roomManagementSave` | sorgente live uguale al clone, ACTIVE; senza login «Login richiesto.» UNAUTHENTICATED |
+| Hosting | service worker v36, `index-CtjRBYGE.js`; 8/8 file identici alla build su entrambi i domini |
+
+Home pubblica senza errori in console. Rules invariate. Nessun dato scritto in
+produzione per le verifiche.

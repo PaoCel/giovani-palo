@@ -568,6 +568,7 @@ di tutto `EventEditorForm`, fuori da questo incremento. Fuori perimetro, visti
 nel collaudo: la barra di salvataggio fissa copre parte di «Da assegnare» su
 mobile; la X dell'editor non risponde mentre rilegge l'attività.
 
-Rilascio con conferma fresca: `functions:roomManagementSave` (un server vecchio
-rifiuta anche `staffElsewhere: false`), poi hosting con service worker v36.
-Rules e indici invariati.
+In produzione dal 1° novembre, su conferma di Paolo, dal clone pulito `99f0509`
+sul mini: prima `functions:roomManagementSave` (un server vecchio rifiuta anche
+`staffElsewhere: false`), poi hosting con service worker v36. Rules e indici
+invariati (ruleset live `0bb59f8a…` uguale al file).
