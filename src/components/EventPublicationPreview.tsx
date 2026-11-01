@@ -21,7 +21,7 @@ export function EventPublicationPreview({ event, config }: {
         {event.program ? <div><strong>Programma / riepilogo</strong><p className="event-creation__description">{event.program}</p></div> : null}
         {([
           ["Note pubbliche", event.publicNotes], ["Menu", event.menuInfo],
-          ["Allergie e indicazioni", event.allergiesInfo], ["Tende / logistica", event.roomsInfo],
+          ["Allergie e indicazioni", event.allergiesInfo], ["Alloggio", event.roomsInfo],
         ] as const).filter(([, value]) => value).map(([label, value]) => <div key={label}><strong>{label}</strong><p className="event-creation__description">{value}</p></div>)}
         {event.whatToBring ? <div><strong>Cosa portare</strong><p className="event-creation__description">{event.whatToBring}</p></div> : null}
       </div>

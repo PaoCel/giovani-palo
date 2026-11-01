@@ -25,7 +25,9 @@ interface AdminEventEditorModalProps {
   sessionUid: string;
   initialEvent?: Event | null;
   initialFormConfig?: EventFormConfig | null;
-  initialStep?: "overview" | "preview";
+  initialStep?: "overview" | "options" | "preview";
+  /** Con initialStep "options": passo e campo da cui partire. */
+  focusField?: "roomsInfo";
   onClose: () => void;
   onCompleted?: (eventId: string) => void;
 }
@@ -37,7 +39,7 @@ export function AdminEventEditorModal(props: AdminEventEditorModalProps) {
   return <EventEditorSession key={`${props.sessionUid}:${props.stakeId}:${props.initialEvent?.id ?? "new"}`} {...props} />;
 }
 
-function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, initialFormConfig, initialStep, onClose, onCompleted }: AdminEventEditorModalProps) {
+function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, initialFormConfig, initialStep, focusField, onClose, onCompleted }: AdminEventEditorModalProps) {
   const [step, setStep] = useState<Step>(initialEvent ? initialStep ?? "overview" : "essentials");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -52,6 +54,9 @@ function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, i
   const runLock = useRef(false);
   const mounted = useRef(true);
   const content = useRef<HTMLDivElement>(null);
+  // Field to focus once the opening server read is over: fields stay disabled while it runs.
+  const pendingFocus = useRef(initialStep === "options" ? focusField : undefined);
+  const [refreshed, setRefreshed] = useState(!initialEvent);
   const errorRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   const creationId = useRef(crypto.randomUUID());
@@ -68,7 +73,7 @@ function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, i
   }, [step]);
   useEffect(() => {
     if (initialEvent) {
-      void run(() => refreshSavedEvent(initialEvent.id), () => undefined, COPY.saveError);
+      void run(() => refreshSavedEvent(initialEvent.id), () => setRefreshed(true), COPY.saveError);
     }
   }, []);
 
@@ -171,6 +176,13 @@ function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, i
 
   const titles: Record<Step, string> = { essentials: savedEvent ? COPY.essentials : "Crea nuova attività", overview: savedEvent?.isPublic ? "Gestisci attività" : "La tua bozza", options: COPY.customize, form: COPY.registration, preview: COPY.preview };
   const locked = busy || waiting || uploading;
+  useEffect(() => {
+    if (!pendingFocus.current || step !== "options" || locked || !refreshed) return;
+    const field = content.current?.querySelector<HTMLElement>(`[data-focus-field="${pendingFocus.current}"]`);
+    if (!field) return;
+    pendingFocus.current = undefined;
+    field.focus();
+  }, [step, locked, refreshed]);
   return <>
     <AppModal title={titles[step]} subtitle={savedEvent?.isPublic ? "Attività pubblicata" : COPY.draft} onClose={() => requestExit("close")} size="wide"
       footer={step !== "overview" ? <div className="event-creation__actions event-creation__footer">
@@ -183,7 +195,7 @@ function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, i
         {feedback ? <div className="form-success" role="status">{feedback}</div> : null}
         {waiting ? <button className="button button--primary" type="button" disabled={busy} onClick={() => void run(() => Promise.resolve(), () => undefined, COPY.saveError)}>{busy ? "Verifica in corso..." : "Verifica salvataggio"}</button> : null}
         {step === "essentials" ? <EssentialEventForm formId={essentialFormId} event={savedEvent} defaults={organization.registrationDefaults} busy={locked} onSave={handleSave} /> : null}
-        {step === "options" ? <fieldset disabled={locked}><EventEditorForm compact busy={locked} initialEvent={savedEvent} onUploadImage={handleUploadImage} onSubmit={handleSave} onDirtyChange={() => setDirty(true)} statusMode="simplified" submitLabel="Salva modifiche" /></fieldset> : null}
+        {step === "options" ? <fieldset disabled={locked}><EventEditorForm compact busy={locked} focusField={focusField} initialEvent={savedEvent} onUploadImage={handleUploadImage} onSubmit={handleSave} onDirtyChange={() => setDirty(true)} statusMode="simplified" submitLabel="Salva modifiche" /></fieldset> : null}
         {step === "form" ? formConfig ? <fieldset disabled={locked}><EventFormConfigEditor busy={locked} eventAudience={savedEvent?.audience ?? "congiunta"} initialConfig={formConfig} allowRoomFields={savedEvent?.overnight ?? false} onSave={handleSaveForm} onDirtyChange={() => setDirty(true)} standardFieldDefinitions={standardFieldDefinitions} /></fieldset> : <p>Sto preparando il modulo...</p> : null}
         {step === "overview" && savedEvent ? <>
           <article className="event-creation__preview"><div><h3>{savedEvent.title}</h3><p>{formatDateRange(savedEvent.startDate, savedEvent.endDate)}</p><p>{savedEvent.location}</p></div></article>

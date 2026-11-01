@@ -774,7 +774,7 @@ export function MyActivityDetailPage() {
                       ) : null}
                       {data.event.roomsInfo?.trim() ? (
                         <div>
-                          <dt>Logistica</dt>
+                          <dt>Alloggio</dt>
                           <dd>{data.event.roomsInfo}</dd>
                         </div>
                       ) : null}

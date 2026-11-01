@@ -459,7 +459,12 @@ export function AdminEventDetailPage() {
   const isCampManagerOnly = isCampManagementTab && Boolean(session && !session.isAdmin);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editorInitialStep, setEditorInitialStep] = useState<"overview" | "preview">("overview");
+  // Togliere il pernottamento dall'editor smonta la tab Stanze: con una bozza
+  // stanze non salvata si chiede prima, da ogni accesso all'editor.
+  const [roomDraftDirty, setRoomDraftDirty] = useState(false);
+  const [editorBlockedByRooms, setEditorBlockedByRooms] = useState(false);
+  const [editorFocusField, setEditorFocusField] = useState<"roomsInfo" | undefined>(undefined);
+  const [editorInitialStep, setEditorInitialStep] = useState<"overview" | "options" | "preview">("overview");
   const [busy, setBusy] = useState<
     | null
     | "publish"
@@ -587,6 +592,7 @@ export function AdminEventDetailPage() {
     setEditRegistrationId(null);
     setRequestAuthorizationId(null);
     setNewCommittee(null);
+    setEditorBlockedByRooms(false);
   }, [confirmContextKey]);
   // Account e attività di adesso (vuoto dopo l'uscita dalla pagina): l'esito
   // di una richiesta partita su un'altra attività, o prima di Indietro, non
@@ -1785,7 +1791,16 @@ export function AdminEventDetailPage() {
       setActionInfo("L'attività è già pubblica.");
       return;
     }
-    setEditorInitialStep("preview");
+    openEditor("preview");
+  }
+
+  function openEditor(step: "overview" | "options" | "preview", focusField?: "roomsInfo") {
+    setEditorInitialStep(step);
+    setEditorFocusField(focusField);
+    if (activeTab === "overnight" && roomDraftDirty) {
+      setEditorBlockedByRooms(true);
+      return;
+    }
     setEditModalOpen(true);
   }
 
@@ -2643,8 +2658,7 @@ export function AdminEventDetailPage() {
                 className="activity-ios-action"
                 onClick={() => {
                   setActionInfo(null);
-                  setEditorInitialStep("overview");
-                  setEditModalOpen(true);
+                  openEditor("overview");
                 }}
                 title="Modifica"
                 type="button"
@@ -2937,7 +2951,7 @@ export function AdminEventDetailPage() {
 
           {resolvedEvent.roomsInfo ? (
             <article className="surface-panel surface-panel--subtle">
-              <h3>{overnightUnitPluralTitle} e logistica</h3>
+              <h3>Alloggio</h3>
               <p>{resolvedEvent.roomsInfo}</p>
             </article>
           ) : null}
@@ -3929,7 +3943,26 @@ export function AdminEventDetailPage() {
       ) : null}
 
       {activeTab === "overnight" && resolvedEvent.overnight ? (
-        <><RoomManagementPanel
+        <><article className="surface-panel rp-lodging">
+          <div>
+            <h3>Alloggio</h3>
+            <p>{resolvedEvent.roomsInfo?.trim() || "Nessuna indicazione per chi partecipa: aggiungi struttura, camere e cosa serve per la notte."}</p>
+            <small>Visibile a chi apre l’attività, anche senza iscrizione.</small>
+          </div>
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              setActionInfo(null);
+              openEditor("options", "roomsInfo");
+            }}
+            type="button"
+          >
+            <AppIcon name="pencil" />
+            Modifica
+          </button>
+        </article>
+        <RoomManagementPanel
+          onDirtyChange={setRoomDraftDirty}
           stakeId={stakeId}
           activityId={resolvedEventId}
           registrations={sortedRegistrations}
@@ -4957,10 +4990,38 @@ export function AdminEventDetailPage() {
         </AppModal>
       ) : null}
 
+      {editorBlockedByRooms ? (
+        <AppModal
+          footer={
+            <>
+              <button className="button button--secondary" onClick={() => setEditorBlockedByRooms(false)} type="button">
+                Resta nelle stanze
+              </button>
+              <button
+                className="button button--primary"
+                onClick={() => {
+                  setEditorBlockedByRooms(false);
+                  setEditModalOpen(true);
+                }}
+                type="button"
+              >
+                Modifica l’attività
+              </button>
+            </>
+          }
+          onClose={() => setEditorBlockedByRooms(false)}
+          size="compact"
+          title="Modifiche alle stanze non salvate"
+        >
+          <p>Salva la bozza delle stanze prima di modificare l’attività: se togli il pernottamento, le modifiche non salvate si perdono.</p>
+        </AppModal>
+      ) : null}
+
       {editModalOpen && data?.organization && session ? (
         <AdminEventEditorModal
           initialEvent={resolvedEvent}
           initialStep={editorInitialStep}
+          focusField={editorFocusField}
           initialFormConfig={formConfig}
           organization={data.organization}
           sessionUid={session.firebaseUser.uid}

@@ -77,6 +77,8 @@ interface EventEditorFormProps {
   };
   onSubmit: (input: EventWriteInput) => Promise<void>;
   onUploadImage?: (file: File) => Promise<{ path: string; url: string }>;
+  /** Apre il passo del campo; il cursore ce lo porta l'editor (riepilogo Alloggio della tab Stanze). */
+  focusField?: "roomsInfo";
 }
 
 interface EventEditorValues {
@@ -223,11 +225,15 @@ export function EventEditorForm({
   secondaryAction,
   onSubmit,
   onUploadImage,
+  focusField,
 }: EventEditorFormProps) {
   const [values, setValues] = useState<EventEditorValues>(
     getInitialValues(initialEvent),
   );
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const firstStepIndex = focusField === "roomsInfo"
+    ? Math.max(0, eventEditorSteps.findIndex((step) => step.id === "settings"))
+    : 0;
+  const [currentStepIndex, setCurrentStepIndex] = useState(firstStepIndex);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -260,10 +266,10 @@ export function EventEditorForm({
   useEffect(() => {
     setValues(getInitialValues(initialEvent));
     setGuestTitlesReviewed(false);
-    setCurrentStepIndex(0);
+    setCurrentStepIndex(firstStepIndex);
     setFieldErrors({});
     setError(null);
-  }, [initialEvent]);
+  }, [initialEvent, firstStepIndex]);
 
   useEffect(() => {
     if (!canHaveOvernight && values.roomsInfo) {
@@ -945,8 +951,9 @@ export function EventEditorForm({
 
               {effectiveOvernight ? (
                 <label className="field">
-                  {renderFieldLabel("Tende / logistica", "roomsInfo")}
+                  {renderFieldLabel("Alloggio", "roomsInfo")}
                   <textarea
+                    data-focus-field="roomsInfo"
                     className="input input--textarea"
                     rows={3}
                     value={values.roomsInfo}
@@ -954,6 +961,10 @@ export function EventEditorForm({
                       updateValue("roomsInfo", event.target.value)
                     }
                   />
+                  {renderFieldHint(
+                    "roomsInfo",
+                    "Struttura, camere e cosa serve per la notte. Visibile a chi apre l’attività, anche senza iscrizione.",
+                  )}
                 </label>
               ) : null}
 

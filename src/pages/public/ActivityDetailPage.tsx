@@ -478,7 +478,7 @@ export function ActivityDetailPage() {
           <div className="stack">
             {renderOptionalInfo("Menu", event.menuInfo)}
             {renderOptionalInfo("Allergie e alimentazione", event.allergiesInfo)}
-            {event.overnight ? renderOptionalInfo("Camere o posti letto", event.roomsInfo) : null}
+            {event.overnight ? renderOptionalInfo("Alloggio", event.roomsInfo) : null}
             {renderOptionalInfo("Note", event.publicNotes)}
           </div>
         </SectionCard>

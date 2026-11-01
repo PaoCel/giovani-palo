@@ -9,8 +9,9 @@ import type { Registration } from "@/types";
 import type { RoomLayout } from "@/utils/roomLayout";
 import type { RoomPlan } from "../../../functions/lib/roomPlannerCore.mjs";
 
-export function RoomManagementPanel({ stakeId, activityId, registrations, referenceDate }: {
+export function RoomManagementPanel({ stakeId, activityId, registrations, referenceDate, onDirtyChange }: {
   stakeId: string; activityId: string; registrations: Registration[]; referenceDate: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [plan, setPlan] = useState<RoomPlan | null>(null);
   const [layouts, setLayouts] = useState<{ layouts: RoomLayout[]; unreadable: string[] } | null>(null);
@@ -22,6 +23,8 @@ export function RoomManagementPanel({ stakeId, activityId, registrations, refere
   const blocker = useBlocker(dirty);
   useBeforeUnload((event) => { if (dirty) event.preventDefault(); });
   useEffect(() => { setCurrentRegistrations(registrations); }, [registrations]);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   useEffect(() => {
     let current = true;
