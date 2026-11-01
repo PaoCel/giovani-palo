@@ -54,7 +54,14 @@ La cancellazione dell'attività elimina il documento del piano.
 - Lo staff richiede `adultGenders` esplicito; il sesso non viene inferito dal
   nome. Le stanze coppia hanno esattamente due posti e accettano soltanto una
   coppia adulta di sesso diverso confermata.
-- Un piano con stanze conserva almeno una stanza staff non coppia.
+- Un piano con stanze conserva almeno una stanza staff non coppia, salvo
+  `staffElsewhere: true` («Accompagnatori alloggiati altrove», dal 1° novembre
+  2026). Con il flag gli accompagnatori senza stanza non contano tra i da
+  assegnare, restano assegnabili alle stanze staff o coppia e la proposta
+  automatica non riserva né riclassifica stanze allo staff. Il flag assente vale
+  false; la callable conserva quello salvato se il client non lo invia (client
+  precedenti, proposta del core vecchio). La stanza staff mancante blocca solo
+  il salvataggio: nella bozza le stanze si aggiungono in qualsiasi ordine.
 - L'assegnazione automatica tocca solo i giovani. Conserva tutto se non si chiede
   il ricalcolo; col ricalcolo conserva blocchi manuali e adulti. Le note stanza
   lasciano la persona alla revisione umana. Le preferenze reciproche hanno peso
@@ -117,8 +124,13 @@ di unità o iscritti. Controlla anche che `management/camp` resti invariato.
 
 ## Interfaccia e importazione
 
-La tab Stanze dell'attività offre importazione Excel/CSV, schede per stanza,
-filtri, preferenze originali, proposta automatica da applicare, spostamento
+La tab Stanze dell'attività parte da «Aggiungi stanze»: un foglio aggiunge
+alla bozza fino a 50 stanze con gli stessi posti, piano e destinazione,
+numerate dalla prima («101» → 101…110, «Camera 01» → Camera 01, Camera 02),
+fino al tetto di 200 stanze del piano. L'importazione Excel/CSV resta
+un'alternativa. In cima alla tab il riepilogo «Alloggio» mostra il testo
+pubblico dell'attività (`roomsInfo`) e apre l'editor sulle opzioni per
+modificarlo. Ci sono poi schede per stanza, filtri, preferenze originali, proposta automatica da applicare, spostamento
 manuale, blocchi, annullamento dell'ultima modifica, esportazione CSV e
 compilazione del modulo della Foresteria.
 Le modifiche restano locali fino a Salva bozza; l'uscita richiede di salvare

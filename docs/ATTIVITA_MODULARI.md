@@ -463,3 +463,111 @@ piano negata a tutti, lettura del dirigente sul viaggio), senza asserzioni
 indebolite. Non provati: errore e Riprova della sezione Organizzazione, conflitto
 fra due admin nel browser, browser diversi da Chromium headless, Safari iOS.
 Artefatti locali ignorati in `.claude/qa-comitati-liberi/`.
+
+
+## Quinto incremento: finitura alloggi (1 novembre)
+
+Scelta di Paolo del 1° novembre: alloggi prima della delega, che segue con il
+contratto scritto prima del codice. Secondo parere Codex concorde. Chi scrive
+non cambia: il piano stanze resta degli admin del palo.
+
+Tre ostacoli per un admin di un secondo palo: la tab Stanze vuota spinge a
+importare un file che non ha («Importa il file dell’ostello»), un piano senza
+stanza staff non si salva e la prima stanza aggiunta nasce staff per forza
+(`addRoom`), le stanze si aggiungono una alla volta. Le condizioni
+dell'alloggio esistono già: `roomsInfo` dell'attività, pubblico, con quattro
+etichette diverse (Tende / logistica, Logistica, Camere o posti letto,
+Camere e logistica).
+
+### Contratto dati, prima del codice
+
+- `management/rooms` riceve `staffElsewhere` (booleano, assente = `false`).
+  Con `true` il piano non richiede una stanza staff, la proposta automatica non
+  riserva né riclassifica stanze allo staff, gli accompagnatori senza stanza non
+  contano tra i da assegnare. Chi ha già una stanza la conserva, e un
+  accompagnatore resta assegnabile alle stanze staff o coppia esistenti. Le
+  regole di separazione, età, capienza e coppia non cambiano.
+- Callable `roomManagementSave`: `staffElsewhere` facoltativo nel piano; se
+  manca, il server conserva il valore salvato (un client precedente o una
+  proposta calcolata dal core vecchio non lo azzerano). Validazione con il core
+  nuovo nella stessa transazione. Nessun uid, nome o dato personale nel campo.
+- La stanza staff mancante resta un problema del salvataggio, ma non blocca più
+  le modifiche della bozza: si aggiungono stanze in qualsiasi ordine.
+- Inserimento in blocco solo client, sulla bozza: fino a 50 stanze per volta,
+  tetto del piano invariato a 200. Stessi campi e limiti di una stanza.
+- `roomsInfo` invariato nello schema e nella visibilità: un'etichetta sola,
+  «Alloggio», in editor, anteprima, scheda admin, `/me` e pagina pubblica.
+- Nessuna collection, rule, indice o cleanup nuovi: `management/rooms` è già
+  scritto solo dalla callable e cancellato con l'attività.
+
+### Chi vede, chi scrive
+
+| Dato | Scrive | Legge |
+| --- | --- | --- |
+| `management/rooms`, `staffElsewhere` compreso | admin del palo, solo callable | admin del palo |
+| `roomsInfo` (Alloggio) | admin, editor attività come oggi | chi vede l'attività, anche senza iscrizione, come oggi |
+| Nome della propria stanza | callable | il titolare dell'iscrizione, come oggi |
+
+### Stati, superfici e ritorni
+
+| Stato / superficie | Azione | Ritorno e recupero |
+| --- | --- | --- |
+| Stanze vuote, elenco | «Aggiungi stanze» primaria, «Importa file Excel o CSV» secondaria | Nessuna modifica finché non si conferma un foglio |
+| Stanze vuote, pianta | «Aggiungi prima le stanze: la pianta mostra quelle della bozza.» | Carica pianta resta disponibile |
+| Foglio Aggiungi stanze | Quante, nome o numero della prima, posti, piano, riservata a; anteprima dei nomi | Annulla chiude senza toccare la bozza; nome già usato o oltre 200 stanze: errore nel foglio, campi conservati; dopo l'aggiunta «Annulla ultima modifica» le toglie tutte; serve Salva bozza per condividerle |
+| Bozza senza stanza staff | Problema con l'azione «Accompagnatori alloggiati altrove» | Salva bozza disattivato finché resta; si risolve anche riservando una stanza; Annulla ultima modifica |
+| Accompagnatori alloggiati altrove | Spunta nel pannello Da assegnare; gli accompagnatori senza stanza in fondo, «Alloggiati altrove», ancora assegnabili | Togliere la spunta li riporta tra i da assegnare e torna a chiedere la stanza staff; Annulla ultima modifica |
+| Alloggio (`roomsInfo`) | Riepilogo nella tab Stanze con «Modifica», che apre le opzioni dell'attività | Vuoto: invito ad aggiungerlo; pubblico come oggi, detto sotto il campo |
+| Client precedente | Salva senza il campo nuovo | Il server conserva il valore; la sua validazione vecchia chiede la stanza staff finché non si ricarica |
+
+### Finitura e verifiche
+
+Token, componenti e foglio esistenti (`AppModal`, `rp-form`, `rp-empty`), nessuna
+emoji, target 44 px, campi 16 px, nessun overflow a 320/390/430. Test di un
+autore diverso: generazione dei nomi e limiti, validazione con e senza
+`staffElsewhere`, proposta senza riclassificazione, callable con campo assente
+che conserva il valore, client precedente. Collaudo browser su emulatori:
+admin che parte da zero, inserisce in blocco, segna lo staff altrove, salva,
+ricarica, assegna; lettura di Alloggio su pagina pubblica e `/me`.
+Rilascio con conferma fresca: prima `roomManagementSave` (un server vecchio
+rifiuta il campo nuovo), poi hosting. Rules invariate.
+
+### Verifica del quinto incremento (1° novembre)
+
+Codice, test e collaudo di autori diversi; due giri di review Codex. Primo
+giro BLOCKED, quattro rilievi accettati e corretti: l'editor attività aperto
+dalla tab Stanze poteva smontare la bozza togliendo il pernottamento (ora ogni
+accesso all'editor con la bozza stanze modificata chiede prima, «Resta nelle
+stanze» / «Modifica l’attività»); la proposta automatica restava bloccata dalla
+stanza staff mancante (ora usa la validazione della bozza e avvisa che riserva
+una stanza «Da decidere»); campi del planner sotto 16 px; «Nessun partecipante
+trovato» con un risultato tra gli alloggiati altrove. Secondo giro PASS WITH
+CONCERNS, il P3 rimasto (foglio da azzerare al cambio di attività) corretto.
+
+Il collaudo ha trovato e fatto correggere: pulsante del riquadro problemi a
+41,5 px, filtro categoria a 11,2 px, errore del foglio ripetuto nella pagina,
+«Modifica» di Alloggio che apriva il primo passo dell'editor e poi il cursore
+sul titolo invece che nel campo. Ora il campo si apre direttamente e riceve il
+cursore appena finita la rilettura dal server.
+
+| Verifica (sul mini) | Esito |
+| --- | --- |
+| Build TypeScript e Vite, commit finale | verde |
+| Suite client `npm test` | 1548/1549; il rosso è il test accenti, che sul mini non ha git; sull'Air 55/55 |
+| `roomBulk.test.mjs` (nuovo) | 25/25 |
+| `roomStaffElsewhere.test.mjs` (nuovo) con core e callable stanze | 72/72 |
+| Emulatore: `roomStaffElsewhereEmulator` (nuovo), callable e rules stanze | 48/48, functions invariate da allora |
+| Mutanti su core, callable e foglio | 16 su 16 rossi |
+| `roomLodgingBrowser.test.mjs` (nuovo, `demo-gugd-alloggi`, font veri) | 35/35 a 320/390/430, nessuno scroll orizzontale |
+
+Non provati: import Excel/CSV e pianta caricata dopo le modifiche, stanze
+comunicate ai partecipanti, un client precedente reale contro il server nuovo
+(coperto dai test della callable con il campo assente), Safari iOS. Il nome
+accessibile dei campi con suggerimento comprende il suggerimento: è lo schema
+di tutto `EventEditorForm`, fuori da questo incremento. Fuori perimetro, visti
+nel collaudo: la barra di salvataggio fissa copre parte di «Da assegnare» su
+mobile; la X dell'editor non risponde mentre rilegge l'attività.
+
+Rilascio con conferma fresca: `functions:roomManagementSave` (un server vecchio
+rifiuta anche `staffElsewhere: false`), poi hosting con service worker v36.
+Rules e indici invariati.

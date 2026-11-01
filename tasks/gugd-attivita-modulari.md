@@ -10,15 +10,15 @@ surface: [web, functions, rules]
 source: paolo
 opened: 2026-10-26
 started_at: 2026-10-26
-touched: 2026-10-31
+touched: 2026-11-01
 due:
 blocked_by: []
 branch: 
 worktree: 
-session: 905a5362-548d-40ee-8faa-06ff91e36473
-stopped_at: "Comitati e gruppi liberi in produzione dal 2026-10-31 (fb5db11): rules, campManagementSave e campManagementStaff, hosting con service worker v35 index-CPKMWvmb.js"
-next: "Prima prova reale: un admin crea un comitato su un viaggio di prova e lo elimina; poi incremento successivo (contratto della delega oppure finitura alloggi)"
-verified: "Rilascio 2026-10-31 dal clone pulito fb5db11 sul mini, conferma di Paolo in chat: ruleset live 0bb59f8a uguale al file, le due callable aggiornate rispondono UNAUTHENTICATED anche alla nuova azione roster, 38 Functions, HTML+sw v35+bundle identici alla build su gugditalia.it e web.app, home pubblica senza errori in console. Prima: puri 92/92, emulatore 41/41, browser 56/56 in tre giri, suite camp/room/unit/multipalo verdi, build e client 1514/1524, review Codex in tre giri. Non provati: comitato reale creato da un admin, Safari iOS"
+session: 7be9efb8-04e9-4029-879d-561580f24098
+stopped_at: "Quinto incremento (finitura alloggi) completato e verificato sul branch, c97a50b: build, client, 72 puri, 48 emulatore, 35/35 browser a 320/390/430, review Codex in due giri"
+next: "Rilascio con conferma fresca di Paolo: functions:roomManagementSave, poi hosting (service worker v36); poi contratto della delega"
+verified: "Quinto incremento sul mini: build verde, client 1548/1549 (accenti 55/55 sull'Air), roomBulk 25/25, stanze 72/72, emulatore 48/48, mutanti 16/16 rossi, browser 35/35 a 320/390/430 con font veri; test e collaudo di altri autori; review Codex BLOCKED poi PASS WITH CONCERNS, rilievi corretti. Non provati: import Excel/CSV, pianta caricata, client precedente reale, Safari iOS. Nessun deploy"
 links: [docs/ATTIVITA_MODULARI.md, docs/PROGRAMMA_A_MOMENTI.md, docs/PROGRAMMA_PRIMO_INCREMENTO.md, docs/AUTONOMIA_MULTI_PALO.md]
 done_at:
 ---
@@ -235,3 +235,15 @@ l'ultimo hosting, 38 Functions, service worker v34.
 | Hosting | service worker v35, `index-CPKMWvmb.js`, HTML/sw/bundle identici alla build su entrambi i domini |
 
 Nessun dato scritto in produzione per le verifiche.
+
+## Quinto incremento: finitura alloggi, 1° novembre
+
+Scelta di Paolo in chat: alloggi prima della delega (secondo parere Codex
+concorde). Le condizioni dell'alloggio esistevano già come `roomsInfo`
+pubblico: unificata l'etichetta «Alloggio» su cinque superfici, nessun campo
+nuovo. Piano stanze: `staffElsewhere` («Accompagnatori alloggiati altrove»),
+stanza staff mancante che blocca solo il salvataggio, foglio «Aggiungi stanze»
+fino a 50 per volta, stato vuoto senza import obbligatorio, riepilogo Alloggio
+nella tab Stanze con apertura dell'editor sul campo. Rules invariate.
+Contratto e verifiche in docs/ATTIVITA_MODULARI.md. Rilascio da fare con
+conferma fresca: `functions:roomManagementSave`, poi hosting.
