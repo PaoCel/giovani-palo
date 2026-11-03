@@ -548,27 +548,16 @@ function getAnswers(registration) {
     : {};
 }
 
+// The date printed as the parent's confirmation on the generated form: only
+// authorizedAt, written by the server when the parent authorized. Answers, the
+// parent request and createdAt come from the participant's client, and "now"
+// would be the recovery date, not the consent date: without authorizedAt the
+// caller skips the registration instead of inventing a date.
 function getLegacyApprovalDate(registration, request, existingState) {
-  const answers = getAnswers(registration);
-  const candidates = [
-    existingState?.authorizedAt,
-    answers.parentAuthorizationAcceptedAt,
-    answers.parentConfirmedAt,
-    answers.parentalConsentAcceptedAt,
-    request?.approvedAt,
-    request?.acceptedAt,
-    request?.submittedAt,
-    registration.updatedAt,
-    registration.createdAt,
-  ];
-
-  for (const candidate of candidates) {
-    const value = asString(candidate).trim();
-    if (!value) continue;
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return date.toISOString();
-  }
-  return nowIso();
+  const value = asString(existingState?.authorizedAt).trim();
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function splitName(fullName) {
@@ -661,12 +650,15 @@ function isLegacyApprovalCandidate(registration) {
   if (existingState.pdfPath) return false;
   if (existingState.status === "rejected_by_parent") return false;
 
-  const answers = getAnswers(registration);
-  return (
-    existingState.status === "authorized" ||
-    answers.parentConfirmed === true ||
-    answers.parentalConsentAccepted === true
-  );
+  // A registration with an uploaded consent form already counts as consented,
+  // and the backfill would overwrite that document reference: leave it alone.
+  const consentDocumentPath = registration.parentConsentDocumentPath;
+  if (typeof consentDocumentPath === "string" && consentDocumentPath.trim() !== "") return false;
+
+  // Only the authorized status counts: the server writes it. The form answers
+  // parentConfirmed / parentalConsentAccepted come from the participant's own
+  // client and are not proof of a parent's consent.
+  return existingState.status === "authorized";
 }
 
 function decodeBase64Image(dataUrl) {
@@ -2560,6 +2552,15 @@ const parentAuthorizationBackfillLegacyApprovals = onCall(
         continue;
       }
 
+      if (!acceptedAt) {
+        result.skipped += 1;
+        result.errors.push({
+          registrationId,
+          reason: "missing_authorized_at",
+        });
+        continue;
+      }
+
       const legacyTokenId = `legacy-${crypto
         .createHash("sha256")
         .update(`${stakeId}/${activityId}/${registrationId}/${acceptedAt}`)
@@ -2965,6 +2966,10 @@ module.exports = {
   // Esportata per il test: decide se la richiesta va spostata su un'altra
   // casella (functions/tests/parentAuthorizationReissue.test.mjs).
   shouldReissueParentAuthorization,
+  // Esportata per il test: chi il recupero col vecchio metodo può confermare
+  // (functions/tests/parentAuthorizationLegacy.test.mjs).
+  isLegacyApprovalCandidate,
+  getLegacyApprovalDate,
   onRegistrationPendingParentAuth,
   parentAuthorizationGetContext,
   parentAuthorizationConfirm,
