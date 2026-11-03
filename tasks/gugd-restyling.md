@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-restyling
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/elastic-lalande-32c93d
 session: 3b312056-24e6-4dab-a4bf-78d70e42f776
-stopped_at: "Fase 0 fatta: direzione A scelta da Paolo il 3/11; token in src/styles/tokens.css (importato prima di base.css, solo nomi nuovi) e componenti PageHeader, Card, Notice, EmptyState, Button/ButtonLink, Pill, Icon in src/components/ui/ con CSS .ui-* in src/styles/ui.css, non ancora usati da nessuna pagina; test tests/uiComponents.test.mjs (71, scritti da un altro agente); build sul mini verde."
-next: "Fase 1: scheda attività giovane /me/activities/:id sui componenti nuovi (programma, alloggio, squadra, comitati), prima e dopo a 320/390/430/desktop; per vederla serve un account QA con iscrizione o emulatori con dati di prova sul mini. Scelte admin della fase 4 tutte prese (barra in basso a 5 voci, testata senza riga nome/ruolo, barra laterale a desktop)."
-verified: "Fase 0 (3/11): build sul mini verde, bundle JS principale invariato; suite sul mini 1637 test verdi, accentApostrophes (git, non gira nel mirror di un worktree) verde sull'Air; tests/uiComponents.test.mjs 71 verdi, scritto da un altro agente; vetrina dei componenti renderizzata con i CSS veri a 320/390/1440: nessuno scroll orizzontale, testo minimo 13 px, nessun controllo sotto 44. Componenti non ancora visti nel browser loggato (nessuna pagina li usa)."
+stopped_at: "Fase 1 fatta (3/11): scheda /me/activities/:id sui componenti di src/components/ui/ (testata con foto e pill, avviso dell'autorizzazione del genitore con le frasi di Iscrizione inviata, La tua stanza con l'alloggio in colonna a destra da 980 px, schede a pill da 44, gruppo e comitati in Card, vuoti con illustrazione); CSS in src/styles/myActivity.css; tolte 734 righe di CSS della vecchia scheda (base, galleria, Notte dei record); test browser dei comitati passato da classi CSS a ruoli. Codice nei checkpoint 80963fb, 8f549a9, aaf052f, 9ea796c, cd0a2d8: allo squash in main diventano il commit della pagina."
+next: "Fase 2: home giovani /me sui token (cambio visivo minimo). Collaudo riusabile: .claude/qa-restyling-scheda/ del checkout principale (seed con 4 scenari, run.sh e dopo.sh, copia ~/qa/gugd-restyling-scheda/ sul mini). Prima della fase 2, Paolo guarda gli scarti dal mockup della fase 1 (sezione qui sotto)."
+verified: "Fase 0 (3/11): build sul mini verde, bundle JS principale invariato; suite sul mini 1637 test verdi, accentApostrophes (git, non gira nel mirror di un worktree) verde sull'Air; tests/uiComponents.test.mjs 71 verdi, scritto da un altro agente; vetrina dei componenti a 320/390/1440 senza sbordi, testo minimo 13 px, nessun controllo sotto 44. Fase 1 (3/11): tipi, hook e handler della pagina identici a prima (diff vuoto su 382 righe); build sul mini verde; suite sul mini 1637 verdi, accentApostrophes 55/55 sull'Air; collaudo su emulatori sul mini con seed sintetico, 4 scenari (viaggio completo, campeggio, testi lunghi, bozza senza programma) a 320/390/430/1440, 60 foto per giro: prima 7-43 testi sotto 13 px e 2-5 controlli sotto 44 per foto, sbordo a 320 nel campeggio e a ogni larghezza coi testi lunghi (nascosto dalla cornice con overflow hidden); dopo 0 sbordi, 0 testi sotto 13 px, 0 controlli sotto 44 salvo la casella Invia in forma anonima delle Domande (13 px, dentro un'etichetta cliccabile alta 66), 0 errori in console. Review indipendente di un altro agente: PASS WITH CONCERNS, corretti cornice dei figli, anello di focus delle schede, ARIA delle schede, righe della checklist e tasti piccoli delle Domande, chiave React. Non provati: browser loggato in produzione (nessun account con iscrizione), Safari iOS, campCommitteesFreeBrowser con i selettori nuovi (servono emulatori con functions), card Notte dei record."
 links: [docs/REDESIGN_BRIEF.md, tasks/gugd-fondamenta-visive.md, tasks/gugd-etichette-home.md]
 done_at:
 ---
@@ -74,6 +74,29 @@ dopo arrivano inglese e spagnolo (`gugd-i18n`).
 - [x] fase 0: token in `src/styles/tokens.css` e i cinque componenti in
   `src/components/ui/` (più Pill e Icon), senza cambiare pagine;
 - [ ] le pagine una alla volta nell'ordine del brief, un commit per pagina.
+  - [x] fase 1: scheda attività giovane `/me/activities/:id` (3 novembre);
+    foto prima e dopo e tavole affiancate in `.claude/qa-restyling-scheda/`
+    del checkout principale (`prima/`, `dopo3/`, `confronti/`).
+
+### Fase 1: scarti dal mockup, da guardare con Paolo
+
+- **Compagni di stanza.** Il mockup scrive «Con Sara Conti e Marta Leone» e
+  i posti letto: il client conosce solo il nome della stanza
+  (`assignedRoomName`), i compagni li dà la callable `roomMateSuggestions`
+  (massimo 5 nomi, scelta di privacy). La card mostra numero, nome della
+  stanza e condizioni dell'alloggio. Mostrare i compagni è una scelta di
+  prodotto e di dati, non di restyling.
+- **Programma come scheda.** Nel mockup «Programma» è la prima scheda. Resta
+  sopra le schede, come prima: senza momenti pubblicati il componente non
+  disegna nulla e la scheda sarebbe vuota.
+- **«Scegli un comitato».** Il giovane non sceglie il comitato, lo assegna lo
+  staff: lo stato vuoto tiene il testo di prima e nessuna azione.
+- **Riepiloghi di gruppo e comitato nella colonna a destra.** Restano nelle
+  loro schede; a destra vanno solo l'avviso del genitore e la stanza.
+- **Avviso del genitore.** È nuovo in questa pagina (stava nel mockup):
+  stesse frasi e stessa regola di «Iscrizione inviata»
+  (`getParentEmailOutcome`), «Modifica» quando la mail non è partita. Provato
+  a schermo solo nel caso «mail partita».
 
 La freccia gigante nelle righe attività di `/unit` (`483d5dc` sul branch) è
 in produzione dal 3 novembre: cherry-pick `a0d9dfe` su `main`, service worker
