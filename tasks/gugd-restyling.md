@@ -16,8 +16,8 @@ blocked_by: []
 branch: task/gugd-restyling
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/elastic-lalande-32c93d
 session: 3b312056-24e6-4dab-a4bf-78d70e42f776
-stopped_at: "Brief riscritto con lo stato reale delle pagine (3/11), token mancanti e 5 componenti; mockup A/B di scheda attività giovane e testata admin con Persone in .claude/mockups/restyling/ del checkout principale, inviati a Paolo. Freccia gigante di /unit corretta sul branch (483d5dc), non ancora in produzione."
-next: "Aspettare la scelta di Paolo (direzione A o B, barra admin a 5 voci, testata senza riga nome/ruolo); poi fase 0: src/styles/tokens.css e i 5 componenti in src/components/ui/ senza cambiare pagine, build e test sul mini"
+stopped_at: "Fase 0 fatta: direzione A scelta da Paolo il 3/11; token in src/styles/tokens.css (importato prima di base.css, solo nomi nuovi) e componenti PageHeader, Card, Notice, EmptyState, Button/ButtonLink, Pill, Icon in src/components/ui/ con CSS .ui-* in src/styles/ui.css, non ancora usati da nessuna pagina; test tests/uiComponents.test.mjs; build sul mini verde."
+next: "Fase 1: scheda attività giovane /me/activities/:id sui componenti nuovi (programma, alloggio, squadra, comitati), prima e dopo a 320/390/430/desktop; per vederla serve un account QA con iscrizione o emulatori con dati di prova sul mini. Le scelte admin (barra a 5 voci, testata, barra laterale) servono solo alla fase 4."
 verified: ""
 links: [docs/REDESIGN_BRIEF.md, tasks/gugd-fondamenta-visive.md, tasks/gugd-etichette-home.md]
 done_at:
@@ -62,12 +62,14 @@ dopo arrivano inglese e spagnolo (`gugd-i18n`).
   testata admin con Persone, PNG a 320, 390 e 1440 in
   `.claude/mockups/restyling/` del checkout principale (fuori da git), tavola
   `png/confronto-390.png`; inviati a Paolo il 3 novembre;
-- [ ] scelte di Paolo: direzione A o B; barra admin in basso a 5 voci con
-  etichetta (Home, Attività, Persone, Calendario, Altro; Gallerie e Feed dentro
+- [x] direzione scelta da Paolo il 3 novembre: **A** (continuità con la home
+  social), scritta in `docs/REDESIGN_BRIEF.md`;
+- [ ] scelte di Paolo ancora aperte, servono alla fase 4: barra admin in
+  basso a 5 voci con etichetta (Home, Attività, Persone, Calendario, Altro; Gallerie e Feed dentro
   Altro) al posto delle 7 a sola icona; testata senza la riga nome/ruolo (86
   px), con il cambio vista nel menu dell'avatar; barra laterale admin a desktop;
-- [ ] fase 0: token in `src/styles/tokens.css` e i cinque componenti, senza
-  cambiare pagine;
+- [x] fase 0: token in `src/styles/tokens.css` e i cinque componenti in
+  `src/components/ui/` (più Pill e Icon), senza cambiare pagine;
 - [ ] le pagine una alla volta nell'ordine del brief, un commit per pagina.
 
 Sul branch c'è già `483d5dc` (freccia gigante nelle righe attività di `/unit`,

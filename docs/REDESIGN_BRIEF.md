@@ -6,6 +6,18 @@ Riscritto il 3 novembre 2026 con lo stato reale delle pagine, misurato nel
 browser loggato da dirigente di unità (Roma 5) e nel codice di `main`
 (`98fdfee`). Stato del lavoro e prossimo passo: `tasks/gugd-restyling.md`.
 
+## Decisioni di Paolo
+
+- 2026-11-03, sui mockup: **direzione A**, continuità con la home social di
+  ottobre (superfici fredde, primario blu, inchiostro per l'attività in
+  evidenza, sabbia solo per conteggi e azioni speciali). La direzione B (carta
+  calda, testata blu, sabbia sugli stati attivi) è scartata e i suoi valori
+  non entrano nel codice.
+- Ancora da decidere, servono alla fase 4: barra admin in basso a 5 voci con
+  etichetta (Gallerie e Feed dentro Altro) al posto delle 7 a sola icona;
+  testata senza la riga nome/ruolo, con il cambio vista nel menu dell'avatar;
+  barra laterale admin a desktop.
+
 ## Contesto prodotto
 
 Webapp per le attività dei giovani (GU/GD) dei pali italiani della Chiesa di
@@ -82,8 +94,12 @@ Esistono in `:root`: colori (`--bg`, `--surface*`, `--text`, `--heading`,
 due ombre, tre radius (`--radius-xl` 32 px, `--radius-lg` 23 px,
 `--radius-md` 18 px).
 
-Mancano. Proposta, con nomi nuovi per non cambiare di colpo le pagine che usano
-quelli vecchi (adozione pagina per pagina, niente sostituzione globale):
+Mancavano. Dalla fase 0 (3 novembre) stanno in `src/styles/tokens.css`,
+importato in `src/main.tsx` prima di `base.css`, con nomi nuovi per non
+cambiare di colpo le pagine che usano quelli vecchi (adozione pagina per
+pagina, niente sostituzione globale). `tokens.css` non ridefinisce mai un
+token storico: i componenti nuovi usano `--bg`, `--text`, `--heading` e
+`--primary` di `base.css`, che hanno già i valori della direzione A.
 
 - **Spaziatura** su base 4: `--space-1` 4, `-2` 8, `-3` 12, `-4` 16, `-5` 20,
   `-6` 24, `-7` 32, `-8` 48. Margine di pagina `--gutter` 16 px sotto 768,
@@ -98,7 +114,14 @@ quelli vecchi (adozione pagina per pagina, niente sostituzione globale):
   `--text-secondary` `#52687b` (5,8:1 su bianco, 5,2:1 su `--bg`),
   `--ink` `#1b3f67`, `--action-sand` `#e8a857` (testo `--ink` sopra: 5,2:1),
   `--surface-card` bianco, `--surface-cool` `#edf1f2`, `--surface-warm`
-  `#edece5`, `--focus-ring` `#bb7626`. Tutti AA misurati.
+  `#edece5`, `--focus-ring` `#bb7626`, `--line` `#dae1e6` (bordi), sabbia
+  tenue `--sand-soft` `#f8e3c4` con testo `--on-sand-soft` `#6b4a14` (pill
+  dei conteggi). Toni in coppia testo/fondo per Notice e Pill: `--info-ink` e
+  `--info-surface`, poi `--success-*`, `--warning-*`, `--danger-*`; non si
+  usano `--warning` e `--danger` storici perché sul loro fondo tenue non
+  arrivano ad AA (3,9:1 e 4,2:1; le coppie nuove vanno da 5,2 a 5,9:1). Le
+  pagine vecchie che li usano così hanno lo stesso difetto: sparisce quando
+  passano a Pill e Notice. Tutti AA misurati.
 - **Radius**: `--radius-inset` 12, `--radius-control` 16, `--radius-card` 20,
   `--radius-sheet` 22, `--radius-pill` 999.
 - **Target**: `--target` 44 px (minimo per ogni controllo, anche «small»),
@@ -114,14 +137,14 @@ quelli vecchi (adozione pagina per pagina, niente sostituzione globale):
   prende tutto lo spazio (il difetto di `/unit`). Il componente nuovo dà
   `1.25em` di default e lascia al CSS la sovrascrittura.
 
-Dove mettere i token: un foglio `src/styles/tokens.css` importato prima di
-`base.css`, così il diff resta leggibile e `base.css` non cresce.
-
 ## Componenti condivisi
 
-Cinque, in `src/components/ui/`, ognuno con la sua sezione di CSS sui token.
-Sostituiscono i vecchi pagina per pagina; i vecchi restano finché qualcuno li
-usa.
+Cinque, in `src/components/ui/` (fase 0, 3 novembre), importati da
+`@/components/ui`. Il loro CSS è `src/styles/ui.css`, importato da ogni
+componente come fanno gli altri fogli di funzione, e usa solo i token. Ogni
+classe inizia con `.ui-`: `.card`, `.notice`, `.empty` e `.hero` esistono già
+in `base.css` e restano alle pagine non ancora rifatte. Sostituiscono i
+vecchi pagina per pagina; i vecchi restano finché qualcuno li usa.
 
 1. **PageHeader** (al posto di `PageHero`, `UserPageIntro`, `hero`):
    occhiello, titolo, descrizione, azioni, indietro opzionale. Titolo che va a
@@ -145,6 +168,24 @@ usa.
 Con questi due pezzi piccoli che servono a tutti: **Pill** (stato e conteggi:
 testo 13 px, alta 28 se non si tocca, 44 se è un filtro) e **Icon** (la
 dimensione di default sopra).
+
+Come sono fatti nel codice:
+
+- `Button` ha `busy` (disabilitato, `aria-busy`, rotella al posto
+  dell'icona); `ButtonLink` è lo stesso aspetto su un `Link` del router;
+  `buttonClassName()` per i casi in cui serve solo la classe.
+- `Card` con `to` diventa un link intero con la freccia: niente controlli
+  dentro. Livello del titolo con `titleAs` (h2 di default).
+- `Notice` ha il tono obbligatorio; `live` sceglie tra `alert` (default per
+  danger), `status` (default per gli altri) e `none` per gli avvisi fissi già
+  presenti all'apertura. Icona di tono: `info` (aggiunta ad `AppIcon`),
+  `check`, `alert`.
+- `EmptyState` ha `action` obbligatoria (`null` scritto apposta quando non
+  c'è niente da fare) e `illustration` per le immagini di
+  `src/assets/flusso-genitore/`. Non è `components/EmptyState`, il vecchio
+  senza azione, che resta finché qualcuno lo usa.
+- `Pill` non si tocca. Un filtro toccabile è un `Button`, così arriva a
+  44 px.
 
 ## Regole per i testi lunghi (inglese e spagnolo)
 

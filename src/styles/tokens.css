@@ -1,0 +1,98 @@
+/* Token del restyling (docs/REDESIGN_BRIEF.md, direzione A scelta il
+   2026-11-03). Solo nomi nuovi: i token storici di base.css (--bg, --text,
+   --heading, --primary, --success, --radius-lg, ...) restano dove sono e non
+   vengono ridefiniti qui, così le pagine non ancora rifatte non cambiano.
+   I componenti di src/components/ui/ usano solo questi e quelli storici. */
+
+:root {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+
+  /* Spaziatura su base 4 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+  --gutter: 16px;
+  --content-max: 1100px;
+
+  /* Tipo: 13 px è il minimo assoluto, 16 px per lettura e campi */
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --title-sm: 22px;
+  --title-md: 26px;
+  --title-lg: 30px;
+  --title-xl: clamp(32px, 7vw, 44px);
+  --leading-tight: 1.15;
+  --leading-body: 1.5;
+
+  /* Colore: valori della home social di ottobre, tutti AA sulle superfici
+     dove si usano (misure nel brief) */
+  --text-secondary: #52687b;
+  --ink: #1b3f67;
+  --line: #dae1e6;
+  --action-sand: #e8a857;
+  --on-sand: #1b2a3f;
+  --sand-soft: #f8e3c4;
+  --on-sand-soft: #6b4a14;
+  --surface-card: #ffffff;
+  --surface-cool: #edf1f2;
+  --surface-warm: #edece5;
+  --focus-ring: #bb7626;
+
+  /* Toni di Notice e Pill: testo e fondo in coppia */
+  --info-ink: #235d90;
+  --info-surface: #e8eef4;
+  --success-ink: #2d6b56;
+  --success-surface: #e3efe9;
+  --warning-ink: #7a5416;
+  --warning-surface: #f6ecdc;
+  --danger-ink: #a33f35;
+  --danger-surface: #f8e6e3;
+
+  /* Radius */
+  --radius-inset: 12px;
+  --radius-control: 16px;
+  --radius-card: 20px;
+  --radius-sheet: 22px;
+  --radius-pill: 999px;
+
+  /* Target: nessun controllo sotto --target, l'azione principale a --control */
+  --target: 44px;
+  --control: 48px;
+
+  /* Livelli: una scala sola */
+  --z-raised: 1;
+  --z-sticky: 30;
+  --z-dock: 40;
+  --z-popover: 60;
+  --z-sheet: 1000;
+  --z-modal: 1250;
+  --z-toast: 1400;
+
+  /* Ombre e movimento */
+  --shadow-card: 0 4px 18px rgba(27, 63, 103, 0.05);
+  --shadow-float: 0 12px 30px rgba(16, 28, 48, 0.12);
+  --duration-fast: 150ms;
+  --duration: 220ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration: 0ms;
+  }
+}
