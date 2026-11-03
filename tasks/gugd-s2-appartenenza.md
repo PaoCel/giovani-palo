@@ -1,7 +1,7 @@
 ---
 id: gugd-s2-appartenenza
 title: "S2: appartenenza al palo verificata e coda Richieste"
-status: blocked
+status: done
 impact: 2
 urgency: 2
 effort: L
@@ -12,15 +12,15 @@ opened: 2026-10-20
 started_at: 2026-10-20
 touched: 2026-11-03
 due:
-blocked_by: ["accesso con l'account Google da dirigente di unità per la vista /unit/persone"]
+blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
-stopped_at: "QA live da admin fatta il 2026-11-03: coda Richieste e Da confermare corrette; trovato e corretto nel codice uno sbordo di 2 px a 320 della pagina Persone (non deployato)"
-next: "Paolo entra con l'account Google da dirigente nel pannello browser; vista /unit/persone in sola lettura, poi tasks done"
-verified: "Prod 2026-11-03 nel browser loggato come admin (account a password), sola lettura: /admin/persone mostra 41 richieste e 108 da confermare, coerenti con la migrazione; /unit/persone da admin porta a /admin; nessun errore in console. A 320 la riga delle schede (min-content 312 px) allargava la pagina a 322: corretto in membership.css con grid-template-columns minmax(0, 1fr), provato applicando la regola nella pagina live (scrollWidth 320, schede alte 44 px). 390 senza sbordi. Le voci Celestini in coda sono altri account di prova, non l'admin. Non provata live: vista del dirigente di unità"
+stopped_at: QA live completa il 2026-11-03 da admin e da dirigente di unità; fix dello sbordo a 320 in produzione
+next: ""
+verified: "Prod 2026-11-03, sola lettura. Admin (password): /admin/persone 41 richieste e 108 da confermare. Dirigente di Roma 5 (Google): /unit/persone 7 richieste e 18 da confermare, tutte di Roma 5 in tutte e tre le schede, Rifiutate vuota; /unit e /campeggio senza errori della pagina. Fix minmax(0, 1fr) live con hosting v37: a 320 scrollWidth 320 dopo reset di service worker e cache. Prima: 180 appartenenze, rules live uguali al file"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
-done_at:
+done_at: 2026-11-03
 ---
 
 ## Contesto

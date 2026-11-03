@@ -1,7 +1,7 @@
 ---
 id: gugd-select-etichette
 title: Select con nome accessibile pulito in tutta l'app
-status: in-progress
+status: done
 impact: 1
 urgency: 1
 effort: S
@@ -16,11 +16,11 @@ blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
-stopped_at: "Select corrette in 20 file (aria-labelledby su id della label), guardia tests/selectAccessibleName.test.mjs, nome e tipo dell'unità in Impostazioni con aria-label; non deployato"
-next: "Deploy hosting insieme agli altri fix del 2026-11-03, poi tasks done"
-verified: "2026-11-03 sul mini dal checkout principale: client 1562/1562 (guardia 13/13 compresa), build EXIT0. Guardia scritta da un agente diverso da chi ha corretto, resa severa dopo la review Codex (l'id nella label deve essere quello referenziato); 33 select segnalate su HEAD, zero dopo. Id delle domande personalizzate resi univoci (custom-<id>) su rilievo Codex. Locator browser esistenti controllati: nessuno si rompe. Non provato: lettura con screen reader vero"
+stopped_at: In produzione dal 2026-11-03
+next: ""
+verified: "Deploy 2026-11-03 su conferma di Paolo dal clone pulito 88d16a7 sul mini (test 1562/1562, build): hosting con service worker v37, index.html, sw.js, index-C9H0GNY2.js e index-CncvBQr5.css identici alla build su gugditalia.it e web.app. Prima: client 1562/1562 (guardia 13/13), guardia scritta da un agente diverso e resa severa dopo la review Codex; id delle domande personalizzate univoci. Non provato: lettura con screen reader vero"
 links: [src/components/activities/ActivityProgram.tsx]
-done_at:
+done_at: 2026-11-03
 ---
 
 ## Contesto

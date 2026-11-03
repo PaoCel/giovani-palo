@@ -1,7 +1,7 @@
 ---
 id: gugd-i18n
 title: Versione inglese e spagnola
-status: needs-paolo
+status: ready
 impact: 2
 urgency: 1
 effort: L
@@ -12,12 +12,12 @@ opened: 2026-10-18
 started_at:
 touched: 2026-11-03
 due:
-blocked_by: ["decisione: lingua per account o per dispositivo", "decisione: chi traduce i testi legali e le email", "decisione: cosa resta solo in italiano"]
+blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
 stopped_at: ""
-next: "Tre decisioni di Paolo, poi impostazione su componenti del restyling: lingua per account o per dispositivo; chi traduce testi legali (autorizzazione, consensi foto, privacy) ed email; cosa resta solo in italiano"
+next: "Dopo le fondamenta di gugd-restyling: catalogo per schermata (chiave = frase italiana), selettore della lingua, poi traduzione di tutti i testi con un agente specializzato"
 verified: ""
 links: []
 done_at:
@@ -48,3 +48,16 @@ estendere la struttura alle altre schermate serve l'ok di Paolo.
 
 Cosa è stato provato davvero e come (configurazione, account, data). Vuoto
 finché non c'è niente di provato: "dedotto dal codice" si scrive così.
+
+## Decisioni di Paolo, 3 novembre 2026
+
+- **Lingua**: si parte da quella del dispositivo (browser), e l'utente può
+  sempre scegliere la sua lingua preferita; la scelta vince sul dispositivo.
+  Proposta tecnica da confermare nel lavoro: preferenza salvata nel profilo per
+  chi ha un account e nel browser per gli ospiti.
+- **Chi traduce**: tutti i testi, compresi quelli legali (autorizzazione del
+  genitore, consensi foto, privacy) e le email delle Functions, li traduce un
+  agente specializzato nelle traduzioni.
+- **Cosa resta solo in italiano**: niente, si traduce tutto.
+- **Ordine** (parere Codex, non contestato): dopo le fondamenta del restyling,
+  così i componenti nascono già pronti per testi più lunghi.

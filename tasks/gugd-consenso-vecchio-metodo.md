@@ -1,7 +1,7 @@
 ---
 id: gugd-consenso-vecchio-metodo
 title: "Recupero vecchio metodo: parentConfirmed del titolare vale come firma"
-status: in-progress
+status: done
 impact: 2
 urgency: 1
 effort: S
@@ -16,11 +16,11 @@ blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
-stopped_at: "Recupero ristretto allo stato authorized scritto dal server, senza modulo caricato e con data solo da authorizedAt (altrimenti salta); stessa regola nel conteggio client; non deployato"
-next: "Deploy di parentAuthorizationBackfillLegacyApprovals e hosting con conferma di Paolo, poi tasks done"
-verified: "Censimento prod in sola lettura 2026-11-03 (REST Firestore, nessuna scrittura): 348 iscrizioni, 6 candidate al vecchio recupero, tutte su attività concluse; 5 solo per le risposte del modulo (4 Escape Room aprile, 1 campeggio luglio con modulo caricato), 1 per stato authorized senza pdf (viaggio al tempio ottobre, con authorizedAt). Rules: parentAuthorization e campi del modulo manuale non scrivibili dal titolare. Review Codex: il recupero sovrascriveva il riferimento al modulo caricato e datava la firma col caricamento o con l'ora attuale; corretto escludendo chi ha un modulo e saltando senza authorizedAt. Dopo la stretta resta candidata 1 su 6. Decisione presa al posto di Paolo, reversibile prima del deploy: il recupero serve ancora solo per quel caso"
+stopped_at: "In produzione dal 2026-11-03: recupero solo con stato authorized del server, senza modulo caricato, data da authorizedAt"
+next: ""
+verified: "Deploy 2026-11-03 su conferma di Paolo dal clone pulito 88d16a7 sul mini (test 1562/1562, build): hosting con service worker v37, index.html, sw.js, index-C9H0GNY2.js e index-CncvBQr5.css identici alla build su gugditalia.it e web.app; parentAuthorizationBackfillLegacyApprovals ACTIVE, sorgente live (generateDownloadUrl) con parentAuthorization.js identico a main (sha256), chiamata senza parametri risponde INVALID_ARGUMENT strutturato. Test 33/33 scritti da un agente diverso. Censimento prod in sola lettura: dopo la stretta 1 candidata su 6 (viaggio al tempio, con authorizedAt). Residui nella sezione dedicata"
 links: []
-done_at:
+done_at: 2026-11-03
 ---
 
 ## Contesto

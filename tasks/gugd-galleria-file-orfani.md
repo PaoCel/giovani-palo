@@ -1,7 +1,7 @@
 ---
 id: gugd-galleria-file-orfani
 title: "Galleria: file in Storage dei media cancellati"
-status: needs-paolo
+status: done
 impact: 1
 urgency: 1
 effort: S
@@ -9,18 +9,18 @@ delivery: merge
 surface: [functions]
 source: review
 opened: 2026-10-20
-started_at:
+started_at: 2026-11-03
 touched: 2026-11-03
 due:
-blocked_by: ["decisione: cancellare i 34 doppioni dai due bucket (soft delete 7 giorni) e tenere i 7 senza copia visibile"]
+blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
-stopped_at: Classificazione in sola lettura dei 41 prefissi orfani fatta; trigger di cleanup onGalleryMediaDeleted live (gen2 europe-west1); nessun file cancellato
-next: "Con l'ok di Paolo: script riprendibile e idempotente che cancella i 34 doppioni da entrambi i bucket, ricontrollando ogni prefisso prima di toccarlo"
-verified: "2026-11-03 sola lettura (Storage JSON API e Firestore batchGet): 41 prefissi senza media né hiddenMedia né mediaLifecycle, tutti in gallerie esistenti, presenti in UE e USA, 52,7 MB per bucket. 34 del campeggio sono doppioni di foto già visibili (caricamenti ripetuti di luglio, 30 optimized+thumb e 4 poster). 7 senza copia visibile: 2 foto del campeggio e 5 video del viaggio al tempio di maggio (4 solo poster, 1 originale .mov da 5,7 MB). Soft delete 7 giorni attivo su entrambi i bucket. functions:list conferma onGalleryMediaDeleted e onGalleryMediaLifecycle live"
+stopped_at: "Cancellati il 2026-11-03, su conferma di Paolo, i 34 doppioni dai due bucket; tenuti i 7 senza copia visibile"
+next: ""
+verified: "2026-11-03: script .claude/ops/galleria-orfani/doppioni.cjs (fuori da git) ricalcola dal vivo e cancella solo i prefissi orfani le cui foto esistono già come media visibile, con controllo sul conteggio atteso e checkpoint per prefisso. Prova a vuoto 34 su 41, poi 34 prefissi e 148 oggetti cancellati dai due bucket; ricontrollo: 294 prefissi media, 7 orfani, 0 doppioni. Galleria del campeggio dopo la pulizia: 139/139 immagini caricate nel browser. Soft delete di 7 giorni attivo su entrambi i bucket. Trigger onGalleryMediaDeleted provato live con un media sintetico"
 links: []
-done_at:
+done_at: 2026-11-03
 ---
 
 ## Contesto

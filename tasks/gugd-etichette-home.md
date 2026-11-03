@@ -1,7 +1,7 @@
 ---
 id: gugd-etichette-home
 title: "Finitura della home /me, della scheda attività e della firma"
-status: in-progress
+status: done
 impact: 1
 urgency: 1
 effort: S
@@ -16,11 +16,11 @@ blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
-stopped_at: "Pagina di firma sistemata il 2026-11-03 (Non autorizzo e Cancella a 44 px, passi a 13 px con solo il passo attivo etichettato su schermo stretto); home /me e scheda passano a gugd-restyling; non deployato"
-next: "Deploy hosting con gli altri fix del 2026-11-03, poi tasks done"
-verified: "2026-11-03: CSS reale incorporato in una copia statica della pagina di firma, misurato nel pannello browser a 320/390/430: Non autorizzo 44 px, Cancella 44 px, etichetta del passo attivo 13 px, passi non attivi a pallino (etichetta ancora nel DOM per gli screen reader), nessuno sbordo. Non provato sulla pagina vera con un token di firma"
+stopped_at: Pagina di firma in produzione dal 2026-11-03; home /me e scheda passate a gugd-restyling
+next: ""
+verified: "Deploy 2026-11-03 su conferma di Paolo dal clone pulito 88d16a7 sul mini (test 1562/1562, build): hosting con service worker v37, index.html, sw.js, index-C9H0GNY2.js e index-CncvBQr5.css identici alla build su gugditalia.it e web.app. Misure a 320/390/430 su copia statica col CSS reale: Non autorizzo e Cancella 44 px, passo attivo 13 px, nessuno sbordo. Non provato sulla pagina vera con un token di firma"
 links: []
-done_at:
+done_at: 2026-11-03
 ---
 
 ## Contesto
