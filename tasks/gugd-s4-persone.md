@@ -1,7 +1,7 @@
 ---
 id: gugd-s4-persone
 title: "S4: Persone del palo, inviti staff, iscrizione a mano, console pali"
-status: blocked
+status: backlog
 impact: 2
 urgency: 2
 effort: L
@@ -12,7 +12,7 @@ opened: 2026-10-20
 started_at:
 touched: 2026-11-03
 due:
-blocked_by: [gugd-s2-appartenenza]
+blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
