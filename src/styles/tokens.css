@@ -45,6 +45,14 @@
   --surface-cool: #edf1f2;
   --surface-warm: #edece5;
   --focus-ring: #bb7626;
+  /* Dalla home social (fase 2): testo lungo, bordi, testo su inchiostro */
+  --text-body: #344658;
+  --line-strong: #cad4dc;
+  --line-soft: #e8ecef;
+  --on-ink-muted: #e5eef7;
+  --like-ink: #a61f3b;
+  --like-surface: #fcf0f2;
+  --like-line: #e7b9c3;
 
   /* Toni di Notice e Pill: testo e fondo in coppia */
   --info-ink: #235d90;
