@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { GuestRecordsToggle } from "@/components/admin/recordNight/GuestRecordsToggle";
@@ -227,6 +227,7 @@ export function EventEditorForm({
   onUploadImage,
   focusField,
 }: EventEditorFormProps) {
+  const fieldLabelIds = useId();
   const [values, setValues] = useState<EventEditorValues>(
     getInitialValues(initialEvent),
   );
@@ -345,12 +346,22 @@ export function EventEditorForm({
     return fieldErrors[key] ? "input input--error" : "input";
   }
 
-  function renderFieldLabel(label: string, key: string, required = false) {
+  function fieldLabelId(key: string) {
+    return `${fieldLabelIds}-${key}`;
+  }
+
+  function renderFieldLabel(
+    label: string,
+    key: string,
+    required = false,
+    id?: string,
+  ) {
     return (
       <span
         className={
           fieldErrors[key] ? "field__label field__label--error" : "field__label"
         }
+        id={id}
       >
         {label}
         {required ? <em aria-hidden="true">*</em> : null}
@@ -673,8 +684,10 @@ export function EventEditorForm({
               </div>
 
               <label className="field">
-                {renderFieldLabel("Organizzazione", "audience")}
+                {renderFieldLabel("Organizzazione", "audience", false, fieldLabelId("audience"))}
+                {/* The wrapping label would add the options to the accessible name. */}
                 <select
+                  aria-labelledby={fieldLabelId("audience")}
                   className={getInputClass("audience")}
                   value={values.audience}
                   onChange={(event) =>
@@ -809,8 +822,9 @@ export function EventEditorForm({
                   </label>
                 ) : (
                   <label className="field">
-                    {renderFieldLabel("Stato", "status")}
+                    {renderFieldLabel("Stato", "status", false, fieldLabelId("status"))}
                     <select
+                      aria-labelledby={fieldLabelId("status")}
                       className={getInputClass("status")}
                       value={values.status}
                       onChange={(event) =>
@@ -998,8 +1012,9 @@ export function EventEditorForm({
               </label>
 
               <label className="field">
-                {renderFieldLabel("Tipo di attività", "activityType")}
+                {renderFieldLabel("Tipo di attività", "activityType", false, fieldLabelId("activityType"))}
                 <select
+                  aria-labelledby={fieldLabelId("activityType")}
                   className={getInputClass("activityType")}
                   value={values.activityType}
                   onChange={(event) =>

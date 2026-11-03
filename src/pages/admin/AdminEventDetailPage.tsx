@@ -11,7 +11,7 @@ import {
   normalizeCampGroupLabel,
 } from "@/utils/campGroups";
 import { RoomManagementPanel } from "@/components/admin/RoomManagementPanel";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
@@ -447,6 +447,7 @@ type AdminConfirm =
   | { kind: "reactivateRegistration"; registrationId: string };
 
 export function AdminEventDetailPage() {
+  const campLabelIds = useId();
   const { eventId } = useParams();
   const location = useLocation();
   const { session } = useAuth();
@@ -1041,11 +1042,15 @@ export function AdminEventDetailPage() {
       if (registration.parentAuthorization?.pdfPath) return false;
       if (registration.parentAuthorization?.status === "rejected_by_parent")
         return false;
-      return (
-        registration.parentAuthorization?.status === "authorized" ||
-        registration.answers.parentConfirmed === true ||
-        registration.answers.parentalConsentAccepted === true
-      );
+      // Same rule as isLegacyApprovalCandidate on the server: an uploaded form
+      // already counts, and the form's own "parent confirmed" answers are not
+      // proof; only the authorized status written by the server is.
+      if (
+        typeof registration.parentConsentDocumentPath === "string" &&
+        registration.parentConsentDocumentPath.trim() !== ""
+      )
+        return false;
+      return registration.parentAuthorization?.status === "authorized";
     },
   ).length;
   const assignedPatrolCount = patrolAssignmentByRegistrationId.size;
@@ -2981,8 +2986,9 @@ export function AdminEventDetailPage() {
           {campSyncWarning ? <div className="notice notice--warning" role="status"><p>{CAMP.assegnazioniDaControllare}</p></div> : null}
           <section className="surface-panel surface-panel--subtle camp-config-panel">
             <label className="field">
-              <span className="field__label">{CAMP.gruppoEtichetta}</span>
-              <select className="input" disabled={campSaving} value={campDraft.groupLabel} onChange={(input) => {
+              <span className="field__label" id={`${campLabelIds}-gruppo`}>{CAMP.gruppoEtichetta}</span>
+              {/* The wrapping label would add the options to the accessible name. */}
+              <select aria-labelledby={`${campLabelIds}-gruppo`} className="input" disabled={campSaving} value={campDraft.groupLabel} onChange={(input) => {
                 setCampDraftDirty(true);
                 setCampDraft((current) => ({ ...current, groupLabel: normalizeCampGroupLabel(input.target.value) }));
               }}>
@@ -4558,8 +4564,9 @@ export function AdminEventDetailPage() {
             </label>
 
             <section className="camp-modal-section">
-              <h3>{campGroupLabels.leader}</h3>
+              <h3 id={`${campLabelIds}-capo`}>{campGroupLabels.leader}</h3>
               <select
+                aria-labelledby={`${campLabelIds}-capo`}
                 className="input"
                 value={selectedCampPatrol.leaderRegistrationId}
                 onChange={(eventInput) =>

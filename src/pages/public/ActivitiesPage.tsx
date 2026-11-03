@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { EventCard } from "@/components/EventCard";
@@ -44,6 +44,7 @@ function isEventPast(event: { endDate: string; startDate: string }) {
 }
 
 export function ActivitiesPage() {
+  const filterIds = useId();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedStakeId = searchParams.get("stake") ?? "";
   const requestedAudience = searchParams.get("audience");
@@ -141,8 +142,10 @@ export function ActivitiesPage() {
       <section className="activity-catalog">
         <div className="activity-catalog__filters">
           <label className="field">
-            <span>Palo</span>
+            <span id={`${filterIds}-palo`}>Palo</span>
+            {/* The wrapping label would add the options to the accessible name. */}
             <select
+              aria-labelledby={`${filterIds}-palo`}
               className="input"
               disabled={stakesLoading || stakes.length === 0}
               value={selectedStakeId}
@@ -163,8 +166,9 @@ export function ActivitiesPage() {
           </label>
 
           <label className="field">
-            <span>Organizzazione</span>
+            <span id={`${filterIds}-organizzazione`}>Organizzazione</span>
             <select
+              aria-labelledby={`${filterIds}-organizzazione`}
               className="input"
               value={audienceFilter}
               onChange={(eventInput) => updateSearchParam("audience", eventInput.target.value)}
@@ -177,8 +181,9 @@ export function ActivitiesPage() {
           </label>
 
           <label className="field">
-            <span>Iscrizioni</span>
+            <span id={`${filterIds}-iscrizioni`}>Iscrizioni</span>
             <select
+              aria-labelledby={`${filterIds}-iscrizioni`}
               className="input"
               value={registrationFilter}
               onChange={(eventInput) =>
@@ -192,8 +197,9 @@ export function ActivitiesPage() {
           </label>
 
           <label className="field">
-            <span>Periodo</span>
+            <span id={`${filterIds}-periodo`}>Periodo</span>
             <select
+              aria-labelledby={`${filterIds}-periodo`}
               className="input"
               value={timeFilter}
               onChange={(eventInput) => updateSearchParam("time", eventInput.target.value)}

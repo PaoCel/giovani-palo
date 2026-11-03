@@ -409,9 +409,11 @@ export function ProfileForm({
 
   const unitField = (
     <label className="field">
-      <span>{PROFILO.unita}</span>
+      <span id={`${titleId}-unita`}>{PROFILO.unita}</span>
       {hasConfiguredUnits ? (
+        // The wrapping label would add the options to the accessible name.
         <select
+          aria-labelledby={`${titleId}-unita`}
           className="input"
           value={unitSelectValue}
           onChange={(eventInput) => {
@@ -441,7 +443,7 @@ export function ProfileForm({
           ) : null}
         </select>
       ) : canUseManualUnit ? null : (
-        <select className="input" disabled value="">
+        <select aria-labelledby={`${titleId}-unita`} className="input" disabled value="">
           <option value="">{PROFILO.nessunaUnita}</option>
         </select>
       )}

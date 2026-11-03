@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
@@ -106,6 +106,7 @@ interface ConsentTarget {
 }
 
 export function FamilyDashboardPage() {
+  const childFormIds = useId();
   const { session } = useAuth();
   const navigate = useNavigate();
   const parentUid = session?.firebaseUser.uid ?? "";
@@ -899,8 +900,10 @@ export function FamilyDashboardPage() {
               />
             </label>
             <label className="field">
-              <span>Gruppo *</span>
+              <span id={`${childFormIds}-gruppo`}>Gruppo *</span>
+              {/* The wrapping label would add the options to the accessible name. */}
               <select
+                aria-labelledby={`${childFormIds}-gruppo`}
                 required
                 value={childForm.genderRoleCategory}
                 onChange={(event) =>
@@ -917,8 +920,9 @@ export function FamilyDashboardPage() {
               </select>
             </label>
             <label className="field">
-              <span>Unità (rione/ramo)</span>
+              <span id={`${childFormIds}-unita`}>Unità (rione/ramo)</span>
               <select
+                aria-labelledby={`${childFormIds}-unita`}
                 value={childForm.unitId}
                 onChange={(event) =>
                   setChildForm((current) => ({ ...current, unitId: event.target.value }))

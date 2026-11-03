@@ -177,9 +177,11 @@ export function ChildForm({
         </fieldset>
 
         <label className="field">
-          <span>{CHI_ISCRIVI.unita}</span>
+          <span id={`${ids}-unita`}>{CHI_ISCRIVI.unita}</span>
           <span className="child-form__unit">
+            {/* The wrapping label would add the options to the accessible name. */}
             <select
+              aria-labelledby={`${ids}-unita`}
               className="input"
               disabled={!hasUnits}
               value={hasUnits ? values.unitId : ""}

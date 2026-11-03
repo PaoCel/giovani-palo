@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
@@ -24,6 +24,7 @@ function isConfiguredUnit(unitOptions: string[], unitName: string) {
 }
 
 export function MyProfilePage() {
+  const labelIds = useId();
   const { session, completeProfile } = useAuth();
   const navigate = useNavigate();
   const [switchingRole, setSwitchingRole] = useState(false);
@@ -259,8 +260,10 @@ export function MyProfilePage() {
             </label>
 
             <label className="field">
-              <span>Organizzazione</span>
+              <span id={`${labelIds}-organizzazione`}>Organizzazione</span>
+              {/* The wrapping label would add the options to the accessible name. */}
               <select
+                aria-labelledby={`${labelIds}-organizzazione`}
                 className="input"
                 value={values.genderRoleCategory}
                 onChange={(eventInput) =>
@@ -279,9 +282,10 @@ export function MyProfilePage() {
           </div>
 
           <label className="field">
-            <span>Unità di appartenenza</span>
+            <span id={`${labelIds}-unita`}>Unità di appartenenza</span>
             {hasConfiguredUnits ? (
               <select
+                aria-labelledby={`${labelIds}-unita`}
                 className="input"
                 value={unitSelectValue}
                 onChange={(eventInput) => {
@@ -311,7 +315,7 @@ export function MyProfilePage() {
                 ) : null}
               </select>
             ) : canUseManualUnit ? null : (
-              <select className="input" disabled value="">
+              <select aria-labelledby={`${labelIds}-unita`} className="input" disabled value="">
                 <option value="">Nessuna unità configurata</option>
               </select>
             )}

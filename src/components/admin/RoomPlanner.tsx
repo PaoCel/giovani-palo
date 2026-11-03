@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import { RoomMap } from "@/components/admin/RoomMap";
@@ -55,6 +55,7 @@ function downloadFile(blob: Blob, fileName: string) {
 }
 
 export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave, onDirtyChange, onReload, layouts, unreadableLayouts, layoutsFailed, onSaveLayout }: Props) {
+  const labelIds = useId();
   const [plan, setPlan] = useState(() => withDefaults(initialPlan));
   const [savedPlan, setSavedPlan] = useState(() => withDefaults(initialPlan));
   const [history, setHistory] = useState<RoomPlan[]>([]);
@@ -474,8 +475,9 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
           {selectedPerson.answers?.roomNotes ? <p className="rp-notice rp-notice--warning"><strong>Note stanza</strong><span>{String(selectedPerson.answers.roomNotes)}</span></p> : null}
         </div>
         {isAdult(selectedPerson) ? <>
-          <label>Genere dell’accompagnatore<select value={plan.adultGenders[selectedPerson.id] ?? ""} onChange={(event) => { const next = copy(plan); if (event.target.value) next.adultGenders[selectedPerson.id] = event.target.value as "male" | "female"; else delete next.adultGenders[selectedPerson.id]; const assigned = next.rooms.find((room) => room.id === next.assignments[selectedPerson.id]); if (assigned) { const reason = assignmentProblem(selectedPerson, assigned, next, registrations, referenceDate); if (reason) { setError("Rimuovi prima l’assegnazione incompatibile con questo genere."); return; } } change(next); }}><option value="">Da verificare</option><option value="male">Uomo</option><option value="female">Donna</option></select></label>
-          <details className="rp-couple"><summary>Coppia di accompagnatori</summary><p>Usa questa opzione solo per marito e moglie che abbiano richiesto di stare insieme.</p><label>Coniuge<select value={partnerId} onChange={(event) => { setPartnerId(event.target.value); setCoupleConfirmed(false); }}><option value="">Scegli accompagnatore</option>{people.filter((person) => isAdult(person) && person.id !== selectedPerson.id).map((person) => <option value={person.id} key={person.id}>{nameOf(person)}</option>)}</select></label>
+          {/* The wrapping label would add the options to the accessible name. */}
+          <label><span id={`${labelIds}-genere`}>Genere dell’accompagnatore</span><select aria-labelledby={`${labelIds}-genere`} value={plan.adultGenders[selectedPerson.id] ?? ""} onChange={(event) => { const next = copy(plan); if (event.target.value) next.adultGenders[selectedPerson.id] = event.target.value as "male" | "female"; else delete next.adultGenders[selectedPerson.id]; const assigned = next.rooms.find((room) => room.id === next.assignments[selectedPerson.id]); if (assigned) { const reason = assignmentProblem(selectedPerson, assigned, next, registrations, referenceDate); if (reason) { setError("Rimuovi prima l’assegnazione incompatibile con questo genere."); return; } } change(next); }}><option value="">Da verificare</option><option value="male">Uomo</option><option value="female">Donna</option></select></label>
+          <details className="rp-couple"><summary>Coppia di accompagnatori</summary><p>Usa questa opzione solo per marito e moglie che abbiano richiesto di stare insieme.</p><label><span id={`${labelIds}-coniuge`}>Coniuge</span><select aria-labelledby={`${labelIds}-coniuge`} value={partnerId} onChange={(event) => { setPartnerId(event.target.value); setCoupleConfirmed(false); }}><option value="">Scegli accompagnatore</option>{people.filter((person) => isAdult(person) && person.id !== selectedPerson.id).map((person) => <option value={person.id} key={person.id}>{nameOf(person)}</option>)}</select></label>
             {partnerId && peopleById.get(partnerId) ? <p className="rp-notice">Richieste del coniuge: {[peopleById.get(partnerId)?.answers.roomPreference1Name, peopleById.get(partnerId)?.answers.roomPreference2Name, peopleById.get(partnerId)?.answers.roomNotes].filter(Boolean).join(" · ") || "Nessuna richiesta nelle note dell’iscrizione."}</p> : null}
             <label className="rp-checkbox"><input type="checkbox" checked={coupleConfirmed} onChange={(event) => setCoupleConfirmed(event.target.checked)} />Ho verificato che sono marito e moglie e hanno richiesto esplicitamente di stare insieme.</label>
             <button className="button button--secondary" disabled={!partnerId || !coupleConfirmed} onClick={recordCouple}>Registra richiesta della coppia</button>
@@ -501,8 +503,8 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
         {problems.includes(MISSING_STAFF_ROOM) ? <p className="rp-notice rp-notice--warning">Nessuna stanza è riservata agli accompagnatori: il calcolo ne riserva una tra quelle «Da decidere» ancora vuote, se c’è. Puoi cambiarla prima di salvare.</p> : null}
         <label className="rp-checkbox"><input type="checkbox" checked={separateFloors} onChange={(event) => { setSeparateFloors(event.target.checked); setProposal(null); }} />Separa giovani uomini e giovani donne per piano</label>
         {separateFloors ? <>
-          <div className="rp-form-row"><label>Piano giovani uomini<select value={chosenBoysFloor} onChange={(event) => { setBoysFloor(event.target.value); setProposal(null); }}><option value="">Scegli piano</option>{automaticFloors.map((value) => <option key={value}>{value}</option>)}</select></label>
-            <label>Piano giovani donne<select value={chosenGirlsFloor} onChange={(event) => { setGirlsFloor(event.target.value); setProposal(null); }}><option value="">Scegli piano</option>{automaticFloors.map((value) => <option key={value}>{value}</option>)}</select></label></div>
+          <div className="rp-form-row"><label><span id={`${labelIds}-piano-uomini`}>Piano giovani uomini</span><select aria-labelledby={`${labelIds}-piano-uomini`} value={chosenBoysFloor} onChange={(event) => { setBoysFloor(event.target.value); setProposal(null); }}><option value="">Scegli piano</option>{automaticFloors.map((value) => <option key={value}>{value}</option>)}</select></label>
+            <label><span id={`${labelIds}-piano-donne`}>Piano giovani donne</span><select aria-labelledby={`${labelIds}-piano-donne`} value={chosenGirlsFloor} onChange={(event) => { setGirlsFloor(event.target.value); setProposal(null); }}><option value="">Scegli piano</option>{automaticFloors.map((value) => <option key={value}>{value}</option>)}</select></label></div>
           <p className="rp-aside-note">I piani sono ricavati dalla pianta, quando disponibile. Le stanze vuote dei giovani vengono destinate al gruppo del piano scelto.</p>
           {roomsWithFloors.some((room) => !room.floor) ? <p className="rp-notice rp-notice--warning">Le stanze senza piano non verranno usate: indica il piano nella scheda della stanza o carica la pianta.</p> : null}
         </> : null}

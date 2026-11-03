@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { EmptyState } from "@/components/EmptyState";
@@ -14,6 +14,7 @@ import { getAdminActionError } from "@/utils/adminErrors";
 import { withWriteTimeout } from "@/utils/writeTimeout";
 
 export function AdminFeedPage() {
+  const typeLabelId = useId();
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId ?? "";
   const uid = session?.firebaseUser.uid ?? "";
@@ -147,8 +148,10 @@ export function AdminFeedPage() {
       <SectionCard title="Nuovo post" description="Annunci e reminder attività.">
         <form className="stack" onSubmit={handleCreate}>
           <label className="field">
-            <span>Tipo</span>
+            <span id={typeLabelId}>Tipo</span>
+            {/* The wrapping label would add the options to the accessible name. */}
             <select
+              aria-labelledby={typeLabelId}
               value={type}
               onChange={(event) => setType(event.target.value as FeedPostType)}
               disabled={submitting}

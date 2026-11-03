@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { ADMIN } from "@/copy/admin";
@@ -34,6 +34,7 @@ const EMPTY_DRAFT: DraftQuestion = {
 };
 
 export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
+  const labelIds = useId();
   const { session } = useAuth();
   const uid = session?.firebaseUser.uid ?? "";
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
@@ -175,8 +176,10 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
           </label>
 
           <label className="field">
-            <span className="field__label">Tipo</span>
+            <span className="field__label" id={`${labelIds}-tipo`}>Tipo</span>
+            {/* The wrapping label would add the options to the accessible name. */}
             <select
+              aria-labelledby={`${labelIds}-tipo`}
               className="input"
               value={draft.type}
               onChange={(event) =>
@@ -209,8 +212,9 @@ export function SurveyEditor({ stakeId, eventId }: SurveyEditorProps) {
           ) : null}
 
           <label className="field">
-            <span className="field__label">Stato</span>
+            <span className="field__label" id={`${labelIds}-stato`}>Stato</span>
             <select
+              aria-labelledby={`${labelIds}-stato`}
               className="input"
               value={draft.status}
               onChange={(event) =>

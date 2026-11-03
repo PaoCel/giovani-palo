@@ -366,6 +366,7 @@ export function RegistrationEditor({
   // su "Conferma iscrizione", nello stesso punto, prima di vedere l'ultimo passo.
   const stepEnteredAtRef = useRef(0);
   const cityOptionsListId = useId();
+  const fieldLabelIds = useId();
   // Un account genitore riceve anche una Registration sintetica che precompila
   // i dati del figlio scelto (buildChildPrefill): ha id vuoto e stato "active".
   // Non è un'iscrizione esistente, e trattarla come tale faceva saltare la
@@ -753,9 +754,18 @@ export function RegistrationEditor({
     return fieldErrors[key] ? "input input--error" : "input";
   }
 
-  function renderFieldLabel(label: string, key: string, required = false) {
+  // Custom questions can share a slug key: they pass "custom-<field.id>" instead.
+  // Anything outside [A-Za-z0-9_-] would break the space-separated aria-labelledby.
+  function fieldLabelId(key: string) {
+    return `${fieldLabelIds}-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+  }
+
+  function renderFieldLabel(label: string, key: string, required = false, id?: string) {
     return (
-      <span className={fieldErrors[key] ? "field__label field__label--error" : "field__label"}>
+      <span
+        className={fieldErrors[key] ? "field__label field__label--error" : "field__label"}
+        id={id}
+      >
         {label}
         {required ? <em aria-hidden="true">*</em> : null}
       </span>
@@ -928,8 +938,10 @@ export function RegistrationEditor({
     if (field.key === "youthGroup" || field.key === "genderRoleCategory") {
       return (
         <label key={field.key} className="field">
-          {renderFieldLabel(field.label, "genderRoleCategory", true)}
+          {renderFieldLabel(field.label, "genderRoleCategory", true, fieldLabelId("genderRoleCategory"))}
+          {/* The wrapping label would add the options to the accessible name. */}
           <select
+            aria-labelledby={fieldLabelId("genderRoleCategory")}
             className={getInputClass("genderRoleCategory")}
             value={values.category}
             onChange={(eventInput) => {
@@ -962,8 +974,9 @@ export function RegistrationEditor({
     if (field.key === "unitName") {
       return (
         <label key={field.key} className="field">
-          {renderFieldLabel(field.label, field.key, true)}
+          {renderFieldLabel(field.label, field.key, true, fieldLabelId(field.key))}
           <select
+            aria-labelledby={fieldLabelId(field.key)}
             className={getInputClass(field.key)}
             disabled={!hasConfiguredUnits}
             value={values.unitName}
@@ -1059,8 +1072,9 @@ export function RegistrationEditor({
     if (field.inputType === "select") {
       return (
         <label key={field.key} className="field">
-          {renderFieldLabel(field.label, field.key, isRequired)}
+          {renderFieldLabel(field.label, field.key, isRequired, fieldLabelId(field.key))}
           <select
+            aria-labelledby={fieldLabelId(field.key)}
             className={getInputClass(field.key)}
             value={typeof value === "string" ? value : ""}
             onChange={(eventInput) => updateAnswer(field.key, eventInput.target.value)}
@@ -1137,8 +1151,9 @@ export function RegistrationEditor({
     if (field.type === "select") {
       return (
         <label key={field.id} className="field">
-          {renderFieldLabel(field.label, field.key, field.required)}
+          {renderFieldLabel(field.label, field.key, field.required, fieldLabelId(`custom-${field.id}`))}
           <select
+            aria-labelledby={fieldLabelId(`custom-${field.id}`)}
             className={getInputClass(field.key)}
             value={typeof value === "string" ? value : ""}
             onChange={(eventInput) => updateAnswer(field.key, eventInput.target.value)}

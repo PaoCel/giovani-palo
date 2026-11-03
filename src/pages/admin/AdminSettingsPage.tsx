@@ -448,6 +448,7 @@ function UnitsModal({
             {units.map((unit) => (
               <article key={unit.id} className="surface-panel surface-panel--subtle unit-editor-row">
                 <input
+                  aria-label="Nome dell'unità"
                   className="input"
                   value={unit.name}
                   onChange={(eventInput) =>
@@ -459,6 +460,7 @@ function UnitsModal({
                   }
                 />
                 <select
+                  aria-label="Rione o ramo"
                   className="input"
                   value={unit.type}
                   onChange={(eventInput) =>

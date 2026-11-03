@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 import "@/styles/recordCertificate.css";
@@ -288,6 +288,7 @@ function CertificateSheet({
 // si sceglie il record, si scrive chi e con quale risultato, si stampa. Nessun
 // dato viene salvato: il foglio vive solo nel browser.
 export function RecordCertificatePage() {
+  const recordLabelId = useId();
   usePrintSetup();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -422,9 +423,10 @@ export function RecordCertificatePage() {
           }}
         >
           <label className="rc-field">
-            <span>Record</span>
+            <span id={recordLabelId}>Record</span>
             {records.length > 0 ? (
-              <select onChange={(change) => chooseRecord(change.target.value)} value={recordChoice}>
+              // The wrapping label would add the options to the accessible name.
+              <select aria-labelledby={recordLabelId} onChange={(change) => chooseRecord(change.target.value)} value={recordChoice}>
                 <option disabled value="">
                   Scegli il record
                 </option>

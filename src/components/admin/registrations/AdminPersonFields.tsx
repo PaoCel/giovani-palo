@@ -44,9 +44,9 @@ function FieldError({ id, problem }: { id: string; problem: ManualAddProblem | n
   ) : null;
 }
 
-function Label({ text, optional }: { text: string; optional?: string }) {
+function Label({ id, text, optional }: { id?: string; text: string; optional?: string }) {
   return (
-    <span>
+    <span id={id}>
       {text}
       {optional ? <span className="admin-person-fields__optional"> · {optional}</span> : null}
     </span>
@@ -183,8 +183,10 @@ export function AdminPersonFields({
       </fieldset>
 
       <label className="field">
-        <Label text={ISCRITTI.unita} />
+        <Label id={`${ids}-unita-etichetta`} text={ISCRITTI.unita} />
+        {/* The wrapping label would add the options to the accessible name. */}
         <select
+          aria-labelledby={`${ids}-unita-etichetta`}
           aria-describedby={`${ids}-unita-nota ${ids}-unita`}
           aria-invalid={problemFor("unita") ? true : undefined}
           className={inputClass("unitId")}

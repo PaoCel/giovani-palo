@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { EVENT_CREATION as COPY } from "@/copy/eventCreation";
 import type { ActivityType, Event, EventAudience, EventWriteInput, OrganizationRegistrationDefaults } from "@/types";
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function EssentialEventForm({ event, formId, defaults, busy, onSave }: Props) {
+  const labelIds = useId();
   const [values, setValues] = useState({
     title: event?.title ?? "", activityType: event?.activityType ?? "standard" as ActivityType,
     startDate: toDatetimeLocalValue(event?.startDate), endDate: toDatetimeLocalValue(event?.endDate),
@@ -58,7 +59,8 @@ export function EssentialEventForm({ event, formId, defaults, busy, onSave }: Pr
     {error ? <p ref={errorRef} tabIndex={-1} className="form-error" role="alert">{error}</p> : null}
     <fieldset disabled={busy}>
       <label className="field"><span>Nome dell'attività</span><input required className="input" value={values.title} placeholder="Es. Una serata insieme" onChange={e => change("title", e.target.value)} /></label>
-      <label className="field"><span>Tipo di attività</span><select className="input" value={values.activityType} onChange={e => change("activityType", e.target.value)}>
+      {/* The wrapping label would add the options to the accessible name. */}
+      <label className="field"><span id={`${labelIds}-tipo`}>Tipo di attività</span><select aria-labelledby={`${labelIds}-tipo`} className="input" value={values.activityType} onChange={e => change("activityType", e.target.value)}>
         <option value="standard">Standard</option><option value="overnight">Con pernottamento</option><option value="trip">Viaggio / trasferta</option><option value="camp">Campeggio</option><option value="multi_day">Su più giorni</option>
       </select>{values.activityType !== "standard" ? <small>Per chi ha meno di 18 anni, l'autorizzazione del genitore parte attiva. Puoi controllare i requisiti nelle altre opzioni.</small> : null}</label>
       <div className="event-creation__dates">
@@ -68,7 +70,7 @@ export function EssentialEventForm({ event, formId, defaults, busy, onSave }: Pr
       <label className="field"><span>Luogo</span><input required className="input" value={values.location} placeholder="Dove ci incontriamo?" onChange={e => change("location", e.target.value)} /></label>
       <details className="event-creation__optional"><summary>{COPY.optional}</summary>
         <label className="field"><span>Descrizione</span><textarea className="input input--textarea" value={values.description} rows={3} onChange={e => change("description", e.target.value)} /></label>
-        <label className="field"><span>Destinatari</span><select className="input" value={values.audience} onChange={e => change("audience", e.target.value)}><option value="congiunta">Congiunta</option><option value="giovane_uomo">Solo GU</option><option value="giovane_donna">Solo GD</option></select></label>
+        <label className="field"><span id={`${labelIds}-destinatari`}>Destinatari</span><select aria-labelledby={`${labelIds}-destinatari`} className="input" value={values.audience} onChange={e => change("audience", e.target.value)}><option value="congiunta">Congiunta</option><option value="giovane_uomo">Solo GU</option><option value="giovane_donna">Solo GD</option></select></label>
         <label className="field"><span>Apertura iscrizioni</span><input className="input" type="datetime-local" value={values.registrationOpen} onChange={e => change("registrationOpen", e.target.value)} /></label>
         <label className="field"><span>Chiusura iscrizioni</span><input className="input" type="datetime-local" value={values.registrationClose} onChange={e => change("registrationClose", e.target.value)} /></label>
         <label className="field"><span>Programma / riepilogo</span><textarea className="input input--textarea" value={values.program} rows={3} onChange={e => change("program", e.target.value)} /></label>

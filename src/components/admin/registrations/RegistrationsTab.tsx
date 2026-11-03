@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
@@ -81,6 +81,7 @@ export function RegistrationsTab({
   onOpenExcelExport,
   onAddManual,
 }: RegistrationsTabProps) {
+  const unitFilterLabelId = useId();
   const activeRegistrationFilters = filters.categories;
   const selectedUnitFilter = filters.unit;
   const onlyPhotoToAsk = filters.onlyPhotoToAsk;
@@ -434,8 +435,10 @@ export function RegistrationsTab({
             </button>
 
             <label className="admin-filter-select">
-              <span>Unità</span>
+              <span id={unitFilterLabelId}>Unità</span>
+              {/* The wrapping label would add the options to the accessible name. */}
               <select
+                aria-labelledby={unitFilterLabelId}
                 className="input"
                 value={selectedUnitFilter}
                 onChange={(eventInput) =>

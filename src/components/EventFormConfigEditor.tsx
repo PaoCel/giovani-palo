@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useId, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { ADMIN } from "@/copy/admin";
 import type { CustomField, EventAudience, EventFormConfig, StandardFieldKey } from "@/types";
@@ -42,6 +42,7 @@ export function EventFormConfigEditor({
   standardFieldDefinitions,
   onSave,
 }: EventFormConfigEditorProps) {
+  const fieldTypeLabelIds = useId();
   const forceAudienceField = eventAudience !== "congiunta";
   const [config, setConfig] = useState<EventFormConfig>({
     ...initialConfig,
@@ -234,8 +235,10 @@ export function EventFormConfigEditor({
                 </label>
 
                 <label className="field">
-                  <span>Tipo</span>
+                  <span id={`${fieldTypeLabelIds}-${index}`}>Tipo</span>
+                  {/* The wrapping label would add the options to the accessible name. */}
                   <select
+                    aria-labelledby={`${fieldTypeLabelIds}-${index}`}
                     className="input"
                     value={field.type}
                     onChange={(event) =>
