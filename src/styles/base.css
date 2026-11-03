@@ -8354,6 +8354,10 @@ p.admin-person-fields__note {
   flex-wrap: wrap;
 }
 
+.signature-pad__hint .button {
+  min-height: 2.75rem;
+}
+
 .signature-pad__hint small {
   color: var(--muted);
 }
@@ -8605,7 +8609,8 @@ p.admin-person-fields__note {
 .pc-reject-link {
   border: 0;
   background: transparent;
-  padding: 0.3rem;
+  min-height: 2.75rem;
+  padding: 0.3rem 0.75rem;
   justify-self: center;
   color: var(--danger);
   font: inherit;
@@ -8956,8 +8961,29 @@ p.admin-person-fields__note {
     padding: 0.9rem 1.05rem 1.15rem;
   }
 
+  .pc-steps__item {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 0.3rem 0.45rem;
+  }
+
+  .pc-steps__item--active {
+    flex: 1 1 auto;
+    padding: 0.3rem 0.75rem;
+  }
+
   .pc-steps__label {
-    font-size: 0.7rem;
+    font-size: 0.8125rem;
+  }
+
+  .pc-steps__item:not(.pc-steps__item--active) .pc-steps__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   .pc-status {

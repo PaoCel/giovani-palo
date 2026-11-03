@@ -195,6 +195,8 @@
 /* --- Pagina "Persone" dello staff ------------------------------------------------ */
 .mship-page {
   display: grid;
+  /* An auto track grows to the tabs' min-content (312px) and overflows at 320. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   min-width: 0;
 }
