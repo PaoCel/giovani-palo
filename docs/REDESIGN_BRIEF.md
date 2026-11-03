@@ -18,7 +18,8 @@ browser loggato da dirigente di unità (Roma 5) e nel codice di `main`
   posto delle 7 a sola icona. Fase 4.
 - 2026-11-03: **testata senza la riga nome/ruolo** (da 161 a circa 86 px a
   375), con il cambio vista nel menu dell'avatar. Fase 4.
-- Ancora da decidere, serve alla fase 4: barra laterale admin a desktop.
+- 2026-11-03: **barra laterale admin a desktop** al posto della barra in
+  alto. Fase 4. Le scelte di prodotto della fase 4 sono tutte prese.
 
 ## Contesto prodotto
 
