@@ -1,7 +1,7 @@
 ---
 id: gugd-compagni-stanza
 title: Compagni di stanza nella scheda del partecipante e in Famiglia
-status: needs-paolo
+status: done
 impact: 2
 urgency: 1
 effort: M
@@ -12,15 +12,15 @@ opened: 2026-11-03
 started_at: 2026-11-03
 touched: 2026-11-03
 due:
-blocked_by: ["decisione: prova dei nomi con un account genitore vero (figlio in una stanza pubblicata)"]
+blocked_by: []
 branch:
 worktree:
 session: d3cf1644-766e-4550-afa5-7e53587f6915
-stopped_at: "In produzione dal 3 novembre 2026 (roomMates e hosting v39 da 94a0300); manca solo la prova dei nomi con un account genitore vero."
-next: "Paolo apre Famiglia con un account genitore che ha un figlio in una stanza di un piano pubblicato (o alla prossima pubblicazione) e controlla i nomi; poi tasks done. Restyling, card roomCard di MyActivityDetailPage: roomMatesService.getAssigned({ stakeId, activityId }) -> { room: { name, capacity } | null, mates: [{ fullName, adult }] }, testi con formatRoomMates e formatRoomBeds di @/utils/roomMates, titolo STANZA.titolo."
-verified: "Emulatore (functions/tests/roomMatesEmulator.test.mjs, scritto da un altro agente, utenti veri, mini): 19/19 su tutti i casi della spec più titolare unico, attività cancellata, input ostili, tetto 50. Suite stanze esistenti 48/48 in copia QA con porte proprie. Review Codex gpt-6-astra su e932316: PASS WITH CONCERNS, due rilievi bassi corretti in 557d810 e f96150a. Mini: npm test 1586/1587 (unico rosso accentApostrophes, senza git nello specchio del worktree; verde sull'Air), build ok, functions 72/72. Client util 11/11. Famiglia vista nel browser su emulatori a 320/390/430/1440 (testo >= 13 px, nessuno scroll, annullata assente). Produzione: roomMates senza login risponde UNAUTHENTICATED, sorgente live uguale a main (generateDownloadUrl); bundle index-B4muqRFV.js e service worker v39 su gugditalia.it e giovani-palo.web.app; Famiglia caricata senza errori con l'account admin di Paolo (nessun figlio, quindi nessuna chiamata). Nomi in produzione non ancora visti."
+stopped_at: "Chiuso il 3 novembre 2026: in produzione e verificato sui dati reali con il codice deployato."
+next: "Nessuno per questo task. La card roomCard di /me (task gugd-restyling) usa roomMatesService.getAssigned({ stakeId, activityId }) e formatRoomMates/formatRoomBeds di @/utils/roomMates. Dopo il primo uso reale, se serve, log della funzione roomMates."
+verified: "Emulatore (functions/tests/roomMatesEmulator.test.mjs, scritto da un altro agente, utenti veri, mini): 19/19 su tutti i casi della spec più titolare unico, attività cancellata, input ostili, tetto 50. Suite stanze esistenti 48/48 in copia QA con porte proprie. Review Codex gpt-6-astra su e932316: PASS WITH CONCERNS, due rilievi bassi corretti in 557d810 e f96150a. Mini: npm test 1586/1587 (unico rosso accentApostrophes, senza git nello specchio del worktree; verde sull'Air), build ok, functions 72/72. Client util 11/11. Famiglia vista nel browser su emulatori a 320/390/430/1440 (testo >= 13 px, nessuno scroll, annullata assente). Produzione: roomMates senza login risponde UNAUTHENTICATED, sorgente live uguale a main (generateDownloadUrl); bundle index-B4muqRFV.js e service worker v39 su gugditalia.it e giovani-palo.web.app; Famiglia caricata senza errori con l'account admin di Paolo (nessun figlio, quindi nessuna chiamata). Prova con account vero sostituita, per scelta di Paolo (nessun account genitore), da un censimento in sola lettura in produzione che esegue il vero handler per ogni persona assegnata: 1 piano pubblicato (Viaggio al tempio gu/gd), 98 assegnati (78 user, 11 figli, 9 a mano), 89 chiamate simulate tutte con stanza, 0 not-found o errori, da 0 a 5 compagni (mediana 3), nome stanza sempre uguale ad assignedRoomName."
 links: [docs/ROOM_MANAGEMENT.md]
-done_at:
+done_at: 2026-11-03
 ---
 
 ## Contesto
@@ -91,4 +91,13 @@ sorgente live uguale a main), poi `--only hosting` con service worker v39. Prima
 di `8abd34f` ha dato `index-DQXbfmLZ.js`, lo stesso bundle servito: l'hosting ha portato solo
 Famiglia. Prova con account vero: l'account admin nel browser integrato non ha figli; la lettura
 diretta in produzione con il suo token è stata bloccata, quindi i nomi live restano da vedere.
+
+## Verifica sui dati reali (3 novembre 2026, scelta di Paolo)
+
+Senza un account genitore, la prova live è un censimento in sola lettura: lo script (fuori dal
+repo) chiama `createRoomMatesHandler` del checkout deployato per ogni iscrizione assegnata, con
+l'uid ricavato dall'id (`user_`, `guest_`, `child_<genitore>_<figlio>`), su un adattatore
+Firestore REST che fa solo GET; stampa solo conteggi. Esito nel campo `verified`. Non coperto: gli
+ospiti ancora anonimi (in produzione nessun `guest_` assegnato) e la resa nel browser di un
+genitore vero, provata solo su emulatori.
 
