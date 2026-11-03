@@ -243,6 +243,7 @@
 
 .my-activity-facts dd,
 .my-activity-facts span {
+  max-width: 75ch;
   margin: 0;
   color: var(--text);
   font-size: var(--text-md);
@@ -263,6 +264,7 @@
 }
 
 .my-activity-text {
+  max-width: 75ch;
   margin: 0;
   font-size: var(--text-md);
   line-height: var(--leading-body);
