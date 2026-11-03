@@ -16,9 +16,9 @@ blocked_by: []
 branch: task/gugd-restyling
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/elastic-lalande-32c93d
 session: 3b312056-24e6-4dab-a4bf-78d70e42f776
-stopped_at: "Fase 0 fatta: direzione A scelta da Paolo il 3/11; token in src/styles/tokens.css (importato prima di base.css, solo nomi nuovi) e componenti PageHeader, Card, Notice, EmptyState, Button/ButtonLink, Pill, Icon in src/components/ui/ con CSS .ui-* in src/styles/ui.css, non ancora usati da nessuna pagina; test tests/uiComponents.test.mjs; build sul mini verde."
+stopped_at: "Fase 0 fatta: direzione A scelta da Paolo il 3/11; token in src/styles/tokens.css (importato prima di base.css, solo nomi nuovi) e componenti PageHeader, Card, Notice, EmptyState, Button/ButtonLink, Pill, Icon in src/components/ui/ con CSS .ui-* in src/styles/ui.css, non ancora usati da nessuna pagina; test tests/uiComponents.test.mjs (71, scritti da un altro agente); build sul mini verde."
 next: "Fase 1: scheda attività giovane /me/activities/:id sui componenti nuovi (programma, alloggio, squadra, comitati), prima e dopo a 320/390/430/desktop; per vederla serve un account QA con iscrizione o emulatori con dati di prova sul mini. Le scelte admin (barra a 5 voci, testata, barra laterale) servono solo alla fase 4."
-verified: ""
+verified: "Fase 0 (3/11): build sul mini verde, bundle JS principale invariato; suite sul mini 1637 test verdi, accentApostrophes (git, non gira nel mirror di un worktree) verde sull'Air; tests/uiComponents.test.mjs 71 verdi, scritto da un altro agente; vetrina dei componenti renderizzata con i CSS veri a 320/390/1440: nessuno scroll orizzontale, testo minimo 13 px, nessun controllo sotto 44. Componenti non ancora visti nel browser loggato (nessuna pagina li usa)."
 links: [docs/REDESIGN_BRIEF.md, tasks/gugd-fondamenta-visive.md, tasks/gugd-etichette-home.md]
 done_at:
 ---

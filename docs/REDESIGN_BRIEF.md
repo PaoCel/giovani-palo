@@ -175,7 +175,10 @@ Come sono fatti nel codice:
   dell'icona); `ButtonLink` è lo stesso aspetto su un `Link` del router;
   `buttonClassName()` per i casi in cui serve solo la classe.
 - `Card` con `to` diventa un link intero con la freccia: niente controlli
-  dentro. Livello del titolo con `titleAs` (h2 di default).
+  dentro. Livello del titolo con `titleAs` (h2 di default). Dentro la Card
+  `ink` i pulsanti cambiano pelle da soli: primario sabbia (il blu su
+  inchiostro fa 1,2:1), secondario e ghost bianchi, danger su fondo tenue;
+  l'anello di focus diventa sabbia (l'arancio su inchiostro fa 2,9:1).
 - `Notice` ha il tono obbligatorio; `live` sceglie tra `alert` (default per
   danger), `status` (default per gli altri) e `none` per gli avvisi fissi già
   presenti all'apertura. Icona di tono: `info` (aggiunta ad `AppIcon`),
