@@ -74,9 +74,11 @@ dopo arrivano inglese e spagnolo (`gugd-i18n`).
   `src/components/ui/` (più Pill e Icon), senza cambiare pagine;
 - [ ] le pagine una alla volta nell'ordine del brief, un commit per pagina.
 
-Sul branch c'è già `483d5dc` (freccia gigante nelle righe attività di `/unit`,
-in produzione da prima): si può portare su `main` da sola con un cherry-pick e
-uscire col prossimo deploy hosting.
+La freccia gigante nelle righe attività di `/unit` (`483d5dc` sul branch) è
+in produzione dal 3 novembre: cherry-pick `a0d9dfe` su `main`, service worker
+`gugd-shell-v38` (`8abd34f`). Al merge di `main` nel branch il cambio a
+`base.css` è identico. Il prossimo deploy hosting porta il service worker a
+v39.
 
 ## Verificato
 
