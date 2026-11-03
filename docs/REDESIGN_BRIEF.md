@@ -13,10 +13,11 @@ browser loggato da dirigente di unità (Roma 5) e nel codice di `main`
   evidenza, sabbia solo per conteggi e azioni speciali). La direzione B (carta
   calda, testata blu, sabbia sugli stati attivi) è scartata e i suoi valori
   non entrano nel codice.
-- Ancora da decidere, servono alla fase 4: barra admin in basso a 5 voci con
-  etichetta (Gallerie e Feed dentro Altro) al posto delle 7 a sola icona;
-  testata senza la riga nome/ruolo, con il cambio vista nel menu dell'avatar;
-  barra laterale admin a desktop.
+- 2026-11-03: **barra admin in basso a 5 voci con etichetta** (Home,
+  Attività, Persone, Calendario, Altro; Gallerie e Feed dentro Altro) al
+  posto delle 7 a sola icona. Fase 4.
+- Ancora da decidere, servono alla fase 4: testata senza la riga nome/ruolo,
+  con il cambio vista nel menu dell'avatar; barra laterale admin a desktop.
 
 ## Contesto prodotto
 
