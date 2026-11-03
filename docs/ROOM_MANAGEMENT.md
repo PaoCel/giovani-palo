@@ -42,6 +42,45 @@ stessa usata dal client. Un admin con la bozza aperta riceve `aborted` al
 salvataggio e ricarica.
 La cancellazione dell'attività elimina il documento del piano.
 
+## Compagni di stanza
+
+Deciso da Paolo il 3 novembre 2026 (task `gugd-compagni-stanza`). Il
+partecipante, nella sua scheda, e il genitore, da Famiglia per l'iscrizione del
+figlio, vedono nome e cognome delle altre persone della stessa stanza. Gli
+adulti (`dirigente`, `accompagnatore`) hanno l'etichetta «dirigente», come nella
+scheda Gruppo. Mai le altre stanze, dati sanitari, unità o contatti.
+
+Il piano resta illeggibile ai client: i nomi arrivano dalla callable di sola
+lettura `roomMates` (`functions/lib/roomManagement.js`, gen2, `europe-west1`).
+
+- Richiesta: `{ stakeId, activityId, childId? }`. Senza `childId` l'iscrizione
+  è `user_<uid>` con `userId` uguale a chi chiama, oppure, se manca,
+  `guest_<uid>` dell'ospite che ha collegato un account (`anonymousUid`, o
+  `userId` dopo un nuovo salvataggio); con `childId` è `child_<uid>_<childId>`
+  con `parentUid` e `childId` coerenti. Un titolare solo per documento, come
+  `registrationBelongsToCaller` delle rules: identità contraddittorie (due
+  titolari) non rispondono a nessuno. Nessun altro documento è raggiungibile:
+  l'id deriva sempre dall'uid del token.
+- Rifiuti: senza login `unauthenticated`, account anonimo `permission-denied`,
+  chiavi o id non validi `invalid-argument`, iscrizione assente o non propria
+  `not-found`, attività cancellata (anche con iscrizioni e piano rimasti)
+  `not-found`.
+- Risposta: `{ room: { name, capacity } | null, mates: [{ fullName, adult }] }`.
+  `room` è `null` (e `mates` vuoto) se l'iscrizione di chi chiama non è idonea
+  (annullata, rifiutata, in lista d'attesa, bozza), se il piano non esiste o è
+  in bozza (`published` diverso da `true`) o se l'iscrizione non è assegnata.
+  `capacity` sono i posti letto della stanza.
+- Compagni: le altre iscrizioni assegnate alla stessa stanza nel piano, rilette
+  una per una e filtrate con `isRoomEligibleStatus` del core (le annullate non
+  compaiono anche se il trigger non ha ancora pulito il piano), al massimo 50
+  letture; prima i ragazzi, poi gli adulti, in ordine alfabetico.
+
+Perché una callable e non i nomi scritti sulle iscrizioni da
+`roomManagementSave`: un nome denormalizzato invecchia quando un compagno
+annulla o cambia nome, servirebbero campi nuovi nell'allowlist delle
+iscrizioni e una riscrittura di tutta la stanza a ogni modifica. La callable
+legge il piano, che i trigger tengono allineato alle cancellazioni.
+
 ## Regole di assegnazione
 
 - Sono ammesse solo iscrizioni `submitted`, `confirmed`, `active` e

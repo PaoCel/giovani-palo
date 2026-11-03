@@ -1,7 +1,7 @@
 ---
 id: gugd-compagni-stanza
 title: Compagni di stanza nella scheda del partecipante e in Famiglia
-status: backlog
+status: needs-paolo
 impact: 2
 urgency: 1
 effort: M
@@ -9,17 +9,17 @@ delivery: deploy
 surface: [web, functions]
 source: paolo
 opened: 2026-11-03
-started_at:
+started_at: 2026-11-03
 touched: 2026-11-03
 due:
-blocked_by: []
+blocked_by: ["decisione: conferma del deploy di roomMates e poi dell'hosting"]
 branch:
 worktree:
-session:
-stopped_at: ""
-next: ""
-verified: ""
-links: []
+session: d3cf1644-766e-4550-afa5-7e53587f6915
+stopped_at: "Mergiato in main con squash per area il 3 novembre 2026; niente deploy."
+next: "Con conferma di Paolo, da main pulito: deploy --only functions:roomMates e dopo hosting; prova con account vero in Famiglia. Restyling, nella card roomCard di MyActivityDetailPage (task/gugd-restyling): roomMatesService.getAssigned({ stakeId, activityId }) -> { room: { name, capacity } | null, mates: [{ fullName, adult }] }, testi con formatRoomMates e formatRoomBeds di @/utils/roomMates, titolo STANZA.titolo. Copia QA sul mini ~/qa/gugd-compagni-stanza da togliere a fine task."
+verified: "Emulatore (functions/tests/roomMatesEmulator.test.mjs, scritto da un altro agente, utenti veri, mini): 19/19 su tutti i casi della spec più titolare unico, attività cancellata, input ostili, tetto 50. Suite stanze esistenti 48/48 in copia QA con porte proprie. Review Codex gpt-6-astra su e932316: PASS WITH CONCERNS, due rilievi bassi corretti in 557d810 e f96150a. Mini: npm test 1586/1587 (unico rosso accentApostrophes, senza git nello specchio del worktree; verde sull'Air), build ok, functions 72/72. Client util 11/11. Famiglia vista nel browser su emulatori a 320/390/430/1440 (testo >= 13 px, nessuno scroll, annullata assente). Non provato in produzione: callable non deployata."
+links: [docs/ROOM_MANAGEMENT.md]
 done_at:
 ---
 
@@ -73,3 +73,13 @@ toccare. L'alternativa (nomi denormalizzati sull'iscrizione da
   stesso file;
 - deploy della callable prima dell'hosting, con conferma fresca di Paolo,
   e prova con un account vero nel browser.
+
+## Verificato (3 novembre 2026, branch `task/gugd-compagni-stanza`)
+
+- Callable `roomMates` (`functions/lib/roomManagement.js`), contratto in
+  `docs/ROOM_MANAGEMENT.md`, «Compagni di stanza». Scelta la callable e non i
+  nomi denormalizzati: il motivo è nello stesso documento.
+- Titolo in Famiglia «La stanza di {nome}» e non «La tua stanza»: lì legge il
+  genitore. «La tua stanza» resta in `STANZA.titolo` per la scheda del giovane.
+- Rischio noto, non corretto: nessun rate limit sulla callable (al massimo 54
+  letture a chiamata), come `roomMateSuggestions`.
