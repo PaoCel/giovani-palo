@@ -5,6 +5,7 @@ import { INVIATA } from "@/copy/inviata";
 import { fillCopy } from "@/copy/parole";
 import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
 import { getSurveyHref } from "@/utils/surveyLinks";
+import { MyRoomCard } from "@/pages/me/MyRoomCard";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -560,24 +561,17 @@ export function MyActivityDetailPage() {
       </Notice>
     ) : null;
 
-  const roomCard = assignedRoomName ? (
-    <Card title="La tua stanza">
-      <div className="my-activity-room">
-        <span className="my-activity-room__number" aria-hidden="true">
-          {assignedRoomName.match(/\d+/u)?.[0] ?? getCommitteeInitials(assignedRoomName)}
-        </span>
-        <p className="my-activity-room__name">{assignedRoomName}</p>
-      </div>
-      {roomsInfo ? (
-        <dl className="my-activity-facts">
-          <div>
-            <dt>Alloggio</dt>
-            <dd>{roomsInfo}</dd>
-          </div>
-        </dl>
-      ) : null}
-    </Card>
-  ) : null;
+  const roomCard =
+    assignedRoomName && data && session ? (
+      <MyRoomCard
+        uid={session.firebaseUser.uid}
+        isAnonymous={session.isAnonymous}
+        stakeId={stakeId}
+        activityId={data.event.id}
+        roomName={assignedRoomName}
+        roomsInfo={roomsInfo}
+      />
+    ) : null;
 
   return (
     <div className="page my-activity">

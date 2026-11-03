@@ -198,12 +198,14 @@
   font: 500 var(--title-sm) / 1.2 var(--font-display);
 }
 
+.my-activity-room__text,
 .my-activity-team__text {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
+.my-activity-room__text p:not(.my-activity-room__name),
 .my-activity-team__text p {
   margin: 0;
   color: var(--text-secondary);
