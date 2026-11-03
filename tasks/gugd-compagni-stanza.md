@@ -12,13 +12,13 @@ opened: 2026-11-03
 started_at: 2026-11-03
 touched: 2026-11-03
 due:
-blocked_by: ["decisione: conferma del deploy di roomMates e poi dell'hosting"]
+blocked_by: ["decisione: prova dei nomi con un account genitore vero (figlio in una stanza pubblicata)"]
 branch:
 worktree:
 session: d3cf1644-766e-4550-afa5-7e53587f6915
-stopped_at: "Mergiato in main con squash per area il 3 novembre 2026; niente deploy."
-next: "Con conferma di Paolo, da main pulito: deploy --only functions:roomMates e dopo hosting; prova con account vero in Famiglia. Restyling, nella card roomCard di MyActivityDetailPage (task/gugd-restyling): roomMatesService.getAssigned({ stakeId, activityId }) -> { room: { name, capacity } | null, mates: [{ fullName, adult }] }, testi con formatRoomMates e formatRoomBeds di @/utils/roomMates, titolo STANZA.titolo. Copia QA sul mini ~/qa/gugd-compagni-stanza da togliere a fine task."
-verified: "Emulatore (functions/tests/roomMatesEmulator.test.mjs, scritto da un altro agente, utenti veri, mini): 19/19 su tutti i casi della spec più titolare unico, attività cancellata, input ostili, tetto 50. Suite stanze esistenti 48/48 in copia QA con porte proprie. Review Codex gpt-6-astra su e932316: PASS WITH CONCERNS, due rilievi bassi corretti in 557d810 e f96150a. Mini: npm test 1586/1587 (unico rosso accentApostrophes, senza git nello specchio del worktree; verde sull'Air), build ok, functions 72/72. Client util 11/11. Famiglia vista nel browser su emulatori a 320/390/430/1440 (testo >= 13 px, nessuno scroll, annullata assente). Non provato in produzione: callable non deployata."
+stopped_at: "In produzione dal 3 novembre 2026 (roomMates e hosting v39 da 94a0300); manca solo la prova dei nomi con un account genitore vero."
+next: "Paolo apre Famiglia con un account genitore che ha un figlio in una stanza di un piano pubblicato (o alla prossima pubblicazione) e controlla i nomi; poi tasks done. Restyling, card roomCard di MyActivityDetailPage: roomMatesService.getAssigned({ stakeId, activityId }) -> { room: { name, capacity } | null, mates: [{ fullName, adult }] }, testi con formatRoomMates e formatRoomBeds di @/utils/roomMates, titolo STANZA.titolo."
+verified: "Emulatore (functions/tests/roomMatesEmulator.test.mjs, scritto da un altro agente, utenti veri, mini): 19/19 su tutti i casi della spec più titolare unico, attività cancellata, input ostili, tetto 50. Suite stanze esistenti 48/48 in copia QA con porte proprie. Review Codex gpt-6-astra su e932316: PASS WITH CONCERNS, due rilievi bassi corretti in 557d810 e f96150a. Mini: npm test 1586/1587 (unico rosso accentApostrophes, senza git nello specchio del worktree; verde sull'Air), build ok, functions 72/72. Client util 11/11. Famiglia vista nel browser su emulatori a 320/390/430/1440 (testo >= 13 px, nessuno scroll, annullata assente). Produzione: roomMates senza login risponde UNAUTHENTICATED, sorgente live uguale a main (generateDownloadUrl); bundle index-B4muqRFV.js e service worker v39 su gugditalia.it e giovani-palo.web.app; Famiglia caricata senza errori con l'account admin di Paolo (nessun figlio, quindi nessuna chiamata). Nomi in produzione non ancora visti."
 links: [docs/ROOM_MANAGEMENT.md]
 done_at:
 ---
@@ -83,3 +83,12 @@ toccare. L'alternativa (nomi denormalizzati sull'iscrizione da
   genitore. «La tua stanza» resta in `STANZA.titolo` per la scheda del giovane.
 - Rischio noto, non corretto: nessun rate limit sulla callable (al massimo 54
   letture a chiamata), come `roomMateSuggestions`.
+
+## Rilascio (3 novembre 2026, su conferma di Paolo)
+
+Dal clone pulito di `94a0300` sul mini: `firebase deploy --only functions:roomMates` (creata,
+sorgente live uguale a main), poi `--only hosting` con service worker v39. Prima del deploy la build
+di `8abd34f` ha dato `index-DQXbfmLZ.js`, lo stesso bundle servito: l'hosting ha portato solo
+Famiglia. Prova con account vero: l'account admin nel browser integrato non ha figli; la lettura
+diretta in produzione con il suo token è stata bloccata, quindi i nomi live restano da vedere.
+
