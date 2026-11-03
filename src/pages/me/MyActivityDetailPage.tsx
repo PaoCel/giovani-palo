@@ -741,8 +741,10 @@ export function MyActivityDetailPage() {
                 <div aria-label="Menu attività" className="my-activity-tabs" role="tablist">
                   {tabDefinitions.map((tab) => (
                     <button
+                      aria-controls="my-activity-panel"
                       aria-selected={visibleTab === tab.id}
                       className="my-activity-tabs__tab"
+                      id={`my-activity-tab-${tab.id}`}
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       role="tab"
@@ -755,7 +757,11 @@ export function MyActivityDetailPage() {
               ) : null}
 
               <section
+                aria-labelledby={
+                  tabDefinitions.length > 1 ? `my-activity-tab-${visibleTab}` : undefined
+                }
                 className="my-activity-panel"
+                id="my-activity-panel"
                 role={tabDefinitions.length > 1 ? "tabpanel" : undefined}
               >
                 {visibleTab === "registration" ? (
@@ -1016,7 +1022,7 @@ export function MyActivityDetailPage() {
                             ) : null}
                             <ul className="my-activity-chips">
                               {committee.manualLeaderNames.map((leaderName, index) => (
-                                <li key={leaderName}>
+                                <li key={`${leaderName}-${index}`}>
                                   <i
                                     aria-hidden="true"
                                     className={`my-activity-avatar my-activity-avatar--small my-activity-avatar--${getAvatarTone(index)}`}

@@ -272,11 +272,13 @@
 }
 
 /* ---------- Schede ---------- */
+/* Il padding verticale lascia vedere l'anello di focus: con overflow-x auto
+   il contenitore taglia anche in verticale. */
 .my-activity-tabs {
   display: flex;
   gap: var(--space-2);
-  margin-inline: calc(-1 * var(--gutter));
-  padding: 2px var(--gutter);
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--gutter));
+  padding: var(--space-2) var(--gutter);
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
@@ -538,7 +540,34 @@
   font-size: var(--text-xs);
 }
 
-.my-activity .camp-pill-btn {
+.my-activity .camp-pill-btn,
+.my-activity .packing-item {
+  min-height: var(--target);
+}
+
+/* La casella della checklist è trasparente: il focus si vede sulla riga. */
+.my-activity .packing-item:has(:focus-visible) {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Domande (QuestionsSection) e programma: prima li inquadrava
+   .page--activity-ios, qui prendono la stessa card della pagina. */
+.my-activity .card {
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.my-activity .notice,
+.my-activity .input,
+.my-activity .toggle-field {
+  border-radius: var(--radius-control);
+}
+
+.my-activity .button--small {
   min-height: var(--target);
 }
 
