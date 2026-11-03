@@ -2150,12 +2150,6 @@ html.rn-skin .install-hint__icon {
   stroke-width: 2.4;
 }
 
-/* Pagina del partecipante: il contenitore non ha padding (ce l'hanno i suoi
-   blocchi), la card si allinea a loro (1.1rem come .camp-youth-tab-panel). */
-.rn-entry--inset {
-  margin-inline: 1.1rem;
-}
-
 @media (min-width: 560px) {
   .rn-entry {
     grid-template-columns: 1fr auto;

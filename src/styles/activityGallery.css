@@ -102,10 +102,6 @@
   color: var(--ag-ink);
 }
 
-.ag-card--inset {
-  margin: 0 1rem 0.9rem;
-}
-
 .ag-card__head {
   display: flex;
   align-items: baseline;
