@@ -17,7 +17,7 @@ branch: task/gugd-restyling
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/elastic-lalande-32c93d
 session: 3b312056-24e6-4dab-a4bf-78d70e42f776
 stopped_at: "Fase 0 fatta: direzione A scelta da Paolo il 3/11; token in src/styles/tokens.css (importato prima di base.css, solo nomi nuovi) e componenti PageHeader, Card, Notice, EmptyState, Button/ButtonLink, Pill, Icon in src/components/ui/ con CSS .ui-* in src/styles/ui.css, non ancora usati da nessuna pagina; test tests/uiComponents.test.mjs (71, scritti da un altro agente); build sul mini verde."
-next: "Fase 1: scheda attività giovane /me/activities/:id sui componenti nuovi (programma, alloggio, squadra, comitati), prima e dopo a 320/390/430/desktop; per vederla serve un account QA con iscrizione o emulatori con dati di prova sul mini. Barra admin a 5 voci decisa; testata e barra laterale admin ancora da decidere, servono solo alla fase 4."
+next: "Fase 1: scheda attività giovane /me/activities/:id sui componenti nuovi (programma, alloggio, squadra, comitati), prima e dopo a 320/390/430/desktop; per vederla serve un account QA con iscrizione o emulatori con dati di prova sul mini. Barra admin a 5 voci e testata senza riga nome/ruolo decise; barra laterale admin a desktop ancora da decidere, serve solo alla fase 4."
 verified: "Fase 0 (3/11): build sul mini verde, bundle JS principale invariato; suite sul mini 1637 test verdi, accentApostrophes (git, non gira nel mirror di un worktree) verde sull'Air; tests/uiComponents.test.mjs 71 verdi, scritto da un altro agente; vetrina dei componenti renderizzata con i CSS veri a 320/390/1440: nessuno scroll orizzontale, testo minimo 13 px, nessun controllo sotto 44. Componenti non ancora visti nel browser loggato (nessuna pagina li usa)."
 links: [docs/REDESIGN_BRIEF.md, tasks/gugd-fondamenta-visive.md, tasks/gugd-etichette-home.md]
 done_at:
@@ -67,9 +67,10 @@ dopo arrivano inglese e spagnolo (`gugd-i18n`).
 - [x] barra admin in basso a 5 voci con etichetta (Home, Attività, Persone,
   Calendario, Altro; Gallerie e Feed dentro Altro) al posto delle 7 a sola
   icona: scelta da Paolo il 3 novembre, si fa nella fase 4;
-- [ ] scelte di Paolo ancora aperte, servono alla fase 4: testata senza la
-  riga nome/ruolo (86 px), con il cambio vista nel menu dell'avatar; barra
-  laterale admin a desktop;
+- [x] testata senza la riga nome/ruolo (86 px), con il cambio vista nel menu
+  dell'avatar: scelta da Paolo il 3 novembre, si fa nella fase 4;
+- [ ] scelta di Paolo ancora aperta, serve alla fase 4: barra laterale admin a
+  desktop;
 - [x] fase 0: token in `src/styles/tokens.css` e i cinque componenti in
   `src/components/ui/` (più Pill e Icon), senza cambiare pagine;
 - [ ] le pagine una alla volta nell'ordine del brief, un commit per pagina.

@@ -16,8 +16,9 @@ browser loggato da dirigente di unità (Roma 5) e nel codice di `main`
 - 2026-11-03: **barra admin in basso a 5 voci con etichetta** (Home,
   Attività, Persone, Calendario, Altro; Gallerie e Feed dentro Altro) al
   posto delle 7 a sola icona. Fase 4.
-- Ancora da decidere, servono alla fase 4: testata senza la riga nome/ruolo,
-  con il cambio vista nel menu dell'avatar; barra laterale admin a desktop.
+- 2026-11-03: **testata senza la riga nome/ruolo** (da 161 a circa 86 px a
+  375), con il cambio vista nel menu dell'avatar. Fase 4.
+- Ancora da decidere, serve alla fase 4: barra laterale admin a desktop.
 
 ## Contesto prodotto
 
