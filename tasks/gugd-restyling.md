@@ -17,7 +17,7 @@ branch: task/gugd-restyling
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/elastic-lalande-32c93d
 session: 3b312056-24e6-4dab-a4bf-78d70e42f776
 stopped_at: "Fase 1 fatta (3/11): scheda /me/activities/:id sui componenti di src/components/ui/ (testata con foto e pill, avviso dell'autorizzazione del genitore con le frasi di Iscrizione inviata, La tua stanza con l'alloggio in colonna a destra da 980 px, schede a pill da 44, gruppo e comitati in Card, vuoti con illustrazione); CSS in src/styles/myActivity.css; tolte 734 righe di CSS della vecchia scheda (base, galleria, Notte dei record); test browser dei comitati passato da classi CSS a ruoli. Codice nei checkpoint 80963fb, 8f549a9, aaf052f, 9ea796c, cd0a2d8: allo squash in main diventano il commit della pagina."
-next: "Paolo conferma i quattro scarti aperti della fase 1 (programma sopra le schede, comitato assegnato dallo staff senza azione, riepiloghi nelle loro schede, avviso del genitore), poi fase 2: home giovani /me sui token (cambio visivo minimo). Collaudo riusabile: .claude/qa-restyling-scheda/ del checkout principale (dopo.sh <tag>; prima di un giro con functions nuove, rsync di functions/ in ~/qa/gugd-restyling-scheda/app/ sul mini, dopo.sh porta solo src/)."
+next: "Fase 2: home giovani /me sui token (cambio visivo minimo). Collaudo riusabile: .claude/qa-restyling-scheda/ del checkout principale (dopo.sh <tag>; prima di un giro con functions nuove, rsync di functions/ in ~/qa/gugd-restyling-scheda/app/ sul mini, dopo.sh porta solo src/)."
 verified: "Fase 0 (3/11): build sul mini verde, bundle JS principale invariato; suite sul mini 1637 test verdi, accentApostrophes (git, non gira nel mirror di un worktree) verde sull'Air; tests/uiComponents.test.mjs 71 verdi, scritto da un altro agente; vetrina dei componenti a 320/390/1440 senza sbordi, testo minimo 13 px, nessun controllo sotto 44. Fase 1 (3/11): tipi, hook e handler della pagina identici a prima (diff vuoto su 382 righe); build sul mini verde; suite sul mini 1637 verdi, accentApostrophes 55/55 sull'Air; collaudo su emulatori sul mini con seed sintetico, 4 scenari (viaggio completo, campeggio, testi lunghi, bozza senza programma) a 320/390/430/1440, 60 foto per giro: prima 7-43 testi sotto 13 px e 2-5 controlli sotto 44 per foto, sbordo a 320 nel campeggio e a ogni larghezza coi testi lunghi (nascosto dalla cornice con overflow hidden); dopo 0 sbordi, 0 testi sotto 13 px, 0 controlli sotto 44 salvo la casella Invia in forma anonima delle Domande (13 px, dentro un'etichetta cliccabile alta 66), 0 errori in console. Review indipendente di un altro agente: PASS WITH CONCERNS, corretti cornice dei figli, anello di focus delle schede, ARIA delle schede, righe della checklist e tasti piccoli delle Domande, chiave React. Non provati: browser loggato in produzione (nessun account con iscrizione), Safari iOS, campCommitteesFreeBrowser con i selettori nuovi (servono emulatori con functions), card Notte dei record. Compagni nella card stanza (3/11, dopo il merge di main con roomMates): build sul mini verde (tsc compreso), suite 1648/1649 (unico rosso accentApostrophes, senza git nello specchio; 55/55 sull'Air); collaudo su emulatori con le functions, piano stanze pubblicato nel seed: 60 foto a 320/390/430/1440, 0 problemi, A mostra «Camera 3, secondo piano · 4 posti letto» e «Con Sofia Conti e Anna Neri (dirigente)», D (bozza) solo il nome della stanza. Non provati: errore della callable a schermo, account anonimo con stanza."
 links: [docs/REDESIGN_BRIEF.md, tasks/gugd-fondamenta-visive.md, tasks/gugd-etichette-home.md]
 done_at:
@@ -78,7 +78,11 @@ dopo arrivano inglese e spagnolo (`gugd-i18n`).
     foto prima e dopo e tavole affiancate in `.claude/qa-restyling-scheda/`
     del checkout principale (`prima/`, `dopo3/`, `confronti/`).
 
-### Fase 1: scarti dal mockup, da guardare con Paolo (1 chiuso, 4 aperti)
+### Fase 1: scarti dal mockup, decisi
+
+Paolo, 3 novembre: i quattro scarti qui sotto restano come sono (programma
+sopra le schede, comitato senza azione, a destra solo genitore e stanza,
+avviso del genitore tenuto).
 
 - **Compagni di stanza: chiuso il 3 novembre.** Paolo li ha voluti
   (task `gugd-compagni-stanza`, callable `roomMates` in produzione). La card
