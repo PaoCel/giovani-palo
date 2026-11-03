@@ -17,6 +17,7 @@ import { FAMIGLIA } from "@/copy/famiglia";
 import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { FamilyRoomCard } from "@/pages/family/FamilyRoomCard";
 import { childrenService, type ChildWriteInput } from "@/services/firestore/childrenService";
 import { eventsService } from "@/services/firestore/eventsService";
 import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
@@ -720,6 +721,16 @@ export function FamilyDashboardPage() {
                                 Gestisci
                               </Link>
                             </div>
+                            {registration.assignedRoomName ? (
+                              <FamilyRoomCard
+                                activityId={registration.eventId}
+                                childId={child.id}
+                                childName={child.firstName || child.fullName}
+                                parentUid={parentUid}
+                                roomName={registration.assignedRoomName}
+                                stakeId={registration.stakeId}
+                              />
+                            ) : null}
                             {renderConsentRow(registration, child, false)}
                             <div className="family-reg-extra">
                               {shouldShowResumeSigning(registration) ? (

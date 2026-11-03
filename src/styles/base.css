@@ -2748,6 +2748,60 @@ button {
   font-size: 0.8125rem;
 }
 
+/* Stanza del figlio e compagni (docs/ROOM_MANAGEMENT.md, «Compagni di
+   stanza»): stessa superficie della riga, testo da 13 px in su. */
+.family-reg-room {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.65rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.9rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--surface-border);
+}
+
+.family-reg-room__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.family-reg-room__icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.family-reg-room__info {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.family-reg-room__info strong {
+  color: var(--heading);
+  font-size: 0.88rem;
+}
+
+.family-reg-room__info span {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.family-reg-room__info .family-reg-room__mates {
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.family-reg-room__info .family-reg-room__error {
+  color: var(--warning);
+}
+
 /* Sotto la riga: "Riprendi da «Autorizza ora»" e "Annulla l'iscrizione". */
 .family-reg-extra {
   display: flex;
