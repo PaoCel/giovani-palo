@@ -8120,6 +8120,14 @@ p.admin-person-fields__note {
   flex-shrink: 0;
 }
 
+/* AppIcon non ha una dimensione sua: senza questa regola la freccia della
+   riga prendeva tutto lo spazio libero (155-228 px a 375, più a desktop). */
+.unit-activity-row__stats > svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+}
+
 .unit-stat {
   display: inline-flex;
   align-items: center;
