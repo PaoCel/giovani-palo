@@ -564,7 +564,7 @@ export function MyActivityDetailPage() {
     <Card title="La tua stanza">
       <div className="my-activity-room">
         <span className="my-activity-room__number" aria-hidden="true">
-          {getCommitteeInitials(assignedRoomName)}
+          {assignedRoomName.match(/\d+/u)?.[0] ?? getCommitteeInitials(assignedRoomName)}
         </span>
         <p className="my-activity-room__name">{assignedRoomName}</p>
       </div>

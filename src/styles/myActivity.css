@@ -526,6 +526,20 @@
   box-shadow: var(--shadow-card);
 }
 
+/* Checklist zaino del campeggio e card Foto e video, condivise con la scheda
+   unità: qui rispettano i minimi del brief (13 px, 44 px), là non cambiano. */
+.my-activity .camp-section-eyebrow,
+.my-activity .camp-cat-head h3,
+.my-activity .camp-cat-head > span:not(.status-badge),
+.my-activity .packing-journey-card__foot,
+.my-activity .ag-card__hint {
+  font-size: var(--text-xs);
+}
+
+.my-activity .camp-pill-btn {
+  min-height: var(--target);
+}
+
 @media (max-width: 359px) {
   .my-activity-hero__body,
   .my-activity .ui-card,
