@@ -43,6 +43,7 @@ exports.campManagementSave = campManagement.campManagementSave;
 exports.campManagementStaff = campManagement.campManagementStaff;
 exports.roomMateSuggestions = roomMates.roomMateSuggestions;
 exports.roomManagementSave = roomManagement.roomManagementSave;
+exports.roomMates = roomManagement.roomMates;
 exports.onRoomRegistrationDeleted = roomManagement.onRoomRegistrationDeleted;
 exports.onRoomRegistrationUpdated = roomManagement.onRoomRegistrationUpdated;
 exports.onRoomActivityDeleted = roomManagement.onRoomActivityDeleted;

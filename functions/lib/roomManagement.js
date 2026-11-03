@@ -313,6 +313,123 @@ function createRoomManagementSaveHandler({ db, clock = () => new Date() } = {}) 
   };
 }
 
+const ADULT_CATEGORIES = new Set(["dirigente", "accompagnatore"]);
+// Tetto delle letture dei compagni: la capienza massima di una stanza.
+const MAX_ROOM_MATES = 50;
+const NO_ROOM = Object.freeze({ room: null, mates: [] });
+
+function publicName(registration) {
+  const fullName = typeof registration.fullName === "string" ? registration.fullName.trim() : "";
+  if (fullName) return fullName;
+  return [registration.firstName, registration.lastName]
+    .filter((part) => typeof part === "string" && part.trim())
+    .map((part) => part.trim())
+    .join(" ");
+}
+
+function isUnset(value) {
+  return value === undefined || value === null;
+}
+
+// Stessa titolarità di `registrationBelongsToCaller` nelle rules: un'identità
+// sola per documento. Dati incoerenti (due titolari) non rispondono a nessuno.
+function belongsToCaller(data, uid, childId) {
+  if (childId) {
+    return data.parentUid === uid && data.childId === childId
+      && isUnset(data.userId) && isUnset(data.anonymousUid);
+  }
+  if (!isUnset(data.parentUid)) return false;
+  return (data.userId === uid && isUnset(data.anonymousUid))
+    || (data.anonymousUid === uid && isUnset(data.userId));
+}
+
+// L'iscrizione di chi chiama, o del figlio per il genitore, letta dall'id che
+// deriva dal suo uid: nessun altro documento è raggiungibile da qui.
+async function callerRegistration(activityRef, uid, childId) {
+  const registrations = activityRef.collection("registrations");
+  if (childId) {
+    const snapshot = await registrations.doc(`child_${uid}_${childId}`).get();
+    return snapshot.exists && belongsToCaller(snapshot.data() || {}, uid, childId) ? snapshot : null;
+  }
+  const own = await registrations.doc(`user_${uid}`).get();
+  if (own.exists) {
+    const data = own.data() || {};
+    return data.userId === uid && belongsToCaller(data, uid, "") ? own : null;
+  }
+  // Ospite che ha poi collegato un account: stesso uid, iscrizione `guest_`
+  // con `anonymousUid`, o con `userId` dopo un nuovo salvataggio del modulo.
+  const guest = await registrations.doc(`guest_${uid}`).get();
+  return guest.exists && belongsToCaller(guest.data() || {}, uid, "") ? guest : null;
+}
+
+// Compagni di stanza (docs/ROOM_MANAGEMENT.md, «Compagni di stanza»): nome e
+// cognome delle altre iscrizioni idonee nella stessa stanza del piano
+// pubblicato, con il flag adulto per l'etichetta «dirigente». Il piano è la
+// verità: i trigger lo puliscono a ogni annullamento, quindi i nomi seguono le
+// cancellazioni senza campi denormalizzati sulle iscrizioni.
+function createRoomMatesHandler({ db } = {}) {
+  return async (request) => {
+    const firestore = db || getFirestore();
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login richiesto.");
+    if (request.auth.token?.firebase?.sign_in_provider === "anonymous") {
+      throw new HttpsError("permission-denied", "Serve un account per vedere i compagni di stanza.");
+    }
+    assertExactKeys(request.data, ["stakeId", "activityId", "childId"], "Richiesta");
+    const stakeId = pathId(request.data.stakeId, "stakeId");
+    const activityId = pathId(request.data.activityId, "activityId");
+    const childId = request.data.childId === undefined || request.data.childId === null
+      ? ""
+      : pathId(request.data.childId, "childId");
+
+    const core = await getCore();
+    const activityRef = firestore.doc(`stakes/${stakeId}/activities/${activityId}`);
+    const own = await callerRegistration(activityRef, request.auth.uid, childId);
+    if (!own) throw new HttpsError("not-found", "Iscrizione non trovata.");
+
+    // Attività cancellata con sottocollezioni rimaste (il trigger che toglie il
+    // piano è asincrono): niente nomi, qualunque sia lo stato dell'iscrizione.
+    const [activitySnapshot, planSnapshot] = await firestore.getAll(
+      activityRef,
+      activityRef.collection("management").doc("rooms"),
+    );
+    if (!activitySnapshot.exists) throw new HttpsError("not-found", "Attività non trovata.");
+    if (!core.isRoomEligibleStatus(own.data())) return NO_ROOM;
+    const plan = planSnapshot.exists ? planSnapshot.data() || {} : {};
+    if (plan.published !== true) return NO_ROOM;
+    const assignments = ownObject(plan.assignments) ? plan.assignments : {};
+    const roomId = Object.hasOwn(assignments, own.id) ? assignments[own.id] : null;
+    const room = typeof roomId === "string" && Array.isArray(plan.rooms)
+      ? plan.rooms.find((item) => ownObject(item) && item.id === roomId)
+      : null;
+    if (!room) return NO_ROOM;
+
+    const mateRefs = Object.keys(assignments)
+      .filter((id) => id !== own.id && assignments[id] === roomId && ID_PATTERN.test(id))
+      .slice(0, MAX_ROOM_MATES)
+      .map((id) => activityRef.collection("registrations").doc(id));
+    const mateSnapshots = mateRefs.length ? await firestore.getAll(...mateRefs) : [];
+    const mates = mateSnapshots
+      .filter((snapshot) => snapshot.exists && core.isRoomEligibleStatus(snapshot.data()))
+      .map((snapshot) => {
+        const data = snapshot.data() || {};
+        return { fullName: publicName(data), adult: ADULT_CATEGORIES.has(data.genderRoleCategory) };
+      })
+      .filter((mate) => mate.fullName)
+      // Prima i ragazzi, poi i dirigenti; ognuno in ordine alfabetico.
+      .sort((left, right) =>
+        Number(left.adult) - Number(right.adult) || left.fullName.localeCompare(right.fullName, "it"),
+      );
+
+    return {
+      room: {
+        name: typeof room.name === "string" ? room.name : "",
+        capacity: Number.isInteger(room.capacity) ? room.capacity : null,
+      },
+      mates,
+    };
+  };
+}
+
 // Patch del piano senza l'iscrizione indicata, con revisione incrementata, o
 // null se il piano non la citava. La logica sta nel core, condivisa con la
 // bozza del client.
@@ -367,6 +484,8 @@ const roomManagementSave = onCall(
   createRoomManagementSaveHandler(),
 );
 
+const roomMates = onCall({ region: REGION }, createRoomMatesHandler());
+
 const onRoomRegistrationDeleted = onDocumentDeleted(
   {
     document: "stakes/{stakeId}/activities/{activityId}/registrations/{registrationId}",
@@ -413,10 +532,12 @@ const onRoomActivityDeleted = onDocumentDeleted(
 
 module.exports = {
   roomManagementSave,
+  roomMates,
   onRoomRegistrationDeleted,
   onRoomRegistrationUpdated,
   onRoomActivityDeleted,
   createRoomManagementSaveHandler,
+  createRoomMatesHandler,
   cleanupRegistrationReferences,
   cleanupRegistrationFromPlan,
   parsePlan,
