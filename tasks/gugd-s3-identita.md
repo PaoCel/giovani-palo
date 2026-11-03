@@ -10,14 +10,14 @@ surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
 started_at:
-touched: 2026-10-20
+touched: 2026-11-03
 due:
 blocked_by: [gugd-s2-appartenenza]
 branch:
 worktree:
-session:
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
 stopped_at: ""
-next: "Dopo S2: rileggere le scelte I1-I5 della spec e i file che S4 tocca, per lavorare su file disgiunti"
+next: "Dopo le fondamenta di gugd-restyling (parere Codex 2026-11-03): rileggere le scelte I1-I5 della spec, già consigliate, e i file che S4 tocca, per lavorare su file disgiunti"
 verified: ""
 links: [docs/IDENTITA_E_ACCESSO.md, docs/APPARTENENZA_AL_PALO.md]
 done_at:

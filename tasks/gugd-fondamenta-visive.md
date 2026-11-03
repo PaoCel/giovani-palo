@@ -1,7 +1,7 @@
 ---
 id: gugd-fondamenta-visive
 title: "Fondamenta visive minime: token e componenti condivisi"
-status: backlog
+status: cancelled
 impact: 1
 urgency: 1
 effort: M
@@ -10,13 +10,13 @@ surface: [web]
 source: paolo
 opened: 2026-10-20
 started_at:
-touched: 2026-10-20
+touched: 2026-11-03
 due:
 blocked_by: []
 branch:
 worktree:
-session:
-stopped_at: ""
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
+stopped_at: "Assorbito in gugd-restyling il 2026-11-03: token e componenti si fanno lì, sulle pagine rifatte"
 next: "Elenco dei componenti che servono a coda Richieste, Persone e home (Card, Notice, EmptyState con azione, PageHeader) e dei token che mancano, senza sostituzioni globali"
 verified: ""
 links: [docs/REDESIGN_BRIEF.md, "~/dev/agent-handbook/projects/giovani-palo/piano-autonomia-2026-10-18.md"]

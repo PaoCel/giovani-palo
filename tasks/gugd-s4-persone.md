@@ -10,14 +10,14 @@ surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
 started_at:
-touched: 2026-10-20
+touched: 2026-11-03
 due:
 blocked_by: [gugd-s2-appartenenza]
 branch:
 worktree:
-session:
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
 stopped_at: ""
-next: "Dopo S2: mockup di Persone, inviti e console pali con i token reali, poi callable stakePeople"
+next: "Dopo le fondamenta di gugd-restyling e dopo S3 (parere Codex 2026-11-03): mockup di Persone, inviti e console pali con i componenti nuovi, poi callable stakePeople"
 verified: ""
 links: [docs/AUTONOMIA_MULTI_PALO.md, docs/ROADMAP_PALI.md]
 done_at:

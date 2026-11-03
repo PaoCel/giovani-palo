@@ -13,8 +13,8 @@ started_at: 2026-10-19
 touched: 2026-10-20
 due:
 blocked_by: []
-branch: task/gugd-finitura-famiglia
-worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/ecstatic-hodgkin-e6b647
+branch:
+worktree:
 session: dd94c8b9-2344-4ff7-a5b3-500246ad7983
 stopped_at: "In produzione dal 2026-10-20: hosting da c0df9e3, service worker v29, bundle index-Cv9tASyT.js"
 next: ""

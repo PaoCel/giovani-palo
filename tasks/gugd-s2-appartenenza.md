@@ -10,15 +10,15 @@ surface: [web, rules, functions, storage]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-20
-touched: 2026-10-27
+touched: 2026-11-03
 due:
-blocked_by: ["autenticazione Google del dirigente per collaudo live"]
+blocked_by: ["accesso con l'account Google da dirigente di unità per la vista /unit/persone"]
 branch:
 worktree:
-session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "S2 pubblicato: 180 appartenenze create, 31 staff attivi, codici legacy rimossi; Home pending verificata, code live da completare"
-next: "Dopo passkey, verificare code e camp senza modificare richieste reali; completare la verifica con ID token valido"
-verified: "Prod: 180 create, 139 attive/41 pending, 31 staff attivi, post dry-run zero, cleanup codici 31; rules live coincidenti. Code/browser dirigente non ancora verificati"
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
+stopped_at: "QA live da admin fatta il 2026-11-03: coda Richieste e Da confermare corrette; trovato e corretto nel codice uno sbordo di 2 px a 320 della pagina Persone (non deployato)"
+next: "Paolo entra con l'account Google da dirigente nel pannello browser; vista /unit/persone in sola lettura, poi tasks done"
+verified: "Prod 2026-11-03 nel browser loggato come admin (account a password), sola lettura: /admin/persone mostra 41 richieste e 108 da confermare, coerenti con la migrazione; /unit/persone da admin porta a /admin; nessun errore in console. A 320 la riga delle schede (min-content 312 px) allargava la pagina a 322: corretto in membership.css con grid-template-columns minmax(0, 1fr), provato applicando la regola nella pagina live (scrollWidth 320, schede alte 44 px). 390 senza sbordi. Le voci Celestini in coda sono altri account di prova, non l'admin. Non provata live: vista del dirigente di unità"
 links: [docs/APPARTENENZA_AL_PALO.md, docs/ROADMAP_PALI.md]
 done_at:
 ---

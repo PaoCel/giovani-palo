@@ -1,7 +1,7 @@
 ---
 id: gugd-storage-eu
 title: "Storage in UE: fasi A-E della migrazione"
-status: blocked
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: M
@@ -10,15 +10,15 @@ surface: [storage, rules, functions, web]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-26
-touched: 2026-10-27
+touched: 2026-11-03
 due:
-blocked_by: ["autenticazione Google del dirigente per collaudo live"]
+blocked_by: ["decisione: smoke di caricamento in una galleria sintetica non pubblicata dal browser admin", "decisione: piano e deploy della fase D (rules che negano tutto sul bucket USA)"]
 branch:
 worktree:
-session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "B pubblicato da main d7c5ad6: migrazione 180, rules duali, 33 Functions, hosting v33 e VERIFY_OK; QA media live attende accesso dirigente"
-next: "Completare passkey e smoke media con cleanup sintetico, poi pianificare C; D/E separate"
-verified: "B live: 1196/1196 identici, oldRefs zero, 297 documenti/875 campi riscritti, 5 download 206; QA media live non ancora eseguita"
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
+stopped_at: "Lettura media live verificata sul bucket UE; osservazione fase C chiusa: nessuna scrittura sul bucket USA dal 26 ottobre"
+next: "Con l'ok di Paolo: smoke caricamento/cancellazione in galleria sintetica non pubblicata (prova anche onGalleryMediaDeleted live); poi piano fase D e deploy con conferma; E solo con conferma esplicita"
+verified: "2026-11-03 nel browser loggato come admin: /campeggio carica 139/139 immagini, tutte da giovani-palo-eu, zero errori dopo lo scroll del lazy loading; console pulita. Cloud Monitoring request_count dal 20 ottobre: bucket USA solo RewriteObject.From il 26/10 (la copia), dal 28/10 una ReadObject, due ListObjects e un GetBucketMetadata (in parte i censimenti di oggi), zero WriteObject e DeleteObject; bucket UE 361 ReadObject dal 28/10. Upload in galleria non provato live"
 links: [docs/STORAGE_FASE_A.md]
 done_at:
 ---

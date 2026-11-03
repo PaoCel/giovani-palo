@@ -13,8 +13,8 @@ started_at: 2026-10-20
 touched: 2026-10-20
 due:
 blocked_by: []
-branch: task/gugd-admin-dialoghi
-worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/goofy-einstein-78f784
+branch:
+worktree:
 session: 3b5e6431-ed1b-420c-83ed-ae790b460974
 stopped_at: "Fatto e mergiato in main; non deployato (prossimo hosting: service worker v30)"
 next: "Deploy hosting con conferma di Paolo, insieme al resto pronto"

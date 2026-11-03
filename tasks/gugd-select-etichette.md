@@ -1,7 +1,7 @@
 ---
 id: gugd-select-etichette
 title: Select con nome accessibile pulito in tutta l'app
-status: backlog
+status: in-progress
 impact: 1
 urgency: 1
 effort: S
@@ -9,16 +9,16 @@ delivery: deploy
 surface: [web]
 source: paolo
 opened: 2026-10-31
-started_at:
-touched: 2026-10-31
+started_at: 2026-11-03
+touched: 2026-11-03
 due:
 blocked_by: []
 branch:
 worktree:
-session:
-stopped_at: ""
-next: "Censire le select dentro una label (41, 20 file), applicare aria-labelledby come in ActivityProgram e aggiornare i locator getByLabel dei test"
-verified: ""
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
+stopped_at: "Select corrette in 20 file (aria-labelledby su id della label), guardia tests/selectAccessibleName.test.mjs, nome e tipo dell'unità in Impostazioni con aria-label; non deployato"
+next: "Deploy hosting insieme agli altri fix del 2026-11-03, poi tasks done"
+verified: "2026-11-03 sul mini dal checkout principale: client 1562/1562 (guardia 13/13 compresa), build EXIT0. Guardia scritta da un agente diverso da chi ha corretto, resa severa dopo la review Codex (l'id nella label deve essere quello referenziato); 33 select segnalate su HEAD, zero dopo. Id delle domande personalizzate resi univoci (custom-<id>) su rilievo Codex. Locator browser esistenti controllati: nessuno si rompe. Non provato: lettura con screen reader vero"
 links: [src/components/activities/ActivityProgram.tsx]
 done_at:
 ---

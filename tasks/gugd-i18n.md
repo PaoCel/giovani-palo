@@ -1,7 +1,7 @@
 ---
 id: gugd-i18n
 title: Versione inglese e spagnola
-status: backlog
+status: needs-paolo
 impact: 2
 urgency: 1
 effort: L
@@ -10,14 +10,14 @@ surface: [web, functions]
 source: paolo
 opened: 2026-10-18
 started_at:
-touched: 2026-10-18
+touched: 2026-11-03
 due:
-blocked_by: []
+blocked_by: ["decisione: lingua per account o per dispositivo", "decisione: chi traduce i testi legali e le email", "decisione: cosa resta solo in italiano"]
 branch:
 worktree:
-session:
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
 stopped_at: ""
-next: ""
+next: "Tre decisioni di Paolo, poi impostazione su componenti del restyling: lingua per account o per dispositivo; chi traduce testi legali (autorizzazione, consensi foto, privacy) ed email; cosa resta solo in italiano"
 verified: ""
 links: []
 done_at:

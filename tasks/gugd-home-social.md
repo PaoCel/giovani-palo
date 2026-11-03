@@ -1,7 +1,7 @@
 ---
 id: gugd-home-social
 title: "Home del palo più social: post, foto, commenti"
-status: blocked
+status: backlog
 impact: 2
 urgency: 1
 effort: L
@@ -10,15 +10,15 @@ surface: [web, rules, functions]
 source: paolo
 opened: 2026-10-20
 started_at: 2026-10-26
-touched: 2026-10-27
+touched: 2026-11-03
 due:
-blocked_by: ["autenticazione Google del dirigente per collaudo live"]
+blocked_by: []
 branch:
 worktree:
-session: 01a17799-4984-7af2-857e-2a02f5b4db11
-stopped_at: "Primo incremento online con SW v33; asset live identici alla build, Home pending verificata; feed attivo e contesto dirigente da verificare live"
-next: "Concludere QA autenticata, poi editor post admin e contesto Famiglia già previsti"
-verified: "Home reale pending verificata a larghezze CSS 520/1632, nessun overflow; cache ripulite e asset live uguali alla build. Feed attivo non ancora verificato live"
+session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
+stopped_at: "QA autenticata del primo incremento fatta il 2026-11-03; prossimi pezzi (editor post admin, contesto Famiglia) dopo le fondamenta del restyling"
+next: "Dopo gugd-restyling fase 1: editor post admin e contesto Famiglia con i componenti nuovi"
+verified: "2026-11-03 nel browser loggato come admin: /me mostra feed attivo con filtri Dalle attività/Nel tuo palo, post, Mi piace e Ricordi del campeggio; /admin mostra lo stesso feed; nessun errore in console; nessuno sbordo a 320 e 390. Prima: Home pending verificata a 520/1632"
 links: [docs/HOME_SOCIAL.md, docs/HOME_SOCIAL_REVIEW.md, docs/prototypes/home-social/index.html, docs/GALLERIA_ATTIVITA.md]
 done_at:
 ---
