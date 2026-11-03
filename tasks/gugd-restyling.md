@@ -1,7 +1,7 @@
 ---
 id: gugd-restyling
 title: "Restyling dell'app: fondamenta visive e pagine principali"
-status: ready
+status: in-progress
 impact: 2
 urgency: 2
 effort: L
@@ -9,13 +9,13 @@ delivery: deploy
 surface: [web]
 source: paolo
 opened: 2026-11-03
-started_at:
+started_at: 2026-11-03
 touched: 2026-11-03
 due:
 blocked_by: []
-branch:
-worktree:
-session:
+branch: task/gugd-restyling
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/gugd-restyling
+session: 3b312056-24e6-4dab-a4bf-78d70e42f776
 stopped_at: ""
 next: "Aggiornare docs/REDESIGN_BRIEF.md (è di giugno) con lo stato reale delle pagine, poi mockup renderizzati con i token reali di una pagina giovani e una admin, da far scegliere a Paolo"
 verified: ""
