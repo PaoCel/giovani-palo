@@ -1152,21 +1152,21 @@ scenario("S5 giovane iscritto: tab di organizzazione con comitato e incarico; se
     assert.deepEqual(await tabs.allInnerTexts().then((labels) => labels.map((label) => label.trim())), ["Iscrizione", "Gruppo", "Comitati"]);
     await page.getByRole("tab", { name: "Comitati", exact: true }).click();
     await page.getByRole("heading", { name: "Comitati", exact: true }).waitFor();
-    const card = page.locator(".camp-committee-card");
+    const card = page.getByRole("tabpanel").locator(".my-activity-committee");
     assert.equal(await card.count(), 1);
     const text = await card.innerText();
     assert.ok(text.includes("Cucina") && text.includes("Preparare i pranzi al sacco per il viaggio") && text.includes("Sei assegnato a questo comitato."));
-    assert.ok(!/campeggio/iu.test(await page.locator(".camp-youth-tab-panel").innerText()));
+    assert.ok(!/campeggio/iu.test(await page.getByRole("tabpanel").innerText()));
     await eachWidth(page, "scheda /me comitati", async (width) => {
       await assertLayout(page, `S5 /me comitati ${width}`);
-      await shot(page, "s5-me-comitato", width, page.locator(".camp-committee-card").first());
+      await shot(page, "s5-me-comitato", width, card.first());
     });
     await page.getByRole("tab", { name: "Gruppo", exact: true }).click();
     await page.getByRole("heading", { name: "Il tuo gruppo", exact: true }).waitFor();
-    const group = await page.locator(".camp-youth-tab-panel").innerText();
+    const group = await page.getByRole("tabpanel").innerText();
     assert.ok(group.includes("Gruppo 1") && group.includes("Con chi sei durante l'attività."));
     assert.ok(!/campo|cammini/iu.test(group), "copy del campeggio fuori dal campeggio");
-    await shot(page, "s5-me-gruppo", 390, page.locator(".camp-youth-screen").first());
+    await shot(page, "s5-me-gruppo", 390, page.getByRole("tabpanel"));
   });
 
   await step(t,"secondo viaggio senza piano salvato: nessuna tab di organizzazione", async () => {
@@ -1186,7 +1186,7 @@ scenario("S5 giovane iscritto: tab di organizzazione con comitato e incarico; se
     await gotoApp(marco.page, `/me/activities/${B}`);
     await marco.page.getByRole("tab", { name: "Comitati", exact: true }).click();
     await marco.page.getByText("Nessun comitato assegnato", { exact: true }).waitFor();
-    const text = await marco.page.locator(".camp-youth-tab-panel").innerText();
+    const text = await marco.page.getByRole("tabpanel").innerText();
     assert.ok(!text.includes("Preparare i pranzi") && !/Giulia|Rossi/u.test(text));
     assertClean(marco.watch, "S5 Marco");
   });
