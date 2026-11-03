@@ -6,7 +6,9 @@
     "giovani-palo": {
       "storage": {
         "main": [
-          "giovani-palo-eu",
+          "giovani-palo-eu"
+        ],
+        "legacyClosed": [
           "giovani-palo.firebasestorage.app"
         ]
       }

@@ -10,6 +10,10 @@
     {
       "target": "main",
       "rules": "storage.rules"
+    },
+    {
+      "target": "legacyClosed",
+      "rules": "storage.legacy-closed.rules"
     }
   ],
   "hosting": {

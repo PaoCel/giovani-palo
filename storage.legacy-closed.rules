@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Phase D of the Storage move to the EU (2026-11-03): the old US bucket
+// giovani-palo.firebasestorage.app is closed to every client SDK request.
+// Clients use giovani-palo-eu since release B (27 October); the server keeps
+// using both buckets through the Admin SDK, which ignores these rules, until
+// phase E removes the US copies. Token download URLs are not governed by rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -95,6 +95,44 @@ hosting con service worker ulteriormente aumentato, sync e URL nell'altro
 verso con checkpoint distinto. Anche il rollback in produzione richiede la
 conferma prevista; non cancellare file o riscrivere history per tornare indietro.
 
+## Fase C e D, 3 novembre 2026
+
+**Osservazione (C).** Cloud Monitoring, metrica
+`storage.googleapis.com/api/request_count` per bucket e metodo, dal 20 ottobre:
+sul bucket USA nessuna `WriteObject` né `DeleteObject` dopo la copia del 26
+ottobre; dal 28 ottobre una sola `ReadObject`. I client usano solo il bucket UE.
+
+**Prova live prima della chiusura.** Un dirigente di unità reale, dal browser,
+carica un PNG di 68 byte in un namespace sintetico
+(`qa-chiusura-usa-20261103-*`) del bucket UE passando dalle rules (200). Un
+documento media sintetico creato e cancellato come admin fa partire
+`onGalleryMediaDeleted`: lifecycle `delete/complete`, file tolto dal bucket UE,
+niente sul bucket USA. Il tombstone resta, come vuole il contratto della
+transizione; la galleria sintetica non è mai esistita come documento.
+
+**Chiusura (D).** `storage.legacy-closed.rules` nega ogni richiesta client.
+In `.firebaserc` il target `main` mappa solo `giovani-palo-eu`, il target
+`legacyClosed` solo `giovani-palo.firebasestorage.app`; `firebase.json` assegna
+`storage.rules` al primo e le rules chiuse al secondo, così un futuro
+`firebase deploy --only storage` non riapre il bucket USA. Il server continua a
+usare entrambi i bucket con l'Admin SDK, che non legge le rules; gli URL con
+token non dipendono dalle rules. Guardia statica in
+`tests/storageLegacyClosed.test.mjs`. Review Grok (PASS WITH CONCERNS): le
+config senza target (`firebase.staging.json`, `firebase.*-test.json`) mandano
+le rules al bucket di default, che in produzione è quello USA; lanciate per
+errore con `--project giovani-palo` lo riaprirebbero. Restano solo per staging
+ed emulatori, come già dice la regola sulla config esplicita di staging.
+`--only storage:main` aggiorna solo il bucket UE.
+
+Ritorno indietro: prima del deploy entrambi i bucket puntavano al ruleset
+`0328134c-6d06-4eeb-a7b1-f580cebecf3e` (uguale a `storage.rules`). Basta
+ripuntare la release `firebase.storage/giovani-palo.firebasestorage.app` a quel
+ruleset, oppure revert del commit e deploy di `--only storage` da `main` pulito.
+
+**Fase E** (cancellazione delle copie USA) resta separata e irreversibile:
+richiede conferma esplicita, l'adeguamento dell'allowlist server dei bucket e
+la decisione sui tombstone.
+
 ## Collaudo definitivo del candidato
 
 Codice `main` 41a215c, tree `74c544a742af74411a07eb820a12f38319b3bf25`.
