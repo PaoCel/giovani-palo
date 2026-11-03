@@ -12,13 +12,13 @@ opened: 2026-10-20
 started_at: 2026-10-26
 touched: 2026-11-03
 due:
-blocked_by: ["decisione: smoke di caricamento in una galleria sintetica non pubblicata dal browser admin", "decisione: piano e deploy della fase D (rules che negano tutto sul bucket USA)"]
+blocked_by: ["decisione: fase E, cancellazione delle copie USA (irreversibile)"]
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
-stopped_at: "Lettura media live verificata sul bucket UE; osservazione fase C chiusa: nessuna scrittura sul bucket USA dal 26 ottobre"
-next: "Con l'ok di Paolo: smoke caricamento/cancellazione in galleria sintetica non pubblicata (prova anche onGalleryMediaDeleted live); poi piano fase D e deploy con conferma; E solo con conferma esplicita"
-verified: "2026-11-03 nel browser loggato come admin: /campeggio carica 139/139 immagini, tutte da giovani-palo-eu, zero errori dopo lo scroll del lazy loading; console pulita. Cloud Monitoring request_count dal 20 ottobre: bucket USA solo RewriteObject.From il 26/10 (la copia), dal 28/10 una ReadObject, due ListObjects e un GetBucketMetadata (in parte i censimenti di oggi), zero WriteObject e DeleteObject; bucket UE 361 ReadObject dal 28/10. Upload in galleria non provato live"
+stopped_at: "Fasi B, C e D chiuse il 2026-11-03: bucket USA chiuso ai client, server ancora su entrambi i bucket"
+next: "Fase E solo con conferma esplicita di Paolo: prima adeguare l'allowlist server dei bucket (oggi tratta l'assenza di una replica come errore) e decidere i tombstone; poi cancellazione delle copie USA, irreversibile dopo i 7 giorni di soft delete"
+verified: "2026-11-03. B: dirigente di Roma 5 dal browser carica un PNG sintetico sul bucket UE passando dalle rules (200); media sintetico creato e cancellato come admin, onGalleryMediaDeleted chiude lifecycle delete/complete e toglie il file; /campeggio 139/139 dal bucket UE. C: Cloud Monitoring, zero WriteObject e DeleteObject sul bucket USA dopo il 26/10, una ReadObject dal 28/10. D: commit 0540d10, deploy --only storage dal clone pulito sul mini su conferma di Paolo; release UE sul ruleset 0328134c uguale a storage.rules, release USA sul ruleset c43ab7c8 uguale a storage.legacy-closed.rules; dopo, dal browser del dirigente: upload e list sul bucket USA 403, upload sul bucket UE 200 e cancellazione dell'autore 204; percorsi sintetici vuoti su entrambi i bucket. Guardia tests/storageLegacyClosed.test.mjs 14/14 scritta da un agente diverso; review Grok PASS WITH CONCERNS (config di staging da non lanciare mai su prod, scritto in docs/STORAGE_FASE_B.md). Codex non disponibile per limite di quota"
 links: [docs/STORAGE_FASE_A.md]
 done_at:
 ---
