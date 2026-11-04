@@ -1,16 +1,13 @@
-import { getSurveyHref } from "@/utils/surveyLinks";
+import { getSurveyHref, hasPublicSurvey } from "@/utils/surveyLinks";
 import { Suspense, lazy } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 
-import { AppIcon } from "@/components/AppIcon";
 import { ActivityProgram } from "@/components/activities/ActivityProgram";
+import { ActivityScene } from "@/components/activities/ActivityScene";
 import { MOMENTI } from "@/copy/momenti";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
-import { AppLoader } from "@/components/AppLoader";
-import { EmptyState } from "@/components/EmptyState";
-import { SectionCard } from "@/components/SectionCard";
 import { ShareButton } from "@/components/ShareButton";
-import { StatusBadge } from "@/components/StatusBadge";
+import { Button, ButtonLink, Card, EmptyState, Icon, Notice, Pill } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useStakeMembership } from "@/hooks/useStakeMembership";
@@ -27,10 +24,9 @@ import { formatDateRange, formatDateTime } from "@/utils/formatters";
 import {
   getAudienceRestrictionMessage,
   getEventAudienceLabel,
-  getEventStatusLabel,
-  getEventStatusTone,
   getRegistrationAvailability,
 } from "@/utils/events";
+import { getPublicEventState, getRegistrationCountdown } from "@/utils/publicEventState";
 import { canManageFamily } from "@/utils/family";
 import { getRegistrationLookupFromSession } from "@/utils/session";
 import { resolvePublicStakeId } from "@/utils/stakeSelection";
@@ -41,6 +37,7 @@ import {
   withRegisterFor,
   getMyActivityPath,
 } from "@/utils/activityLinks";
+import "@/styles/publicActivity.css";
 
 // Card della Notte dei Record: caricata a parte (con il suo CSS) solo per le
 // attività che hanno il modulo attivo.
@@ -64,44 +61,16 @@ const initialData: ActivityDetailData = {
   registration: null,
 };
 
-function getRegistrationCountdown(registrationClose: string): string | null {
-  const closesAt = new Date(registrationClose).getTime();
-  if (Number.isNaN(closesAt)) {
-    return null;
-  }
-
-  const remaining = closesAt - Date.now();
-  if (remaining <= 0) {
-    return null;
-  }
-
-  const days = Math.floor(remaining / 86_400_000);
-  if (days >= 7) {
-    return null;
-  }
-
-  if (days >= 1) {
-    return days === 1 ? "tra 1 giorno" : `tra ${days} giorni`;
-  }
-
-  const hours = Math.floor(remaining / 3_600_000);
-  if (hours >= 1) {
-    return hours === 1 ? "tra 1 ora" : `tra ${hours} ore`;
-  }
-
-  const minutes = Math.max(1, Math.floor(remaining / 60_000));
-  return minutes === 1 ? "tra 1 minuto" : `tra ${minutes} minuti`;
-}
-
+// Righe di «Dettagli utili»: solo quelle già scritte dallo staff.
 function renderOptionalInfo(title: string, value: string) {
   if (!value.trim()) {
     return null;
   }
 
   return (
-    <div className="surface-panel surface-panel--subtle">
-      <h3>{title}</h3>
-      <p>{value}</p>
+    <div key={title}>
+      <dt>{title}</dt>
+      <dd>{value}</dd>
     </div>
   );
 }
@@ -160,11 +129,7 @@ export function ActivityDetailPage() {
         <EmptyState
           title="Attività non trovata"
           description="L'attività richiesta non è pubblica oppure non esiste."
-          action={
-            <Link className="button button--primary" to="/activities">
-              Torna alle attività
-            </Link>
-          }
+          action={<ButtonLink to="/activities">Torna alle attività</ButtonLink>}
         />
       </div>
     );
@@ -203,66 +168,71 @@ export function ActivityDetailPage() {
           .filter((label): label is string => Boolean(label))
       : [];
   const shareUrl = event ? getAbsoluteUrl(getActivityPath(event.id, data.stakeId)) : "";
+  // Stessa regola del tasto: la pill non dice più «Iscrizioni aperte» su
+  // un'attività finita (src/utils/publicEventState.ts).
+  const publicState = event ? getPublicEventState(event) : null;
+  const ended = publicState?.phase === "ended";
+  // Solo i sondaggi aperti a tutti: quelli del campeggio stanno nell'area dei
+  // partecipanti, che da iscritti arrivano alla loro scheda.
+  const hasSurvey = Boolean(event && ended && hasPublicSurvey(event.id));
+  // Un'attività finita non si iscrive più, anche se la chiusura è dopo la fine.
+  const canRegister =
+    !ended &&
+    (availability === "open" || availability === "guest-allowed" || availability === "login-required");
   const registrationCountdown =
-    event &&
-    (availability === "open" ||
-      availability === "guest-allowed" ||
-      availability === "login-required")
-      ? getRegistrationCountdown(event.registrationClose)
-      : null;
+    event && canRegister ? getRegistrationCountdown(event.registrationClose) : null;
+  const preparesTrip = Boolean(
+    event && (event.activityType === "camp" || event.activityType === "overnight" || event.overnight),
+  );
 
-  function renderPrimaryAction(variant: "hero" | "bar" = "hero") {
+  // Il sondaggio post-evento ha senso solo ad attività finita: lì prende il
+  // posto di «Iscriviti» (scelta di Paolo, 4 novembre 2026).
+  function renderPrimaryAction(where: "hero" | "bar" | "aside") {
     if (!event || !formConfig) {
       return null;
     }
 
-    const primaryClass = variant === "hero" ? "button button--inverse" : "button button--primary";
-    const disabledClass =
-      variant === "hero" ? "button button--outline-light" : "button button--ghost";
+    const block = where !== "hero";
     const registrationPath = getActivityRegistrationPath(event.id, data.stakeId);
 
     if (data.registration) {
       return (
-        <Link className={primaryClass} to={getMyActivityPath(event.id)}>
-          <AppIcon name="ticket" />
-          <span>La tua scheda</span>
-        </Link>
+        <ButtonLink block={block} icon="ticket" size="lg" to={getMyActivityPath(event.id)}>
+          La tua scheda
+        </ButtonLink>
       );
+    }
+
+    if (ended) {
+      return hasSurvey ? (
+        <ButtonLink block={block} size="lg" to={getSurveyHref(event.id)}>
+          Apri il sondaggio
+        </ButtonLink>
+      ) : null;
     }
 
     // Chi non è entrato si iscrive da qui anche quando serve un account: il
     // passo account è dentro l'iscrizione (docs/FLUSSO_GENITORE.md, A e C).
-    if (
-      availability === "open" ||
-      availability === "guest-allowed" ||
-      availability === "login-required"
-    ) {
+    if (canRegister) {
       const forChild = Boolean(session?.isParent);
 
       return (
-        <Link
-          className={primaryClass}
+        <ButtonLink
+          block={block}
+          icon="ticket"
+          size="lg"
           state={{ fromActivity: true }}
           to={forChild ? withRegisterFor(registrationPath, "figlio") : registrationPath}
         >
-          <AppIcon name="ticket" />
-          <span>{forChild ? ATTIVITA.iscriviFiglio : ATTIVITA.iscriviti}</span>
-        </Link>
-      );
-    }
-
-    if (availability === "restricted-audience") {
-      return (
-        <button className={disabledClass} disabled type="button">
-          Iscrizione riservata
-        </button>
+          {forChild ? ATTIVITA.iscriviFiglio : ATTIVITA.iscriviti}
+        </ButtonLink>
       );
     }
 
     return (
-      <button className={disabledClass} disabled type="button">
-        Iscrizioni non disponibili
-      </button>
+      <Button block={block} disabled size="lg" variant="secondary">
+        {availability === "restricted-audience" ? "Iscrizione riservata" : "Iscrizioni non disponibili"}
+      </Button>
     );
   }
 
@@ -274,6 +244,7 @@ export function ActivityDetailPage() {
       !formConfig ||
       data.registration ||
       (session?.isAuthenticated && !session.isAnonymous) ||
+      !canRegister ||
       (availability !== "guest-allowed" && availability !== "login-required")
     ) {
       return null;
@@ -295,234 +266,199 @@ export function ActivityDetailPage() {
     );
   }
 
-  const parentLineBar = renderParentLine("activity-cta-bar__parent");
+  const parentLineBar = renderParentLine("public-cta-bar__parent");
+  // Barra in basso solo se c'è un'azione: un'attività finita senza sondaggio non ne ha.
+  const hasBar = Boolean(event && formConfig && (data.registration || !ended || hasSurvey));
+  const usefulDetails = event
+    ? [
+        renderOptionalInfo("Menu", event.menuInfo),
+        renderOptionalInfo("Allergie e alimentazione", event.allergiesInfo),
+        event.overnight ? renderOptionalInfo("Alloggio", event.roomsInfo) : null,
+        renderOptionalInfo("Note", event.publicNotes),
+      ].filter(Boolean)
+    : [];
 
   return (
     <div
       className={
-        parentLineBar
-          ? "page page--activity-detail page--activity-detail-parent"
-          : "page page--activity-detail"
+        hasBar
+          ? parentLineBar
+            ? "page public-detail public-detail--bar public-detail--bar-parent"
+            : "page public-detail public-detail--bar"
+          : "page public-detail"
       }
     >
-      <section className="activity-hero">
-        {event?.heroImageUrl ? (
+      {event ? (
+        <section className="public-hero">
           <div
-            aria-hidden="true"
-            className="activity-hero__media"
-            style={{ backgroundImage: `url(${event.heroImageUrl})` }}
-          />
-        ) : null}
-        <div className="activity-hero__content">
-          <span className="activity-hero__eyebrow">Dettaglio attività</span>
-          <h1 className="activity-hero__title">{event?.title ?? "Caricamento attività..."}</h1>
-          {event?.description ? (
-            <p className="activity-hero__description">{event.description}</p>
-          ) : null}
-          {event ? (
-            <div className="activity-hero__chips">
-              <span className={`activity-chip activity-chip--${getEventStatusTone(event.status)}`}>
-                <span aria-hidden="true" className="activity-chip__dot" />
-                {getEventStatusLabel(event.status)}
-              </span>
-              <span className="activity-chip">
-                <AppIcon name="calendar" />
-                {formatDateRange(event.startDate, event.endDate)}
-              </span>
-              {event.location.trim() ? (
-                <span className="activity-chip">
-                  <AppIcon name="map-pin" />
-                  {event.location}
-                </span>
+            className="public-hero__media"
+            style={event.heroImageUrl ? { backgroundImage: `url(${event.heroImageUrl})` } : undefined}
+          >
+            {event.heroImageUrl ? null : <ActivityScene className="public-hero__scene" />}
+          </div>
+          <div className="public-hero__body">
+            <div className="public-pills">
+              {publicState ? (
+                <Pill dot tone={publicState.tone}>
+                  {publicState.label}
+                </Pill>
               ) : null}
-              <span className="activity-chip">
-                <AppIcon name="users" />
-                {getEventAudienceLabel(event.audience)}
-              </span>
+              <Pill>{getEventAudienceLabel(event.audience)}</Pill>
+              {event.overnight ? <Pill>Pernottamento</Pill> : null}
             </div>
-          ) : null}
-          {registrationCountdown ? (
-            <p className="activity-hero__countdown">
-              <AppIcon name="clock" />
-              <span>Le iscrizioni chiudono {registrationCountdown}</span>
-            </p>
-          ) : null}
-          {event ? (
-            <div className="activity-hero__actions">
-              {renderPrimaryAction("hero")}
-              <ShareButton
-                className="button button--outline-light"
-                title={event.title}
-                text="Guarda questa attività e apri l'iscrizione."
-                url={shareUrl}
-              />
+            <h1 className="public-hero__title">{event.title}</h1>
+            <div className="public-meta">
+              <p>
+                <Icon name="calendar" />
+                <span>{formatDateRange(event.startDate, event.endDate)}</span>
+              </p>
+              {event.location.trim() ? (
+                <p>
+                  <Icon name="map-pin" />
+                  <span>{event.location}</span>
+                </p>
+              ) : null}
             </div>
-          ) : null}
-          {renderParentLine("activity-hero__parent")}
-        </div>
-      </section>
-
-      {event ? <ActivityProgram stakeId={data.stakeId} activityId={event.id} /> : null}
-      {event ? <ActivityMediaCard stakeId={data.stakeId} event={event} /> : null}
-
-      {event?.recordsEnabled ? (
-        <Suspense fallback={null}>
-          <RecordNightEntryCard
-            canReadRecords={membershipAccess === "member"}
-            event={event}
-            stakeId={data.stakeId}
-          />
-        </Suspense>
-      ) : null}
+            {event.description ? <p className="public-hero__description">{event.description}</p> : null}
+            {registrationCountdown ? (
+              <p className="public-hero__countdown">
+                <Icon name="clock" />
+                <span>{registrationCountdown}</span>
+              </p>
+            ) : null}
+            {formConfig ? (
+              <div className="public-hero__actions">
+                {renderPrimaryAction("hero")}
+                <ShareButton
+                  className="public-share"
+                  iconOnly
+                  title={event.title}
+                  text="Guarda questa attività e apri l'iscrizione."
+                  url={shareUrl}
+                />
+              </div>
+            ) : null}
+            {hasSurvey && !data.registration ? (
+              <p className="public-hero__note">Hai partecipato? Lasciaci un feedback (anonimo).</p>
+            ) : null}
+            {renderParentLine("public-hero__note public-hero__parent")}
+          </div>
+        </section>
+      ) : (
+        <section aria-busy="true" className="public-hero public-hero--loading">
+          <div className="public-hero__body">
+            <h1 className="public-hero__title">Caricamento attività...</h1>
+          </div>
+        </section>
+      )}
 
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Caricamento dettaglio non riuscito</h3>
-            <p>{error}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {loading ? <AppLoader label="Sto caricando l'attività..." /> : null}
-
-      {event && availability === "restricted-audience" ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Iscrizione non disponibile per il tuo profilo</h3>
-            <p>{getAudienceRestrictionMessage(event.audience)}</p>
-          </div>
-        </div>
+        <Notice title="Caricamento dettaglio non riuscito" tone="danger">
+          {error}
+        </Notice>
       ) : null}
 
       {event ? (
-        <SectionCard
-          title="Informazioni principali"
-          description="Le informazioni essenziali per decidere e completare l'iscrizione."
-        >
-          <dl className="summary-list">
-            <div>
-              <dt>Luogo</dt>
-              <dd>{event.location || "-"}</dd>
-            </div>
-            <div>
-              <dt>Apertura iscrizioni</dt>
-              <dd>{formatDateTime(event.registrationOpen)}</dd>
-            </div>
-            <div>
-              <dt>Chiusura iscrizioni</dt>
-              <dd>{formatDateTime(event.registrationClose)}</dd>
-            </div>
-            <div>
-              <dt>Pernottamento</dt>
-              <dd>{event.overnight ? "Sì" : "No"}</dd>
-            </div>
-          </dl>
-        </SectionCard>
-      ) : null}
-
-      {event?.program ? (
-        <SectionCard
-          title={MOMENTI.programmaGenerale}
-          description="Panoramica rapida dell'attività."
-        >
-          <div className="surface-panel surface-panel--subtle">
-            <p>{event.program}</p>
-          </div>
-        </SectionCard>
-      ) : null}
-
-      {event ? (
-        <SectionCard
-          title="Sondaggio post-evento"
-          description="Hai partecipato? Lasciaci un feedback (anonimo)."
-        >
-          <Link className="button button--ghost" to={getSurveyHref(event.id)}>
-            Apri il sondaggio
-          </Link>
-        </SectionCard>
-      ) : null}
-
-      {event?.whatToBring?.trim() ? (
-        <SectionCard
-          title="Cosa portare"
-          description={
-            event.activityType === "camp" ||
-            event.activityType === "overnight" ||
-            event.overnight
-              ? "Importante: leggi prima di partire."
-              : "Materiale consigliato per partecipare."
-          }
-        >
-          <div className="what-to-bring-card">
-            {event.activityType === "camp" ||
-            event.activityType === "overnight" ||
-            event.overnight ? (
-              <span className="what-to-bring-badge">⚠️ Consigliato leggere</span>
+        <div className="public-detail__layout">
+          <div className="public-detail__main">
+            {event.recordsEnabled ? (
+              <Suspense fallback={null}>
+                <RecordNightEntryCard
+                  canReadRecords={membershipAccess === "member"}
+                  event={event}
+                  stakeId={data.stakeId}
+                />
+              </Suspense>
             ) : null}
-            <p className="what-to-bring-text">{event.whatToBring}</p>
-          </div>
-        </SectionCard>
-      ) : null}
 
-      {event &&
-      [
-        event.menuInfo,
-        event.allergiesInfo,
-        event.overnight ? event.roomsInfo : "",
-        event.publicNotes,
-      ].some((value) =>
-        value.trim(),
-      ) ? (
-        <SectionCard title="Dettagli utili" description="Mostriamo solo ciò che è già disponibile.">
-          <div className="stack">
-            {renderOptionalInfo("Menu", event.menuInfo)}
-            {renderOptionalInfo("Allergie e alimentazione", event.allergiesInfo)}
-            {event.overnight ? renderOptionalInfo("Alloggio", event.roomsInfo) : null}
-            {renderOptionalInfo("Note", event.publicNotes)}
-          </div>
-        </SectionCard>
-      ) : null}
+            <ActivityProgram stakeId={data.stakeId} activityId={event.id} />
 
-      {formConfig ? (
-        <SectionCard
-          title="Prima di compilare"
-          description="Così sai già quali dati ti verranno chiesti."
-        >
-          <div className="stack">
-            <div className="chip-row">
-              <StatusBadge
-                label={
-                  formConfig.allowGuestRegistration
-                    ? "Iscrizione senza account disponibile"
-                    : "Serve un account"
+            {event.program ? (
+              <Card title={MOMENTI.programmaGenerale}>
+                <p className="public-prose">{event.program}</p>
+              </Card>
+            ) : null}
+
+            {event.whatToBring?.trim() ? (
+              <Card
+                subtitle={
+                  preparesTrip
+                    ? "Importante: leggi prima di partire."
+                    : "Materiale consigliato per partecipare."
                 }
-                tone={formConfig.allowGuestRegistration ? "success" : "warning"}
-              />
-            </div>
+                title="Cosa portare"
+              >
+                <p className="public-prose">{event.whatToBring}</p>
+              </Card>
+            ) : null}
 
-            <div className="surface-panel surface-panel--subtle">
-              <h3>Campi principali</h3>
-              <p>
-                {fieldLabels.length > 0
-                  ? fieldLabels.join(", ")
-                  : "Solo dati base e pochi dettagli essenziali."}
-              </p>
-              <p className="subtle-text">
-                Consensi foto e privacy: puoi leggere i dettagli prima di compilare su{" "}
-                <Link to="/privacy/photos">questa pagina</Link>.
-              </p>
-            </div>
+            {usefulDetails.length > 0 ? (
+              <Card title="Dettagli utili">
+                <dl className="public-facts">{usefulDetails}</dl>
+              </Card>
+            ) : null}
+
+            <ActivityMediaCard stakeId={data.stakeId} event={event} />
           </div>
-        </SectionCard>
+
+          <aside className="public-detail__aside">
+            {availability === "restricted-audience" ? (
+              <Notice live="none" title="Iscrizione non disponibile per il tuo profilo" tone="warning">
+                {getAudienceRestrictionMessage(event.audience)}
+              </Notice>
+            ) : null}
+
+            <Card
+              footer={
+                formConfig ? <div className="public-detail__aside-action">{renderPrimaryAction("aside")}</div> : null
+              }
+              title="Iscrizione"
+              variant="cool"
+            >
+              <dl className="public-facts">
+                <div>
+                  <dt>Apertura iscrizioni</dt>
+                  <dd>{formatDateTime(event.registrationOpen)}</dd>
+                </div>
+                <div>
+                  <dt>Chiusura iscrizioni</dt>
+                  <dd>{formatDateTime(event.registrationClose)}</dd>
+                </div>
+                {formConfig && canRegister ? (
+                  <div>
+                    <dt>Campi principali</dt>
+                    <dd>
+                      {fieldLabels.length > 0
+                        ? fieldLabels.join(", ")
+                        : "Solo dati base e pochi dettagli essenziali."}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              {formConfig && canRegister ? (
+                <>
+                  <Pill tone={formConfig.allowGuestRegistration ? "success" : "warning"}>
+                    {formConfig.allowGuestRegistration
+                      ? "Iscrizione senza account disponibile"
+                      : "Serve un account"}
+                  </Pill>
+                  <p className="public-small">
+                    Consensi foto e privacy: puoi leggere i dettagli prima di compilare su{" "}
+                    <Link to="/privacy/photos">questa pagina</Link>.
+                  </p>
+                </>
+              ) : null}
+            </Card>
+          </aside>
+        </div>
       ) : null}
 
-      {event && formConfig ? (
-        <div className="activity-cta-bar">
-          <div className="activity-cta-bar__inner">
+      {hasBar && event ? (
+        <div className="public-cta-bar">
+          <div className="public-cta-bar__inner">
             {renderPrimaryAction("bar")}
             <ShareButton
-              className="button button--ghost activity-cta-bar__share"
+              className="public-share"
               iconOnly
               title={event.title}
               text="Guarda questa attività e apri l'iscrizione."

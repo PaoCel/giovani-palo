@@ -1,15 +1,12 @@
 import { EmptyState } from "@/components/EmptyState";
-import { EventCard } from "@/components/EventCard";
+import { PublicActivityCard } from "@/components/activities/PublicActivityCard";
 import { UserPageIntro } from "@/components/UserPageIntro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
-import {
-  getActivityPath,
-  getActivityRegistrationPath,
-  getMyActivityPath,
-} from "@/utils/activityLinks";
-import { isPastEvent } from "@/utils/events";
+import { getActivityPath, getMyActivityPath } from "@/utils/activityLinks";
+import { getPublicEventPhase } from "@/utils/publicEventState";
+import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
 
 export function MyActivitiesPage() {
   const { session } = useAuth();
@@ -46,40 +43,33 @@ export function MyActivitiesPage() {
         </section>
       ) : (
         <section className="activity-catalog activity-catalog--user">
-          <div className="activity-grid">
+          <div className="public-grid">
             {feed.map(({ event, registration }) => {
-              const hasActiveRegistration =
-                Boolean(registration) && registration?.registrationStatus !== "cancelled";
-              const canJoin =
-                !hasActiveRegistration &&
-                event.status === "registrations_open" &&
-                !isPastEvent(event);
+              const activeRegistration =
+                registration && registration.registrationStatus !== "cancelled" ? registration : null;
 
+              // Iscritto: la card porta alla sua scheda e dice lo stato dell'iscrizione
+              // (ma un'attività annullata resta «Annullata»); altrimenti al dettaglio,
+              // dove sta «Iscriviti».
+              const showRegistration =
+                activeRegistration && getPublicEventPhase(event) !== "cancelled";
               return (
-                <EventCard
-                  key={event.id}
+                <PublicActivityCard
                   event={event}
-                  primaryLabel={hasActiveRegistration ? "La tua attività" : "Dettagli attività"}
-                  primaryTo={
-                    hasActiveRegistration
+                  key={event.id}
+                  status={
+                    showRegistration && activeRegistration
+                      ? {
+                          label: getRegistrationStatusLabel(activeRegistration.registrationStatus),
+                          tone: getRegistrationStatusTone(activeRegistration.registrationStatus),
+                        }
+                      : undefined
+                  }
+                  to={
+                    activeRegistration
                       ? getMyActivityPath(event.id)
                       : getActivityPath(event.id, session?.profile.stakeId)
                   }
-                  secondaryLabel={
-                    hasActiveRegistration
-                      ? "La tua iscrizione"
-                      : canJoin
-                        ? "Iscriviti"
-                        : undefined
-                  }
-                  secondaryTo={
-                    hasActiveRegistration
-                      ? getMyActivityPath(event.id)
-                      : canJoin
-                        ? getActivityRegistrationPath(event.id, session?.profile.stakeId)
-                        : undefined
-                  }
-                  variant="poster"
                 />
               );
             })}

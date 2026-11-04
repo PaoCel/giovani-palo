@@ -10,6 +10,7 @@ import { ADMIN } from "../src/copy/admin.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
 import { ATTIVITA } from "../src/copy/attivita.ts";
 import { CAMP, CAMP_GROUPS } from "../src/copy/camp.ts";
+import { CATALOGO } from "../src/copy/catalogo.ts";
 import { CHI_ISCRIVI } from "../src/copy/chiIscrivi.ts";
 import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
 import { CHI_SEI } from "../src/copy/chiSei.ts";
@@ -516,6 +517,7 @@ const COPY = {
   ATTIVITA,
   CAMP,
   CAMP_GROUPS,
+  CATALOGO,
   CHI_ISCRIVI,
   CHI_PARTECIPA,
   CHI_SEI,
