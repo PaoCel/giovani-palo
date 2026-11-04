@@ -1,16 +1,27 @@
-import "@/styles/camp-configuration.css";
+import "@/styles/unitActivity.css";
+import dirigenteUrl from "@/assets/flusso-genitore/dirigente.webp";
+import giovaniUrl from "@/assets/flusso-genitore/giovani.webp";
 import { CAMP } from "@/copy/camp";
 import { fillCopy } from "@/copy/parole";
 import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useParams } from "react-router-dom";
 
-import { AppIcon } from "@/components/AppIcon";
+import type { AppIconName } from "@/components/AppIcon";
 import { ActivityMediaCard } from "@/components/gallery/ActivityMediaCard";
 import { AppModal } from "@/components/AppModal";
 import { CampPackingChecklist } from "@/components/CampPackingChecklist";
 import { PhotoConsentPills } from "@/components/PhotoConsentPills";
-import { StatusBadge } from "@/components/StatusBadge";
+import {
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  Icon,
+  Notice,
+  Pill,
+  buttonClassName,
+} from "@/components/ui";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
@@ -19,6 +30,12 @@ import { unitTransportNotesService } from "@/services/firestore/unitTransportNot
 import type { CampPatrolRole, CampPublicMember, Registration, UserProfile } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
 import { isCampEvent } from "@/utils/events";
+import {
+  getUnitActivityTabs,
+  getVisibleUnitActivityTab,
+  splitGroupsByMembers,
+  type UnitActivityTab,
+} from "@/utils/unitActivityView";
 import {
   getParentAuthorizationBadge,
   getPhotoConsentBadges,
@@ -64,43 +81,33 @@ function TransportBadge({
 
   if (!needsHelp) {
     return (
-      <span className="unit-badge unit-badge--ok" title={mode}>
+      <Pill className="unit-activity-transport" tone="success" title={mode}>
         {mode}
-      </span>
+      </Pill>
     );
   }
 
   if (isResolved) {
     return (
-      <div className="unit-transport-cell">
-        <span className="unit-badge unit-badge--ok" title="Trasporto organizzato dall'unità">
+      <div className="unit-activity-cell">
+        <Pill className="unit-activity-transport" icon="check" tone="success" title="Trasporto organizzato dall'unità">
           Risolto
-        </span>
-        <button
-          className="unit-transport-btn unit-transport-btn--undo"
-          onClick={onToggle}
-          title="Annulla risoluzione"
-          type="button"
-        >
-          <AppIcon name="x" />
-        </button>
+        </Pill>
+        <Button icon="x" onClick={onToggle} variant="ghost">
+          Annulla risoluzione
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="unit-transport-cell">
-      <span className="unit-badge unit-badge--warn" title={mode || "Trasporto da definire"}>
+    <div className="unit-activity-cell">
+      <Pill className="unit-activity-transport" tone="warning" title={mode || "Trasporto da definire"}>
         {mode || "Da definire"}
-      </span>
-      <button
-        className="unit-transport-btn unit-transport-btn--resolve"
-        onClick={onToggle}
-        title="Segna come risolto"
-        type="button"
-      >
-        <AppIcon name="check" />
-      </button>
+      </Pill>
+      <Button icon="check" onClick={onToggle} variant="secondary">
+        Segna come risolto
+      </Button>
     </div>
   );
 }
@@ -139,48 +146,48 @@ function ConsentCell({
     registration.parentAuthorization?.status !== "rejected_by_parent";
 
   return (
-    <div className="unit-consent-cell">
+    <div className="unit-activity-cell">
       {hasParentPhotoChoice ? (
         <PhotoConsentPills registration={registration} />
       ) : (
-        <span
-          className={hasPhoto ? "unit-consent-ok" : "unit-consent-missing"}
+        <Pill
+          icon={hasPhoto ? "check" : "x"}
           title={hasPhoto ? "Consenso foto OK" : "Consenso foto mancante"}
+          tone={hasPhoto ? "success" : "danger"}
         >
-          <AppIcon name={hasPhoto ? "check" : "x"} />
           Foto
-        </span>
+        </Pill>
       )}
       {isMinor && requiresParentAuthorization ? (
         <>
-          <span
-            className={hasParent ? "unit-consent-ok" : "unit-consent-missing"}
+          <Pill
+            icon={hasParent ? "check" : "x"}
             title={`Autorizzazione genitore: ${parentBadge.label}`}
+            tone={hasParent ? "success" : "danger"}
           >
-            {registration.parentConsentDocumentUrl ? (
-              <a
-                href={registration.parentConsentDocumentUrl}
-                onClick={(e) => e.stopPropagation()}
-                rel="noreferrer"
-                target="_blank"
-              >
-                <AppIcon name="download" />
-              </a>
-            ) : (
-              <AppIcon name={hasParent ? "check" : "x"} />
-            )}
             Genitore
-          </span>
-          {canResend ? (
-            <button
-              className="unit-consent-resend"
-              disabled={isResending}
-              onClick={onResend}
-              type="button"
+          </Pill>
+          {registration.parentConsentDocumentUrl ? (
+            <a
+              className={buttonClassName({ variant: "ghost" })}
+              href={registration.parentConsentDocumentUrl}
+              onClick={(e) => e.stopPropagation()}
+              rel="noreferrer"
+              target="_blank"
             >
-              <AppIcon name={isResending ? "refresh" : "mail"} />
+              <Icon name="download" />
+              <span>Doc. genitore</span>
+            </a>
+          ) : null}
+          {canResend ? (
+            <Button
+              busy={isResending}
+              icon="mail"
+              onClick={onResend}
+              variant="secondary"
+            >
               {isResending ? "Invio..." : "Reinvia email"}
-            </button>
+            </Button>
           ) : null}
         </>
       ) : null}
@@ -211,21 +218,17 @@ function CampAssignmentCell({
   const committeeTitle = assignment?.committeeTitle ?? fallbackCommittee?.title;
 
   if (!patrolName && !committeeTitle) {
-    return <span className="subtle-text">-</span>;
+    return <span className="unit-activity-person__none">-</span>;
   }
 
   return (
-    <div className="unit-consent-cell">
+    <div className="unit-activity-cell">
       {patrolName ? (
-        <span className="unit-badge unit-badge--ok" title={groupName}>
+        <Pill title={groupName} tone="info">
           {patrolName}
-        </span>
+        </Pill>
       ) : null}
-      {committeeTitle ? (
-        <span className="unit-badge" title="Comitato">
-          {committeeTitle}
-        </span>
-      ) : null}
+      {committeeTitle ? <Pill title="Comitato">{committeeTitle}</Pill> : null}
     </div>
   );
 }
@@ -236,6 +239,7 @@ function RegistrationRow({
   campAssignment,
   groupName,
   showCampAssignment,
+  assignmentLabel,
   requiresParentAuthorization,
   onToggleTransport,
   isResending,
@@ -246,6 +250,7 @@ function RegistrationRow({
   campAssignment: UnitCampAssignment | null;
   groupName: string;
   showCampAssignment: boolean;
+  assignmentLabel: string;
   requiresParentAuthorization: boolean;
   onToggleTransport: () => void;
   isResending: boolean;
@@ -256,48 +261,69 @@ function RegistrationRow({
   const statusLabel = getRegistrationStatusLabel(registration.registrationStatus);
 
   return (
-    <tr className="unit-table__row">
-      <td className="unit-table__cell unit-table__cell--name">
-        <strong>{registration.fullName}</strong>
-        <small className="subtle-text">{categoryLabel}</small>
-      </td>
-      <td className="unit-table__cell">
-        <StatusBadge tone={statusTone} label={statusLabel} />
-      </td>
-      <td className="unit-table__cell">
-        <TransportBadge
-          registration={registration}
-          isResolved={isTransportResolved}
-          onToggle={onToggleTransport}
-        />
-      </td>
-      <td className="unit-table__cell">
-        <ConsentCell
-          registration={registration}
-          requiresParentAuthorization={requiresParentAuthorization}
-          isResending={isResending}
-          onResend={onResendParentAuthorization}
-        />
-      </td>
-      {showCampAssignment ? (
-        <td className="unit-table__cell">
-          <CampAssignmentCell registration={registration} assignment={campAssignment} groupName={groupName} />
-        </td>
-      ) : null}
-    </tr>
+    <li className="unit-activity-person">
+      <div className="unit-activity-person__head">
+        <span className="unit-activity-avatar" aria-hidden="true">
+          {getCommitteeInitials(registration.fullName)}
+        </span>
+        <p className="unit-activity-person__name">
+          <strong>{registration.fullName}</strong>{" "}
+          <span>{categoryLabel}</span>
+        </p>
+        <Pill dot tone={statusTone}>
+          {statusLabel}
+        </Pill>
+      </div>
+      <dl className="unit-activity-person__facts">
+        <div>
+          <dt>Trasporto</dt>
+          <dd>
+            <TransportBadge
+              registration={registration}
+              isResolved={isTransportResolved}
+              onToggle={onToggleTransport}
+            />
+          </dd>
+        </div>
+        <div>
+          <dt>Consensi</dt>
+          <dd>
+            <ConsentCell
+              registration={registration}
+              requiresParentAuthorization={requiresParentAuthorization}
+              isResending={isResending}
+              onResend={onResendParentAuthorization}
+            />
+          </dd>
+        </div>
+        {showCampAssignment ? (
+          <div>
+            <dt>{assignmentLabel}</dt>
+            <dd>
+              <CampAssignmentCell registration={registration} assignment={campAssignment} groupName={groupName} />
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+    </li>
   );
 }
 
-function NotRegisteredRow({ youth, columns }: { youth: UserProfile; columns: number }) {
+function NotRegisteredRow({ youth }: { youth: UserProfile }) {
   return (
-    <tr className="unit-table__row unit-table__row--unregistered">
-      <td className="unit-table__cell unit-table__cell--name" colSpan={columns}>
-        <strong>{youth.fullName}</strong>
-        <small className="subtle-text">
-          {getGenderRoleCategoryLabel(youth.genderRoleCategory)} · Non iscritto/a
-        </small>
-      </td>
-    </tr>
+    <li className="unit-activity-person unit-activity-person--unregistered">
+      <div className="unit-activity-person__head">
+        <span className="unit-activity-avatar unit-activity-avatar--muted" aria-hidden="true">
+          {getCommitteeInitials(youth.fullName)}
+        </span>
+        <p className="unit-activity-person__name">
+          <strong>{youth.fullName}</strong>{" "}
+          <span>
+            {getGenderRoleCategoryLabel(youth.genderRoleCategory)} · Non iscritto/a
+          </span>
+        </p>
+      </div>
+    </li>
   );
 }
 
@@ -390,6 +416,7 @@ export function UnitActivityPage() {
   const unitId = session?.profile.unitId ?? "";
   const [selectedCampGroupKey, setSelectedCampGroupKey] = useState<string | null>(null);
   const [resendingRegistrationId, setResendingRegistrationId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<UnitActivityTab>("registrations");
   // Esiti legati al contesto (account|palo|unità|attività) in cui sono nati:
   // si filtrano durante il render, così non compaiono nemmeno nel primo
   // render dopo un cambio, prima dell'effetto di pulizia.
@@ -432,6 +459,7 @@ export function UnitActivityPage() {
   // Cambio di account, palo o attività: niente foglio né esito dell'altro contesto.
   useEffect(() => {
     setSelectedCampGroupKey(null);
+    setActiveTab("registrations");
     setActionInfo(null);
     setActionError(null);
   }, [contextKey]);
@@ -655,232 +683,346 @@ export function UnitActivityPage() {
       return Boolean(assignment?.patrolName || assignment?.committeeTitle);
     });
 
+  const tabDefinitions = getUnitActivityTabs({
+    showOrganization,
+    isCamp,
+    hasUser: Boolean(session?.firebaseUser.uid),
+  });
+  const visibleTab = getVisibleUnitActivityTab(tabDefinitions, activeTab);
+  const showTabs = Boolean(data.event) && tabDefinitions.length > 1;
+  const { withPeople: peopleGroups, empty: emptyGroups } = splitGroupsByMembers(
+    campGroups,
+    getCampGroupMemberCount,
+  );
+  // Primo caricamento fallito: solo l'avviso, niente conteggi a zero né «nessun iscritto».
+  const failedFirstLoad = Boolean(error) && !data.event;
+
+  // Schede (WAI-ARIA): frecce, Inizio e Fine spostano scheda e focus.
+  function handleTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const index = tabDefinitions.findIndex((tab) => tab.id === visibleTab);
+    const last = tabDefinitions.length - 1;
+    const next =
+      event.key === "ArrowRight" ? (index + 1) % tabDefinitions.length
+      : event.key === "ArrowLeft" ? (index - 1 + tabDefinitions.length) % tabDefinitions.length
+      : event.key === "Home" ? 0
+      : event.key === "End" ? last
+      : null;
+    if (next === null) return;
+    event.preventDefault();
+    const tab = tabDefinitions[next];
+    setActiveTab(tab.id);
+    document.getElementById(`unit-activity-tab-${tab.id}`)?.focus();
+  }
+
+  const stats: Array<{ label: string; value: number; icon: AppIconName; tone: "plain" | "warning" | "danger" }> = [
+    { label: "Iscritti unità", value: data.stats.total, icon: "users", tone: "plain" },
+    { label: "Trasporto", value: effectiveNeedsTransport, icon: "map-pin", tone: "warning" },
+    { label: "Foto mancanti", value: data.stats.missingPhotoConsent, icon: "eye", tone: "warning" },
+    { label: "Genitori", value: data.stats.missingParentConsent, icon: "lock", tone: "danger" },
+  ];
+
   return (
-    <div className="page page--activity-ios page--unit-activity">
+    <div className="page unit-activity">
+      <ButtonLink
+        className="unit-activity__back"
+        icon="arrow-left"
+        to="/unit"
+        variant="ghost"
+      >
+        Torna alla home
+      </ButtonLink>
+
       {data.event ? (
-        <section className="activity-ios-hero activity-ios-hero--compact">
+        <section className="unit-activity-hero">
           <div
-            className="activity-ios-hero__image"
+            className="unit-activity-hero__media"
             style={
               data.event.heroImageUrl ? { backgroundImage: `url(${data.event.heroImageUrl})` } : undefined
             }
           >
-            {!data.event.heroImageUrl ? <AppIcon name="ticket" /> : null}
+            {data.event.heroImageUrl ? null : (
+              <svg
+                aria-hidden="true"
+                className="unit-activity-hero__scene"
+                preserveAspectRatio="xMidYMax slice"
+                viewBox="0 0 400 220"
+              >
+                <defs>
+                  <linearGradient id="unit-activity-sky" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0" stopColor="#9fb8cf" />
+                    <stop offset="0.62" stopColor="#e9d3ae" />
+                    <stop offset="1" stopColor="#f3dfbd" />
+                  </linearGradient>
+                </defs>
+                <rect fill="url(#unit-activity-sky)" height="220" width="400" />
+                <circle cx="300" cy="78" fill="#f6c77d" opacity="0.9" r="30" />
+                <path
+                  d="M0 160 C70 132 130 142 200 154 C270 166 330 142 400 150 V220 H0Z"
+                  fill="#7f9bb4"
+                />
+                <path
+                  d="M0 184 C90 166 160 180 240 188 C310 195 360 182 400 178 V220 H0Z"
+                  fill="#1b3f67"
+                />
+              </svg>
+            )}
           </div>
-          <div className="activity-ios-hero__content">
-            <div className="activity-ios-chip-row">
-              <span className="activity-ios-chip activity-ios-chip--green">La tua unità</span>
-              {data.event.overnight ? (
-                <span className="activity-ios-chip activity-ios-chip--violet">Pernottamento</span>
+          <div className="unit-activity-hero__body">
+            <div className="unit-activity-hero__pills">
+              <Pill tone="info">La tua unità</Pill>
+              {data.event.overnight ? <Pill>Pernottamento</Pill> : null}
+            </div>
+            <h1 className="unit-activity-hero__title">{data.event.title}</h1>
+            <div className="unit-activity-hero__meta">
+              <p>
+                <Icon name="calendar" />
+                <span>{formatUnitDateRange(data.event.startDate, data.event.endDate)}</span>
+              </p>
+              {data.event.location ? (
+                <p>
+                  <Icon name="map-pin" />
+                  <span>{data.event.location}</span>
+                </p>
               ) : null}
             </div>
-            <h1>{data.event.title}</h1>
-            <p className="activity-ios-meta">
-              <AppIcon name="calendar" />
-              <span>{formatUnitDateRange(data.event.startDate, data.event.endDate)}</span>
-            </p>
-            {data.event.location ? (
-              <p className="activity-ios-meta">
-                <AppIcon name="map-pin" />
-                <span>{data.event.location}</span>
-              </p>
-            ) : null}
           </div>
         </section>
       ) : loading ? (
-        <p className="subtle-text">Caricamento...</p>
+        <section className="unit-activity-hero unit-activity-hero--loading">
+          <div className="unit-activity-hero__body">
+            <h1 className="unit-activity-hero__title">Caricamento...</h1>
+          </div>
+        </section>
       ) : null}
 
-      {data.event ? <ActivityMediaCard stakeId={stakeId} event={data.event} /> : null}
-
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Impossibile caricare i dati</h3>
-            <p>{error}</p>
-          </div>
-        </div>
+        <Notice tone="warning" title="Impossibile caricare i dati">
+          <p>{error}</p>
+        </Notice>
       ) : null}
 
       {visibleActionInfo ? (
-        <div className="notice notice--info">
-          <div>
-            <h3>Email inviata</h3>
-            <p>{visibleActionInfo}</p>
-          </div>
-        </div>
+        <Notice tone="success" title="Email inviata">
+          <p>{visibleActionInfo}</p>
+        </Notice>
       ) : null}
 
       {visibleActionError ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Reinvio non riuscito</h3>
-            <p>{visibleActionError}</p>
-          </div>
-        </div>
+        <Notice tone="danger" title="Reinvio non riuscito">
+          <p>{visibleActionError}</p>
+        </Notice>
       ) : null}
 
-      {!loading && (
-        <section className="activity-ios-metrics activity-ios-metrics--four">
-          <article className="activity-ios-metric">
-            <span><AppIcon name="users" /></span>
-            <strong>{data.stats.total}</strong>
-            <small>Iscritti unità</small>
-          </article>
-          <article className="activity-ios-metric activity-ios-metric--warn">
-            <span><AppIcon name="map-pin" /></span>
-            <strong>{effectiveNeedsTransport}</strong>
-            <small>Trasporto</small>
-          </article>
-          <article className="activity-ios-metric activity-ios-metric--warn">
-            <span><AppIcon name="eye" /></span>
-            <strong>{data.stats.missingPhotoConsent}</strong>
-            <small>Foto mancanti</small>
-          </article>
-          <article className="activity-ios-metric activity-ios-metric--danger">
-            <span><AppIcon name="lock" /></span>
-            <strong>{data.stats.missingParentConsent}</strong>
-            <small>Genitori</small>
-          </article>
+      {!loading && !failedFirstLoad && (
+        <section aria-label="Riepilogo" className="unit-activity-stats">
+          {stats.map((stat) => (
+            <article
+              className={
+                stat.tone !== "plain" && stat.value > 0
+                  ? `unit-activity-stat unit-activity-stat--${stat.tone}`
+                  : "unit-activity-stat"
+              }
+              key={stat.label}
+            >
+              <Icon name={stat.icon} />
+              <strong>{stat.value}</strong>
+              <span>{stat.label}</span>
+            </article>
+          ))}
         </section>
       )}
 
-      {!loading && showOrganization ? (
-        <section className="activity-ios-panel admin-section">
-          <div className="admin-section__head">
-            <div>
-              <h2>Organizzazione</h2>
-              <p className="subtle-text">{`Comitati e ${campGroupLabels.plural.toLocaleLowerCase("it-IT")}`}</p>
-            </div>
-            <Link className="button button--ghost button--small camp-organization-manage" to={`/admin/events/${eventId}/comitati`}>
-              Gestisci
-            </Link>
-          </div>
-          {!data.campManagementAvailable ? (
-            <div className="inline-actions">
-              <p className="subtle-text">{CAMP.organizzazioneErrore}</p>
-              <button className="button button--ghost" onClick={reload} type="button">
-                {CAMP.riprova}
-              </button>
-            </div>
-          ) : campGroups.length === 0 ? (
-            <p className="subtle-text">
-              {fillCopy(CAMP.organizzazioneVuota, {
-                gruppi: campGroupLabels.empty.toLocaleLowerCase("it-IT"),
-              })}
-            </p>
-          ) : (
-          <div className="camp-ios-grid">
-            {campGroups.map((group) => {
-              const memberCount = getCampGroupMemberCount(group);
-              const preview = getCampGroupPreview(group);
+      {data.event ? <ActivityMediaCard stakeId={stakeId} event={data.event} /> : null}
 
-              return (
-                <button
-                  className={
-                    group.kind === "committee"
-                      ? "camp-ios-card camp-ios-card--committee"
-                      : "camp-ios-card camp-ios-card--patrol"
-                  }
-                  key={`${group.kind}:${group.id}`}
-                  onClick={() => setSelectedCampGroupKey(`${group.kind}:${group.id}`)}
-                  type="button"
-                >
-                  <span className="camp-ios-card__icon" aria-hidden="true">
-                    {getCommitteeInitials(group.title)}
-                  </span>
-                  <span className="camp-ios-card__body">
-                    <strong>{group.title}</strong>
-                    <small>
-                      {group.kind === "committee" ? "Comitato" : campGroupLabels.singular} ·{" "}
-                      {memberCount} {memberCount === 1 ? "persona" : "persone"}
-                    </small>
-                    <span className="camp-ios-card__preview">
-                      {preview || "Nessuna persona assegnata"}
-                    </span>
-                  </span>
-                  <AppIcon name="arrow-right" />
-                </button>
-              );
-            })}
-          </div>
-          )}
-        </section>
-      ) : null}
-
-      {data.event && session?.firebaseUser.uid && isCamp ? (
-        <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} variant="unit" />
-      ) : null}
-
-      <section className="activity-ios-panel admin-section">
-        <div className="admin-section__head">
-          <div>
-            <h2>Iscritti dalla tua unità</h2>
-            <p className="subtle-text">{data.registrations.length} iscrizioni attive</p>
-          </div>
+      {showTabs ? (
+        <div
+          aria-label="Menu attività"
+          className="unit-activity-tabs"
+          onKeyDown={handleTabKeyDown}
+          role="tablist"
+        >
+          {tabDefinitions.map((tab) => (
+            <button
+              aria-controls="unit-activity-panel"
+              aria-selected={visibleTab === tab.id}
+              className="unit-activity-tabs__tab"
+              id={`unit-activity-tab-${tab.id}`}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              role="tab"
+              tabIndex={visibleTab === tab.id ? 0 : -1}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
+      ) : null}
 
-        {loading ? (
-          <p className="subtle-text">Caricamento...</p>
-        ) : data.registrations.length === 0 ? (
-          <p className="subtle-text">Nessun iscritto dalla tua unità per questa attività.</p>
-        ) : (
-          <div className="unit-table-wrapper">
-            <table className="unit-table">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Stato</th>
-                  <th>Trasporto</th>
-                  <th>Consensi</th>
-                  {showAssignmentColumn ? <th>{isCamp ? "Campeggio" : "Organizzazione"}</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {data.registrations.map((r) => (
-                  <RegistrationRow
-                    key={r.id}
-                    registration={r}
-                    campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
-                    groupName={campGroupLabels.singular}
-                    showCampAssignment={showAssignmentColumn}
-                    requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
-                    isTransportResolved={resolvedSet.has(r.id)}
-                    onToggleTransport={() => void handleToggleTransport(r.id)}
-                    isResending={resendingRegistrationId === r.id}
-                    onResendParentAuthorization={() =>
-                      void handleResendParentAuthorization(r)
-                    }
-                  />
-                ))}
-              </tbody>
-            </table>
+      <section
+        aria-busy={loading || undefined}
+        aria-labelledby={showTabs ? `unit-activity-tab-${visibleTab}` : undefined}
+        className="unit-activity-panel"
+        id="unit-activity-panel"
+        role={showTabs ? "tabpanel" : undefined}
+      >
+        {visibleTab === "registrations" && !failedFirstLoad ? (
+          <>
+            <Card
+              className="unit-activity-list-card"
+              subtitle={`${data.registrations.length} iscrizioni attive`}
+              title="Iscritti dalla tua unità"
+            >
+              {loading ? (
+                <p className="unit-activity-muted" role="status">Caricamento...</p>
+              ) : data.registrations.length === 0 ? (
+                <EmptyState
+                  action={null}
+                  headingAs="h3"
+                  illustration={giovaniUrl}
+                  title="Nessun iscritto dalla tua unità per questa attività."
+                />
+              ) : (
+                <ul className="unit-activity-people">
+                  {data.registrations.map((r) => (
+                    <RegistrationRow
+                      key={r.id}
+                      registration={r}
+                      campAssignment={campOrganization.assignmentByRegistrationId.get(r.id) ?? null}
+                      groupName={campGroupLabels.singular}
+                      showCampAssignment={showAssignmentColumn}
+                      assignmentLabel={isCamp ? "Campeggio" : "Organizzazione"}
+                      requiresParentAuthorization={Boolean(data.event?.requiresParentAuthorization)}
+                      isTransportResolved={resolvedSet.has(r.id)}
+                      onToggleTransport={() => void handleToggleTransport(r.id)}
+                      isResending={resendingRegistrationId === r.id}
+                      onResendParentAuthorization={() =>
+                        void handleResendParentAuthorization(r)
+                      }
+                    />
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            {!loading && notRegistered.length > 0 && (
+              <Card
+                className="unit-activity-list-card unit-activity-list-card--unregistered"
+                subtitle="Giovani con account nella tua unità che non risultano iscritti a questa attività"
+                title="Non ancora iscritti"
+              >
+                <ul className="unit-activity-people">
+                  {notRegistered.map((y) => (
+                    <NotRegisteredRow key={y.id} youth={y} />
+                  ))}
+                </ul>
+              </Card>
+            )}
+          </>
+        ) : null}
+
+        {visibleTab === "organization" ? (
+          <Card
+            headerAction={
+              <ButtonLink to={`/admin/events/${eventId}/comitati`} variant="ghost">
+                Gestisci
+              </ButtonLink>
+            }
+            subtitle={`Comitati e ${campGroupLabels.plural.toLocaleLowerCase("it-IT")}`}
+            title="Organizzazione"
+          >
+            {loading ? (
+              <p className="unit-activity-muted" role="status">Caricamento...</p>
+            ) : !data.campManagementAvailable ? (
+              <Notice
+                action={
+                  <Button onClick={reload} variant="secondary">
+                    {CAMP.riprova}
+                  </Button>
+                }
+                tone="warning"
+              >
+                <p>{CAMP.organizzazioneErrore}</p>
+              </Notice>
+            ) : campGroups.length === 0 ? (
+              <EmptyState
+                action={null}
+                className="unit-activity-empty"
+                headingAs="h3"
+                illustration={dirigenteUrl}
+                title={fillCopy(CAMP.organizzazioneVuota, {
+                  gruppi: campGroupLabels.empty.toLocaleLowerCase("it-IT"),
+                })}
+              />
+            ) : (
+              <div className="unit-activity-groups">
+                {peopleGroups.length > 0 ? (
+                  <div className="unit-activity-groups__grid">
+                    {peopleGroups.map((group) => {
+                      const memberCount = getCampGroupMemberCount(group);
+                      const preview = getCampGroupPreview(group);
+
+                      return (
+                        <button
+                          className={
+                            group.kind === "committee"
+                              ? "unit-activity-group"
+                              : "unit-activity-group unit-activity-group--patrol"
+                          }
+                          key={`${group.kind}:${group.id}`}
+                          onClick={() => setSelectedCampGroupKey(`${group.kind}:${group.id}`)}
+                          type="button"
+                        >
+                          <span className="unit-activity-group__mark" aria-hidden="true">
+                            {getCommitteeInitials(group.title)}
+                          </span>
+                          <span className="unit-activity-group__body">
+                            <strong>{group.title}</strong>
+                            <span className="unit-activity-group__meta">
+                              {group.kind === "committee" ? "Comitato" : campGroupLabels.singular} ·{" "}
+                              {memberCount} {memberCount === 1 ? "persona" : "persone"}
+                            </span>
+                            <span className="unit-activity-group__preview">{preview}</span>
+                          </span>
+                          <Icon name="arrow-right" className="unit-activity-group__arrow" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {emptyGroups.length > 0 ? (
+                  <div className="unit-activity-groups__empty">
+                    <p>Nessuna persona assegnata</p>
+                    <div className="unit-activity-groups__chips">
+                      {emptyGroups.map((group) => (
+                        <button
+                          className="unit-activity-chip"
+                          key={`${group.kind}:${group.id}`}
+                          onClick={() => setSelectedCampGroupKey(`${group.kind}:${group.id}`)}
+                          type="button"
+                        >
+                          <span>{group.title}</span>
+                          {group.kind === "patrol" ? (
+                            <span className="unit-activity-chip__kind">{campGroupLabels.singular}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </Card>
+        ) : null}
+
+        {/* Sempre montata sul campeggio: il salvataggio parte 250 ms dopo il
+            segno e smontarla al cambio di scheda lo cancellerebbe. */}
+        {data.event && session?.firebaseUser.uid && isCamp ? (
+          <div className="unit-activity-packing" hidden={visibleTab !== "packing"}>
+            <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} variant="unit" />
           </div>
-        )}
+        ) : null}
       </section>
-
-      {!loading && notRegistered.length > 0 && (
-        <section className="activity-ios-panel admin-section">
-          <div className="admin-section__head">
-            <div>
-              <h2>Non ancora iscritti</h2>
-              <p className="subtle-text">
-                Giovani con account nella tua unità che non risultano iscritti a questa attività
-              </p>
-            </div>
-          </div>
-
-          <div className="unit-table-wrapper">
-            <table className="unit-table unit-table--unregistered">
-              <tbody>
-                {notRegistered.map((y) => (
-                  <NotRegisteredRow columns={showAssignmentColumn ? 5 : 4} key={y.id} youth={y} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
 
       {selectedCampGroup ? (
         <AppModal
@@ -889,29 +1031,48 @@ export function UnitActivityPage() {
           size="compact"
           onClose={() => setSelectedCampGroupKey(null)}
         >
-          {selectedCampGroup.responsibilities ? <section><h4>{CAMP.incarico}</h4><p className="camp-config-responsibilities">{selectedCampGroup.responsibilities}</p></section> : null}
-          <div className="camp-person-list">
-            {selectedCampGroup.manualLeaderNames.map((fullName) => (
-              <article className="camp-person-row" key={`manual-${fullName}`}>
-                <span>
-                  <strong>{fullName}</strong>
-                  <small>Dirigente manuale</small>
-                </span>
-                <StatusBadge label="Responsabile" tone="info" />
-              </article>
-            ))}
-            {selectedCampGroup.publicMembers.map((member) => (
-              <article className="camp-person-row" key={member.registrationId}>
-                <span>
-                  <strong>{member.fullName}</strong>
-                  <small>{getCampPublicMemberSubtitle(member)}</small>
-                </span>
-                <StatusBadge
-                  label={getCampPublicMemberRoleLabel(member, selectedCampGroup.kind)}
-                  tone="info"
-                />
-              </article>
-            ))}
+          <div className="unit-activity-sheet">
+            {selectedCampGroup.responsibilities ? (
+              <section className="unit-activity-sheet__duty">
+                <h4>{CAMP.incarico}</h4>
+                <p>{selectedCampGroup.responsibilities}</p>
+              </section>
+            ) : null}
+            {getCampGroupMemberCount(selectedCampGroup) === 0 ? (
+              <p className="unit-activity-muted">Nessuna persona assegnata</p>
+            ) : (
+              <ul className="unit-activity-people">
+                {selectedCampGroup.manualLeaderNames.map((fullName) => (
+                  <li className="unit-activity-person unit-activity-person--sheet" key={`manual-${fullName}`}>
+                    <div className="unit-activity-person__head">
+                      <span className="unit-activity-avatar" aria-hidden="true">
+                        {getCommitteeInitials(fullName)}
+                      </span>
+                      <p className="unit-activity-person__name">
+                        <strong>{fullName}</strong> <span>Dirigente manuale</span>
+                      </p>
+                      <Pill tone="info">Responsabile</Pill>
+                    </div>
+                  </li>
+                ))}
+                {selectedCampGroup.publicMembers.map((member) => (
+                  <li className="unit-activity-person unit-activity-person--sheet" key={member.registrationId}>
+                    <div className="unit-activity-person__head">
+                      <span className="unit-activity-avatar" aria-hidden="true">
+                        {getCommitteeInitials(member.fullName)}
+                      </span>
+                      <p className="unit-activity-person__name">
+                        <strong>{member.fullName}</strong>{" "}
+                        <span>{getCampPublicMemberSubtitle(member)}</span>
+                      </p>
+                      <Pill tone="info">
+                        {getCampPublicMemberRoleLabel(member, selectedCampGroup.kind)}
+                      </Pill>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </AppModal>
       ) : null}
