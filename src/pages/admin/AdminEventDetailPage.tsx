@@ -18,11 +18,12 @@ import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { ANNULLA } from "@/copy/annulla";
 import { ADMIN } from "@/copy/admin";
+import { EVENTO } from "@/copy/evento";
+import { SONDAGGIO } from "@/copy/sondaggio";
 import { ISCRITTI } from "@/copy/iscritti";
 import { fillCopy } from "@/copy/parole";
 import { AppModal } from "@/components/AppModal";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
-import { EmptyState } from "@/components/EmptyState";
 import { PhotoConsentPills } from "@/components/PhotoConsentPills";
 import { RegistrationExcelExportModal } from "@/components/RegistrationExcelExportModal";
 import { ShareButton } from "@/components/ShareButton";
@@ -47,7 +48,28 @@ import { GalleryAdminTab } from "@/components/admin/gallery/GalleryAdminTab";
 import { MomentsAdminTab } from "@/components/admin/moments/MomentsAdminTab";
 import { MOMENTI } from "@/copy/momenti";
 import { RecordNightAdminTab } from "@/components/admin/recordNight/RecordNightAdminTab";
+import dirigenteArt from "@/assets/flusso-genitore/dirigente.webp";
+import genitoreArt from "@/assets/flusso-genitore/genitore.webp";
+import giovaniArt from "@/assets/flusso-genitore/giovani.webp";
+import ioArt from "@/assets/flusso-genitore/io.webp";
+import {
+  Button,
+  ButtonLink,
+  EmptyState,
+  Icon,
+  Notice,
+  PageHeader,
+  Pill,
+  buttonClassName,
+} from "@/components/ui";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import {
+  getAdminEventTabFromPath,
+  getAdminEventTabHref,
+  getAdminEventTabs,
+  type AdminEventTab,
+} from "@/utils/adminEventTabs";
+import "@/styles/adminEvent.css";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
@@ -113,18 +135,6 @@ import {
 } from "@/utils/registrations";
 import { DEFAULT_STAKE_ID } from "@/config/app";
 
-type AdminEventTab =
-  | "details"
-  | "program"
-  | "committees"
-  | "registrations"
-  | "consents"
-  | "overnight"
-  | "questions"
-  | "records"
-  | "surveys"
-  | "gallery"
-  | "stats";
 type RegistrationModalMode = "registration" | "overnight";
 
 interface DistributionItem {
@@ -353,80 +363,6 @@ function getParentAuthorizationBadge(
   }
 
   return { label: "Email mancante", tone: "warning" };
-}
-
-function getAdminEventTabFromPath(pathname: string, search = ""): AdminEventTab {
-  if (pathname.endsWith("/committees") || pathname.endsWith("/comitati")) {
-    return "committees";
-  }
-
-  if (pathname.endsWith("/registrations")) {
-    return "registrations";
-  }
-
-  if (pathname.endsWith("/consents")) {
-    return "consents";
-  }
-
-  if (pathname.endsWith("/rooms")) {
-    return "overnight";
-  }
-
-  if (pathname.endsWith("/questions")) {
-    return "questions";
-  }
-
-  if (pathname.endsWith("/surveys") || pathname.endsWith("/sondaggi")) {
-    return "surveys";
-  }
-
-  if (pathname.endsWith("/gallery")) {
-    return "gallery";
-  }
-
-  if (pathname.endsWith("/stats")) {
-    return "stats";
-  }
-
-  if (new URLSearchParams(search).get("tab") === "program") return "program";
-
-  // La scheda Record vive sulla rotta di base con `?tab=records` (nessuna
-  // rotta nuova da registrare); `/records` è riconosciuto se la si aggiunge.
-  if (
-    pathname.endsWith("/records") ||
-    new URLSearchParams(search).get("tab") === "records"
-  ) {
-    return "records";
-  }
-
-  return "details";
-}
-
-function getAdminEventTabHref(eventId: string, tab: AdminEventTab) {
-  switch (tab) {
-    case "program":
-      return `/admin/events/${eventId}?tab=program`;
-    case "committees":
-      return `/admin/events/${eventId}/comitati`;
-    case "registrations":
-      return `/admin/events/${eventId}/registrations`;
-    case "consents":
-      return `/admin/events/${eventId}/consents`;
-    case "overnight":
-      return `/admin/events/${eventId}/rooms`;
-    case "questions":
-      return `/admin/events/${eventId}/questions`;
-    case "records":
-      return `/admin/events/${eventId}?tab=records`;
-    case "surveys":
-      return `/admin/events/${eventId}/surveys`;
-    case "gallery":
-      return `/admin/events/${eventId}/gallery`;
-    case "stats":
-      return `/admin/events/${eventId}/stats`;
-    default:
-      return `/admin/events/${eventId}`;
-  }
 }
 
 // Foglio di conferma aperto (mai un dialogo del browser). Ognuno si lega
@@ -750,6 +686,20 @@ export function AdminEventDetailPage() {
   const questionsLoading = questionsLoadingAnyContext || (!questionsSettled && !questionsError);
 
   const event = data?.workspace.event ?? null;
+  // Su telefono la barra a schede scorre: la scheda aperta da un link (es.
+  // /consents) resterebbe fuori schermo. Solo la barra scorre, non la pagina.
+  const tabsRef = useRef<HTMLElement | null>(null);
+  const hasEvent = Boolean(event);
+  useEffect(() => {
+    const list = tabsRef.current;
+    const tab = list?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!list || !tab) return;
+    const listBox = list.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left < listBox.left || tabBox.right > listBox.right) {
+      list.scrollLeft += tabBox.left - listBox.left - (listBox.width - tabBox.width) / 2;
+    }
+  }, [location.pathname, location.search, hasEvent]);
   const formConfig = data?.workspace.formConfig ?? null;
   const registrations = data?.workspace.registrations ?? [];
   // Chi ha aggiunto a mano l'iscrizione aperta nella scheda.
@@ -971,8 +921,14 @@ export function AdminEventDetailPage() {
     return (
       <div className="page">
         <EmptyState
-          title="Attività non trovata"
+          action={
+            <ButtonLink to="/admin/events" variant="secondary">
+              {SONDAGGIO.tornaAttivitaElenco}
+            </ButtonLink>
+          }
           description="La scheda richiesta non è disponibile."
+          illustration={dirigenteArt}
+          title="Attività non trovata"
         />
       </div>
     );
@@ -982,29 +938,36 @@ export function AdminEventDetailPage() {
     return (
       <div className="page">
         {error ? (
-          <div className="notice notice--warning">
-            <div>
-              <h3>Dettaglio non disponibile</h3>
-              <p>{error}</p>
-              {!loading ? (
-                <button
-                  className="button button--ghost"
+          <Notice
+            action={
+              !loading ? (
+                <Button
                   onClick={() => setRefreshKey((current) => current + 1)}
-                  type="button"
+                  variant="secondary"
                 >
                   {CAMP.riprova}
-                </button>
-              ) : null}
-            </div>
-          </div>
+                </Button>
+              ) : null
+            }
+            title="Dettaglio non disponibile"
+            tone="danger"
+          >
+            <p>{error}</p>
+          </Notice>
         ) : null}
 
         {loading ? (
           <p className="subtle-text">Sto preparando l'attività...</p>
         ) : (
           <EmptyState
-            title="Attività non trovata"
+            action={
+              <ButtonLink to="/admin/events" variant="secondary">
+                {SONDAGGIO.tornaAttivitaElenco}
+              </ButtonLink>
+            }
             description="La scheda richiesta non è disponibile."
+            illustration={dirigenteArt}
+            title="Attività non trovata"
           />
         )}
       </div>
@@ -1088,16 +1051,13 @@ export function AdminEventDetailPage() {
   const overnightUnitSingularTitle = isCampOvernight ? "Tenda" : "Stanza";
   const overnightUnitPlural = isCampOvernight ? "tende" : "stanze";
   const overnightUnitPluralTitle = isCampOvernight ? "Tende" : "Stanze";
-  const subtabsCountClass = (() => {
-    let count = 5;
-    if (resolvedEvent.overnight) count += 1;
-    if (resolvedEvent.questionsEnabled) count += 1;
-    if (resolvedEvent.recordsEnabled) count += 1;
-    if (count >= 7) return "admin-subtabs admin-subtabs--six";
-    if (count === 6) return "admin-subtabs admin-subtabs--six";
-    if (count === 5) return "admin-subtabs admin-subtabs--five";
-    return "admin-subtabs admin-subtabs--four";
-  })();
+  const adminEventTabs = getAdminEventTabs({
+    isAdmin: Boolean(session?.isAdmin),
+    overnight: Boolean(resolvedEvent.overnight),
+    overnightLabel: overnightUnitPluralTitle,
+    questionsEnabled: Boolean(resolvedEvent.questionsEnabled),
+    recordsEnabled: Boolean(resolvedEvent.recordsEnabled),
+  });
   const visibleQuestions = sortedQuestions.filter(
     (question) => question.status === "active",
   );
@@ -2548,321 +2508,201 @@ export function AdminEventDetailPage() {
   })();
 
   return (
-    <div className={`page page--activity-ios page--admin-activity-detail${activeTab === "overnight" ? " page--room-planner" : ""}${activeTab === "records" ? " page--rna-wide" : ""}`}>
+    <div className={`page page--activity-ios page--admin-activity-detail admin-event${activeTab === "overnight" ? " page--room-planner" : ""}${activeTab === "records" ? " page--rna-wide" : ""}`}>
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Dettaglio non disponibile</h3>
-            <p>{error}</p>
-            {!loading ? (
-              <button
-                className="button button--ghost"
+        <Notice
+          action={
+            !loading ? (
+              <Button
                 onClick={() => setRefreshKey((current) => current + 1)}
-                type="button"
+                variant="secondary"
               >
                 {CAMP.riprova}
-              </button>
-            ) : null}
-          </div>
-        </div>
+              </Button>
+            ) : null
+          }
+          title="Dettaglio non disponibile"
+          tone="danger"
+        >
+          <p>{error}</p>
+        </Notice>
       ) : null}
 
       {actionInfo && !pageModalOpen ? (
-        <div className="notice notice--info">
-          <div>
-            <h3>Informazione</h3>
-            <p>{actionInfo}</p>
-            {actionDownload ? (
-              <p style={{ marginTop: "0.5rem" }}>
+        <Notice
+          action={
+            actionDownload ? (
+              <>
                 <a
-                  className="button button--primary button--small"
+                  className={buttonClassName()}
                   href={actionDownload.url}
                   rel="noopener noreferrer"
                   target="_blank"
                 >
-                  {actionDownload.label}
-                </a>{" "}
-                <span className="subtle-text">
+                  <span>{actionDownload.label}</span>
+                </a>
+                <span className="admin-event__hint">
                   Il link scade tra 15 minuti.
                 </span>
-              </p>
-            ) : null}
-          </div>
-        </div>
+              </>
+            ) : null
+          }
+          title="Informazione"
+          tone="info"
+        >
+          <p>{actionInfo}</p>
+        </Notice>
       ) : null}
 
       {actionError && !pageModalOpen ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Azione non completata</h3>
-            <p>{actionError}</p>
-          </div>
-        </div>
+        <Notice title="Azione non completata" tone="danger">
+          <p>{actionError}</p>
+        </Notice>
       ) : null}
 
-      <section className="activity-ios-hero">
+      <section className="admin-event-hero">
         <div
-          className="activity-ios-hero__image"
+          className="admin-event-hero__media"
           style={
             resolvedEvent.heroImageUrl
               ? { backgroundImage: `url(${resolvedEvent.heroImageUrl})` }
               : undefined
           }
         >
-          {!resolvedEvent.heroImageUrl ? <AppIcon name="ticket" /> : null}
+          {resolvedEvent.heroImageUrl ? null : (
+            <svg
+              aria-hidden="true"
+              className="admin-event-hero__scene"
+              preserveAspectRatio="xMidYMax slice"
+              viewBox="0 0 400 220"
+            >
+              <defs>
+                <linearGradient id="admin-event-sky" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor="#9fb8cf" />
+                  <stop offset="0.62" stopColor="#e9d3ae" />
+                  <stop offset="1" stopColor="#f3dfbd" />
+                </linearGradient>
+              </defs>
+              <rect fill="url(#admin-event-sky)" height="220" width="400" />
+              <circle cx="300" cy="78" fill="#f6c77d" opacity="0.9" r="30" />
+              <path
+                d="M0 160 C70 132 130 142 200 154 C270 166 330 142 400 150 V220 H0Z"
+                fill="#7f9bb4"
+              />
+              <path
+                d="M0 184 C90 166 160 180 240 188 C310 195 360 182 400 178 V220 H0Z"
+                fill="#1b3f67"
+              />
+            </svg>
+          )}
         </div>
 
-        <div className="activity-ios-hero__content">
-          <div className="activity-ios-chip-row">
-            <StatusBadge
-              label={getEventStatusLabel(effectiveStatus)}
-              tone={getEventStatusTone(effectiveStatus)}
-            />
-            <span className="activity-ios-chip activity-ios-chip--blue">
-              {getEventAudienceLabel(resolvedEvent.audience)}
-            </span>
-            {resolvedEvent.overnight ? (
-              <span className="activity-ios-chip activity-ios-chip--violet">
-                Pernottamento
-              </span>
-            ) : null}
-          </div>
-
-          <h1>{resolvedEvent.title}</h1>
-
-          <p className="activity-ios-meta">
-            <AppIcon name="calendar" />
-            <span>
-              {formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}
-            </span>
-          </p>
-          {resolvedEvent.location ? (
-            <p className="activity-ios-meta">
-              <AppIcon name="map-pin" />
-              <span>{resolvedEvent.location}</span>
-            </p>
-          ) : null}
-        </div>
-
-        <div className="activity-ios-actions">
-          {resolvedEvent.isPublic ? (
-            <ShareButton
-              className="activity-ios-action"
-              iconOnly
-              text="Guarda questa attività e apri l'iscrizione."
-              title={resolvedEvent.title}
-              url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
-            />
-          ) : null}
-          {/* Modifica, pubblicazione e cancellazione sono solo degli admin: chi
-              gestisce i comitati da dirigente o staff non le vede. */}
-          {!isCampManagerOnly ? (
+        <PageHeader
+          actions={
             <>
-              <button
-                aria-label="Modifica attività"
-                className="activity-ios-action"
-                onClick={() => {
-                  setActionInfo(null);
-                  openEditor("overview");
-                }}
-                title="Modifica"
-                type="button"
-              >
-                <AppIcon name="pencil" />
-              </button>
-              <button
-                aria-label="Rendi pubblica"
-                className="activity-ios-action"
-                disabled={busy === "delete"}
-                onClick={() => void handlePublish()}
-                title="Pubblica"
-                type="button"
-              >
-                <AppIcon name="globe" />
-              </button>
-              <button
-                aria-label="Cancella attività"
-                className="activity-ios-action activity-ios-action--danger"
-                disabled={busy !== null}
-                onClick={() => showConfirm({ kind: "deleteActivity" })}
-                title="Cancella"
-                type="button"
-              >
-                <AppIcon name="trash" />
-              </button>
+              {/* Modifica, pubblicazione e cancellazione sono solo degli admin: chi
+                  gestisce i comitati da dirigente o staff non le vede. */}
+              {!isCampManagerOnly ? (
+                <>
+                  <Button
+                    icon="pencil"
+                    onClick={() => {
+                      setActionInfo(null);
+                      openEditor("overview");
+                    }}
+                  >
+                    Modifica
+                  </Button>
+                  <Button
+                    disabled={busy === "delete"}
+                    icon="globe"
+                    onClick={() => void handlePublish()}
+                    variant="secondary"
+                  >
+                    Rendi pubblica
+                  </Button>
+                </>
+              ) : null}
+              {resolvedEvent.isPublic ? (
+                <ShareButton
+                  className="admin-event-hero__icon-button"
+                  iconOnly
+                  text="Guarda questa attività e apri l'iscrizione."
+                  title={resolvedEvent.title}
+                  url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
+                />
+              ) : null}
+              {!isCampManagerOnly ? (
+                <button
+                  aria-label="Cancella attività"
+                  className="admin-event-hero__icon-button admin-event-hero__icon-button--danger"
+                  disabled={busy !== null}
+                  onClick={() => showConfirm({ kind: "deleteActivity" })}
+                  title="Cancella"
+                  type="button"
+                >
+                  <Icon name="trash" />
+                </button>
+              ) : null}
             </>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="activity-ios-metrics">
-        <article className="activity-ios-metric">
-          <span>
-            <AppIcon name="users" />
-          </span>
-          <strong>{currentCount}</strong>
-          <small>Attivi</small>
-        </article>
-        <article className="activity-ios-metric">
-          <span>
-            <AppIcon name="user" />
-          </span>
-          <strong>{sortedRegistrations.length}</strong>
-          <small>Iscritti</small>
-        </article>
-        <article className="activity-ios-metric">
-          <span>
-            <AppIcon name="building" />
-          </span>
-          <strong>{resolvedEvent.overnight ? "Sì" : "No"}</strong>
-          <small>Pernotto</small>
-        </article>
+          }
+          back={{ to: "/admin/events", label: SONDAGGIO.tornaAttivitaElenco }}
+          className="admin-event-hero__header"
+          description={
+            <>
+              <span className="admin-event-hero__meta">
+                <Icon name="calendar" />
+                <span>
+                  {formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}
+                </span>
+              </span>
+              {resolvedEvent.location ? (
+                <span className="admin-event-hero__meta">
+                  <Icon name="map-pin" />
+                  <span>{resolvedEvent.location}</span>
+                </span>
+              ) : null}
+            </>
+          }
+          eyebrow={
+            <span className="admin-event-hero__pills">
+              <Pill dot tone={getEventStatusTone(effectiveStatus)}>
+                {getEventStatusLabel(effectiveStatus)}
+              </Pill>
+              <Pill>{getEventAudienceLabel(resolvedEvent.audience)}</Pill>
+              {resolvedEvent.overnight ? <Pill>Pernottamento</Pill> : null}
+              <Pill tone="sand">
+                {currentCount === 1
+                  ? EVENTO.attiviUno
+                  : fillCopy(EVENTO.attivi, { n: String(currentCount) })}
+              </Pill>
+              <Pill>
+                {sortedRegistrations.length === 1
+                  ? EVENTO.iscrittiUno
+                  : fillCopy(EVENTO.iscritti, { n: String(sortedRegistrations.length) })}
+              </Pill>
+            </span>
+          }
+          title={resolvedEvent.title}
+        />
       </section>
 
       {!isCampManagerOnly ? (
-        <div
-          className={subtabsCountClass}
-          aria-label="Sezioni attività"
-          role="tablist"
-        >
-        <button
-          aria-pressed={activeTab === "details"}
-          className={
-            activeTab === "details"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("details")}
-          type="button"
-        >
-          <AppIcon name="list" />
-          <span>Dettagli</span>
-        </button>
-        {session?.isAdmin ? <button aria-pressed={activeTab === "program"} className={activeTab === "program" ? "admin-subtabs__item admin-subtabs__item--active" : "admin-subtabs__item"} onClick={() => openTab("program")} type="button"><AppIcon name="calendar" /><span>{MOMENTI.programma}</span></button> : null}
-        <button
-          aria-pressed={activeTab === "committees"}
-          className={
-            activeTab === "committees"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("committees")}
-          type="button"
-        >
-          <AppIcon name="badge" />
-          <span>Comitati</span>
-        </button>
-        <button
-          aria-pressed={activeTab === "registrations"}
-          className={
-            activeTab === "registrations"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("registrations")}
-          type="button"
-        >
-          <AppIcon name="users" />
-          <span>Iscritti</span>
-        </button>
-        <button
-          aria-pressed={activeTab === "consents"}
-          className={
-            activeTab === "consents"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("consents")}
-          type="button"
-        >
-          <AppIcon name="lock" />
-          <span>Consensi</span>
-        </button>
-        {resolvedEvent.overnight ? (
-          <button
-            aria-pressed={activeTab === "overnight"}
-            className={
-              activeTab === "overnight"
-                ? "admin-subtabs__item admin-subtabs__item--active"
-                : "admin-subtabs__item"
-            }
-            onClick={() => openTab("overnight")}
-            type="button"
-          >
-            <AppIcon name="building" />
-            <span>{overnightUnitPluralTitle}</span>
-          </button>
-        ) : null}
-        {resolvedEvent.questionsEnabled ? (
-          <button
-            aria-pressed={activeTab === "questions"}
-            className={
-              activeTab === "questions"
-                ? "admin-subtabs__item admin-subtabs__item--active"
-                : "admin-subtabs__item"
-            }
-            onClick={() => openTab("questions")}
-            type="button"
-          >
-            <AppIcon name="bell" />
-            <span>Domande</span>
-          </button>
-        ) : null}
-        {resolvedEvent.recordsEnabled ? (
-          <button
-            aria-pressed={activeTab === "records"}
-            className={
-              activeTab === "records"
-                ? "admin-subtabs__item admin-subtabs__item--active"
-                : "admin-subtabs__item"
-            }
-            onClick={() => openTab("records")}
-            type="button"
-          >
-            <AppIcon name="sparkles" />
-            <span>Record</span>
-          </button>
-        ) : null}
-        <button
-          aria-pressed={activeTab === "surveys"}
-          className={
-            activeTab === "surveys"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("surveys")}
-          type="button"
-        >
-          <AppIcon name="ticket" />
-          <span>Sondaggi</span>
-        </button>
-        <button
-          aria-pressed={activeTab === "gallery"}
-          className={
-            activeTab === "gallery"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("gallery")}
-          type="button"
-        >
-          <AppIcon name="eye" />
-          <span>Galleria</span>
-        </button>
-        <button
-          aria-pressed={activeTab === "stats"}
-          className={
-            activeTab === "stats"
-              ? "admin-subtabs__item admin-subtabs__item--active"
-              : "admin-subtabs__item"
-          }
-          onClick={() => openTab("stats")}
-          type="button"
-        >
-          <AppIcon name="chart" />
-          <span>Statistiche</span>
-        </button>
-        </div>
+        // Ogni scheda è una rotta: è una navigazione (aria-current), non un
+        // tablist con le frecce.
+        <nav aria-label="Sezioni attività" className="admin-event-tabs" ref={tabsRef}>
+          {adminEventTabs.map((tab) => (
+            <button
+              aria-current={activeTab === tab.id ? "page" : undefined}
+              className="admin-event-tabs__tab"
+              key={tab.id}
+              onClick={() => openTab(tab.id)}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       ) : null}
 
       {activeTab === "details" ? (
@@ -2983,7 +2823,7 @@ export function AdminEventDetailPage() {
             <CampStaffSection eventId={eventId} stakeId={stakeId} />
           ) : null}
 
-          {campSyncWarning ? <div className="notice notice--warning" role="status"><p>{CAMP.assegnazioniDaControllare}</p></div> : null}
+          {campSyncWarning ? <Notice tone="warning"><p>{CAMP.assegnazioniDaControllare}</p></Notice> : null}
           <section className="surface-panel surface-panel--subtle camp-config-panel">
             <label className="field">
               <span className="field__label" id={`${campLabelIds}-gruppo`}>{CAMP.gruppoEtichetta}</span>
@@ -3165,8 +3005,11 @@ export function AdminEventDetailPage() {
 
             {campDraft.committees.length === 0 ? (
               <EmptyState
-                title={CAMP.nessunComitato}
+                action={null}
                 description={CAMP.primoComitato}
+                headingAs="h3"
+                illustration={giovaniArt}
+                title={CAMP.nessunComitato}
               />
             ) : null}
 
@@ -3212,8 +3055,11 @@ export function AdminEventDetailPage() {
 
             {campDraft.patrols.length === 0 ? (
               <EmptyState
-                title={campGroupLabels.empty}
+                action={null}
                 description={CAMP.primoGruppo}
+                headingAs="h3"
+                illustration={giovaniArt}
+                title={campGroupLabels.empty}
               />
             ) : (
               <div className="camp-committee-grid">
@@ -3475,8 +3321,11 @@ export function AdminEventDetailPage() {
 
           {activeRegistrations.length === 0 ? (
             <EmptyState
-              title="Nessuna iscrizione attiva"
+              action={null}
               description="Quando arrivano le iscrizioni vedrai qui lo stato dei consensi."
+              headingAs="h3"
+              illustration={genitoreArt}
+              title="Nessuna iscrizione attiva"
             />
           ) : (
             <article className="surface-panel surface-panel--subtle admin-consent-list">
@@ -4012,20 +3861,20 @@ export function AdminEventDetailPage() {
           </div>
 
           {questionsError ? (
-            <div className="notice notice--warning">
-              <div>
-                <h3>Domande non disponibili</h3>
-                <p>{questionsError}</p>
-              </div>
-            </div>
+            <Notice title="Domande non disponibili" tone="danger">
+              <p>{questionsError}</p>
+            </Notice>
           ) : null}
 
           {questionsLoading ? (
             <p className="subtle-text">Sto caricando le domande...</p>
           ) : sortedQuestions.length === 0 ? (
             <EmptyState
-              title="Nessuna domanda inviata"
+              action={null}
               description="Le domande dei partecipanti compariranno qui appena vengono inviate."
+              headingAs="h3"
+              illustration={ioArt}
+              title="Nessuna domanda inviata"
             />
           ) : (
             <article className="surface-panel surface-panel--subtle admin-roster">
@@ -4050,7 +3899,7 @@ export function AdminEventDetailPage() {
                 </div>
               </div>
 
-              <ul className="plain-list">
+              <ul className="plain-list admin-event-questions">
                 {sortedQuestions.map((question) => {
                   const isHidden = question.status === "hidden";
                   const author = question.isAnonymous
@@ -4778,23 +4627,26 @@ export function AdminEventDetailPage() {
             ) : null}
 
             {session?.isAdmin && isMissingParentEmail(registrationModal) ? (
-              <div className="admin-outcome admin-outcome--warning">
-                <strong>{ISCRITTI.mancaEmailTitolo}</strong>{" "}
-                {ISCRITTI.mancaEmailCorpo}
-                <button
-                  className="button button--primary button--small"
-                  disabled={busy !== null}
-                  onClick={() => {
-                    setActionError(null);
-                    setActionInfo(null);
-                    setRequestAuthorizationId(registrationModal.id);
-                  }}
-                  type="button"
-                >
-                  <AppIcon name="mail" />
-                  <span>{ISCRITTI.chiediAutorizzazione}</span>
-                </button>
-              </div>
+              <Notice
+                action={
+                  <Button
+                    disabled={busy !== null}
+                    icon="mail"
+                    onClick={() => {
+                      setActionError(null);
+                      setActionInfo(null);
+                      setRequestAuthorizationId(registrationModal.id);
+                    }}
+                  >
+                    {ISCRITTI.chiediAutorizzazione}
+                  </Button>
+                }
+                live="none"
+                title={ISCRITTI.mancaEmailTitolo}
+                tone="warning"
+              >
+                <p>{ISCRITTI.mancaEmailCorpo}</p>
+              </Notice>
             ) : null}
 
             {registrationModalHighlights.length > 0 ? (

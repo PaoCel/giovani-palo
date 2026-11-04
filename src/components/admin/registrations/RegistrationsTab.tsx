@@ -1,7 +1,8 @@
 import { useId, useMemo, useState } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
-import { EmptyState } from "@/components/EmptyState";
+import giovaniArt from "@/assets/flusso-genitore/giovani.webp";
+import { Button, EmptyState, Icon } from "@/components/ui";
 import { PhotoConsentPills } from "@/components/PhotoConsentPills";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -11,6 +12,7 @@ import {
   registrationCategoryFilterOptions,
   type RegistrationCategoryFilter,
 } from "@/components/admin/registrations/registrationLabels";
+import { CATALOGO } from "@/copy/catalogo";
 import { ISCRITTI } from "@/copy/iscritti";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { consentTasksService } from "@/services/firestore/consentTasksService";
@@ -19,6 +21,7 @@ import { isManualRegistration, isMissingParentEmail } from "@/utils/adminRegistr
 import { formatDateTime } from "@/utils/formatters";
 import { needsPhotoConsentQuestion } from "@/utils/parentAuthorization";
 import { getRegistrationDisplayName } from "@/utils/roomPreferences";
+import { getInitials } from "@/utils/shellNavigation";
 
 // Filtri dell'elenco: stanno nella pagina, così passare a Consensi o Stanze e
 // tornare non li perde (la tab si smonta).
@@ -314,20 +317,18 @@ export function RegistrationsTab({
       {sortedRegistrations.length === 0 ? (
         <>
           <EmptyState
-            title="Nessun iscritto"
+            action={
+              onAddManual ? (
+                <Button disabled={pageBusy} icon="plus" onClick={onAddManual}>
+                  {ISCRITTI.aggiungiAMano}
+                </Button>
+              ) : null
+            }
             description="Le registrazioni compariranno qui come elenco rapido."
+            headingAs="h3"
+            illustration={giovaniArt}
+            title="Nessun iscritto"
           />
-          {onAddManual ? (
-            <button
-              className="button button--primary"
-              disabled={pageBusy}
-              onClick={onAddManual}
-              type="button"
-            >
-              <AppIcon name="plus" />
-              <span>{ISCRITTI.aggiungiAMano}</span>
-            </button>
-          ) : null}
         </>
       ) : (
         <article className="surface-panel surface-panel--subtle admin-roster">
@@ -470,8 +471,18 @@ export function RegistrationsTab({
 
           {filteredRegistrations.length === 0 ? (
             <EmptyState
-              title="Nessun iscritto con questi filtri"
+              action={
+                <Button
+                  onClick={() => onFiltersChange(() => DEFAULT_REGISTRATION_FILTERS)}
+                  variant="secondary"
+                >
+                  {CATALOGO.togliFiltri}
+                </Button>
+              }
               description="Attiva almeno una categoria o cambia selezione."
+              headingAs="h3"
+              illustration={giovaniArt}
+              title="Nessun iscritto con questi filtri"
             />
           ) : (
             <div className="admin-roster__list" role="list">
@@ -486,18 +497,22 @@ export function RegistrationsTab({
                 return (
                   <button
                     key={registration.id}
-                    className="admin-roster-row"
+                    className="admin-event-person"
                     onClick={() => onOpenRegistration(registration.id)}
                     type="button"
                   >
-                    <strong>
+                    <span className="admin-event-person__avatar" aria-hidden="true">
+                      {getInitials(getRegistrationDisplayName(registration))}
+                    </span>
+                    <span className="admin-event-person__main">
+                    <strong className="admin-event-person__name">
                       {getRegistrationDisplayName(registration)}
                     </strong>
-                    <span className="admin-roster-row__type">
+                    <span className="admin-event-person__role">
                       {getCategoryShortLabel(registration)}
                     </span>
                     {showDays ? (
-                      <small className="admin-roster-row__days">
+                      <small className="admin-event-person__days">
                         Giorni:{" "}
                         {days
                           .map((day) =>
@@ -510,12 +525,12 @@ export function RegistrationsTab({
                       </small>
                     ) : null}
                     <PhotoConsentPills
-                      className="admin-roster-row__consent"
+                      className="admin-event-person__pills"
                       registration={registration}
                     />
                     {isManualRegistration(registration) ||
                     isMissingParentEmail(registration) ? (
-                      <span className="photo-consent-pills admin-roster-row__consent">
+                      <span className="photo-consent-pills admin-event-person__pills">
                         {isManualRegistration(registration) ? (
                           <StatusBadge label={ISCRITTI.pillAMano} tone="neutral" />
                         ) : null}
@@ -524,6 +539,8 @@ export function RegistrationsTab({
                         ) : null}
                       </span>
                     ) : null}
+                    </span>
+                    <Icon className="admin-event-person__arrow" name="arrow-right" />
                   </button>
                 );
               })}

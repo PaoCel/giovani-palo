@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import "@/styles/activityGallery.css";
 
 import { GalleryAdminPanel } from "@/components/admin/gallery/GalleryAdminPanel";
+import { Notice } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { galleriesService } from "@/services/firestore/galleriesService";
 import type { Event, Gallery, GalleryMedia } from "@/types";
@@ -100,14 +101,14 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
     return (
       <div className="gallery-empty">
         {error ? (
-          <div className="notice notice--warning">
+          <Notice tone="danger">
             <p>{error}</p>
-          </div>
+          </Notice>
         ) : null}
         {feedback ? (
-          <div className="notice notice--info">
+          <Notice tone="success">
             <p>{feedback}</p>
-          </div>
+          </Notice>
         ) : null}
         <div className="card gallery-create">
           <h3 className="gallery-create__title">Crea galleria</h3>
@@ -119,6 +120,7 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
             <label className="field">
               <span>Titolo</span>
               <input
+                className="input"
                 type="text"
                 value={createTitle}
                 onChange={(submitEvent) => setCreateTitle(submitEvent.target.value)}
@@ -129,6 +131,7 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
             <label className="field">
               <span>Descrizione (facoltativa)</span>
               <textarea
+                className="input"
                 value={createDescription}
                 onChange={(submitEvent) => setCreateDescription(submitEvent.target.value)}
                 rows={2}

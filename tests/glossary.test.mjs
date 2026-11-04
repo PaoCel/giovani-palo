@@ -16,6 +16,7 @@ import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
 import { CHI_SEI } from "../src/copy/chiSei.ts";
 import { DOMANDE } from "../src/copy/domande.ts";
 import { EVENT_CREATION } from "../src/copy/eventCreation.ts";
+import { EVENTO } from "../src/copy/evento.ts";
 import { FAMIGLIA } from "../src/copy/famiglia.ts";
 import { FIRMA } from "../src/copy/firma.ts";
 import { GALLERIA } from "../src/copy/galleria.ts";
@@ -524,6 +525,7 @@ const COPY = {
   CHI_SEI,
   DOMANDE,
   EVENT_CREATION,
+  EVENTO,
   FAMIGLIA,
   FIRMA,
   GALLERIA,

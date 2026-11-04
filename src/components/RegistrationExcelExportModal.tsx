@@ -123,7 +123,7 @@ export function RegistrationExcelExportModal({
         </>
       }
     >
-      <div style={{ display: "grid", gap: "1.6rem" }}>
+      <div className="admin-event-export" style={{ display: "grid", gap: "1.6rem" }}>
         <section>
           <h3 style={{ margin: "0 0 0.6rem", fontSize: "1rem" }}>Categorie da includere</h3>
           <p style={{ margin: "0 0 0.8rem", color: "var(--muted)", fontSize: "0.92rem" }}>
