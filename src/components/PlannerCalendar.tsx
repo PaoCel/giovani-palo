@@ -1,10 +1,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 
-import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
-import { EmptyState } from "@/components/EmptyState";
+import { EmptyState, Icon, Pill } from "@/components/ui";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
+import { fillCopy } from "@/copy/parole";
 import type { Event } from "@/types";
+import { getMonthAriaLabel } from "@/utils/adminLists";
 import { capitalize, formatDateRange } from "@/utils/formatters";
+import "@/styles/plannerCalendar.css";
 
 interface PlannerCalendarProps {
   events: Event[];
@@ -47,6 +50,10 @@ function getPlannerEventLabel(event: Event) {
   return `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// Quante attività mostra il riquadro del mese prima di «+N altre»: tre stanno
+// anche a 320 px; il resto è nella finestra del mese.
+const MONTH_PREVIEW = 3;
+
 export function PlannerCalendar({
   events,
   loading = false,
@@ -54,7 +61,8 @@ export function PlannerCalendar({
   onEventSelect,
   toolbarAction,
 }: PlannerCalendarProps) {
-  const currentYear = new Date().getFullYear();
+  const today = new Date();
+  const currentYear = today.getFullYear();
   const [year, setYear] = useState(currentYear);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState<number | null>(null);
 
@@ -82,113 +90,133 @@ export function PlannerCalendar({
 
   return (
     <>
-      <section className="planner-shell">
-        <div className={toolbarAction ? "planner-toolbar planner-toolbar--with-action" : "planner-toolbar"}>
+      <section className="cal">
+        <div className="cal-toolbar">
           <button
-            aria-label="Anno precedente"
-            className="icon-button icon-button--soft"
+            aria-label={COPY.annoPrecedente}
+            className="cal-toolbar__nav"
             onClick={() => setYear((current) => current - 1)}
             type="button"
           >
-            <AppIcon name="arrow-left" />
+            <Icon name="arrow-left" />
           </button>
 
-          <div className="planner-toolbar__meta">
-            <strong>{year}</strong>
-            {organizationName ? <span>{organizationName}</span> : null}
+          <div className="cal-toolbar__meta">
+            <h1 className="cal-toolbar__year">
+              <span className="sr-only">{COPY.calendarioTitolo} </span>
+              {year}
+            </h1>
+            {organizationName ? <p className="cal-toolbar__org">{organizationName}</p> : null}
           </div>
 
-          {toolbarAction ? <div className="planner-toolbar__action">{toolbarAction}</div> : null}
-
           <button
-            aria-label="Anno successivo"
-            className="icon-button icon-button--soft"
+            aria-label={COPY.annoSuccessivo}
+            className="cal-toolbar__nav"
             onClick={() => setYear((current) => current + 1)}
             type="button"
           >
-            <AppIcon name="arrow-right" />
+            <Icon name="arrow-right" />
           </button>
+
+          {toolbarAction ? <div className="cal-toolbar__action">{toolbarAction}</div> : null}
         </div>
 
-        {loading ? <p className="subtle-text">Sto preparando il planner...</p> : null}
+        {loading ? (
+          <div aria-busy="true" className="cal-board cal-board--loading">
+            <span className="sr-only" role="status">
+              {COPY.calendarioCaricamento}
+            </span>
+            {Array.from({ length: 6 }, (_, index) => (
+              <span aria-hidden="true" className="cal-month cal-month--skeleton" key={index} />
+            ))}
+          </div>
+        ) : (
+          <div className="cal-board">
+            {plannerMonths.map((month) => {
+              const isCurrent = year === currentYear && month.index === today.getMonth();
+              const count = month.events.length;
+              return (
+                <button
+                  key={`${year}-${month.index}`}
+                  aria-label={getMonthAriaLabel(month.monthLabel, count)}
+                  className={[
+                    "cal-month",
+                    isCurrent ? "cal-month--current" : "",
+                    count === 0 ? "cal-month--empty" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => setSelectedMonthIndex(month.index)}
+                  type="button"
+                >
+                  <span className="cal-month__head" aria-hidden="true">
+                    <strong className="cal-month__name">{month.monthLabel}</strong>
+                    {count > 0 ? <Pill tone="sand">{count}</Pill> : null}
+                  </span>
 
-        <div className="planner-board">
-          {plannerMonths.map((month) => (
-            <button
-              key={`${year}-${month.index}`}
-              className="planner-card"
-              onClick={() => setSelectedMonthIndex(month.index)}
-              type="button"
-            >
-              <div className="planner-card__tear" aria-hidden="true">
-                {Array.from({ length: 6 }, (_, index) => (
-                  <span key={`${month.monthLabel}-tear-${index}`} />
-                ))}
-              </div>
-
-              <div className="planner-card__head">
-                <strong className="planner-card__month">{month.monthLabel}</strong>
-                <small className="planner-card__count">{month.events.length}</small>
-              </div>
-
-              <div className="planner-card__events">
-                {month.events.length > 0 ? (
-                  <>
-                    {month.events.slice(0, 2).map((event) => (
-                      <p key={`${month.monthLabel}-${event.id}`} className="planner-card__event">
-                        <strong>{getPlannerEventLabel(event)}</strong>
-                        <span>{event.title}</span>
-                      </p>
-                    ))}
-                    {month.events.length > 2 ? (
-                      <p className="planner-card__more">+{month.events.length - 2} altre</p>
-                    ) : null}
-                  </>
-                ) : (
-                  <p className="planner-card__empty">Spazio libero</p>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
+                  <span className="cal-month__events" aria-hidden="true">
+                    {count > 0 ? (
+                      <>
+                        {month.events.slice(0, MONTH_PREVIEW).map((event) => (
+                          <span key={`${month.monthLabel}-${event.id}`} className="cal-month__event">
+                            <span className="cal-day">{getPlannerEventLabel(event)}</span>
+                            <span className="cal-month__title">{event.title}</span>
+                          </span>
+                        ))}
+                        {count > MONTH_PREVIEW ? (
+                          <span className="cal-month__more">
+                            {fillCopy(COPY.altreAttivita, { n: String(count - MONTH_PREVIEW) })}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="cal-month__empty">{COPY.meseLibero}</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {selectedMonth ? (
         <AppModal
           onClose={() => setSelectedMonthIndex(null)}
           size="wide"
-          subtitle="Attività del mese"
+          subtitle={COPY.attivitaDelMese}
           title={`${selectedMonth.monthLabel} ${year}`}
         >
           {selectedMonth.events.length === 0 ? (
             <EmptyState
-              title="Nessuna attività prevista"
-              description="Questo mese è ancora libero."
+              action={null}
+              description={COPY.meseVuotoCorpo}
+              headingAs="h3"
+              title={COPY.meseVuotoTitolo}
             />
           ) : (
-            <div className="planner-month-modal">
+            <ul className="cal-list">
               {selectedMonth.events.map((event) => (
-                <button
-                  key={event.id}
-                  className="planner-month-event"
-                  onClick={() => {
-                    setSelectedMonthIndex(null);
-                    onEventSelect(event);
-                  }}
-                  type="button"
-                >
-                  <div className="planner-month-event__day">{getPlannerEventLabel(event)}</div>
-
-                  <div className="planner-month-event__content">
-                    <strong>{event.title}</strong>
-                    <p>{formatDateRange(event.startDate, event.endDate)}</p>
-                    <p>{event.location || "Luogo da definire"}</p>
-                  </div>
-
-                  <AppIcon name="arrow-right" />
-                </button>
+                <li key={event.id}>
+                  <button
+                    className="cal-list__row"
+                    onClick={() => {
+                      setSelectedMonthIndex(null);
+                      onEventSelect(event);
+                    }}
+                    type="button"
+                  >
+                    <span className="cal-day cal-day--lg">{getPlannerEventLabel(event)}</span>
+                    <span className="cal-list__content">
+                      <strong>{event.title}</strong>
+                      <span>{formatDateRange(event.startDate, event.endDate)}</span>
+                      <span>{event.location || COPY.luogoDaDefinire}</span>
+                    </span>
+                    <Icon name="arrow-right" className="cal-list__arrow" />
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </AppModal>
       ) : null}
