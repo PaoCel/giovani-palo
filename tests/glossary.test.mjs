@@ -30,6 +30,7 @@ import { PAROLE, fillCopy } from "../src/copy/parole.ts";
 import { PERCORSO } from "../src/copy/percorso.ts";
 import { PROFILO } from "../src/copy/profilo.ts";
 import { STANZA } from "../src/copy/stanza.ts";
+import { TESTATA } from "../src/copy/testata.ts";
 import { TIPO_ACCOUNT } from "../src/copy/tipoAccount.ts";
 import { EXISTING_ACCOUNT_RETRY_MESSAGE } from "../src/utils/anonymousAccountSwitch.ts";
 import { FORBIDDEN_FORMS } from "./support/glossaryForms.mjs";
@@ -536,6 +537,7 @@ const COPY = {
   PERCORSO,
   PROFILO,
   STANZA,
+  TESTATA,
   TIPO_ACCOUNT,
 };
 
