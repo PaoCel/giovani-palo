@@ -17,7 +17,7 @@ branch: task/gugd-restyling
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/elastic-lalande-32c93d
 session: 3b312056-24e6-4dab-a4bf-78d70e42f776
 stopped_at: "Fase 1 fatta (3/11): scheda /me/activities/:id sui componenti di src/components/ui/ (testata con foto e pill, avviso dell'autorizzazione del genitore con le frasi di Iscrizione inviata, La tua stanza con l'alloggio in colonna a destra da 980 px, schede a pill da 44, gruppo e comitati in Card, vuoti con illustrazione); CSS in src/styles/myActivity.css; tolte 734 righe di CSS della vecchia scheda (base, galleria, Notte dei record); test browser dei comitati passato da classi CSS a ruoli. Codice nei checkpoint 80963fb, 8f549a9, aaf052f, 9ea796c, cd0a2d8: allo squash in main diventano il commit della pagina."
-next: "Fase 3: catalogo e dettaglio pubblico (brief, «Scope, in ordine»). Prima: screenshot a 390 e desktop delle pagine come sono oggi, poi mockup o proposta da far scegliere a Paolo. Collaudo riusabile: .claude/qa-restyling-scheda/ del checkout principale (dopo.sh <tag>, ora con la foto della home /me per ogni scenario; prima di un giro con functions nuove, rsync di functions/ in ~/qa/gugd-restyling-scheda/app/ sul mini, dopo.sh porta solo src/)."
+next: "Fase 3: Paolo sceglie sui mockup del catalogo e del dettaglio pubblico (.claude/mockups/restyling/catalogo-dettaglio.html, PNG png/pubblico-*.png e tavola png/confronto-pubblico-390.png del checkout principale; 5 scelte nella sezione Fase 3 qui sotto). Poi codice: ActivitiesPage, ActivityDetailPage, EventCard poster, foglio src/styles/publicActivity.css. Collaudo prima/dopo: .claude/qa-restyling-catalogo/qa-public.mjs (sul mini in ~/qa/gugd-restyling-catalogo/, foto prima in prima/); per il dopo serve un seed con attività pubbliche nel giro su emulatori di .claude/qa-restyling-scheda/."
 verified: "Fase 0 (3/11): build sul mini verde, bundle JS principale invariato; suite sul mini 1637 test verdi, accentApostrophes (git, non gira nel mirror di un worktree) verde sull'Air; tests/uiComponents.test.mjs 71 verdi, scritto da un altro agente; vetrina dei componenti a 320/390/1440 senza sbordi, testo minimo 13 px, nessun controllo sotto 44. Fase 1 (3/11): tipi, hook e handler della pagina identici a prima (diff vuoto su 382 righe); build sul mini verde; suite sul mini 1637 verdi, accentApostrophes 55/55 sull'Air; collaudo su emulatori sul mini con seed sintetico, 4 scenari (viaggio completo, campeggio, testi lunghi, bozza senza programma) a 320/390/430/1440, 60 foto per giro: prima 7-43 testi sotto 13 px e 2-5 controlli sotto 44 per foto, sbordo a 320 nel campeggio e a ogni larghezza coi testi lunghi (nascosto dalla cornice con overflow hidden); dopo 0 sbordi, 0 testi sotto 13 px, 0 controlli sotto 44 salvo la casella Invia in forma anonima delle Domande (13 px, dentro un'etichetta cliccabile alta 66), 0 errori in console. Review indipendente di un altro agente: PASS WITH CONCERNS, corretti cornice dei figli, anello di focus delle schede, ARIA delle schede, righe della checklist e tasti piccoli delle Domande, chiave React. Non provati: browser loggato in produzione (nessun account con iscrizione), Safari iOS, campCommitteesFreeBrowser con i selettori nuovi (servono emulatori con functions), card Notte dei record. Compagni nella card stanza (3/11, dopo il merge di main con roomMates): build sul mini verde (tsc compreso), suite 1648/1649 (unico rosso accentApostrophes, senza git nello specchio; 55/55 sull'Air); collaudo su emulatori con le functions, piano stanze pubblicato nel seed: 60 foto a 320/390/430/1440, 0 problemi, A mostra «Camera 3, secondo piano · 4 posti letto» e «Con Sofia Conti e Anna Neri (dirigente)», D (bozza) solo il nome della stanza. Non provati: errore della callable a schermo, account anonimo con stanza. Fase 2 (3/11): in homeSocial.css nessun colore esadecimale tranne il bianco, 7 token nuovi in tokens.css; build sul mini verde, suite 1648/1649 (solo accentApostrophes nello specchio, 55/55 sull'Air); collaudo su emulatori con due post nel feed, home di 4 scenari a 320/390/430/1440: prima 1-4 testi sotto 13 px e 1 controllo sotto 44 (Apri checklist, 41,5), dopo 0 e 0, nessuno sbordo; pagina 2-32 px più alta, a 1440 0,6% di pixel diversi. Review indipendente (altro agente): PASS WITH CONCERNS, corretto il radius dello skeleton; ombra della card prossima attività lasciata sul token --shadow-float (più grigia di prima, scelta voluta). Home /unit e /admin: cambiano solo sfumature del feed, non provate a schermo. Deploy fasi 0-2 (4/11): build e suite su main sul mini verdi (1658/1658); bundle e service worker v40 uguali su gugditalia.it e web.app, token nuovi nel CSS servito; /unit nel browser loggato a 390: feed con 2 post, nessuno sbordo, nessun testo sotto 13 px, console pulita. La home /me in produzione non l'ho vista loggato da giovane."
 links: [docs/REDESIGN_BRIEF.md, tasks/gugd-fondamenta-visive.md, tasks/gugd-etichette-home.md]
 done_at:
@@ -81,6 +81,50 @@ dopo arrivano inglese e spagnolo (`gugd-i18n`).
     in `prima-home/`, `dopo-home/` e `confronti-home/` dello stesso posto.
     Resta fuori il tasto «Invia» del lightbox (39 px, `MediaLightbox` è un
     portale fuori dalla home): va con il componente, in una fase successiva.
+  - [ ] fase 3: catalogo `/activities` e dettaglio `/activities/:id`.
+    Foto di oggi (4 novembre, produzione senza login, 320/390/430/1440) in
+    `.claude/qa-restyling-catalogo/prima/` del checkout principale; mockup
+    in `.claude/mockups/restyling/catalogo-dettaglio.html`, inviati a Paolo
+    il 4 novembre.
+
+### Fase 3: cosa c'è oggi e scelte aperte
+
+Misure del 4 novembre su gugditalia.it, senza login. Catalogo: nessuna
+attività in programma, quindi chi apre `/activities` vede solo «Nessuna
+attività disponibile con questi filtri.» e niente da fare; etichette dei
+filtri a 11,5 px. Tra le passate: 24 testi sotto 13 px per foto (pill
+9,6 px, luogo 10,9), «Iscriviti» alto 33,6 px e presente anche sulle
+attività finite, pill verde «Iscrizioni aperte» illeggibile sopra la foto,
+tre attività concluse su cinque dicono «Iscrizioni aperte» (la pill legge
+`event.status`), nessuna data sulla card. Dettaglio: hero scuro con pill a
+12,8 px, «Iscrizioni aperte» nella pill e «Iscrizioni non disponibili» nel
+tasto, sondaggio post-evento mostrato anche prima dell'attività, emoji
+«⚠️ Consigliato leggere» in Cosa portare, «Luogo» ripetuto tra hero e
+Informazioni principali. Nessuno sbordo, console pulita.
+
+Proposta nel mockup, da far scegliere a Paolo:
+
+1. **Card del catalogo tutta cliccabile, senza «Iscriviti»**: foto 16:9,
+   pill di stato vero (aperte, «Iscrizioni dal 10 gen», chiuse, conclusa,
+   annullata), titolo, data, luogo, «Le iscrizioni chiudono tra 3 giorni».
+   Una colonna su telefono, tre a desktop. Alternativa: «Iscriviti» solo
+   sulle card con iscrizioni aperte (la card allora non è più un link unico).
+2. **Periodo come tre pulsanti** (In programma, Passate, Tutte) sopra i tre
+   menu Palo, Organizzazione, Iscrizioni. Alternativa: quattro menu come oggi.
+3. **Catalogo vuoto** con illustrazione e «Mostra le attività passate» (o
+   «Togli i filtri» se il vuoto viene dai filtri).
+4. **Dettaglio come la scheda giovane**: foto sopra (a fianco da 980 px),
+   pill, titolo, date e luogo, descrizione, Iscriviti e Condividi; a destra
+   da 980 px la card «Iscrizione» (chiusura, apertura, serve un account,
+   dati richiesti, link privacy) che sostituisce «Informazioni principali» e
+   «Prima di compilare». Barra in basso solo su telefono. Notte dei record
+   e Foto e video restano componenti loro.
+5. **Sondaggio solo ad attività finita**, come azione principale al posto di
+   Iscriviti. Oggi compare sempre.
+
+Correzione che va comunque con la fase (non è una scelta): la pill di stato
+di catalogo e dettaglio usa la stessa regola del tasto
+(`getRegistrationAvailability`), più «Conclusa» dopo la data di fine.
 
 ### Fase 1: scarti dal mockup, decisi
 
