@@ -6,6 +6,7 @@
 
 .page.family-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-5);
 }
@@ -141,6 +142,7 @@
   font-weight: 800;
   line-height: 1.3;
   overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .family-reg__head p {
@@ -258,6 +260,7 @@
 /* ---------- Profilo del genitore ---------- */
 .page.family-profile {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-5);
 }
@@ -272,16 +275,14 @@
   }
 }
 
-.family-profile__account {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  overflow-wrap: break-word;
-}
-
 /* Card «Foto e video» (ActivityMediaHighlight) dentro Famiglia: stessi
    minimi della home /me (homeSocial.css). */
 .family-page .ag-live__pill,
 .family-page .ag-card__hint {
   font-size: var(--text-xs);
+}
+
+/* Un indirizzo email non ha punti di a capo: può spezzarsi ovunque, solo lui. */
+.family-profile__email {
+  overflow-wrap: anywhere;
 }

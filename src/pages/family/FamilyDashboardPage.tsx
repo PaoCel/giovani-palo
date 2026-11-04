@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
@@ -620,7 +620,7 @@ export function FamilyDashboardPage() {
         </Notice>
       ) : null}
 
-      <section aria-label="I tuoi figli" className="family-page__children">
+      <section aria-label={FAMIGLIA.homeTitolo} className="family-page__children">
         {(loading || !familyReady) && !error ? (
           <div aria-busy="true" className="family-page__loading" role="status">
             <span className="family-page__skeleton" />

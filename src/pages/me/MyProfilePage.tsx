@@ -5,6 +5,7 @@ import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
 import { Button, Card, Notice, PageHeader } from "@/components/ui";
 import { getUserDisplayName } from "@/components/UserPageIntro";
+import { PERCORSO } from "@/copy/percorso";
 import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -165,7 +166,7 @@ export function MyProfilePage() {
 
   return (
     <div className="page my-profile">
-      <PageHeader eyebrow="Profilo" title={getUserDisplayName(session)} />
+      <PageHeader title={getUserDisplayName(session)} />
 
       {error ? (
         <Notice title="Aggiornamento non riuscito" tone="warning">
@@ -180,7 +181,7 @@ export function MyProfilePage() {
       ) : null}
 
       <div className="my-profile__layout">
-        <Card className="my-profile__form" title="I tuoi dati">
+        <Card className="my-profile__form" title={PERCORSO.tappaDati}>
           <form className="form-stack" onSubmit={handleSubmit}>
             <div className="card-grid card-grid--two">
               <label className="field">

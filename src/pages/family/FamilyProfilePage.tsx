@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
 import { Button, Card, Notice, PageHeader } from "@/components/ui";
+import { PERCORSO } from "@/copy/percorso";
 import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
 import { usersService } from "@/services/firestore/usersService";
@@ -85,7 +86,15 @@ export function FamilyProfilePage() {
   return (
     <div className="page family-profile">
       <PageHeader
-        description={`Account: ${session.firebaseUser.email ?? "senza email"} · Ruolo: ${getRoleLabel(session.profile.role)}`}
+        description={
+          <>
+            Account:{" "}
+            <span className="family-profile__email">
+              {session.firebaseUser.email ?? "senza email"}
+            </span>{" "}
+            · Ruolo: {getRoleLabel(session.profile.role)}
+          </>
+        }
         title="Profilo genitore"
       />
 
@@ -102,7 +111,7 @@ export function FamilyProfilePage() {
       ) : null}
 
       <div className="family-profile__cards">
-        <Card className="family-profile__form" title="I tuoi dati">
+        <Card className="family-profile__form" title={PERCORSO.tappaDati}>
           <form className="family-form" onSubmit={(event) => void handleSave(event)}>
             <label className="field">
               <span>Nome *</span>
