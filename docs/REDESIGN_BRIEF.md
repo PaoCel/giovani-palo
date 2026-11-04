@@ -70,8 +70,8 @@ sotto 13 px; «target» = controlli sotto 44 px di altezza.
 | Catalogo pubblico | `/activities` | 4 nov (fase 3 del restyling) | `PageHeader`, periodo come tre pulsanti (In programma, Passate, Tutte) sopra i menu Palo, Organizzazione e Iscrizioni, card `PublicActivityCard` tutta cliccabile (foto 16:9, stato vero, data, luogo, «Le iscrizioni chiudono tra…»), una colonna su telefono e tre a desktop. Vuoti con illustrazione e azione: «Mostra le attività passate», «Mostra le attività in programma», «Togli i filtri»; palo senza attività senza azione. La stessa card è in `/me/activities`, con lo stato dell'iscrizione per chi è iscritto. |
 | Dettaglio pubblico | `/activities/:id` | 4 nov (fase 3 del restyling) | Testata come la scheda giovane (foto, pill, titolo, date, luogo, descrizione, Iscriviti e Condividi); da 980 px colonna «Iscrizione» a destra (apertura, chiusura, campi, account, privacy, azione) al posto di «Informazioni principali» e «Prima di compilare»; sotto i 980 l'azione sta solo nella barra in basso. Ad attività finita l'azione è «Apri il sondaggio» se c'è un sondaggio aperto a tutti, altrimenti nessuna. Pill di stato da `src/utils/publicEventState.ts`, stessa regola del tasto: il difetto «Iscrizioni aperte» su un'attività finita è chiuso. |
 | Firma genitore | `/parent-consent/:token` | 3 nov | Target 44 sistemati fuori da questo task. Da portare sui token solo quando ci saranno. |
-| Testata comune | tutte le aree | — | A 375 la testata è alta 161 px: marchio e azioni, poi una riga con l'occhiello del palo e due pill (nome, ruolo) alta 86 px. Un quinto dello schermo prima del contenuto. |
-| Navigazione admin | `/admin/*` | — | Barra in basso con 7 voci a sola icona (etichette solo per lettori di schermo): Dashboard, Attività, Persone, Calendario, Gallerie, Feed, Altro. |
+| Testata comune | tutte le aree | 4 nov (fase 4 del restyling) | Una riga sola, alta 61 px a ogni larghezza (prima 139 admin, 161 dirigente, 75 giovane): marchio con «GUGD Italia · Admin» o «· Dirigente unità» sopra il nome del palo o dell'unità, campanella per l'admin, avatar con le iniziali. Il menu dell'avatar ha nome e ruolo, «Vista giovane» o «Vista admin» per gli admin, «Aggiorna l'app» ed «Esci» (prima tasti a sé). Codice: `src/layouts/ShellLayout.tsx`, `src/layouts/shell/`, `src/copy/testata.ts`, regole in `base.css`. |
+| Navigazione admin | `/admin/*` | 4 nov (fase 4 del restyling) | Sotto i 1024 px barra in basso a 5 voci con etichetta (Home, Attività, Persone, Calendario, Altro); Gallerie e Feed sono card in Altro, che resta acceso su quelle pagine. Da 1024 px barra laterale di 272 px con le 7 voci, campanella e account in fondo, al posto della testata. Etichette a 13 px anche nelle barre di giovani e famiglia; sotto i 375 px «Calendario» va a capo in sillabe. Voce attiva da `src/utils/shellNavigation.ts`. |
 | Notte dei record | `/record`, `/activities/:id/record` | ott | Pelle sua (`rn-skin`, tabellone). Fuori dal restyling: non si tocca. |
 
 ### Censimento del CSS (3 novembre)
@@ -219,7 +219,7 @@ Come sono fatti nel codice:
 1. Scheda attività giovane `/me/activities/:id`, con programma e alloggio.
 2. Home giovani `/me`: porta la home social sui token (cambio visivo minimo).
 3. Catalogo e dettaglio pubblico (fatto il 4 novembre).
-4. Testata comune e navigazione admin, poi Persone e home dirigente `/unit`.
+4. Testata comune e navigazione admin (fatte il 4 novembre), poi Persone e home dirigente `/unit`.
 5. Scheda attività unità `/unit/activities/:id` (la più densa di testo
    piccolo).
 6. Il resto pagina per pagina: famiglia, admin eventi, form iscrizione (solo
