@@ -13,3 +13,11 @@
 .media-lightbox .media-comment__delete { min-height: 44px; }
 .media-lightbox button:focus-visible, .media-lightbox input:focus-visible { outline: 3px solid #e8bd65; outline-offset: 3px; }
 .media-lightbox .media-comments__head .subtle-text { font-size: 13px; }
+/* Restyling, fase 6a. «Invia» era alto 39 px (button--small) e su telefono la
+   regola dei pulsanti a tutta larghezza lo allargava fino a schiacciare il
+   campo a 26 px: il campo prende lo spazio, il tasto la sua etichetta, tutti e
+   due a 44. Scarica e Segnala erano alti 28 px con il testo a 12,8. */
+.media-lightbox .media-comments__form input { flex: 1 1 auto; min-height: 44px; }
+.media-lightbox .media-comments__form .button { flex: 0 0 auto; width: auto; min-height: 44px; }
+.media-lightbox .media-lightbox__download,
+.media-lightbox .media-lightbox__report { min-height: 44px; font-size: 13px; }
