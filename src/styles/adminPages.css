@@ -561,11 +561,7 @@ a.admin-row:focus-visible {
   font-size: var(--text-sm);
 }
 
-.admin-form .checkbox-row input {
-  width: 22px;
-  height: 22px;
-  min-height: 0;
-}
+
 
 /* ---------- Indietro (dettaglio galleria) ---------- */
 .admin-back {
@@ -884,22 +880,14 @@ a.admin-row:focus-visible {
 
 /* ---------- Modali di Altro (Unità, Moduli, Profilo, Assegna admin, Log) ----------
    AppModal è un portale fuori dalla pagina: i minimi stanno sulla radice del
-   contenuto (.admin-modal), non sotto .page. La casella del modulo resta
-   piccola dentro un'etichetta toccabile alta almeno 44 px. */
+   contenuto (.admin-modal), non sotto .page. */
 .admin-modal .toggle-field {
   min-height: var(--target);
   align-items: center;
   cursor: pointer;
 }
 
-.admin-modal .toggle-field input[type="checkbox"] {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  min-height: 0;
-  margin: 0;
-  accent-color: var(--primary);
-}
+
 
 .admin-modal .button--small {
   min-height: var(--target);
@@ -915,4 +903,51 @@ a.admin-row:focus-visible {
 .admin-modal .support-monitor__meta small {
   color: var(--text-secondary);
   font-size: var(--text-xs);
+}
+
+/* ---------- Caselle (Fissa in cima al feed, campi dei Moduli) ----------
+   Casella disegnata da 22 px dentro un'area toccabile da 44: il margine
+   negativo la fa occupare 22 px nella riga. I colori nelle SVG sono quelli di
+   --line-strong/--text-secondary e --primary (un data URI non legge i token). */
+.admin-form .checkbox-row input[type="checkbox"],
+.admin-modal .toggle-field input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  box-sizing: border-box;
+  width: var(--target);
+  height: var(--target);
+  min-height: 0;
+  margin: -11px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-inset);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect x='12' y='12' width='20' height='20' rx='6' fill='%23fff' stroke='%2352687b' stroke-width='2'/%3E%3C/svg%3E") center / 44px 44px no-repeat;
+  cursor: pointer;
+}
+
+.admin-form .checkbox-row input[type="checkbox"]:checked,
+.admin-modal .toggle-field input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect x='11' y='11' width='22' height='22' rx='6' fill='%23235d90'/%3E%3Cpath d='M16.5 22.5l3.8 3.8 7.2-8' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.admin-form .checkbox-row input[type="checkbox"]:disabled,
+.admin-modal .toggle-field input[type="checkbox"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-form .checkbox-row input[type="checkbox"]:focus-visible,
+.admin-modal .toggle-field input[type="checkbox"]:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -8px;
+}
+
+.admin-form .checkbox-row {
+  gap: var(--space-3);
+  padding-left: 11px;
+}
+
+.admin-modal .toggle-field {
+  padding-left: calc(1rem + 11px);
 }
