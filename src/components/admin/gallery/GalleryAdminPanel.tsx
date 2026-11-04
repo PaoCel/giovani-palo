@@ -10,6 +10,7 @@ import {
 import { GalleryGrid } from "@/components/admin/gallery/GalleryGrid";
 import { MediaActionSheet } from "@/components/admin/gallery/MediaActionSheet";
 import { useGalleryUploader } from "@/components/admin/gallery/useGalleryUploader";
+import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { getDeleteMediaCopy } from "@/components/gallery/GalleryConfirmSheet";
@@ -337,7 +338,7 @@ export function GalleryAdminPanel({
             {gallery.title}
           </span>
           <span className="gallery-toolbar__count">
-            {mediaCount} elemento{mediaCount === 1 ? "" : "i"}
+            {mediaCount} {mediaCount === 1 ? "elemento" : "elementi"}
           </span>
         </div>
         <div className="gallery-toolbar__actions">
@@ -348,7 +349,7 @@ export function GalleryAdminPanel({
             aria-label="Modifica info galleria"
             title="Info"
           >
-            ✎
+            <AppIcon name="pencil" />
           </button>
           {gallery.published ? (
             <button
@@ -359,7 +360,7 @@ export function GalleryAdminPanel({
               aria-label="Aggiorna post nel feed"
               title="Aggiorna feed"
             >
-              ↻
+              <AppIcon name="refresh" />
             </button>
           ) : null}
           <button

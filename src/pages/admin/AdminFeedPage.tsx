@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
-import { EmptyState } from "@/components/EmptyState";
-import { PageHero } from "@/components/PageHero";
-import { SectionCard } from "@/components/SectionCard";
+import { AdminListSkeleton } from "@/components/AdminListSkeleton";
+import { Button, Card, EmptyState, Notice, PageHeader, Pill } from "@/components/ui";
 import { ADMIN } from "@/copy/admin";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { fillCopy } from "@/copy/parole";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,9 +12,11 @@ import { feedService } from "@/services/firestore/feedService";
 import type { FeedPost, FeedPostType } from "@/types";
 import { getAdminActionError } from "@/utils/adminErrors";
 import { withWriteTimeout } from "@/utils/writeTimeout";
+import "@/styles/adminPages.css";
 
 export function AdminFeedPage() {
   const typeLabelId = useId();
+  const titleRef = useRef<HTMLInputElement>(null);
   const { session } = useAuth();
   const stakeId = session?.profile.stakeId ?? "";
   const uid = session?.firebaseUser.uid ?? "";
@@ -34,6 +36,8 @@ export function AdminFeedPage() {
   const [pinned, setPinned] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  // Un errore di creazione è un avviso, il successo un'informazione.
+  const [feedbackFailed, setFeedbackFailed] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
   // "Elimina": prima il foglio di conferma, mai un dialogo del browser.
@@ -78,8 +82,10 @@ export function AdminFeedPage() {
       setCtaLabel("");
       setCtaUrl("");
       setPinned(false);
+      setFeedbackFailed(false);
       setFeedback("Post pubblicato.");
     } catch (caughtError) {
+      setFeedbackFailed(true);
       setFeedback(
         caughtError instanceof Error ? caughtError.message : "Errore creazione post.",
       );
@@ -126,31 +132,86 @@ export function AdminFeedPage() {
     }
   }
 
+  const typeLabel = (post: FeedPost) =>
+    post.type === "gallery" ? COPY.tipoGalleria : post.type === "activity_reminder" ? COPY.tipoReminder : COPY.tipoAnnuncio;
+
+  let list;
+  if (loading) {
+    list = <AdminListSkeleton label={COPY.caricamento} />;
+  } else if (posts.length === 0 && !error) {
+    list = (
+      <EmptyState
+        action={
+          <Button onClick={() => titleRef.current?.focus()} variant="secondary">
+            {COPY.scriviPost}
+          </Button>
+        }
+        description={COPY.postVuotoCorpo}
+        headingAs="h3"
+        title={COPY.postVuotoTitolo}
+      />
+    );
+  } else {
+    list = (
+      <ul className="admin-rows">
+        {posts.map((post) => (
+          <li key={post.id}>
+            <div className="admin-row admin-row--plain">
+              <div className="admin-row__info">
+                <strong className="admin-row__title">{post.title}</strong>
+                <span className="admin-row__pills">
+                  <Pill>{typeLabel(post)}</Pill>
+                  <Pill dot tone={post.published ? "success" : "warning"}>
+                    {post.published ? COPY.pubblicato : COPY.bozza}
+                  </Pill>
+                  {post.pinned ? <Pill tone="sand">{COPY.fissato}</Pill> : null}
+                </span>
+                <div className="admin-row__actions">
+                  <Button
+                    busy={busyPostId === post.id}
+                    onClick={() => void handleTogglePublish(post)}
+                    variant="secondary"
+                  >
+                    {post.published ? COPY.mettiInBozza : COPY.pubblica}
+                  </Button>
+                  <Button onClick={() => showDelete(post)} variant="ghost">
+                    {COPY.elimina}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
-    <div className="page">
-      <PageHero
-        eyebrow="Feed"
-        title="Annunci e reminder"
-        description="Crea annunci e reminder che appariranno nella home dei giovani. I post di tipo galleria vengono creati automaticamente quando pubblichi una galleria."
+    <div className="page page--admin-list">
+      <PageHeader
+        description={COPY.feedPaginaDescrizione}
+        eyebrow={COPY.feedOcchiello}
+        title={COPY.feedPaginaTitolo}
       />
 
       {feedback ? (
-        <div className="notice notice--info">
+        <Notice tone={feedbackFailed ? "warning" : "info"}>
           <p>{feedback}</p>
-        </div>
+        </Notice>
       ) : null}
       {actionError ? (
-        <div className="notice notice--warning">
+        <Notice tone="warning">
           <p>{actionError}</p>
-        </div>
+        </Notice>
       ) : null}
 
-      <SectionCard title="Nuovo post" description="Annunci e reminder attività.">
-        <form className="stack" onSubmit={handleCreate}>
+      <Card subtitle="Annunci e reminder attività." title="Nuovo post">
+        <form className="admin-form" onSubmit={handleCreate}>
           <label className="field">
             <span id={typeLabelId}>Tipo</span>
             {/* The wrapping label would add the options to the accessible name. */}
             <select
+              className="input"
               aria-labelledby={typeLabelId}
               value={type}
               onChange={(event) => setType(event.target.value as FeedPostType)}
@@ -163,6 +224,8 @@ export function AdminFeedPage() {
           <label className="field">
             <span>Titolo</span>
             <input
+              className="input"
+              ref={titleRef}
               type="text"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
@@ -173,6 +236,7 @@ export function AdminFeedPage() {
           <label className="field">
             <span>Testo</span>
             <textarea
+              className="input input--textarea"
               value={body}
               onChange={(event) => setBody(event.target.value)}
               rows={4}
@@ -184,6 +248,7 @@ export function AdminFeedPage() {
             <label className="field">
               <span>ID attività</span>
               <input
+                className="input"
                 type="text"
                 value={activityId}
                 onChange={(event) => setActivityId(event.target.value)}
@@ -198,6 +263,7 @@ export function AdminFeedPage() {
               <label className="field">
                 <span>Etichetta CTA (opzionale)</span>
                 <input
+                  className="input"
                   type="text"
                   value={ctaLabel}
                   onChange={(event) => setCtaLabel(event.target.value)}
@@ -207,6 +273,7 @@ export function AdminFeedPage() {
               <label className="field">
                 <span>URL CTA (opzionale)</span>
                 <input
+                  className="input"
                   type="url"
                   value={ctaUrl}
                   onChange={(event) => setCtaUrl(event.target.value)}
@@ -226,63 +293,22 @@ export function AdminFeedPage() {
             <span>Fissa in cima al feed</span>
           </label>
 
-          <div className="form-actions">
-            <button type="submit" className="button button--primary" disabled={submitting}>
+          <div className="admin-form__actions">
+            <Button busy={submitting} type="submit">
               {submitting ? "Pubblico…" : "Pubblica post"}
-            </button>
+            </Button>
           </div>
         </form>
-      </SectionCard>
+      </Card>
 
-      <SectionCard title="Tutti i post" description="Inclusi quelli generati automaticamente dalle gallerie.">
+      <Card subtitle={COPY.tuttiIPostDescrizione} title={COPY.tuttiIPost}>
         {error ? (
-          <div className="notice notice--warning">
+          <Notice tone="warning">
             <p>{error}</p>
-          </div>
+          </Notice>
         ) : null}
-        {loading ? (
-          <p className="subtle-text">Sto caricando…</p>
-        ) : posts.length === 0 ? (
-          <EmptyState title="Nessun post" description="Crea il primo annuncio." />
-        ) : (
-          <ul className="admin-list">
-            {posts.map((post) => (
-              <li key={post.id} className="admin-list__item">
-                <div>
-                  <h4>{post.title}</h4>
-                  <p className="subtle-text">
-                    {post.type === "gallery"
-                      ? "Galleria"
-                      : post.type === "activity_reminder"
-                        ? "Reminder"
-                        : "Annuncio"}
-                    {" · "}
-                    {post.published ? "Pubblicato" : "Bozza"}
-                    {post.pinned ? " · Fissato" : ""}
-                  </p>
-                </div>
-                <div className="admin-list__actions">
-                  <button
-                    type="button"
-                    className="button button--ghost button--small"
-                    disabled={busyPostId === post.id}
-                    onClick={() => void handleTogglePublish(post)}
-                  >
-                    {post.published ? "Metti in bozza" : "Pubblica"}
-                  </button>
-                  <button
-                    type="button"
-                    className="button button--ghost button--small"
-                    onClick={() => showDelete(post)}
-                  >
-                    Elimina
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SectionCard>
+        {list}
+      </Card>
 
       {deleteTarget ? (
         <ConfirmSheet
