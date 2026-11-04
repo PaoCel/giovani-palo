@@ -1,4 +1,4 @@
-import { PageHero } from "@/components/PageHero";
+import { PageHeader } from "@/components/ui";
 import { StakePeoplePanel } from "@/components/membership/StakePeoplePanel";
 import { PALO } from "@/copy/palo";
 import { fillCopy } from "@/copy/parole";
@@ -12,7 +12,7 @@ export function UnitPeoplePage() {
   const unitName = session.profile.unitName;
   return (
     <div className="page">
-      <PageHero
+      <PageHeader
         description={unitName ? fillCopy(PALO.personeUnitaDescrizione, { unita: unitName }) : undefined}
         eyebrow={unitName || PALO.persone}
         title={PALO.persone}

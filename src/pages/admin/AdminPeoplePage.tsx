@@ -1,4 +1,4 @@
-import { PageHero } from "@/components/PageHero";
+import { PageHeader } from "@/components/ui";
 import { StakePeoplePanel } from "@/components/membership/StakePeoplePanel";
 import { PALO } from "@/copy/palo";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +11,7 @@ export function AdminPeoplePage() {
   if (!session) return null;
   return (
     <div className="page">
-      <PageHero
+      <PageHeader
         description={PALO.personeAdminDescrizione}
         eyebrow={session.profile.stakeName || PALO.persone}
         title={PALO.persone}

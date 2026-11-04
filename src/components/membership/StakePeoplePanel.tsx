@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { AppIcon } from "@/components/AppIcon";
+import { Button, EmptyState, Icon, Notice, Pill } from "@/components/ui";
 import { UndoToast, type UndoToastState } from "@/components/membership/UndoToast";
 import { PALO } from "@/copy/palo";
 import { fillCopy } from "@/copy/parole";
@@ -22,6 +22,8 @@ import {
   type StakeMember,
   type StakeMemberPrevious,
 } from "@/utils/stakeMembership";
+
+import giovaniUrl from "@/assets/flusso-genitore/giovani.webp";
 
 import "@/styles/membership.css";
 
@@ -78,6 +80,12 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   const queue = useMemberQueue(stakeId, isAdmin ? null : unitId, enabled);
   const [busyUid, setBusyUid] = useState<string | null>(null);
   const [menuUid, setMenuUid] = useState<string | null>(null);
+  // Il menu si apre verso il basso; verso l'alto se lì finirebbe sotto la barra
+  // in basso o fuori dallo schermo.
+  const [menuUp, setMenuUp] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  const ids = useId();
   const [toast, setToast] = useState<UndoToastState | null>(null);
   const [details, setDetails] = useState<Record<string, StaffDetails>>({});
   const [detailsError, setDetailsError] = useState(false);
@@ -146,8 +154,11 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
       );
       if (!inside) setMenuUid(null);
     };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuUid(null);
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      // Il focus torna al tondo che ha aperto il menu, non sul corpo della pagina.
+      document.querySelector<HTMLElement>(`[data-menu-for="${CSS.escape(menuUid)}"] .mship-more`)?.focus();
+      setMenuUid(null);
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", onKey);
@@ -156,6 +167,24 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
       document.removeEventListener("keydown", onKey);
     };
   }, [menuUid]);
+
+  // La lista è un contenitore (container query) e quindi un contesto di
+  // impilamento: lo z-index del menu non lo porta sopra la barra in basso.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!menuUid || !menu) return;
+    const nav = document.querySelector(".bottom-nav")?.getBoundingClientRect();
+    const limit = Math.min(window.innerHeight, nav && nav.height > 0 ? nav.top : window.innerHeight);
+    if (menu.getBoundingClientRect().bottom > limit - 8) setMenuUp(true);
+  }, [menuUid]);
+
+  // La scheda scelta (anche da un link con ?scheda=) resta visibile quando le
+  // schede scorrono.
+  useEffect(() => {
+    tabsRef.current
+      ?.querySelector<HTMLElement>('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
 
   const showToast = useCallback((next: Omit<UndoToastState, "id">) => {
     toastId.current += 1;
@@ -215,9 +244,9 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
   if (!isAdmin && !unitId) {
     return (
       <div className="mship-page">
-        <div className="mship-empty">
+        <Notice live="none" tone="info">
           <p>{PALO.senzaUnitaProfilo}</p>
-        </div>
+        </Notice>
       </div>
     );
   }
@@ -228,7 +257,7 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
         <span aria-hidden="true" className={`mship-avatar mship-avatar--${avatarTone(member.uid)}`}>
           {initialsOf(nameOf(member))}
         </span>
-        <div>
+        <div className="mship-card__who">
           <span className="mship-card__name">{nameOf(member)}</span>
           <span className="mship-card__meta">{meta}</span>
         </div>
@@ -253,46 +282,54 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
       <li className="mship-card" key={member.uid}>
         {head(member, metaOf(member, waitingLabel(member.requestedAtMs, nowMs)))}
         <div className="mship-card__ctx">
-          <AppIcon aria-hidden="true" name="calendar" />
-          <span>{hints.length ? fillCopy(PALO.iscrizioni, { attivita: hints.join(", ") }) : PALO.nessunaIscrizione}</span>
-          {isMigratedAccount(member) ? <span className="mship-tag">{PALO.accountEsistente}</span> : null}
-          {unknown ? <span className="mship-tag">{PALO.nonLoConosceIlDirigente}</span> : null}
-          {passed && !unknown ? <span className="mship-tag mship-tag--blue">{PALO.passataDalDirigente}</span> : null}
-          {withoutUnit && !passed ? <span className="mship-tag mship-tag--blue">{PALO.senzaUnita}</span> : null}
+          <Pill icon="calendar">
+            {hints.length ? fillCopy(PALO.iscrizioni, { attivita: hints.join(", ") }) : PALO.nessunaIscrizione}
+          </Pill>
+          {isMigratedAccount(member) ? <Pill tone="sand">{PALO.accountEsistente}</Pill> : null}
+          {unknown ? <Pill tone="warning">{PALO.nonLoConosceIlDirigente}</Pill> : null}
+          {passed && !unknown ? <Pill tone="success">{PALO.passataDalDirigente}</Pill> : null}
+          {withoutUnit && !passed ? <Pill tone="info">{PALO.senzaUnita}</Pill> : null}
         </div>
         {note === "same_name_birth" ? (
           <p className="mship-note">
-            <AppIcon aria-hidden="true" name="alert" />
+            <Icon name="alert" />
             {PALO.notaStessoNome}
           </p>
         ) : null}
         <div className="mship-card__actions" data-menu-for={member.uid}>
-          <button className="mship-btn mship-btn--primary" disabled={busy} onClick={() => void act(member, "approve")} type="button">
-            <AppIcon aria-hidden="true" name="check" />
+          <Button disabled={busy} icon="check" onClick={() => void act(member, "approve")}>
             {PALO.approva}
-          </button>
-          <button className="mship-btn mship-btn--out" disabled={busy} onClick={() => void act(member, "decline")} type="button">
+          </Button>
+          <Button disabled={busy} onClick={() => void act(member, "decline")} variant="secondary">
             {PALO.nonLoConosco}
-          </button>
+          </Button>
+          {/* Disclosure, non un menu ARIA: due pulsanti che si raggiungono con Tab. */}
           <button
+            aria-controls={`${ids}-menu-${member.uid}`}
             aria-expanded={menuUid === member.uid}
-            aria-haspopup="menu"
             aria-label={PALO.altreAzioni}
-            className="mship-btn mship-btn--out mship-btn--icon"
+            className="mship-more"
             disabled={busy}
-            onClick={() => setMenuUid((current) => (current === member.uid ? null : member.uid))}
+            onClick={() => {
+              setMenuUp(false);
+              setMenuUid((current) => (current === member.uid ? null : member.uid));
+            }}
             type="button"
           >
-            <AppIcon aria-hidden="true" name="ellipsis" />
+            <Icon name="ellipsis" />
           </button>
           {menuUid === member.uid ? (
-            <div className="mship-menu" role="menu">
+            <div
+              className={menuUp ? "mship-menu mship-menu--up" : "mship-menu"}
+              id={`${ids}-menu-${member.uid}`}
+              ref={menuRef}
+            >
               {!isAdmin ? (
-                <button onClick={() => void act(member, "notMyUnit")} role="menuitem" type="button">
+                <button onClick={() => void act(member, "notMyUnit")} type="button">
                   {PALO.nonDellaMiaUnita}
                 </button>
               ) : null}
-              <button onClick={() => void act(member, "hasAccount")} role="menuitem" type="button">
+              <button onClick={() => void act(member, "hasAccount")} type="button">
                 {PALO.haGiaUnAccount}
               </button>
             </div>
@@ -310,23 +347,17 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
         {head(member, metaOf(member, ""))}
         {hints.length || overdue ? (
           <div className="mship-card__ctx">
-            {hints.length ? (
-              <>
-                <AppIcon aria-hidden="true" name="calendar" />
-                <span>{fillCopy(PALO.iscrizioni, { attivita: hints.join(", ") })}</span>
-              </>
-            ) : null}
-            {overdue ? <span className="mship-tag">{PALO.daConfermareDaTempo}</span> : null}
+            {hints.length ? <Pill icon="calendar">{fillCopy(PALO.iscrizioni, { attivita: hints.join(", ") })}</Pill> : null}
+            {overdue ? <Pill tone="warning">{PALO.daConfermareDaTempo}</Pill> : null}
           </div>
         ) : null}
         <div className="mship-card__actions">
-          <button className="mship-btn mship-btn--primary" disabled={busy} onClick={() => void act(member, "confirmKnown")} type="button">
-            <AppIcon aria-hidden="true" name="check" />
+          <Button disabled={busy} icon="check" onClick={() => void act(member, "confirmKnown")}>
             {PALO.loConosco}
-          </button>
-          <button className="mship-btn mship-btn--out" disabled={busy} onClick={() => void act(member, "markUnknown")} type="button">
+          </Button>
+          <Button disabled={busy} onClick={() => void act(member, "markUnknown")} variant="secondary">
             {PALO.nonLoConosco}
-          </button>
+          </Button>
         </div>
       </li>
     );
@@ -340,22 +371,18 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
         {head(member, metaOf(member, when))}
         {canUndoDecline(member, { isAdmin, uid: viewerUid }) ? (
           <div className="mship-card__actions">
-            <button className="mship-btn mship-btn--out" disabled={busy} onClick={() => void undoDecline(member)} type="button">
+            <Button disabled={busy} onClick={() => void undoDecline(member)} variant="secondary">
               {PALO.annullaRifiuto}
-            </button>
+            </Button>
           </div>
         ) : null}
       </li>
     );
   }
 
+  // Vuoti senza azione: le richieste arrivano da sole, lo staff non deve fare niente.
   function empty(title: string, body: string) {
-    return (
-      <div className="mship-empty">
-        <h3>{title}</h3>
-        <p>{body}</p>
-      </div>
-    );
+    return <EmptyState action={null} description={body} headingAs="h2" illustration={giovaniUrl} title={title} />;
   }
 
   const counts: Record<Tab, number> = {
@@ -371,10 +398,17 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
 
   let body;
   if (queue.loading) {
-    body = <p className="subtle-text">{PALO.caricamentoCoda}</p>;
+    body = (
+      <div aria-busy="true" className="mship-skeleton">
+        <span className="sr-only" role="status">{PALO.caricamentoCoda}</span>
+        {[0, 1, 2].map((item) => (
+          <span aria-hidden="true" className="mship-skeleton__card" key={item} />
+        ))}
+      </div>
+    );
   } else if (tab === "richieste") {
     body = pending.length ? (
-      <ul className="mship-list">{pending.map(renderRequest)}</ul>
+      <div className="mship-queue"><ul className="mship-list">{pending.map(renderRequest)}</ul></div>
     ) : (
       empty(PALO.vuotoRichiesteTitolo, PALO.vuotoRichiesteCorpo)
     );
@@ -383,7 +417,7 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
       <>
         <p className="mship-page__lead">{isAdmin ? PALO.daConfermareSpiega : PALO.daConfermareSpiegaDirigente}</p>
         {review.length ? (
-          <ul className="mship-list">{review.map(renderReview)}</ul>
+          <div className="mship-queue"><ul className="mship-list">{review.map(renderReview)}</ul></div>
         ) : (
           empty(PALO.vuotoDaConfermareTitolo, PALO.vuotoDaConfermareCorpo)
         )}
@@ -394,7 +428,7 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
       <>
         <p className="mship-page__lead">{PALO.rifiutateSpiega}</p>
         {declined.length ? (
-          <ul className="mship-list">{declined.map(renderDeclined)}</ul>
+          <div className="mship-queue"><ul className="mship-list">{declined.map(renderDeclined)}</ul></div>
         ) : (
           empty(PALO.vuotoRifiutateTitolo, PALO.vuotoRifiutateCorpo)
         )}
@@ -402,18 +436,37 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
     );
   }
 
+  // Schede ARIA: frecce, Home e Fine spostano la scelta; nel Tab c'è solo la
+  // scheda scelta, poi il pannello.
+  function onTabsKey(event: KeyboardEvent<HTMLDivElement>) {
+    const index = TABS.indexOf(tab);
+    const next =
+      event.key === "ArrowRight" ? TABS[(index + 1) % TABS.length]
+        : event.key === "ArrowLeft" ? TABS[(index - 1 + TABS.length) % TABS.length]
+          : event.key === "Home" ? TABS[0]
+            : event.key === "End" ? TABS[TABS.length - 1]
+              : null;
+    if (!next) return;
+    event.preventDefault();
+    selectTab(next);
+    document.getElementById(`${ids}-tab-${next}`)?.focus();
+  }
+
   return (
     <div className="mship-page">
-      <div aria-label={PALO.persone} className="mship-tabs" role="tablist">
+      <div aria-label={PALO.persone} className="mship-tabs" onKeyDown={onTabsKey} ref={tabsRef} role="tablist">
         {TABS.map((item) => (
           <button
+            aria-controls={`${ids}-panel`}
             aria-selected={tab === item}
+            id={`${ids}-tab-${item}`}
             key={item}
             onClick={() => selectTab(item)}
             role="tab"
+            tabIndex={tab === item ? 0 : -1}
             type="button"
           >
-            {labels[item]}
+            <span>{labels[item]}</span>
             {item !== "rifiutate" && counts[item] > 0 ? (
               <span className={item === "richieste" ? "mship-count mship-count--hot" : "mship-count"}>{counts[item]}</span>
             ) : null}
@@ -421,16 +474,22 @@ export function StakePeoplePanel({ stakeId, unitId, isAdmin, viewerUid }: StakeP
         ))}
       </div>
       {queue.error || detailsError ? (
-        <p className="form-error" role="alert">
-          {PALO.erroreCoda}
-        </p>
+        <Notice
+          action={
+            detailsError ? (
+              <Button onClick={() => setDetailsRetry((current) => current + 1)} variant="secondary">
+                {PALO.riprova}
+              </Button>
+            ) : null
+          }
+          tone="danger"
+        >
+          <p>{PALO.erroreCoda}</p>
+        </Notice>
       ) : null}
-      {detailsError ? (
-        <button className="mship-btn mship-btn--out" onClick={() => setDetailsRetry((current) => current + 1)} type="button">
-          {PALO.riprova}
-        </button>
-      ) : null}
-      {body}
+      <div aria-labelledby={`${ids}-tab-${tab}`} className="mship-panel" id={`${ids}-panel`} role="tabpanel">
+        {body}
+      </div>
       <UndoToast onDismiss={dismissToast} toast={toast} />
     </div>
   );
