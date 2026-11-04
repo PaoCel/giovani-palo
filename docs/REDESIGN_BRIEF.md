@@ -67,8 +67,8 @@ sotto 13 px; «target» = controlli sotto 44 px di altezza.
 | Home dirigente | `/unit` | 20 ott (code Persone) | Card delle code Persone chiare. **Difetto in produzione:** la freccia delle righe attività era larga 155-228 px (fino a metà schermo a desktop), corretto in produzione il 3 novembre (`a0d9dfe` su `main`, service worker v38). Quattro riquadri numerici in fila che a 375 tagliano l'ultima etichetta. |
 | Persone (unità e admin) | `/unit/persone`, `/admin/persone` | 3 nov | Stesso pannello `StakePeoplePanel` per dirigente e admin. Pulita: nessun piccolo salvo 1, target tutti 44, nessuno sbordo a 320. Testata con `PageHero`. È la base della pagina admin del mockup. |
 | Scheda attività unità | `/unit/activities/:id` | 20 ott | La peggiore: 124 testi piccoli su 190 (10,9-12,8 px), 8 controlli su 14 sotto 44 («Reinvia email» 24 px, trasporto 22 px). Nome e ruolo incollati senza spazio nel testo («Mario RossiGiovane uomo»). |
-| Catalogo pubblico | `/activities` | giugno | Filtri chiari. Vuoto senza azione: «Nessuna attività disponibile con questi filtri» e nient'altro, nemmeno «Mostra tutto il periodo». |
-| Dettaglio pubblico | `/activities/:id` | giugno | Hero con foto e pill. La pill di stato legge `event.status` e non lo stato effettivo: su un'attività finita il 17 ottobre dice «Iscrizioni aperte» mentre il tasto in basso dice «Iscrizioni non disponibili» (stesso difetto in `EventCard`). Da sistemare a parte, non è restyling. |
+| Catalogo pubblico | `/activities` | 4 nov (fase 3 del restyling) | `PageHeader`, periodo come tre pulsanti (In programma, Passate, Tutte) sopra i menu Palo, Organizzazione e Iscrizioni, card `PublicActivityCard` tutta cliccabile (foto 16:9, stato vero, data, luogo, «Le iscrizioni chiudono tra…»), una colonna su telefono e tre a desktop. Vuoti con illustrazione e azione: «Mostra le attività passate», «Mostra le attività in programma», «Togli i filtri»; palo senza attività senza azione. La stessa card è in `/me/activities`, con lo stato dell'iscrizione per chi è iscritto. |
+| Dettaglio pubblico | `/activities/:id` | 4 nov (fase 3 del restyling) | Testata come la scheda giovane (foto, pill, titolo, date, luogo, descrizione, Iscriviti e Condividi); da 980 px colonna «Iscrizione» a destra (apertura, chiusura, campi, account, privacy, azione) al posto di «Informazioni principali» e «Prima di compilare»; sotto i 980 l'azione sta solo nella barra in basso. Ad attività finita l'azione è «Apri il sondaggio» se c'è un sondaggio aperto a tutti, altrimenti nessuna. Pill di stato da `src/utils/publicEventState.ts`, stessa regola del tasto: il difetto «Iscrizioni aperte» su un'attività finita è chiuso. |
 | Firma genitore | `/parent-consent/:token` | 3 nov | Target 44 sistemati fuori da questo task. Da portare sui token solo quando ci saranno. |
 | Testata comune | tutte le aree | — | A 375 la testata è alta 161 px: marchio e azioni, poi una riga con l'occhiello del palo e due pill (nome, ruolo) alta 86 px. Un quinto dello schermo prima del contenuto. |
 | Navigazione admin | `/admin/*` | — | Barra in basso con 7 voci a sola icona (etichette solo per lettori di schermo): Dashboard, Attività, Persone, Calendario, Gallerie, Feed, Altro. |
@@ -218,7 +218,7 @@ Come sono fatti nel codice:
 0. Token e cinque componenti, senza cambiare pagine (commit a sé).
 1. Scheda attività giovane `/me/activities/:id`, con programma e alloggio.
 2. Home giovani `/me`: porta la home social sui token (cambio visivo minimo).
-3. Catalogo e dettaglio pubblico.
+3. Catalogo e dettaglio pubblico (fatto il 4 novembre).
 4. Testata comune e navigazione admin, poi Persone e home dirigente `/unit`.
 5. Scheda attività unità `/unit/activities/:id` (la più densa di testo
    piccolo).
