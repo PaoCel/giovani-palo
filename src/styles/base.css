@@ -121,6 +121,7 @@ button {
   padding-bottom: calc(7rem + env(safe-area-inset-bottom));
 }
 
+.shell--unit .shell__main,
 .shell--admin .shell__main {
   padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
 }
@@ -442,11 +443,12 @@ button {
   margin-left: 0;
 }
 
-/* Barra in basso di giovani, famiglia e admin (fase 4 del restyling): icona
-   ed etichetta sempre visibili, anche per l'admin che prima aveva solo
-   icone. A desktop l'admin ha la barra laterale. */
+/* Barra in basso di giovani, famiglia, dirigente e admin (fasi 4 e 4b del
+   restyling): icona ed etichetta sempre visibili, anche per l'admin che prima
+   aveva solo icone. A desktop l'admin ha la barra laterale. */
 .shell--user .bottom-nav,
 .shell--family .bottom-nav,
+.shell--unit .bottom-nav,
 .shell--admin .bottom-nav {
   position: fixed;
   left: 0.5rem;
@@ -531,9 +533,16 @@ button {
 @media (min-width: 600px) {
   .shell--user .bottom-nav,
   .shell--family .bottom-nav,
+  .shell--unit .bottom-nav,
   .shell--admin .bottom-nav {
     left: max(0.75rem, calc(50% - 17rem));
     right: max(0.75rem, calc(50% - 17rem));
+  }
+
+  /* Il dirigente ha due voci: barra stretta, non due tasti larghi mezzo schermo. */
+  .shell--unit .bottom-nav {
+    left: max(0.75rem, calc(50% - 11rem));
+    right: max(0.75rem, calc(50% - 11rem));
   }
 }
 
