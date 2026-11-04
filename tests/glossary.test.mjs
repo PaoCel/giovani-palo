@@ -21,6 +21,7 @@ import { FIRMA } from "../src/copy/firma.ts";
 import { GALLERIA } from "../src/copy/galleria.ts";
 import { GUARDIA } from "../src/copy/guardia.ts";
 import { HOME } from "../src/copy/home.ts";
+import { HOME_UNITA } from "../src/copy/homeUnita.ts";
 import { INVIATA } from "../src/copy/inviata.ts";
 import { ISCRITTI } from "../src/copy/iscritti.ts";
 import { ISCRIZIONE } from "../src/copy/iscrizione.ts";
@@ -529,6 +530,7 @@ const COPY = {
   GALLERIA,
   GUARDIA,
   HOME,
+  HOME_UNITA,
   INVIATA,
   ISCRITTI,
   ISCRIZIONE,
