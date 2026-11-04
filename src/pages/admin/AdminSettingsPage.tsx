@@ -33,7 +33,7 @@ import { withWriteTimeout } from "@/utils/writeTimeout";
 import { DEFAULT_STAKE_ID } from "@/config/app";
 
 interface SettingsActionCardProps {
-  icon: "building" | "badge" | "key" | "list" | "chart";
+  icon: "building" | "badge" | "key" | "list" | "chart" | "sparkles" | "bell";
   title: string;
   description: string;
   onClick: () => void;
@@ -883,6 +883,26 @@ export function AdminSettingsPage() {
     }
   }
 
+  // Su telefono Gallerie e Feed non stanno nella barra in basso (cinque voci,
+  // fase 4 del restyling): si raggiungono da qui, anche se l'organizzazione
+  // non si carica.
+  const pageLinks = (
+    <>
+      <SettingsActionCard
+        description="Foto e video delle attività"
+        icon="sparkles"
+        onClick={() => navigate("/admin/galleries")}
+        title="Gallerie"
+      />
+      <SettingsActionCard
+        description="Annunci e reminder attività."
+        icon="bell"
+        onClick={() => navigate("/admin/feed")}
+        title="Feed"
+      />
+    </>
+  );
+
   return (
     <div className="page">
       {error ? (
@@ -895,7 +915,10 @@ export function AdminSettingsPage() {
       ) : null}
 
       {loading || !organization ? (
-        <p className="subtle-text">Sto preparando l'area operativa...</p>
+        <>
+          <p className="subtle-text">Sto preparando l'area operativa...</p>
+          <div className="card-grid card-grid--two">{pageLinks}</div>
+        </>
       ) : (
         <>
           <section className="admin-section">
@@ -917,6 +940,7 @@ export function AdminSettingsPage() {
                   onClick={() => navigate("/admin/events")}
                   title="Tutte le attività"
                 />
+                {pageLinks}
                 <SettingsActionCard
                   description="Statistiche del palo e iscritti globali"
                   icon="chart"

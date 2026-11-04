@@ -1,4 +1,4 @@
-.page.page--room-planner { width: min(1180px, calc(100vw - 32px)); max-width: 1180px; }
+.page.page--room-planner { width: min(1180px, calc(100vw - var(--rail-width, 0px) - 32px)); max-width: 1180px; }
 .page--room-planner .activity-ios-hero { overflow: clip; }
 .room-planner { --rp-blue: var(--primary); display: grid; gap: 1.25rem; padding-bottom: 1rem; }
 .rp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.4rem 0 .2rem; }
@@ -24,7 +24,7 @@
 .rp-toolbar { justify-content: space-between; }
 .rp-toolbar .button { font-size: .75rem; padding: .7rem .85rem; }
 .rp-board { display: grid; grid-template-columns: 285px minmax(0, 1fr); gap: 1.15rem; align-items: start; }
-.rp-people { border: 1px solid var(--surface-border); background: var(--surface-strong); padding: 1.1rem; border-radius: 20px; box-shadow: var(--shadow-soft); position: sticky; top: 135px; }
+.rp-people { border: 1px solid var(--surface-border); background: var(--surface-strong); padding: 1.1rem; border-radius: 20px; box-shadow: var(--shadow-soft); position: sticky; top: calc(var(--shell-top, 4rem) + 1rem); }
 .rp-people__title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .rp-people h3, .rp-filters h3 { font-size: .95rem; margin: 0; color: var(--heading); }
 .rp-people__title > span { background: var(--primary-soft); border-radius: 999px; padding: .3rem .65rem; font-size: .75rem; color: var(--primary); font-weight: 800; }

@@ -13,9 +13,9 @@ export function UnitLeaderLayout() {
   return (
     <ShellLayout
       area="unit"
-      eyebrow={unitName}
+      brandLabel={unitName}
       links={[
-        { to: "/unit", label: "Dashboard", end: true, icon: "home" },
+        { to: "/unit", label: "Home", end: true, icon: "home" },
         { to: "/unit/persone", label: "Persone", icon: "users", badge: pending },
       ]}
     />

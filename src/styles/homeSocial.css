@@ -93,7 +93,7 @@
 }
 @media (min-width:1280px) {
   .social-home { grid-template-columns:170px minmax(0,580px) minmax(240px,280px); grid-template-areas:"nav intro next" "nav stream next" "nav stream notes"; gap:28px; }
-  .social-home-nav { display:flex; flex-direction:column; gap:var(--space-2); align-self:start; position:sticky; top:110px; }
+  .social-home-nav { display:flex; flex-direction:column; gap:var(--space-2); align-self:start; position:sticky; top:calc(var(--shell-top, 4rem) + 2rem); }
   .social-home-nav h2 { font:500 var(--title-md)/1.2 var(--font-display); margin:5px 0 var(--space-4); }
   .social-home-nav a { display:flex; align-items:center; gap:10px; min-height:46px; padding:10px var(--space-3); color:var(--text-secondary); text-decoration:none; border-radius:var(--radius-pill); font-weight:600; font-size:15px; }
   .social-home-nav a.is-active { color:var(--primary); background:var(--info-surface); }

@@ -1,5 +1,3 @@
-import "@/styles/userNavigation.css";
-
 import { ShellLayout } from "@/layouts/ShellLayout";
 
 export function UserLayout() {

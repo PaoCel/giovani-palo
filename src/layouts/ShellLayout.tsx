@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { InstallHint } from "@/components/InstallHint";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
-import { PAROLE } from "@/copy/parole";
+import { fillCopy, PAROLE } from "@/copy/parole";
+import { TESTATA } from "@/copy/testata";
 import { useAuth } from "@/hooks/useAuth";
+import { AccountMenu } from "@/layouts/shell/AccountMenu";
+import { AdminAlerts } from "@/layouts/shell/AdminAlerts";
 import { alertsService } from "@/services/firestore/alertsService";
 import type { Alert } from "@/types";
 import { getLoginPath } from "@/utils/activityLinks";
 import { getAccountHomePath } from "@/utils/family";
 import { needsProfileCompletion } from "@/utils/profileCompletion";
 import { getRoleLabel } from "@/utils/roles";
+import { isNavLinkActive } from "@/utils/shellNavigation";
 
 export interface LayoutLink {
   to: string;
@@ -20,13 +24,15 @@ export interface LayoutLink {
   icon?: AppIconName;
   /** Numero da mostrare accanto alla voce (es. richieste di accesso in attesa). */
   badge?: number;
+  /** Altri percorsi che accendono la voce (Altro su Gallerie e Feed). */
+  alsoActive?: string[];
 }
 
 interface ShellLayoutProps {
   area: "public" | "user" | "admin" | "unit" | "family";
-  eyebrow?: string;
-  title?: string;
   links?: LayoutLink[];
+  /** Voci della barra laterale a desktop (solo admin); senza, la barra non c'è. */
+  railLinks?: LayoutLink[];
   actionLink?: LayoutLink;
   brandLabel?: string;
 }
@@ -55,9 +61,8 @@ const SHORT_BRAND_LABEL = "Attività GU GD";
 
 export function ShellLayout({
   area,
-  eyebrow,
-  title,
   links = [],
+  railLinks = [],
   actionLink,
   brandLabel = SHORT_BRAND_LABEL,
 }: ShellLayoutProps) {
@@ -65,13 +70,11 @@ export function ShellLayout({
   const location = useLocation();
   const navigate = useNavigate();
   const [adminAlerts, setAdminAlerts] = useState<Alert[]>([]);
-  const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
   const [bottomNavHidden, setBottomNavHidden] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const alertDropdownRef = useRef<HTMLDivElement | null>(null);
   const lastScrollYRef = useRef(0);
   const scrollFrameRef = useRef<number | null>(null);
-  const showTopNav = area === "admin" && links.length > 0;
+  const showRail = railLinks.length > 0;
   const showBottomNav = area !== "public" && links.length > 0;
   // L'iscrizione ha la sua freccia, che torna al passo prima; «Chi sei?» e
   // "I tuoi dati" dopo un account nuovo non ne hanno (FLUSSO_GENITORE.md, I).
@@ -93,13 +96,16 @@ export function ShellLayout({
   // uguale alle altre pagine invece di cambiare.
   const compactBrand =
     area === "public" && !session?.isAuthenticated && brandLabel !== SHORT_BRAND_LABEL;
-  const showAdminModeSwitch =
-    Boolean(session?.isAdmin && !session.isAnonymous) && (area === "admin" || area === "user");
-  const showMeta =
-    showAdminModeSwitch ||
-    (area !== "user" &&
-      area !== "family" &&
-      Boolean(eyebrow || title || (area !== "public" && session)));
+  // Cambio vista per gli admin: nel menu dell'account, non più in una riga
+  // sotto la testata (fase 4 del restyling).
+  const viewSwitch =
+    session?.isAdmin && !session.isAnonymous
+      ? area === "admin"
+        ? { to: "/me", label: TESTATA.vistaGiovane }
+        : area === "user"
+          ? { to: "/admin", label: TESTATA.vistaAdmin }
+          : null
+      : null;
   const brandDestination =
     area === "admin"
       ? "/admin"
@@ -137,6 +143,12 @@ export function ShellLayout({
         session.firebaseUser.displayName,
       )
     : "Sessione pubblica";
+  const roleLabel = session ? getRoleLabel(session.profile.role) : "";
+  // Riga piccola sopra il nome del palo o dell'unità (admin e dirigente).
+  const brandContext =
+    (area === "admin" || area === "unit") && session
+      ? fillCopy(TESTATA.contesto, { ruolo: roleLabel })
+      : null;
 
   useEffect(() => {
     if (area !== "admin" || !session?.isAdmin || !session.profile.stakeId) {
@@ -146,10 +158,6 @@ export function ShellLayout({
 
     return alertsService.subscribeToActiveAlerts(session.profile.stakeId, 12, setAdminAlerts);
   }, [area, session?.isAdmin, session?.profile.stakeId]);
-
-  useEffect(() => {
-    setAlertDropdownOpen(false);
-  }, [location.pathname, location.search, location.hash]);
 
   useEffect(() => {
     if (!showBottomNav || typeof window === "undefined") {
@@ -196,26 +204,14 @@ export function ShellLayout({
     };
   }, [location.pathname, location.search, showBottomNav]);
 
-  useEffect(() => {
-    if (!alertDropdownOpen || typeof document === "undefined") {
-      return;
-    }
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!alertDropdownRef.current?.contains(event.target as Node)) {
-        setAlertDropdownOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [alertDropdownOpen]);
-
-  useEffect(() => {
+  // All'apertura della campanella le notifiche non lette diventano lette.
+  // Ogni scrittura fa arrivare uno snapshot nuovo: gli id già inviati non si
+  // riscrivono.
+  const sentReadIdsRef = useRef(new Set<string>());
+  const markAlertsRead = useCallback(() => {
     const currentUserId = session?.firebaseUser.uid;
 
     if (
-      !alertDropdownOpen ||
       area !== "admin" ||
       !session?.isAdmin ||
       !session.profile.stakeId ||
@@ -225,15 +221,21 @@ export function ShellLayout({
       return;
     }
 
+    const toSend = unreadAdminAlerts.filter((alert) => !sentReadIdsRef.current.has(alert.id));
+    if (toSend.length === 0) {
+      return;
+    }
+    toSend.forEach((alert) => sentReadIdsRef.current.add(alert.id));
+
     void Promise.all(
-      unreadAdminAlerts.map((alert) =>
+      toSend.map((alert) =>
         alertsService.markAlertRead(session.profile.stakeId, alert.id, currentUserId),
       ),
     )
       .then(() => {
         setAdminAlerts((current) =>
           current.map((alert) =>
-            unreadAdminAlerts.some((unreadAlert) => unreadAlert.id === alert.id)
+            toSend.some((sentAlert) => sentAlert.id === alert.id)
               ? {
                   ...alert,
                   readBy: [...new Set([...(alert.readBy ?? []), currentUserId])],
@@ -242,15 +244,9 @@ export function ShellLayout({
           ),
         );
       })
-      .catch(() => undefined);
-  }, [
-    alertDropdownOpen,
-    area,
-    session?.firebaseUser.uid,
-    session?.isAdmin,
-    session?.profile.stakeId,
-    unreadAdminAlerts,
-  ]);
+      // Scrittura fallita: alla prossima apertura si riprova.
+      .catch(() => toSend.forEach((alert) => sentReadIdsRef.current.delete(alert.id)));
+  }, [area, session?.firebaseUser.uid, session?.isAdmin, session?.profile.stakeId, unreadAdminAlerts]);
 
   // Svuota service worker + cache e ricarica: scialuppa quando la sessione
   // mostra dati stale (es. ruolo cambiato lato server mentre l'app era aperta).
@@ -274,8 +270,43 @@ export function ShellLayout({
     window.location.reload();
   }
 
+  const alerts =
+    area === "admin" && session?.isAdmin ? (
+      <AdminAlerts alerts={adminAlerts} onOpen={markAlertsRead} unreadCount={adminUnreadCount} />
+    ) : null;
+  const accountMenu = (variant: "avatar" | "card") =>
+    session?.isAuthenticated ? (
+      <AccountMenu
+        name={sessionLabel}
+        onRefresh={() => void handleForceRefresh()}
+        onSignOut={() => void signOut()}
+        refreshing={refreshing}
+        roleLabel={roleLabel}
+        variant={variant}
+        viewSwitch={viewSwitch}
+      />
+    ) : null;
+  const brandLogo = (
+    <img
+      alt=""
+      aria-hidden="true"
+      className="brand__mark"
+      loading="eager"
+      src="/brand-logo.png"
+    />
+  );
+  const areaBrand = (
+    <Link className="brand" to={brandDestination}>
+      {brandLogo}
+      <span className="brand__text">
+        {brandContext ? <small>{brandContext}</small> : null}
+        <strong>{brandLabel}</strong>
+      </span>
+    </Link>
+  );
+
   return (
-    <div className={`shell shell--${area}`}>
+    <div className={showRail ? `shell shell--${area} shell--rail` : `shell shell--${area}`}>
       <header className="topbar">
         <div className="topbar__inner">
           {area === "public" ? (
@@ -301,13 +332,7 @@ export function ShellLayout({
               )}
 
               <Link className={compactBrand ? "brand brand--compact" : "brand"} to={brandDestination}>
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  className="brand__mark"
-                  loading="eager"
-                  src="/brand-logo.png"
-                />
+                {brandLogo}
                 <span>
                   <strong>
                     <span className="brand__label">{brandLabel}</span>
@@ -315,109 +340,15 @@ export function ShellLayout({
                       <span className="brand__label brand__label--short">{SHORT_BRAND_LABEL}</span>
                     ) : null}
                   </strong>
-                  {eyebrow ? <small>{eyebrow}</small> : null}
                 </span>
               </Link>
             </div>
           ) : (
-            <Link className="brand" to={brandDestination}>
-              <img
-                alt=""
-                aria-hidden="true"
-                className="brand__mark"
-                loading="eager"
-                src="/brand-logo.png"
-              />
-              <span>
-                <strong>{brandLabel}</strong>
-                {eyebrow ? <small>{eyebrow}</small> : null}
-              </span>
-            </Link>
-          )}
-
-          {showTopNav ? (
-            <nav className="topbar__nav" aria-label={`Navigazione ${area}`}>
-              {links.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  end={link.end}
-                  className={({ isActive }) =>
-                    isActive ? "nav-pill nav-pill--active" : "nav-pill"
-                  }
-                >
-                  {link.label}
-                  {link.badge ? <span className="nav-badge">{link.badge}</span> : null}
-                </NavLink>
-              ))}
-            </nav>
-          ) : (
-            <div />
+            areaBrand
           )}
 
           <div className="topbar__actions">
-            {area === "admin" && session?.isAdmin ? (
-              <div className="topbar__alert-shell" ref={alertDropdownRef}>
-                <button
-                  aria-expanded={alertDropdownOpen}
-                  aria-haspopup="dialog"
-                  aria-label={
-                    adminUnreadCount > 0
-                      ? `Apri notifiche admin (${adminUnreadCount})`
-                      : "Apri notifiche admin"
-                  }
-                  className="topbar__alert-link"
-                  onClick={() => setAlertDropdownOpen((current) => !current)}
-                  title="Notifiche admin"
-                  type="button"
-                >
-                  <AppIcon name="bell" />
-                  {adminUnreadCount > 0 ? (
-                    <span className="topbar__alert-count">
-                      {adminUnreadCount > 9 ? "9+" : adminUnreadCount}
-                    </span>
-                  ) : null}
-                </button>
-
-                {alertDropdownOpen ? (
-                  <div className="topbar__alert-dropdown" role="dialog" aria-label="Notifiche admin">
-                    <div className="topbar__alert-dropdown-head">
-                      <strong>Notifiche</strong>
-                      <small>
-                        {adminUnreadCount > 0
-                          ? `${adminUnreadCount} nuove`
-                          : "Tutte lette"}
-                      </small>
-                    </div>
-
-                    {adminAlerts.length === 0 ? (
-                      <p className="topbar__alert-empty">Nessuna notifica recente.</p>
-                    ) : (
-                      <div className="topbar__alert-list">
-                        {adminAlerts.slice(0, 8).map((alert) => (
-                          <Link
-                            key={alert.id}
-                            className="topbar__alert-item"
-                            onClick={() => setAlertDropdownOpen(false)}
-                            to={alert.eventId ? `/admin/events/${alert.eventId}` : "/admin"}
-                          >
-                            <strong>{alert.participantName || alert.title}</strong>
-                            <span>{alert.eventTitle || alert.message}</span>
-                            <small>
-                              {alert.submittedByMode === "anonymous"
-                                ? "Ospite"
-                                : alert.submittedByMode === "parent"
-                                  ? "Iscritto dal genitore"
-                                  : "Con account"}
-                            </small>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            {alerts}
             {actionLink ? (
               <Link
                 className="button button--ghost button--small topbar__action-link"
@@ -428,38 +359,7 @@ export function ShellLayout({
               </Link>
             ) : null}
             {session?.isAuthenticated ? (
-              <button
-                aria-label="Aggiorna l'app"
-                className="icon-button icon-button--soft"
-                disabled={refreshing}
-                onClick={() => void handleForceRefresh()}
-                title="Aggiorna l'app"
-                type="button"
-              >
-                <AppIcon name="refresh" />
-              </button>
-            ) : null}
-            {session?.isAuthenticated ? (
-              area === "user" || area === "admin" || area === "unit" || area === "family" ? (
-                <button
-                  aria-label="Esci"
-                  className="icon-button icon-button--soft topbar__logout"
-                  onClick={() => void signOut()}
-                  title="Esci"
-                  type="button"
-                >
-                  <AppIcon name="logout" />
-                </button>
-              ) : area !== "public" ? (
-                <button
-                  className="button button--soft button--small"
-                  onClick={() => void signOut()}
-                  type="button"
-                >
-                  <AppIcon name="arrow-left" />
-                  Esci
-                </button>
-              ) : null
+              accountMenu("avatar")
             ) : showAuthLink ? (
               <Link
                 className="button button--soft button--small topbar__auth-link"
@@ -471,79 +371,57 @@ export function ShellLayout({
             ) : null}
           </div>
         </div>
-
-        {showMeta ? (
-          <div className="topbar__meta">
-            <div>
-              {eyebrow ? <span className="topbar__eyebrow">{eyebrow}</span> : null}
-              {title ? <p>{title}</p> : null}
-            </div>
-            <div className="chip-row">
-              {showAdminModeSwitch ? (
-                <>
-                  <NavLink
-                    aria-label={`Apri vista giovane per ${sessionLabel}`}
-                    className={({ isActive }) =>
-                      isActive
-                        ? "surface-chip surface-chip--link surface-chip--active"
-                        : "surface-chip surface-chip--link"
-                    }
-                    title="Vista giovane"
-                    to="/me"
-                  >
-                    {sessionLabel}
-                  </NavLink>
-                  <NavLink
-                    aria-label="Apri vista admin"
-                    className={({ isActive }) =>
-                      isActive
-                        ? "surface-chip surface-chip--link surface-chip--active"
-                        : "surface-chip surface-chip--link"
-                    }
-                    title="Vista admin"
-                    to="/admin"
-                  >
-                    {getRoleLabel(session?.profile.role ?? "admin")}
-                  </NavLink>
-                </>
-              ) : (
-                <div className="surface-chip">{sessionLabel}</div>
-              )}
-              {session && !showAdminModeSwitch ? (
-                <div className="surface-chip">
-                  {session.isAnonymous ? "Ospite" : getRoleLabel(session.profile.role)}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </header>
+
+      {showRail ? (
+        <aside className="shell-rail">
+          <div className="shell-rail__head">
+            {areaBrand}
+            {alerts}
+          </div>
+          <nav className="shell-rail__nav" aria-label={TESTATA.navigazione}>
+            {railLinks.map((link) => {
+              const active = isNavLinkActive(link, location.pathname);
+              return (
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={active ? "shell-rail__item shell-rail__item--active" : "shell-rail__item"}
+                  key={link.to}
+                  to={link.to}
+                >
+                  {link.icon ? <AppIcon name={link.icon} /> : null}
+                  <span className="shell-rail__label">{link.label}</span>
+                  {link.badge ? <span className="nav-badge">{link.badge}</span> : null}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="shell-rail__foot">{accountMenu("card")}</div>
+        </aside>
+      ) : null}
 
       {showBottomNav ? (
         <nav
           className={bottomNavHidden ? "bottom-nav bottom-nav--hidden" : "bottom-nav"}
-          aria-label={`Navigazione ${area}`}
+          aria-label={TESTATA.navigazione}
         >
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              aria-label={link.label}
-              title={link.label}
-              className={({ isActive }) =>
-                isActive ? "bottom-nav__item bottom-nav__item--active" : "bottom-nav__item"
-              }
-            >
-              {link.icon ? <AppIcon name={link.icon} /> : null}
-              {link.icon ? <span className={area === "user" ? "bottom-nav__label" : "sr-only"}>{link.label}</span> : link.label}
-              {link.badge ? (
-                <span aria-hidden="true" className="nav-badge nav-badge--corner">
-                  {link.badge}
-                </span>
-              ) : null}
-            </NavLink>
-          ))}
+          {links.map((link) => {
+            const active = isNavLinkActive(link, location.pathname);
+            return (
+              <Link
+                aria-current={active ? "page" : undefined}
+                className={active ? "bottom-nav__item bottom-nav__item--active" : "bottom-nav__item"}
+                key={link.to}
+                to={link.to}
+              >
+                {link.icon ? <AppIcon name={link.icon} /> : null}
+                <span className="bottom-nav__label">{link.label}</span>
+                {link.badge ? (
+                  <span className="nav-badge nav-badge--corner">{link.badge}</span>
+                ) : null}
+              </Link>
+            );
+          })}
           {actionLink ? (
             <Link className="bottom-nav__item bottom-nav__item--action" to={actionLink.to}>
               {actionLink.label}

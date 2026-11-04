@@ -4,7 +4,7 @@
 
 /* Colonna larga solo per questa scheda: le altre restano a 760px. */
 .page.page--rna-wide {
-  width: min(1040px, calc(100vw - 20px));
+  width: min(1040px, calc(100vw - var(--rail-width, 0px) - 20px));
   max-width: 1040px;
 }
 
