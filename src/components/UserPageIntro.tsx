@@ -6,7 +6,7 @@ interface UserPageIntroProps {
   subtitle?: string;
 }
 
-function getUserDisplayName(session: ReturnType<typeof useAuth>["session"]) {
+export function getUserDisplayName(session: ReturnType<typeof useAuth>["session"]) {
   if (!session) {
     return "Profilo utente";
   }
