@@ -245,7 +245,7 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
     }
     const form = steps.has("registrations") && isStepDirty("registrations", values, savedValues)
       ? { ...buildWizardFormPayload(values), standardFieldDefinitions: fieldDefinitions }
-      : undefined;
+      : { standardFieldDefinitions: fieldDefinitions };
     void run(async () => {
       pendingImage.current = payload.heroImagePath ?? "";
       const updated = await eventsService.updateEvent(stakeId, event.id, payload, event.updatedAt, form);
@@ -260,7 +260,7 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
   function createDraft(after: (eventId: string) => void) {
     const whatErrors = validate("what");
     if (Object.keys(whatErrors).length) { goTo("what"); showErrors(whatErrors); return; }
-    const payload = buildWizardPayload(values, null, new Set<WizardStepId>(["what", "when"]), LEGAL_DOC_VERSIONS);
+    const payload = buildWizardPayload(values, null, new Set<WizardStepId>(["what", "when"]), LEGAL_DOC_VERSIONS, defaults);
     void run(async () => {
       // Stable id: a retry after a timeout reuses it and cannot create a second draft.
       await eventsService.createEvent(stakeId, payload, sessionUid, creationId.current);
@@ -327,9 +327,11 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
       setConfirm({ kind: "discardNew", canCreate });
       return;
     }
+    // A step left invalid with Indietro keeps its fields in memory: closing
+    // asks before losing them, like the current step.
+    const invalidDirty = WIZARD_STEPS.some(target => dirty(target) && Object.keys(validate(target)).length > 0);
+    if (invalidDirty) { setConfirm({ kind: "leaveStep", then: () => finish() }); return; }
     if (!stepDirty) { finish(); return; }
-    const found = validate(step);
-    if (Object.keys(found).length) { setConfirm({ kind: "leaveStep", then: () => finish() }); return; }
     save(step, () => finish());
   }
 
@@ -415,9 +417,16 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
 
   function reload() {
     if (!savedEvent) return;
-    const keep = step;
     const event = savedEvent;
-    void run(() => refreshSavedEvent(event.id, new Set(WIZARD_STEPS.filter(target => target !== keep))), () => undefined, COPY.loadError);
+    // Steps with something typed keep it (the open one and any left invalid);
+    // the others take the server version.
+    const untouched = new Set(WIZARD_STEPS.filter(target => target !== step && !dirty(target)));
+    void run(() => refreshSavedEvent(event.id, untouched), () => undefined, COPY.loadError);
+  }
+
+  function retryOpen() {
+    if (!initialEvent) return;
+    void run(() => refreshSavedEvent(initialEvent.id, "all"), () => setRefreshed(true), COPY.loadError);
   }
 
   // Notices of decision 3 (new requirements apply to new registrations only)
@@ -508,6 +517,7 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
         {error ? <div ref={errorRef} tabIndex={-1} className="wz-alert" role="alert">
           <span>{error}</span>
           {conflict ? <button type="button" className="wz-button wz-button--soft" disabled={busy} onClick={reload}>{COPY.reload}</button> : null}
+          {!refreshed && !waiting ? <button type="button" className="wz-button wz-button--soft" disabled={busy} onClick={retryOpen}>{COPY.retry}</button> : null}
         </div> : null}
         {feedback ? <div className="wz-success" role="status">{feedback}</div> : null}
         {waiting ? <button className="wz-button wz-button--primary" type="button" disabled={busy}

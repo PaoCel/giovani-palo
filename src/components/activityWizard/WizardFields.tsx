@@ -29,13 +29,14 @@ export function DateTimeField({ label, value, error, fallbackTime, onChange, id 
 }) {
   const { date, time } = splitLocalDateTime(value);
   const errorId = `${id}-error`;
-  return <fieldset className="wz-when" aria-describedby={error ? errorId : undefined}>
+  const describedBy = error ? errorId : undefined;
+  return <fieldset className="wz-when">
     <legend>{label}</legend>
     <div className="wz-when__line">
       {/* The browser draws its own calendar button: no second icon here. */}
-      <input aria-label={`${label}: data`} aria-invalid={error ? true : undefined} className={error ? "wz-input wz-input--error" : "wz-input"}
+      <input aria-label={`${label}: data`} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={error ? "wz-input wz-input--error" : "wz-input"}
         data-field={id} type="date" value={date} onChange={event => onChange(joinLocalDateTime(event.target.value, time, fallbackTime))} />
-      <input aria-label={`${label}: ora`} aria-invalid={error ? true : undefined} className={error ? "wz-input wz-input--error" : "wz-input"}
+      <input aria-label={`${label}: ora`} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={error ? "wz-input wz-input--error" : "wz-input"}
         type="time" value={time} disabled={!date} onChange={event => onChange(joinLocalDateTime(date, event.target.value, fallbackTime))} />
     </div>
     <FieldError id={errorId} message={error} />

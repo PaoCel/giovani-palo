@@ -412,16 +412,20 @@ export const eventsService = {
    * without it the saved form is kept.
    */
   async updateEvent(stakeId: string, eventId: string, input: EventWriteInput, expectedUpdatedAt?: string, form?: {
-    enabledStandardFields: EventFormConfig["enabledStandardFields"];
-    customFields: EventFormConfig["customFields"];
+    enabledStandardFields?: EventFormConfig["enabledStandardFields"];
+    customFields?: EventFormConfig["customFields"];
+    // The stake's labels of the standard fields: without them every save
+    // would rewrite the form with the factory labels.
     standardFieldDefinitions?: StandardFieldDefinition[];
   }) {
     const data = normalizeEventInput(input);
     const reference = doc(db, "stakes", stakeId, "activities", eventId);
     const savedFormConfig = await eventFormsService.getFormConfig(stakeId, eventId, true);
-    const currentFormConfig = form
-      ? { ...savedFormConfig, enabledStandardFields: form.enabledStandardFields, customFields: form.customFields }
-      : savedFormConfig;
+    const currentFormConfig = {
+      ...savedFormConfig,
+      enabledStandardFields: form?.enabledStandardFields ?? savedFormConfig.enabledStandardFields,
+      customFields: form?.customFields ?? savedFormConfig.customFields,
+    };
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(reference);
       if (!snapshot.exists()) throw new Error("Attività non disponibile.");

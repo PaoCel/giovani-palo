@@ -209,8 +209,10 @@ export interface WizardFormPayload {
  */
 export function buildWizardPayload(values: WizardValues, saved: Event | null, fromSteps: ReadonlySet<WizardStepId>, versions: {
   participation: string; privacy: string; photo: string;
-}): EventWriteInput {
-  const base = getInitialWizardValues(saved, null);
+}, defaults?: Parameters<typeof getInitialWizardValues>[2]): EventWriteInput {
+  // A new draft takes the stake defaults for the steps not filled yet
+  // (e.g. «Anche senza account» switched off for the whole stake).
+  const base = getInitialWizardValues(saved, null, defaults);
   const pick = <K extends keyof WizardValues>(key: K): WizardValues[K] => {
     const owner = WIZARD_STEPS.find(step => STEP_FIELDS[step].includes(key));
     return owner && fromSteps.has(owner) ? values[key] : base[key];
@@ -257,8 +259,9 @@ export function buildWizardPayload(values: WizardValues, saved: Event | null, fr
     imageConsentVersionId: saved?.imageConsentVersionId ?? versions.photo,
     templateId: saved?.templateId ?? null,
     allowGuestRegistration: requiresAccount ? false : pick("allowGuestRegistration"),
-    // Decisione 4 (5 novembre): non è più una scelta, sempre acceso.
-    requireLoginForEdit: true,
+    // Decisione 4 (5 novembre): non è più una scelta. Acceso sulle attività
+    // nuove; le esistenti tengono il loro valore.
+    requireLoginForEdit: saved ? saved.requireLoginForEdit !== false : true,
     questionsEnabled: pick("questionsEnabled"),
     recordsEnabled,
     // The date survives a switched-off module, so switching it on keeps it.
@@ -272,12 +275,21 @@ export function buildWizardPayload(values: WizardValues, saved: Event | null, fr
 }
 
 export function buildWizardFormPayload(values: WizardValues): WizardFormPayload {
+  // Answers live in registration.answers[key]: a new key must not collide with
+  // a standard field or another question. Existing keys never change.
+  const taken = new Set<string>([...values.enabledStandardFields, ...values.customFields.map(field => field.key).filter(Boolean)]);
+  const newKey = (field: CustomField) => {
+    const root = slugify(field.label) || field.id;
+    let key = root;
+    for (let n = 2; taken.has(key); n += 1) key = `${root}-${n}`;
+    taken.add(key);
+    return key;
+  };
   return {
     enabledStandardFields: [...values.enabledStandardFields],
     customFields: values.customFields.map(field => ({
       ...field,
-      // An existing key never changes: answers already given are stored under it.
-      key: field.key || slugify(field.label) || field.id,
+      key: field.key || newKey(field),
       label: field.label.trim(),
       helpText: field.helpText?.trim() ?? "",
       options: field.type === "select" ? (field.options ?? []).map(option => option.trim()).filter(Boolean) : [],

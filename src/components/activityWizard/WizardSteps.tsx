@@ -182,7 +182,7 @@ export function StepRegistrations({ values, set, errors, headingRef, fieldDefini
     <label className="wz-field wz-field--narrow">
       <span>{COPY.seats}</span>
       <input className={errors.maxParticipants ? "wz-input wz-input--error" : "wz-input"} data-field="maxParticipants" inputMode="numeric" value={values.maxParticipants}
-        placeholder={COPY.seatsPlaceholder} aria-invalid={errors.maxParticipants ? true : undefined}
+        placeholder={COPY.seatsPlaceholder} aria-invalid={errors.maxParticipants ? true : undefined} aria-describedby={errors.maxParticipants ? `${ids}-max` : undefined}
         onChange={event => set("maxParticipants", event.target.value)} />
       <FieldError id={`${ids}-max`} message={errors.maxParticipants} />
     </label>
@@ -217,7 +217,7 @@ export function StepRegistrations({ values, set, errors, headingRef, fieldDefini
             {open ? <div className="wz-q__editor">
               <label className="wz-field"><span>{COPY.questionLabel}</span>
                 <input className={error ? "wz-input wz-input--error" : "wz-input"} data-field={`customField:${field.id}`} value={field.label}
-                  aria-invalid={error ? true : undefined} onChange={event => updateField(field.id, { label: event.target.value })} />
+                  aria-invalid={error ? true : undefined} aria-describedby={error ? `${ids}-${field.id}` : undefined} onChange={event => updateField(field.id, { label: event.target.value })} />
                 <FieldError id={`${ids}-${field.id}`} message={error} />
               </label>
               <label className="wz-field"><span id={`${ids}-${field.id}-type`}>{COPY.questionType}</span>
