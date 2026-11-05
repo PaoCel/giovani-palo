@@ -866,8 +866,19 @@ export function EventEditorForm({
 
           {currentStep.id === "settings" ? (
             <>
-              <label className="field">
-                {renderFieldLabel("Locandina", "heroImageUrl")}
+              {/* Not a <label>: a wrapping label would forward every tap on
+                  the preview to the file input and reopen the picker. */}
+              <div
+                className="field"
+                role="group"
+                aria-labelledby={fieldLabelId("heroImageUrl")}
+              >
+                {renderFieldLabel(
+                  "Locandina",
+                  "heroImageUrl",
+                  false,
+                  fieldLabelId("heroImageUrl"),
+                )}
                 <div className="upload-panel">
                   {values.heroImageUrl ? (
                     <div
@@ -886,25 +897,24 @@ export function EventEditorForm({
                         accept="image/*"
                         className="sr-only"
                         disabled={uploadingImage || busy || !onUploadImage}
-                        onChange={(event) =>
-                          void handleImageSelection(
-                            event.target.files?.[0] ?? null,
-                          )
-                        }
+                        onChange={(event) => {
+                          const input = event.currentTarget;
+                          const file = input.files?.[0] ?? null;
+                          // A focused hidden file input stays the "active"
+                          // control: mobile browsers keep scrolling back to
+                          // it. Release it and allow picking the same file.
+                          input.value = "";
+                          input.blur();
+                          void handleImageSelection(file);
+                        }}
                         type="file"
                       />
-                      {uploadingImage ? "Caricamento..." : "Carica immagine"}
+                      {uploadingImage
+                        ? "Caricamento..."
+                        : values.heroImageUrl
+                          ? "Cambia locandina"
+                          : "Carica locandina"}
                     </label>
-
-                    <input
-                      className="input"
-                      placeholder="Oppure incolla un URL immagine"
-                      type="url"
-                      value={values.heroImageUrl}
-                      onChange={(event) =>
-                        updateValue("heroImageUrl", event.target.value)
-                      }
-                    />
 
                     {values.heroImageUrl || values.heroImagePath ? (
                       <button
@@ -915,7 +925,7 @@ export function EventEditorForm({
                         }}
                         type="button"
                       >
-                        Rimuovi immagine
+                        Rimuovi locandina
                       </button>
                     ) : null}
                   </div>
@@ -923,7 +933,7 @@ export function EventEditorForm({
                 {uploadError ? (
                   <small className="field-error">{uploadError}</small>
                 ) : null}
-              </label>
+              </div>
 
               <label className="field">
                 {renderFieldLabel("Programma / riepilogo", "program")}

@@ -3346,11 +3346,15 @@ button {
 }
 
 .upload-actions {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.8rem;
 }
 
 .upload-button {
+  /* Anchors the visually hidden file input inside the button. */
+  position: relative;
   justify-self: start;
 }
 
@@ -3723,6 +3727,10 @@ p.admin-person-fields__note {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  /* Chrome's scroll anchoring pulled the activity editor back by ~300 px
+     after a poster upload: "Salva modifiche" at the bottom became unreachable
+     on phones (2026-11-05). A sheet whose steps swap content must not anchor. */
+  overflow-anchor: none;
   padding: 1rem;
 }
 
@@ -6204,11 +6212,6 @@ p.admin-person-fields__note {
 
   .admin-overnight-insights {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .upload-actions {
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
   }
 }
 
