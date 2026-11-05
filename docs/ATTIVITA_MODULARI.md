@@ -626,12 +626,15 @@ Pubblica. Annullare l'attività resta in Gestisci, con conferma e «Riapri».
 Mockup v2 in `.claude/mockups/crea-attivita/` (ignorato da git), dopo la review
 UX di un altro agente (PASS WITH CONCERNS, recepita in questa tabella).
 
-Decisioni aperte per Paolo:
-1. «Togli dal catalogo» per un'attività pubblicata (torna bozza, iscrizioni
-   conservate), o resta solo «Annulla»?
-2. Etichette: «In giornata» al posto di «Standard» in tutta l'app; «Congiunta»
-   resta o diventa «Tutti»?
-3. Pubblicata con iscritti e cambio di tipo: i requisiti nuovi valgono anche
-   per chi è già iscritto (per esempio parte l'autorizzazione del genitore)?
-4. «Richiedi un account per modificare l'iscrizione» resta un interruttore a
-   parte o si fonde con «Anche senza account»?
+Decisioni di Paolo, 5 novembre 2026 (mockup v2 approvato):
+1. **«Togli dal catalogo»** nella gestione di un'attività pubblicata: torna
+   bozza, nessuno la vede, iscrizioni e firme restano; si ripubblica dal
+   riepilogo. Contratto rules e stati da scrivere prima del codice.
+2. **«In giornata» sostituisce «Standard»** in tutta l'app; «Congiunta» resta.
+3. **Cambio di tipo con iscritti: i requisiti nuovi valgono solo per i nuovi
+   iscritti**, con avviso sopra Salva che dice quanti già iscritti non
+   riceveranno la richiesta. Nessuna email parte da sola.
+4. **«Richiedi un account per modificare l'iscrizione» si fonde**: sempre
+   acceso per le attività nuove, niente interruttore. Le attività esistenti con
+   il valore spento restano come sono (censimento in sola lettura prima del
+   rilascio).

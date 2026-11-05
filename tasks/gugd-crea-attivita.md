@@ -16,8 +16,8 @@ blocked_by: []
 branch:
 worktree:
 session:
-stopped_at: "5/11: mockup v2 del flusso a 6 step pronto (.claude/mockups/crea-attivita/png/board-1400.png), stati e ritorni nella spec, review UX recepita"
-next: Paolo sceglie sui mockup e risponde alle 4 decisioni aperte in docs/ATTIVITA_MODULARI.md (Sesto incremento); poi costruzione su branch task/gugd-crea-attivita
+stopped_at: "5/11: mockup v2 approvato da Paolo, 4 decisioni registrate nella spec"
+next: "Costruzione su branch task/gugd-crea-attivita: contratto di «Togli dal catalogo» (rules, stati) prima del codice; censimento in sola lettura di requireLoginForEdit spento; poi foglio a 6 step, test di un altro agente, collaudo a 320/390/430/1440 su emulatori, review indipendente, deploy dopo conferma"
 verified: "Fix (5/11): emulatori sul mini con il seed demo, admin a 375: prima del fix dopo un caricamento della locandina lo scroll del modale si fermava a 1409 su 1719 e Salva modifiche restava fuori schermo; con overflow-anchor none sul corpo del modale scroll reale fino a 1719, clic su Salva, Modifiche salvate, console pulita; campo URL assente, nessun label annidato. Suite client sul mini 1827/1827, build verde. Non provati: Safari iOS (WebKit non fa scroll anchoring: se Paolo era su iPhone la causa può essere un'altra), produzione."
 links: []
 done_at:
@@ -55,5 +55,6 @@ descrizione, destinatari) → «Modulo d'iscrizione» → «Controlla e pubblica
   account ospite chiesto sia nelle opzioni sia nel modulo)
 - [x] stati e ritorni del flusso nuovo (docs/ATTIVITA_MODULARI.md, Sesto incremento)
 - [x] mockup v2 del flusso nuovo, review UX di un altro agente recepita
-- [ ] scelta di Paolo e 4 decisioni aperte
+- [x] mockup v2 approvato e 4 decisioni prese (5/11)
+- [ ] contratto «Togli dal catalogo» e censimento requireLoginForEdit
 - [ ] costruzione, test, collaudo, deploy
