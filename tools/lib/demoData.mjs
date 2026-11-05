@@ -1,5 +1,8 @@
 // Dati sintetici per la demo (progetto di staging o emulatori), con i 4 ruoli:
 // admin di palo, dirigente di unità, partecipante, genitore con due figli.
+// Tre attività: viaggio (futuro, piano stanze pubblicato), campeggio estivo
+// (futuro) e campeggio d'autunno (concluso: galleria, pattuglie e comitati,
+// staff, sondaggio con risposte), più i post della home del palo.
 //
 // Deterministico: ids fissi, nomi da liste fisse, date relative a `today`
 // (--today YYYY-MM-DD, altrimenti oggi). Stesso `today` = stessi documenti.
@@ -10,8 +13,12 @@
 // Forma dei documenti: firestore.rules (validUserPayload, validRegistrationPayload,
 // validChildPayload) e le callable in functions/lib/parentAuthorization.js.
 import crypto from "node:crypto";
+import fs from "node:fs";
+import { createRequire } from "node:module";
 
 import { buildMemberDocument, buildStakeDocument, buildUnitDocument, buildUserDocument, unitIdFor } from "./stakes.mjs";
+
+const require = createRequire(new URL("../../functions/package.json", import.meta.url));
 
 export const DEMO_STAKE_ID = "palo-demo";
 export const DEMO_STAKE_NAME = "Palo Demo";
@@ -59,6 +66,47 @@ const TRANSPORT_CHOICES = [
 ];
 
 export const MATTEO_MAGIC_TOKEN = magicTokenFor("demo");
+
+export const PAST_CAMP_ID = "campeggio-autunno";
+// Segnaposto per i campi Timestamp (finestra della galleria, savedAt): il
+// dataset resta JSON puro e confrontabile, seedDemo lo converte in scrittura.
+export const TIMESTAMP = "__demoTimestamp";
+// Titoli ed emoji dei comitati storici come in functions/lib/campManagement.js.
+const CAMP_COMMITTEES = {
+  logistics: { title: "Logistica e Materiali", emoji: "🧱" },
+  wellbeing: { title: "Benessere e Supporto", emoji: "🛋️" },
+  kitchen: { title: "Cucina", emoji: "🥘" },
+  games: { title: "Giochi e Attività", emoji: "🛝" },
+  spiritual: { title: "Pensieri Spirituali e Serate", emoji: "ℹ️" },
+};
+// File in tools/demo-media (generate.py): `uploader` 0 = Sofia, poi i giovani.
+export const DEMO_MEDIA = [
+  { file: "alba-sul-campo", caption: "Prima alba al campo", uploader: 0 },
+  { file: "le-tende", caption: "Tende montate prima di cena", uploader: 3 },
+  { file: "lago-al-mattino", caption: "Il lago dell'escursione", uploader: 5 },
+  { file: "sentiero-del-gioco", caption: "Il sentiero del grande gioco", uploader: 0 },
+  { file: "bandierine-del-campo", caption: "Le bandierine delle pattuglie", uploader: 2 },
+  { file: "bosco-di-pini", caption: "Pausa nel bosco", uploader: 7 },
+  { file: "serata-al-fuoco", caption: "Serata attorno al fuoco", uploader: 4 },
+  { file: "cielo-stellato", caption: "L'ultima notte sotto le stelle", uploader: 9 },
+];
+const SURVEY_ANSWERS = [
+  { category: "giovane_donna", giudizio: 5, programma: 4.5, ricordo: "La serata attorno al fuoco con tutte le unità.", parole: ["stelle", "amici", "freddo"] },
+  { category: "giovane_uomo", giudizio: 4.5, programma: 4, ricordo: "Il grande gioco nel bosco, abbiamo vinto noi.", parole: ["fango", "squadra", "risate"] },
+  { category: "giovane_donna", giudizio: 4, programma: 3.5, ricordo: "Il pensiero del mattino in riva al lago.", parole: ["pace", "lago", "sonno"] },
+  { category: "giovane_uomo", giudizio: 5, programma: 5, ricordo: "Montare la tenda sotto la pioggia e riuscirci.", parole: ["tende", "pioggia", "orgoglio"] },
+  { category: "dirigente", giudizio: 4.5, programma: 4, ricordo: "Vedere le pattuglie organizzarsi da sole il secondo giorno.", parole: ["fiducia", "servizio", "ordine"] },
+  { category: "giovane_donna", giudizio: 3.5, programma: 3, ricordo: "La cucina: stancante ma divertente.", parole: ["cucina", "turni", "pasta"] },
+  { category: "giovane_uomo", giudizio: 4, programma: 4.5, ricordo: "L'escursione al lago.", parole: ["cammino", "panorama", "zaino"] },
+  { category: "giovane_donna", giudizio: 5, programma: 4, ricordo: "Le canzoni dell'ultima sera.", parole: ["musica", "fuoco", "abbracci"] },
+  { category: "giovane_uomo", giudizio: 3, programma: 3.5, ricordo: "Troppo poco tempo libero, ma il gioco notturno era bello.", parole: ["notte", "torce", "corsa"] },
+  { category: "dirigente", giudizio: 5, programma: 4.5, ricordo: "Il servizio al paese vicino il sabato mattina.", parole: ["servizio", "gratitudine", "sole"] },
+  { category: "giovane_donna", giudizio: 4.5, programma: 5, ricordo: "Conoscere ragazze delle altre unità.", parole: ["nuove amiche", "giochi", "stelle"] },
+];
+const tokenFor = (seed) => {
+  const hex = crypto.createHash("sha256").update(`demo-media-token/${seed}`).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+};
 const hashToken = (raw) => crypto.createHash("sha256").update(raw, "utf8").digest("hex");
 export const hashEmail = (email) =>
   crypto.createHash("sha256").update(String(email).trim().toLowerCase(), "utf8").digest("hex");
@@ -180,7 +228,7 @@ function registrationDoc({
  * Costruisce l'intero set di documenti (senza scrivere niente).
  * @returns {{ auth: Array, docs: Array<{path: string, data: object}>, summary: object, magicLink: string }}
  */
-export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_STAKE_ID, prefix = "demo" }) {
+export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_STAKE_ID, prefix = "demo", media = null }) {
   const accounts = demoAccounts(prefix);
   const CHILDREN = demoChildren(prefix);
   const magicToken = magicTokenFor(prefix);
@@ -417,9 +465,352 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     }
   });
 
+  // Campeggio già concluso: galleria, pattuglie e comitati, staff e sondaggio
+  // hanno bisogno di un'attività iniziata o finita (le altre due sono future).
+  const pastCamp = {
+    ...activityBase,
+    title: "Campeggio d'autunno",
+    description: "Quattro giorni in tenda con pattuglie, comitati e serate attorno al fuoco. Dati sintetici di esempio.",
+    location: "Campo scout di esempio",
+    program: "Arrivo e montaggio delle tende, giochi a pattuglie, escursione al lago, serata delle unità e rientro.",
+    year: base.getUTCFullYear(),
+    activityType: "camp",
+    overnight: true,
+    startDate: at(-9, 15),
+    endDate: at(-5, 11),
+    registrationOpen: at(-40, 0),
+    registrationClose: at(-12, 22),
+    status: "registrations_closed",
+    maxParticipants: 60,
+    createdAt: at(-45),
+    updatedAt: at(-45),
+  };
+  add(`stakes/${stakeId}/activities/${PAST_CAMP_ID}`, pastCamp);
+  add(`stakes/${stakeId}/activities/${PAST_CAMP_ID}/config/form`, { allowGuestRegistration: false, requireLoginForEdit: true });
+  const pastCampRegs = [];
+  const pastReg = (id, data) => {
+    reg(PAST_CAMP_ID, id, data);
+    pastCampRegs.push({ id, fullName: data.fullName, genderRoleCategory: data.genderRoleCategory, unitName: data.unitNameSnapshot });
+  };
+  pastReg(`user_${participant.uid}`, registrationDoc({
+    firstName: participant.firstName, lastName: participant.lastName, genderRoleCategory: "giovane_donna",
+    birthDate: "2011-03-14", unit: aurora, status: "confirmed", mode: "authenticated", userId: participant.uid,
+    answers: { transportMode: "Pullman organizzato", photoInternalConsent: true },
+    parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-20) }),
+    createdAt: at(-30),
+  }));
+  pastReg(`child_${parent.uid}_${chiara.id}`, registrationDoc({
+    firstName: chiara.firstName, lastName: chiara.lastName, genderRoleCategory: chiara.gender,
+    birthDate: chiara.birthDate, unit: aurora, status: "confirmed", mode: "parent",
+    parentUid: parent.uid, childId: chiara.id,
+    answers: { ...request({ submittedAt: at(-28) }), transportMode: "Vengo con la mia famiglia", photoInternalConsent: true },
+    parentAuthorization: authorizedState({
+      parentName: `${parent.firstName} ${parent.lastName}`, parentEmail: realParentEmail.toLowerCase(), now: at(-27),
+    }),
+    createdAt: at(-28),
+  }));
+  pastReg(`user_${leader.uid}`, registrationDoc({
+    firstName: leader.firstName, lastName: leader.lastName, genderRoleCategory: "dirigente",
+    birthDate: "1985-09-03", unit: aurora, status: "confirmed", mode: "authenticated", userId: leader.uid,
+    answers: { transportMode: "Posso dare un passaggio ad altri" },
+    createdAt: at(-33),
+  }));
+  youth.slice(0, 12).forEach((person, index) => {
+    pastReg(`user_${person.uid}`, registrationDoc({
+      firstName: person.firstName, lastName: person.lastName, genderRoleCategory: person.gender,
+      birthDate: person.birthDate, unit: person.unit, status: "confirmed", mode: "authenticated", userId: person.uid,
+      answers: { transportMode: TRANSPORT_CHOICES[index % TRANSPORT_CHOICES.length], photoInternalConsent: index % 3 !== 0 },
+      parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-25 + (index % 5)) }),
+      createdAt: at(-32 + (index % 6)),
+    }));
+  });
+
+  const patchRegistration = (activityId, registrationId, fields) => {
+    const entry = docs.find((item) => item.path === `stakes/${stakeId}/activities/${activityId}/registrations/${registrationId}`);
+    if (!entry) throw new Error(`Iscrizione demo assente: ${activityId}/${registrationId}`);
+    Object.assign(entry.data, fields);
+  };
+  const regById = new Map(pastCampRegs.map((item) => [item.id, item]));
+  const youthReg = (index) => `user_${youth[index].uid}`;
+  const sofiaReg = `user_${participant.uid}`;
+  const chiaraReg = `child_${parent.uid}_${chiara.id}`;
+  const leaderReg = `user_${leader.uid}`;
+  const campUpdatedAt = at(-12);
+
+  // Pattuglie e comitati (management/camp, forma di functions/lib/campManagement.js)
+  const publicMember = (registrationId, role) => {
+    const item = regById.get(registrationId);
+    return { registrationId, fullName: item.fullName, genderRoleCategory: item.genderRoleCategory, unitName: item.unitName, role };
+  };
+  const patrolPlan = [
+    { id: "patrol-aquile", name: "Aquile", leader: youthReg(8), supervisors: [leaderReg], members: [sofiaReg, youthReg(0), youthReg(3), youthReg(5)] },
+    { id: "patrol-volpi", name: "Volpi", leader: youthReg(9), supervisors: [], members: [chiaraReg, youthReg(1), youthReg(4)] },
+    { id: "patrol-cervi", name: "Cervi", leader: youthReg(10), supervisors: [], members: [youthReg(2), youthReg(6), youthReg(7), youthReg(11)] },
+  ];
+  const committeePlan = [
+    { id: "logistics", leaders: [youthReg(10)], members: [youthReg(1), youthReg(6)], responsibilities: "Tende, materiale comune e smontaggio dell'ultimo giorno." },
+    { id: "wellbeing", leaders: [], members: [youthReg(3)], responsibilities: "Primo soccorso leggero e attenzione a chi resta indietro." },
+    { id: "kitchen", leaders: [youthReg(9)], members: [chiaraReg, youthReg(4), youthReg(7)], responsibilities: "Turni di cucina e lista della spesa." },
+    { id: "games", leaders: [youthReg(8)], members: [sofiaReg, youthReg(0), youthReg(2)], responsibilities: "Giochi a pattuglie e grande gioco del sabato." },
+    { id: "spiritual", leaders: [leaderReg], members: [youthReg(5), youthReg(11)], responsibilities: "Pensiero del mattino e serata attorno al fuoco." },
+  ];
+  const patrols = patrolPlan.map((patrol) => ({
+    id: patrol.id,
+    name: patrol.name,
+    leaderRegistrationId: patrol.leader,
+    supervisorRegistrationIds: patrol.supervisors,
+    manualSupervisorIds: [],
+    memberRegistrationIds: patrol.members,
+    publicMembers: [
+      publicMember(patrol.leader, "leader"),
+      ...patrol.supervisors.map((id) => publicMember(id, "supervisor")),
+      ...patrol.members.map((id) => publicMember(id, "member")),
+    ],
+    updatedAt: campUpdatedAt,
+  }));
+  const committees = committeePlan.map((committee) => {
+    const definition = CAMP_COMMITTEES[committee.id];
+    return {
+      id: committee.id,
+      title: definition.title,
+      emoji: definition.emoji,
+      responsibilities: committee.responsibilities,
+      leaderRegistrationIds: committee.leaders,
+      manualLeaderIds: [],
+      memberRegistrationIds: committee.members,
+      publicMembers: [
+        ...committee.leaders.map((id) => publicMember(id, "leader")),
+        ...committee.members.map((id) => publicMember(id, "member")),
+      ],
+      updatedAt: campUpdatedAt,
+    };
+  });
+  add(`stakes/${stakeId}/activities/${PAST_CAMP_ID}/management/camp`, {
+    groupLabel: "pattuglia",
+    committees,
+    patrols,
+    manualLeaders: [],
+    updatedAt: campUpdatedAt,
+    savedAt: { [TIMESTAMP]: campUpdatedAt },
+  });
+  add(`stakes/${stakeId}/activities/${PAST_CAMP_ID}/management/campStaff`, {
+    staffUids: [leader.uid],
+    updatedAt: campUpdatedAt,
+    updatedBy: admin.uid,
+  });
+  for (const patrol of patrolPlan) {
+    const roleOf = (id) => (id === patrol.leader ? "leader" : patrol.supervisors.includes(id) ? "supervisor" : "member");
+    for (const id of [patrol.leader, ...patrol.supervisors, ...patrol.members]) {
+      patchRegistration(PAST_CAMP_ID, id, { assignedPatrolId: patrol.id, assignedPatrolName: patrol.name, assignedPatrolRole: roleOf(id) });
+    }
+  }
+  for (const committee of committeePlan) {
+    const title = CAMP_COMMITTEES[committee.id].title;
+    for (const id of committee.leaders) patchRegistration(PAST_CAMP_ID, id, { assignedCommittees: [{ id: committee.id, title, role: "leader" }] });
+    for (const id of committee.members) patchRegistration(PAST_CAMP_ID, id, { assignedCommittees: [{ id: committee.id, title, role: "member" }] });
+  }
+
+  // Piano stanze pubblicato sul viaggio (management/rooms, functions/lib/roomManagement.js):
+  // i ragazzi vedono "La tua stanza" e i compagni dalla callable roomMates.
+  const tripRooms = [
+    { id: "stanza-ulivo", name: "Stanza Ulivo", category: "boys", floor: "Primo piano" },
+    { id: "stanza-pino", name: "Stanza Pino", category: "boys", floor: "Primo piano" },
+    { id: "stanza-glicine", name: "Stanza Glicine", category: "girls", floor: "Secondo piano" },
+    { id: "stanza-lavanda", name: "Stanza Lavanda", category: "girls", floor: "Secondo piano" },
+  ].map((room) => ({ ...room, capacity: 4, accessible: false, notes: "", minAge: null, maxAge: null }));
+  const tripPrefix = `stakes/${stakeId}/activities/viaggio-tempio/registrations/`;
+  const tripEligible = docs
+    .filter((entry) => entry.path.startsWith(tripPrefix))
+    .filter((entry) => ["confirmed", "pending_parent_authorization"].includes(entry.data.registrationStatus))
+    .map((entry) => ({ id: entry.path.slice(tripPrefix.length), gender: entry.data.genderRoleCategory }));
+  const roomAssignments = {};
+  for (const [gender, roomIds] of [["giovane_uomo", ["stanza-ulivo", "stanza-pino"]], ["giovane_donna", ["stanza-glicine", "stanza-lavanda"]]]) {
+    tripEligible.filter((item) => item.gender === gender).forEach((item, index) => {
+      roomAssignments[item.id] = roomIds[Math.floor(index / 4)];
+    });
+  }
+  const roomsUpdatedAt = at(-1);
+  add(`stakes/${stakeId}/activities/viaggio-tempio/management/rooms`, {
+    rooms: tripRooms,
+    assignments: roomAssignments,
+    lockedIds: [],
+    adultGenders: {},
+    couples: [],
+    published: true,
+    staffElsewhere: true,
+    revision: 1,
+    updatedAt: roomsUpdatedAt,
+    savedAt: { [TIMESTAMP]: roomsUpdatedAt },
+  });
+  for (const [registrationId, roomId] of Object.entries(roomAssignments)) {
+    const room = tripRooms.find((item) => item.id === roomId);
+    patchRegistration("viaggio-tempio", registrationId, { assignedRoomId: room.id, assignedRoomName: room.name });
+  }
+
+  // Sondaggio del campeggio concluso, con risposte anonime (niente userId).
+  const surveyPath = `stakes/${stakeId}/activities/${PAST_CAMP_ID}`;
+  const questions = [
+    { id: "q-giudizio", text: "Quanto ti è piaciuto il campeggio?", type: "rating", fieldCount: 0 },
+    { id: "q-programma", text: "Come giudichi giochi e attività del programma?", type: "rating", fieldCount: 0 },
+    { id: "q-ricordo", text: "Qual è il momento che ti porti a casa?", type: "open", fieldCount: 0 },
+    { id: "q-parole", text: "Descrivi il campeggio in tre parole.", type: "fields", fieldCount: 3 },
+  ];
+  questions.forEach((question, order) => {
+    add(`${surveyPath}/surveyQuestions/${question.id}`, {
+      eventId: PAST_CAMP_ID, stakeId, text: question.text, type: question.type, fieldCount: question.fieldCount,
+      order, status: "active", createdAt: at(-6), updatedAt: at(-6),
+    });
+  });
+  SURVEY_ANSWERS.forEach((answer, index) => {
+    const submittedAt = at(-4 + Math.floor(index / 4), 9 + (index % 10));
+    add(`${surveyPath}/surveyResponses/r-${String(index + 1).padStart(2, "0")}`, {
+      eventId: PAST_CAMP_ID,
+      stakeId,
+      isDraft: false,
+      category: answer.category,
+      answers: {
+        "q-giudizio": { type: "rating", value: answer.giudizio },
+        "q-programma": { type: "rating", value: answer.programma },
+        "q-ricordo": { type: "open", value: answer.ricordo },
+        "q-parole": { type: "fields", value: answer.parole },
+      },
+      submittedAt,
+      createdAt: submittedAt,
+      updatedAt: submittedAt,
+    });
+  });
+
+  // Galleria del campeggio concluso: illustrazioni senza persone (tools/demo-media).
+  // Solo con `media` (bucket noto): senza, niente file e niente documenti media.
+  const galleryId = `act_${PAST_CAMP_ID}`;
+  const galleryPath = `stakes/${stakeId}/galleries/${galleryId}`;
+  const uploads = [];
+  const mediaDocs = [];
+  if (media) {
+    const runId = media.runId || today.replaceAll("-", "");
+    DEMO_MEDIA.forEach((item, index) => {
+      const mediaId = `m${runId}${String(index + 1).padStart(2, "0")}`;
+      const uploader = [participant, ...youth][item.uploader];
+      const createdAt = at(-8 + Math.floor(index / 3), 10 + (index % 3) * 3);
+      const stamp = Date.parse(createdAt);
+      const folder = `protected/stakes/${stakeId}/galleries/${galleryId}/media/${mediaId}/`;
+      const files = {};
+      for (const [kind, suffix] of [["optimized", ""], ["thumb", "-thumb"]]) {
+        const path = `${folder}${kind}-${stamp}-${item.file}.jpg`;
+        const token = tokenFor(`${runId}/${path}`);
+        const url = `${media.baseUrl.replace(/\/$/, "")}/v0/b/${media.bucketName}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+        files[kind] = { path, url };
+        uploads.push({
+          localFile: `${item.file}${suffix}.jpg`,
+          path,
+          token,
+          customMetadata: { uploadedBy: uploader.uid, stakeId, galleryId, mediaId, kind },
+        });
+      }
+      mediaDocs.push({ id: mediaId, url: files.optimized.url });
+      add(`${galleryPath}/media/${mediaId}`, {
+        activityId: PAST_CAMP_ID,
+        type: "image",
+        storagePath: files.optimized.path,
+        storageUrl: files.optimized.url,
+        originalPath: null,
+        originalUrl: null,
+        optimizedPath: files.optimized.path,
+        optimizedUrl: files.optimized.url,
+        thumbnailPath: files.thumb.path,
+        thumbnailUrl: files.thumb.url,
+        posterPath: null,
+        posterUrl: null,
+        width: 1600,
+        height: 1066,
+        duration: null,
+        order: index,
+        caption: item.caption,
+        filename: `${item.file}.jpg`,
+        contentType: "image/jpeg",
+        sizeBytes: item.sizeBytes ?? 70000,
+        uploadedBy: uploader.uid,
+        status: "uploaded",
+        likeCount: 0,
+        createdAt,
+        updatedAt: createdAt,
+      });
+    });
+  }
+  const window = { from: at(-9, 13), until: at(2, 11) };
+  add(galleryPath, {
+    title: pastCamp.title,
+    description: "",
+    activityId: PAST_CAMP_ID,
+    createdBy: admin.uid,
+    createdAt: at(-9, 13),
+    updatedAt: at(-4),
+    published: false,
+    publishedAt: null,
+    coverMediaId: mediaDocs[0]?.id ?? null,
+    coverImageUrl: mediaDocs[0]?.url ?? null,
+    mediaCount: mediaDocs.length,
+    batchSize: 30,
+    accessMode: "open",
+    likeCount: 0,
+    commentsEnabled: false,
+    postsCreated: false,
+    uploadsClosed: false,
+    uploadsWindowSource: "activity",
+    uploadsOpenFrom: { [TIMESTAMP]: window.from },
+    uploadsOpenUntil: { [TIMESTAMP]: window.until },
+  });
+
+  // Post nella home del palo (stakes/{s}/feedPosts, src/services/firestore/feedService.ts)
+  const post = (id, data) => add(`stakes/${stakeId}/feedPosts/${id}`, {
+    type: "announcement", activityId: null, galleryId: null, galleryBatchIndex: null, mediaIds: [], likeCount: 0,
+    ctaLabel: null, ctaUrl: null, createdBy: admin.uid, published: true, pinned: false, visibility: "all_authenticated",
+    ...data,
+    updatedAt: data.createdAt,
+    publishedAt: data.createdAt,
+  });
+  post("post-viaggio-aperto", {
+    title: "Iscrizioni aperte: Viaggio al Tempio",
+    body: "Due giorni al Tempio con pernottamento in foresteria. Iscriviti entro tre settimane: per chi è minorenne serve l'autorizzazione del genitore.",
+    activityId: "viaggio-tempio",
+    ctaLabel: "Vai all'attività",
+    ctaUrl: "/activities/viaggio-tempio",
+    pinned: true,
+    createdAt: at(-9, 18),
+  });
+  post("post-sondaggio-campeggio", {
+    title: "Com'è andato il campeggio?",
+    body: "Grazie a tutti per il Campeggio d'autunno. Il sondaggio è anonimo e richiede due minuti: ci aiuta a preparare il prossimo.",
+    activityId: PAST_CAMP_ID,
+    createdAt: at(-4, 19),
+  });
+  if (mediaDocs.length) {
+    post("post-galleria-campeggio", {
+      type: "gallery",
+      title: "Le foto del Campeggio d'autunno",
+      body: "Alba, tende e serata al fuoco: la galleria resta aperta ancora qualche giorno per chi vuole aggiungere le sue.",
+      activityId: PAST_CAMP_ID,
+      galleryId,
+      galleryBatchIndex: 0,
+      mediaIds: mediaDocs.slice(0, 6).map((item) => item.id),
+      visibility: "gallery_members",
+      createdAt: at(-4, 12),
+    });
+  }
+  post("post-campeggio-estivo", {
+    type: "activity_reminder",
+    title: "Campeggio estivo: si aprono le iscrizioni",
+    body: "Le date e il programma sono nella scheda dell'attività. Le pattuglie si formano a iscrizioni chiuse.",
+    activityId: "campeggio-estivo",
+    ctaLabel: "Vai all'attività",
+    ctaUrl: "/activities/campeggio-estivo",
+    createdAt: at(-5, 17),
+  });
+
   const registrations = docs.filter((entry) => entry.path.includes("/registrations/")).length;
   return {
     docs,
+    uploads,
     registrations,
     magicToken,
     magicLink: `${appUrl.replace(/\/$/, "")}/parent-confirm/${magicToken}`,
@@ -428,6 +819,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
       today,
       documents: docs.length,
       registrations,
+      media: mediaDocs.length,
       logins: Object.values(accounts).map((account) => account.email),
     },
   };
@@ -438,10 +830,16 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Scrive il dataset (upsert con ids fissi) e crea/aggiorna i 4 account di login. */
 export async function seedDemo(
   { db, auth },
-  { today, parentEmail, appUrl, password, apply, settleAlertsMs = 6000, keepAlerts = false, stakeId = DEMO_STAKE_ID, prefix = "demo" },
+  { today, parentEmail, appUrl, password, apply, settleAlertsMs = 6000, keepAlerts = false, stakeId = DEMO_STAKE_ID, prefix = "demo", media = null },
 ) {
   const accounts = demoAccounts(prefix);
-  const dataset = buildDemoDataset({ today, parentEmail, appUrl, stakeId, prefix });
+  // `media` = { bucket, baseUrl, runId? }: con il bucket la galleria ha i file.
+  // runId nuovo a ogni giro: un mediaId cancellato lascia una tombstone
+  // (mediaLifecycle) che cancellerebbe anche i file ricaricati con lo stesso id.
+  const mediaInput = media?.bucket
+    ? { bucketName: media.bucket.name, baseUrl: media.baseUrl, runId: media.runId || (apply ? Date.now().toString(36) : null) }
+    : null;
+  const dataset = buildDemoDataset({ today, parentEmail, appUrl, stakeId, prefix, media: mediaInput });
   if (!apply) return { applied: false, ...dataset };
 
   for (const account of Object.values(accounts)) {
@@ -459,9 +857,38 @@ export async function seedDemo(
     }
   }
 
+  if (mediaInput) {
+    // Prima i file, poi i documenti che li citano. I media di un giro precedente
+    // (id diversi) si cancellano dal documento: il trigger toglie i loro file.
+    const mediaDir = new URL("../demo-media/", import.meta.url);
+    for (const upload of dataset.uploads) {
+      await media.bucket.file(upload.path).save(fs.readFileSync(new URL(upload.localFile, mediaDir)), {
+        resumable: false,
+        contentType: "image/jpeg",
+        metadata: { cacheControl: "private, max-age=86400", metadata: { ...upload.customMetadata, firebaseStorageDownloadTokens: upload.token } },
+      });
+    }
+    const galleryMedia = dataset.docs.filter((entry) => /^stakes\/[^/]+\/galleries\/[^/]+\/media\/[^/]+$/u.test(entry.path));
+    const keep = new Set(galleryMedia.map((entry) => entry.path));
+    const galleries = new Set(galleryMedia.map((entry) => entry.path.replace(/\/media\/[^/]+$/u, "")));
+    for (const gallery of galleries) {
+      const existing = await db.collection(`${gallery}/media`).get();
+      for (const snapshot of existing.docs) if (!keep.has(snapshot.ref.path)) await snapshot.ref.delete();
+    }
+  }
+
+  const { Timestamp } = require("firebase-admin/firestore");
+  const toFirestore = (value) => {
+    if (Array.isArray(value)) return value.map(toFirestore);
+    if (value && typeof value === "object") {
+      if (Object.keys(value).length === 1 && typeof value[TIMESTAMP] === "string") return Timestamp.fromDate(new Date(value[TIMESTAMP]));
+      return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, toFirestore(inner)]));
+    }
+    return value;
+  };
   for (let index = 0; index < dataset.docs.length; index += 400) {
     const batch = db.batch();
-    for (const { path, data } of dataset.docs.slice(index, index + 400)) batch.set(db.doc(path), data);
+    for (const { path, data } of dataset.docs.slice(index, index + 400)) batch.set(db.doc(path), toFirestore(data));
     await batch.commit();
   }
 

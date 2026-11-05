@@ -1975,6 +1975,8 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
       [
         `${viaggio}/registrations/child_${parentUid}_${prefix}-child-matteo`,
         `${viaggio}/registrations/child_${parentUid}_${prefix}-child-chiara`,
+        // Chiara è anche al campeggio concluso (galleria, pattuglie, sondaggio).
+        `stakes/${copyStakeId}/activities/campeggio-autunno/registrations/child_${parentUid}_${prefix}-child-chiara`,
       ].sort(),
     );
   });
@@ -1997,7 +1999,9 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
 
   test("l'admin demo elenca attività e iscrizioni del proprio palo ma non del palo A", async () => {
     const { db } = clients.admin;
-    assert.equal((await listAll(db, `stakes/${copyStakeId}/activities`)).size, 2);
+    const activityCount = docs.filter((entry) => /^stakes\/[^/]+\/activities\/[^/]+$/.test(entry.path)).length;
+    assert.equal(activityCount, 3, "viaggio, campeggio estivo e campeggio concluso");
+    assert.equal((await listAll(db, `stakes/${copyStakeId}/activities`)).size, activityCount);
     const expected = registrationDocs.filter((entry) => entry.path.startsWith(`${viaggio}/`)).length;
     assert.equal((await listAll(db, `${viaggio}/registrations`)).size, expected);
     await expectDenied(listAll(db, `stakes/${x.A.id}/activities/pub/registrations`), "iscrizioni del palo A");

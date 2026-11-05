@@ -12,7 +12,8 @@
 //
 // Opzioni: --reset (cancella prima tutto il palo demo, Storage compreso),
 // --today YYYY-MM-DD (le date sono relative: stessa data, stessi documenti),
-// --keep-alerts (non toglie gli avvisi "Nuovo iscritto" generati dal trigger).
+// --keep-alerts (non toglie gli avvisi "Nuovo iscritto" generati dal trigger),
+// --no-media (niente file nella galleria: con gli emulatori evita Storage).
 // Variabili: DEMO_PASSWORD (min 12 caratteri, obbligatoria fuori dagli
 // emulatori), DEMO_PARENT_EMAIL (casella vera per le copie firmate),
 // DEMO_APP_URL (per il link di firma stampato).
@@ -31,11 +32,12 @@ const { values } = parseArgs({
     reset: { type: "boolean", default: false },
     today: { type: "string" },
     "keep-alerts": { type: "boolean", default: false },
+    "no-media": { type: "boolean", default: false },
   },
 });
 
 try {
-  const target = resolveTarget({ kind: "seed", project: values.project, needsStorage: values.reset });
+  const target = resolveTarget({ kind: "seed", project: values.project, needsStorage: values.reset || !values["no-media"] });
 
   const password = process.env.DEMO_PASSWORD || (target.emulator ? "Demo-2026!" : "");
   if (values.apply && password.length < 12 && !target.emulator) {
@@ -50,6 +52,10 @@ try {
   const { getAuth } = require("firebase-admin/auth");
   const { getStorage } = require("firebase-admin/storage");
   const ctx = { db: getFirestore(), auth: getAuth() };
+  const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+  const media = values["no-media"]
+    ? null
+    : { bucket: getStorage().bucket(), baseUrl: storageHost ? `http://${storageHost}` : "https://firebasestorage.googleapis.com" };
 
   console.log(`Progetto: ${target.projectId}${target.emulator ? " (emulatore)" : ""} · palo ${DEMO_STAKE_ID}`);
 
@@ -65,6 +71,7 @@ try {
     password,
     apply: values.apply,
     keepAlerts: values["keep-alerts"],
+    media,
   });
   console.log(JSON.stringify(result.summary, null, 2));
   if (!result.applied) {
