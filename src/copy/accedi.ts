@@ -70,5 +70,7 @@ export const ACCEDI = {
     "Il browser ha bloccato la finestra di Google: consenti le finestre pop-up e riprova.",
   erroreAccountDisattivato: "Questo account è disattivato: scrivi ai dirigenti del palo.",
   erroreCreazioneChiusa: "Qui non si possono creare account nuovi.",
+  // Solo sulla demo (registrazione chiusa): al posto di "Crea un account" e Google.
+  demoAccountProva: "Demo: entra con uno degli account di prova.",
   erroreGenerico: "Non ci siamo riusciti: riprova tra poco.",
 } as const;

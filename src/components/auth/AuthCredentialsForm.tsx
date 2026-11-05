@@ -13,6 +13,7 @@ import { ACCEDI } from "@/copy/accedi";
 import { SONDAGGIO } from "@/copy/sondaggio";
 import { useAuth } from "@/hooks/useAuth";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { ACCOUNT_CREATION_CLOSED } from "@/utils/accountCreation";
 import { toUserFacingAuthError } from "@/services/firebase/debug";
 
 export type AuthMode = "login" | "signup";
@@ -103,7 +104,7 @@ export function AuthCredentialsForm({
   const panelId = `${authIds}-panel`;
   const tabIds = { login: `${authIds}-tab-login`, signup: `${authIds}-tab-signup` };
   const keyboardOpen = useKeyboardOpen();
-  const [mode, setMode] = useState<AuthMode>(compactLogin ? "login" : initialMode);
+  const [mode, setMode] = useState<AuthMode>(compactLogin || ACCOUNT_CREATION_CLOSED ? "login" : initialMode);
   const messageRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const [email, setEmail] = useState("");
@@ -296,7 +297,11 @@ export function AuthCredentialsForm({
         <p className="auth-screen__lead">{leads[mode]}</p>
       </div>
 
-      {!compactLogin ? <div aria-label={ACCEDI.schede} className="auth-tabs" role="tablist">
+      {ACCOUNT_CREATION_CLOSED ? (
+        <p className="auth-screen__note auth-screen__note--emphasis">{ACCEDI.demoAccountProva}</p>
+      ) : null}
+
+      {!compactLogin && !ACCOUNT_CREATION_CLOSED ? <div aria-label={ACCEDI.schede} className="auth-tabs" role="tablist">
         {tabOrder.map((tabMode) => (
           <button
             aria-controls={panelId}
@@ -319,8 +324,8 @@ export function AuthCredentialsForm({
         <p className="auth-screen__note auth-screen__note--emphasis">{anonymousNote}</p>
       ) : null}
 
-      <div aria-labelledby={compactLogin ? `${authIds}-title` : tabIds[mode]} className="auth-panel" id={panelId} role={compactLogin ? undefined : "tabpanel"}>
-        <button
+      <div aria-labelledby={compactLogin || ACCOUNT_CREATION_CLOSED ? `${authIds}-title` : tabIds[mode]} className="auth-panel" id={panelId} role={compactLogin || ACCOUNT_CREATION_CLOSED ? undefined : "tabpanel"}>
+        {ACCOUNT_CREATION_CLOSED ? null : <button
           className="auth-google-button"
           disabled={busy}
           onClick={() => void handleGoogleAuth()}
@@ -330,16 +335,16 @@ export function AuthCredentialsForm({
             <GoogleMark />
           </span>
           <span>{ACCEDI.google}</span>
-        </button>
+        </button>}
 
-        {compactLogin ? <button type="button" className="survey-email-choice" disabled={busy}
+        {ACCOUNT_CREATION_CLOSED ? null : compactLogin ? <button type="button" className="survey-email-choice" disabled={busy}
           aria-expanded={emailExpanded} aria-controls={formId} onClick={() => setEmailExpanded(!emailExpanded)}>
           {emailExpanded ? SONDAGGIO.altriAccessi : SONDAGGIO.email}
         </button> : <div className="auth-divider">
           <span>{ACCEDI.oppureConEmail}</span>
         </div>}
 
-        {!compactLogin || emailExpanded ? <form className="auth-panel__form" id={formId} noValidate onSubmit={handleEmailAuth}>
+        {!compactLogin || emailExpanded || ACCOUNT_CREATION_CLOSED ? <form className="auth-panel__form" id={formId} noValidate onSubmit={handleEmailAuth}>
           <label className="field">
             <span>{ACCEDI.email}</span>
             <input
