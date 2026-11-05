@@ -34,6 +34,7 @@ const require = createRequire(import.meta.url);
 const { getAuth: getAdminAuth } = require("firebase-admin/auth");
 const { getFirestore: getAdminFirestore } = require("firebase-admin/firestore");
 const { getStorage: getAdminStorage } = require("firebase-admin/storage");
+const JSZip = require("jszip");
 const { computeUploadWindow } = require("../lib/activityGallery.js");
 
 // ---------------------------------------------------------------------------
@@ -151,6 +152,7 @@ const docsUnder = (path) =>
 
 const clients = {};
 const seededUids = Object.values(accounts).map((account) => account.uid);
+let seededResult = null;
 
 before(async () => {
   // Guardia: il seed non deve poter toccare nulla fuori dal palo isolato.
@@ -170,6 +172,7 @@ before(async () => {
     { ...seedInput, password: PASSWORD, apply: true, settleAlertsMs: 0, keepAlerts: true, stakeId, prefix, media: seedMedia(mediaRunId) },
   );
   assert.equal(seeded.applied, true);
+  seededResult = seeded;
   for (const role of ["admin", "leader", "participant", "parent"]) clients[role] = await signIn(accounts[role].email);
   // Lascia finire i trigger di creazione (iscrizioni, media).
   await sleep(2500);
@@ -432,5 +435,136 @@ describe("contenuto del seed demo: riseminare", () => {
       const response = await fetch(item.data().optimizedUrl);
       assert.equal(response.status, 200, `${item.id}: file mancante dopo la riseminatura`);
     }
+  });
+});
+
+// ===========================================================================
+describe("contenuto del seed demo: tende e moduli firmati", () => {
+  const registrationPattern = new RegExp(`^${stakePath}/activities/([^/]+)/registrations/([^/]+)$`, "u");
+  const authorizedInDataset = () =>
+    dataset.docs
+      .map((entry) => ({ match: entry.path.match(registrationPattern), data: entry.data }))
+      .filter((item) => item.match && item.data.parentAuthorization?.status === "authorized")
+      .map((item) => ({ activityId: item.match[1], registrationId: item.match[2], data: item.data }));
+  const isCancelled = (data) => data.status === "cancelled" || data.registrationStatus === "cancelled";
+
+  test("l'admin legge il piano tende del campeggio: pubblicato, capienza 4, ragazzi nella tenda del loro genere", async () => {
+    const { db } = clients.admin;
+    // campManagementService / roomPlannerService: lettura diretta del documento management/rooms
+    const plan = (await getOne(db, `${campPath}/management/rooms`)).data();
+    assert.equal(plan.published, true);
+    assert.equal(plan.staffElsewhere, true);
+    assert.ok(plan.rooms.length > 0);
+    const roomsById = new Map(plan.rooms.map((room) => [room.id, room]));
+    assert.equal(roomsById.size, plan.rooms.length, "id tenda duplicati");
+    for (const room of plan.rooms) assert.equal(room.capacity, 4, `${room.name}: capienza`);
+
+    const registrations = new Map(
+      (await adminDb.collection(`${campPath}/registrations`).get()).docs.map((item) => [item.id, item.data()]),
+    );
+    const confirmed = [...registrations].filter(([, data]) => data.registrationStatus === "confirmed");
+    const youth = confirmed.filter(([, data]) => ["giovane_uomo", "giovane_donna"].includes(data.genderRoleCategory));
+    const leaders = confirmed.filter(([, data]) => !["giovane_uomo", "giovane_donna"].includes(data.genderRoleCategory));
+    assert.ok(youth.length > 0, "nessun ragazzo confermato nel campeggio");
+    assert.ok(leaders.length > 0, "nessun dirigente confermato nel campeggio (il controllo sul dirigente sarebbe vuoto)");
+
+    const load = new Map();
+    for (const [registrationId, data] of youth) {
+      const roomId = plan.assignments[registrationId];
+      assert.ok(roomId, `${registrationId} (${data.fullName}) senza tenda`);
+      const room = roomsById.get(roomId);
+      assert.ok(room, `${registrationId}: tenda assente ${roomId}`);
+      const expectedCategory = { giovane_uomo: "boys", giovane_donna: "girls" }[data.genderRoleCategory];
+      assert.equal(room.category, expectedCategory, `${registrationId} in ${room.name}`);
+      assert.equal(data.assignedRoomId, roomId, `${registrationId}: assignedRoomId`);
+      assert.equal(data.assignedRoomName, room.name, `${registrationId}: assignedRoomName`);
+      load.set(roomId, (load.get(roomId) ?? 0) + 1);
+    }
+    for (const [roomId, count] of load) assert.ok(count <= roomsById.get(roomId).capacity, `${roomId} oltre la capienza (${count})`);
+    for (const room of plan.rooms) assert.ok(load.has(room.id), `${room.name}: tenda vuota`);
+
+    for (const [registrationId, data] of leaders) {
+      assert.ok(!(registrationId in plan.assignments), `${registrationId}: il dirigente è assegnato a una tenda`);
+      assert.ok(!data.assignedRoomId && !data.assignedRoomName, `${registrationId}: il dirigente ha assignedRoom*`);
+    }
+    // Nessuna assegnazione a iscrizioni inesistenti o non ragazzi.
+    const youthIds = new Set(youth.map(([id]) => id));
+    for (const registrationId of Object.keys(plan.assignments)) assert.ok(youthIds.has(registrationId), `assegnazione estranea: ${registrationId}`);
+  });
+
+  test("signedPdfs = iscrizioni authorized; i due PDF esistono nello Storage; nessuna authorized senza pdfPath", { timeout: 120_000 }, async () => {
+    const expected = authorizedInDataset();
+    assert.ok(expected.length > 0);
+    assert.ok(seededResult.signedPdfs > 0);
+    assert.equal(seededResult.signedPdfs, expected.length, "signedPdfs diverso dalle iscrizioni authorized del dataset");
+
+    let missingPdfPath = 0;
+    for (const { activityId, registrationId } of expected) {
+      const stored = (await adminDb.doc(`${stakePath}/activities/${activityId}/registrations/${registrationId}`).get()).data();
+      const state = stored.parentAuthorization;
+      if (!state.pdfPath) {
+        missingPdfPath += 1;
+        continue;
+      }
+      assert.ok(state.conductPdfPath, `${registrationId}: conductPdfPath assente`);
+      assert.equal(state.signatureSource, "legacy_typed");
+      assert.ok(state.legalVersions, `${registrationId}: legalVersions assente`);
+      assert.equal(stored.parentConsentDocumentPath, state.pdfPath, `${registrationId}: parentConsentDocumentPath`);
+      const folder = `protected/stakes/${stakeId}/activities/${activityId}/parent-authorization-pdfs/${registrationId}/`;
+      assert.ok(state.pdfPath.startsWith(folder) && state.conductPdfPath.startsWith(folder), `${registrationId}: percorso fuori cartella`);
+      for (const path of [state.pdfPath, state.conductPdfPath]) {
+        const [exists] = await bucket().file(path).exists();
+        assert.ok(exists, `${registrationId}: file assente ${path}`);
+        const [bytes] = await bucket().file(path).download();
+        assert.equal(bytes.subarray(0, 4).toString("latin1"), "%PDF", `${path}: non è un PDF`);
+        assert.ok(bytes.length > 1000, `${path}: PDF troppo piccolo (${bytes.length})`);
+      }
+    }
+    // «Fallback legacy» dell'admin conta le authorized senza pdfPath: deve essere 0.
+    assert.equal(missingPdfPath, 0, `${missingPdfPath} iscrizioni authorized senza pdfPath`);
+    // Anche su tutte le iscrizioni lette da Firestore, non solo dal dataset.
+    const everything = await adminDb.collectionGroup("registrations").where("stakeId", "==", stakeId).get().catch(() => null);
+    for (const item of everything?.docs ?? []) {
+      const state = item.data().parentAuthorization;
+      if (state?.status === "authorized") assert.ok(state.pdfPath, `${item.ref.path}: authorized senza pdfPath`);
+    }
+  });
+
+  test("parentAuthorizationDownloadSignedConsentsZip: ok per l'admin con il numero atteso di file; Sofia riceve permission-denied", { timeout: 120_000 }, async () => {
+    const expectedCount = authorizedInDataset().filter((item) => item.activityId === PAST_CAMP_ID && !isCancelled(item.data)).length;
+    assert.ok(expectedCount > 0, "nessun modulo authorized nel campeggio concluso");
+
+    // Nell'emulatore getSignedUrl non può firmare (nessuna chiave di service
+    // account: "Cannot sign data without client_email"), quindi la callable
+    // arriva fino allo zip salvato in Storage e poi risponde INTERNAL. Il test
+    // accetta solo questo esito alternativo e verifica lo zip scritto.
+    const zipPrefix = `protected/stakes/${stakeId}/activities/${PAST_CAMP_ID}/parent-authorization-downloads/`;
+    let response = null;
+    let failure = null;
+    try {
+      response = (await clients.admin.call("parentAuthorizationDownloadSignedConsentsZip", { stakeId, activityId: PAST_CAMP_ID })).data;
+    } catch (error) {
+      failure = error;
+    }
+    const [zips] = await bucket().getFiles({ prefix: zipPrefix });
+    assert.equal(zips.length, 1, `zip attesi in Storage: ${zips.length} (esito callable: ${failure?.code ?? JSON.stringify(response)})`);
+    const archive = await JSZip.loadAsync((await zips[0].download())[0]);
+    const entries = Object.values(archive.files).filter((file) => !file.dir);
+    assert.equal(entries.length, expectedCount, "file nello zip");
+    for (const entry of entries) {
+      const bytes = await entry.async("nodebuffer");
+      assert.equal(bytes.subarray(0, 4).toString("latin1"), "%PDF", `${entry.name}: non è un PDF`);
+    }
+    if (response) {
+      assert.equal(response.ok, true);
+      assert.equal(response.count, expectedCount);
+    } else {
+      assert.equal(failure.code, "functions/internal", `esito inatteso: ${failure.code} ${failure.message}`);
+    }
+
+    // Le callable rispondono con il prefisso "functions/".
+    const denied = await outcome(clients.participant.call("parentAuthorizationDownloadSignedConsentsZip", { stakeId, activityId: PAST_CAMP_ID }));
+    assert.equal(denied.ok, false, "Sofia ha scaricato lo zip dei moduli firmati");
+    assert.equal(denied.code, "functions/permission-denied", `atteso permission-denied, ottenuto "${denied.code}" (${denied.message})`);
   });
 });

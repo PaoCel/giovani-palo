@@ -77,7 +77,7 @@ try {
   if (!result.applied) {
     console.log("\nDry-run: nessuna scrittura. Aggiungi --apply.");
   } else {
-    console.log(`\nSeed completato. Avvisi "Nuovo iscritto" tolti: ${result.clearedAlerts}.`);
+    console.log(`\nSeed completato. Avvisi "Nuovo iscritto" tolti: ${result.clearedAlerts}. Moduli firmati con PDF: ${result.signedPdfs}.`);
     console.log("Login: " + Object.entries(DEMO_ACCOUNTS).map(([role, account]) => `${role}=${account.email}`).join(" · "));
     console.log(`Password: ${target.emulator && !process.env.DEMO_PASSWORD ? password : "(DEMO_PASSWORD)"}`);
     console.log(`Link di firma genitore (Matteo): ${result.magicLink}`);

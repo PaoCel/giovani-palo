@@ -663,6 +663,51 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     patchRegistration("viaggio-tempio", registrationId, { assignedRoomId: room.id, assignedRoomName: room.name });
   }
 
+  // Piano tende pubblicato sul campeggio concluso: stessa forma del piano
+  // stanze (l'admin vede «Tende» perché activityType è "camp"). Tende da 4,
+  // quante ne servono per genere; lo staff dorme altrove.
+  const campPrefix = `stakes/${stakeId}/activities/${PAST_CAMP_ID}/registrations/`;
+  const campEligible = docs
+    .filter((entry) => entry.path.startsWith(campPrefix))
+    .filter((entry) => entry.data.registrationStatus === "confirmed")
+    .map((entry) => ({ id: entry.path.slice(campPrefix.length), gender: entry.data.genderRoleCategory }));
+  const tentNames = {
+    giovane_uomo: { category: "boys", floor: "Prato nord", names: ["Tenda Quercia", "Tenda Faggio", "Tenda Castagno"] },
+    giovane_donna: { category: "girls", floor: "Prato sud", names: ["Tenda Betulla", "Tenda Ginestra", "Tenda Mimosa"] },
+  };
+  const campTents = [];
+  const tentAssignments = {};
+  for (const [gender, spec] of Object.entries(tentNames)) {
+    const members = campEligible.filter((item) => item.gender === gender);
+    const needed = Math.ceil(members.length / 4);
+    if (needed > spec.names.length) throw new Error(`Tende demo insufficienti per ${gender}: ${members.length} iscritti.`);
+    const tents = spec.names.slice(0, needed).map((name) => ({
+      id: `tenda-${name.split(" ")[1].toLowerCase()}`, name, category: spec.category, floor: spec.floor,
+      capacity: 4, accessible: false, notes: "", minAge: null, maxAge: null,
+    }));
+    campTents.push(...tents);
+    members.forEach((item, index) => {
+      tentAssignments[item.id] = tents[Math.floor(index / 4)].id;
+    });
+  }
+  const tentsUpdatedAt = at(-14);
+  add(`stakes/${stakeId}/activities/${PAST_CAMP_ID}/management/rooms`, {
+    rooms: campTents,
+    assignments: tentAssignments,
+    lockedIds: [],
+    adultGenders: {},
+    couples: [],
+    published: true,
+    staffElsewhere: true,
+    revision: 1,
+    updatedAt: tentsUpdatedAt,
+    savedAt: { [TIMESTAMP]: tentsUpdatedAt },
+  });
+  for (const [registrationId, tentId] of Object.entries(tentAssignments)) {
+    const tent = campTents.find((item) => item.id === tentId);
+    patchRegistration(PAST_CAMP_ID, registrationId, { assignedRoomId: tent.id, assignedRoomName: tent.name });
+  }
+
   // Sondaggio del campeggio concluso, con risposte anonime (niente userId).
   const surveyPath = `stakes/${stakeId}/activities/${PAST_CAMP_ID}`;
   const questions = [
@@ -844,6 +889,90 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Scrive il dataset (upsert con ids fissi) e crea/aggiorna i 4 account di login. */
+// Moduli firmati con il PDF vero (stesso generatore e stesso percorso della
+// firma in functions/lib/parentAuthorization.js, con la firma digitata come
+// nella conversione legacy): l'admin vede «N moduli firmati disponibili per il
+// download» e lo zip funziona. Dati solo sintetici. Modifica `docs` sul posto.
+const SEED_SIGNATURE_ID = "demo-seed";
+export async function attachSignedConsentPdfs(docs, { bucket, stakeId }) {
+  const { generateOfficialConsentPdf, generateChurchActivityConductPdf } = require("./lib/officialConsentPdf.js");
+  const { LEGAL_DOC_VERSIONS } = require("./lib/legalDocs.js");
+  const stake = docs.find((entry) => entry.path === `stakes/${stakeId}`)?.data ?? {};
+  const conductPdf = await generateChurchActivityConductPdf();
+  const pattern = new RegExp(`^stakes/${stakeId}/activities/([^/]+)/registrations/([^/]+)$`, "u");
+  let count = 0;
+  for (const entry of docs) {
+    const match = entry.path.match(pattern);
+    const registration = entry.data;
+    const original = registration.parentAuthorization;
+    if (!match || original?.status !== "authorized" || original.pdfPath) continue;
+    // Il dataset riusa lo stesso oggetto su più iscrizioni (stesso ragazzo in
+    // due attività): copia, così ogni iscrizione ha il suo PDF.
+    const state = { ...original };
+    registration.parentAuthorization = state;
+    const [, activityId, registrationId] = match;
+    const activity = docs.find((item) => item.path === `stakes/${stakeId}/activities/${activityId}`)?.data ?? {};
+    const confirmedAt = state.authorizedAt;
+    const officialPdf = await generateOfficialConsentPdf({
+      activity: {
+        title: activity.title || "",
+        description: activity.description || activity.program || "",
+        publicNotes: activity.publicNotes || "",
+        startDate: activity.startDate || "",
+        endDate: activity.endDate || "",
+        location: activity.location || "",
+        activityType: activity.activityType || (activity.overnight ? "overnight" : "standard"),
+        overnight: Boolean(activity.overnight),
+        stakeName: stake.name || "",
+      },
+      organization: {
+        stakeName: stake.name || "",
+        unitName: registration.unitNameSnapshot || "",
+        leaderName: activity.eventLeaderName || "",
+        leaderPhone: activity.eventLeaderPhone || "",
+        leaderEmail: activity.eventLeaderEmail || "",
+      },
+      participant: {
+        fullName: registration.fullName || "",
+        birthDate: registration.birthDate || "",
+        email: registration.email || "",
+        phone: registration.phone || "",
+        unitName: registration.unitNameSnapshot || "",
+        address: "",
+        city: "",
+        stateOrProvince: "",
+      },
+      parent: { firstName: state.parentFirstName, lastName: state.parentLastName, email: state.parentEmail, phone: "" },
+      emergency: { name: "", phone: "", relation: "", secondaryPhone: "" },
+      medical: { allergies: "", medications: "", medicalNotes: "", dietaryNotes: "" },
+      confirmedAt,
+      signatureText: state.parentName,
+    });
+    // = STORAGE_PATH_PARENT_AUTH_PDF in functions/lib/config.js (non caricato
+    // qui: fuori da produzione pretende il file .env del progetto).
+    const folder = `protected/stakes/${stakeId}/activities/${activityId}/parent-authorization-pdfs/${registrationId}`;
+    const pdfPath = `${folder}/${SEED_SIGNATURE_ID}-official.pdf`;
+    const conductPdfPath = `${folder}/${SEED_SIGNATURE_ID}-conduct.pdf`;
+    const metadata = { tokenHash: SEED_SIGNATURE_ID, confirmedAt, signatureSource: "legacy_typed" };
+    await bucket.file(pdfPath).save(Buffer.from(officialPdf), {
+      resumable: false, contentType: "application/pdf", metadata: { metadata: { ...metadata, documentKind: "official_consent" } },
+    });
+    await bucket.file(conductPdfPath).save(Buffer.from(conductPdf), {
+      resumable: false, contentType: "application/pdf", metadata: { metadata: { ...metadata, documentKind: "church_activity_conduct" } },
+    });
+    Object.assign(state, { legalVersions: LEGAL_DOC_VERSIONS, signatureSource: "legacy_typed", pdfPath, conductPdfPath });
+    Object.assign(registration, {
+      parentConsentDocumentName: `modulo-consenso-${registrationId}.pdf`,
+      parentConsentDocumentPath: pdfPath,
+      parentConsentDocumentUrl: null,
+      parentConsentUploadedAt: confirmedAt,
+      consentSignatureSetAt: confirmedAt,
+    });
+    count += 1;
+  }
+  return count;
+}
+
 export async function seedDemo(
   { db, auth },
   { today, parentEmail, appUrl, password, apply, settleAlertsMs = 6000, keepAlerts = false, stakeId = DEMO_STAKE_ID, prefix = "demo", media = null },
@@ -873,6 +1002,7 @@ export async function seedDemo(
     }
   }
 
+  let signedPdfs = 0;
   if (mediaInput) {
     // Prima i file, poi i documenti che li citano. I media di un giro precedente
     // (id diversi) si cancellano dal documento: il trigger toglie i loro file.
@@ -891,6 +1021,7 @@ export async function seedDemo(
       const existing = await db.collection(`${gallery}/media`).get();
       for (const snapshot of existing.docs) if (!keep.has(snapshot.ref.path)) await snapshot.ref.delete();
     }
+    signedPdfs = await attachSignedConsentPdfs(dataset.docs, { bucket: media.bucket, stakeId });
   }
 
   const { Timestamp } = require("firebase-admin/firestore");
@@ -923,7 +1054,7 @@ export async function seedDemo(
     clearedAlerts = stale.length;
   }
 
-  return { applied: true, ...dataset, clearedAlerts };
+  return { applied: true, ...dataset, clearedAlerts, signedPdfs };
 }
 
 // Con `force` l'SDK rifiuta con un array di errori, uno per file. Un 404 vuol
