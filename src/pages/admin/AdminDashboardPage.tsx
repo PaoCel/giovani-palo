@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 
 import { AdminActivityCard } from "@/components/AdminActivityCard";
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
-import { AppIcon } from "@/components/AppIcon";
+import { AdminListSkeleton } from "@/components/AdminListSkeleton";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
-import { EmptyState } from "@/components/EmptyState";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { MembershipQueueCards } from "@/components/membership/MembershipQueueCards";
+import { Button, ButtonLink, EmptyState, Icon, Notice, PageHeader } from "@/components/ui";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
@@ -16,6 +17,8 @@ import { registrationsService } from "@/services/firestore/registrationsService"
 import type { OrganizationProfile } from "@/types";
 import { getEffectiveEventStatus } from "@/utils/events";
 import { DEFAULT_STAKE_ID } from "@/config/app";
+import giovaniUrl from "@/assets/flusso-genitore/giovani.webp";
+import "@/styles/adminPages.css";
 
 interface DashboardData {
   organization: OrganizationProfile | null;
@@ -86,91 +89,99 @@ export function AdminDashboardPage() {
   );
 
   const stats = [
-    { label: "Attività create", value: data.events.length, icon: "list" as const },
-    { label: "Iscrizioni aperte", value: openEvents.length, icon: "ticket" as const },
-    { label: "Partecipanti totali", value: data.totalParticipants, icon: "users" as const },
+    { label: COPY.attivitaCreate, value: data.events.length, icon: "list" as const },
+    { label: COPY.iscrizioniAperte, value: openEvents.length, icon: "ticket" as const },
+    { label: COPY.partecipantiTotali, value: data.totalParticipants, icon: "users" as const },
   ];
+
+  let openList;
+  if (loading) {
+    openList = <AdminListSkeleton label={COPY.apertiCaricamento} />;
+  } else if (error) {
+    // Il Notice sopra dice cosa è successo: niente «Nessuna attività» né zeri.
+    openList = null;
+  } else if (openEvents.length === 0) {
+    openList = (
+      <EmptyState
+        action={
+          data.events.length === 0 ? (
+            <Button disabled={!data.organization} icon="plus" onClick={() => setCreateModalOpen(true)}>
+              {COPY.nuovaAttivita}
+            </Button>
+          ) : (
+            <ButtonLink to="/admin/events" variant="secondary">
+              {COPY.vediTutteLeAttivita}
+            </ButtonLink>
+          )
+        }
+        description={COPY.apertiVuotoCorpo}
+        headingAs="h3"
+        illustration={giovaniUrl}
+        title={COPY.apertiVuotoTitolo}
+      />
+    );
+  } else {
+    openList = (
+      <div className="admin-card-grid">
+        {openEvents.map((event) => (
+          <AdminActivityCard
+            key={event.id}
+            event={event}
+            registrationsCount={data.registrationsCountByEvent[event.id]}
+            to={`/admin/events/${event.id}`}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="page page--admin-dashboard">
-      <header className="admin-page-head">
-        <div>
-          <h1>{data.organization?.stakeName || "Dashboard"}</h1>
-          <p className="subtle-text">
-            Panoramica delle attività e delle iscrizioni del palo.
-          </p>
-        </div>
-        <div className="admin-page-head__actions">
-          <button
-            className="button button--primary"
-            onClick={() => setCreateModalOpen(true)}
-            type="button"
-          >
-            <AppIcon name="plus" />
-            <span>Nuova attività</span>
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        actions={
+          <Button disabled={!data.organization} icon="plus" onClick={() => setCreateModalOpen(true)}>
+            {COPY.nuovaAttivita}
+          </Button>
+        }
+        description={COPY.homeDescrizione}
+        title={data.organization?.stakeName || COPY.homeTitoloDiRiserva}
+      />
 
       <MembershipQueueCards peoplePath="/admin/persone" stakeId={stakeId} unitId={null} />
 
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Dashboard non disponibile</h3>
-            <p>{error}</p>
-          </div>
-        </div>
+        <Notice title={COPY.homeErrore} tone="warning">
+          <p>{error}</p>
+        </Notice>
       ) : null}
 
-      <section className="admin-metrics">
-        {stats.map((item) => (
-          <article key={item.label} className="admin-metric">
-            <span className="admin-metric__icon" aria-hidden="true">
-              <AppIcon name={item.icon} />
-            </span>
-            <strong>{loading ? "…" : item.value}</strong>
-            <span>{item.label}</span>
-          </article>
-        ))}
+      <section aria-label={COPY.totali}>
+        <ul className="admin-stats">
+          {stats.map((item) => (
+            <li key={item.label} className="admin-stat">
+              <span className="admin-stat__icon" aria-hidden="true">
+                <Icon name={item.icon} />
+              </span>
+              <span className="admin-stat__label">{item.label}</span>
+              <strong className="admin-stat__value">{loading || error ? "…" : item.value}</strong>
+            </li>
+          ))}
+        </ul>
       </section>
 
-      <section className="admin-section">
-        <div className="admin-section__head">
-          <div>
-            <h2>Iscrizioni aperte adesso</h2>
-          </div>
+      <section className="admin-block">
+        <div className="admin-block__head">
+          <h2>{COPY.apertiTitolo}</h2>
         </div>
-
-        {loading ? (
-          <p className="subtle-text">Sto preparando le attività aperte...</p>
-        ) : openEvents.length === 0 ? (
-          <EmptyState
-            title="Nessuna attività aperta"
-            description="Le attività con iscrizioni aperte compariranno qui in ordine temporale."
-          />
-        ) : (
-          <div className="card-grid card-grid--three admin-activity-grid">
-            {openEvents.map((event) => (
-              <AdminActivityCard
-                key={event.id}
-                event={event}
-                registrationsCount={data.registrationsCountByEvent[event.id]}
-                to={`/admin/events/${event.id}`}
-              />
-            ))}
-          </div>
-        )}
+        {openList}
       </section>
 
       <ActivityMediaHighlight />
 
-      <section className="user-dashboard-section">
-        <div className="user-section-heading">
-          <h2>Dalle attività</h2>
-          <p className="subtle-text">
-            Ultime novità e gallerie dello stake.
-          </p>
+      <section className="admin-block">
+        <div className="admin-block__head">
+          <h2>{COPY.feedTitolo}</h2>
+          <p>{COPY.feedDescrizione}</p>
         </div>
         <HomeFeed />
       </section>
@@ -187,15 +198,6 @@ export function AdminDashboardPage() {
           }}
         />
       ) : null}
-
-      <button
-        aria-label="Crea nuova attività"
-        className="admin-fab"
-        onClick={() => setCreateModalOpen(true)}
-        type="button"
-      >
-        <AppIcon name="plus" />
-      </button>
     </div>
   );
 }

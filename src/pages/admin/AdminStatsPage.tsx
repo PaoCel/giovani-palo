@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
-import { EmptyState } from "@/components/EmptyState";
-import { StatusBadge } from "@/components/StatusBadge";
+import { AdminListSkeleton } from "@/components/AdminListSkeleton";
+import { ButtonLink, Card, EmptyState, Icon, Notice, PageHeader, Pill } from "@/components/ui";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
@@ -12,6 +13,7 @@ import {
   getRegistrationStatusTone,
 } from "@/utils/registrations";
 import { DEFAULT_STAKE_ID } from "@/config/app";
+import "@/styles/adminPages.css";
 
 interface DistributionItem {
   label: string;
@@ -95,114 +97,116 @@ export function AdminStatsPage() {
     [activeEntries],
   );
 
+  const totals = [
+    { label: "Iscritti attivi del palo", value: activeEntries.length, icon: "users" as const },
+    { label: "Registrazioni totali", value: entries.length, icon: "list" as const },
+    { label: "Iscritti con account", value: authenticatedEntries.length, icon: "user" as const },
+    { label: "Iscritti come ospiti", value: anonymousEntries.length, icon: "ticket" as const },
+  ];
+  const distributions = [
+    { key: "unit", title: "Unità", items: unitDistribution },
+    { key: "org", title: "Organizzazione", items: organizationDistribution },
+    { key: "city", title: "Città", items: cityDistribution },
+  ];
+
+  let list;
+  if (loading) {
+    list = <AdminListSkeleton label={COPY.statisticheCaricamento} />;
+  } else if (error) {
+    list = null;
+  } else if (entries.length === 0) {
+    list = (
+      <EmptyState
+        action={
+          <ButtonLink to="/admin/events" variant="secondary">
+            {COPY.vediTutteLeAttivita}
+          </ButtonLink>
+        }
+        description={COPY.statisticheVuotoCorpo}
+        headingAs="h3"
+        title={COPY.statisticheVuotoTitolo}
+      />
+    );
+  } else {
+    list = (
+      <ul className="admin-rows admin-rows--cards">
+        {entries.map(({ eventId, eventTitle, registration }) => (
+          <li key={`${eventId}:${registration.id}`}>
+            <Link className="admin-row" to={`/admin/events/${eventId}`}>
+              <span className="admin-row__info">
+                <strong className="admin-row__title">{registration.fullName}</strong>
+                <span className="admin-row__text">{eventTitle}</span>
+                <span className="admin-row__text admin-row__text--muted">
+                  {getGenderRoleCategoryLabel(registration.genderRoleCategory) || "Organizzazione non indicata"}
+                  {" · "}
+                  {registration.unitNameSnapshot || "Unità non indicata"}
+                </span>
+                <span className="admin-row__pills">
+                  <Pill dot tone={getRegistrationStatusTone(registration.registrationStatus)}>
+                    {getRegistrationStatusLabel(registration.registrationStatus)}
+                  </Pill>
+                </span>
+              </span>
+              <span className="sr-only">{COPY.apriAttivita}</span>
+              <Icon name="arrow-right" className="admin-row__arrow" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
-    <div className="page">
+    <div className="page page--admin-stats">
+      <PageHeader description={COPY.statisticheDescrizione} title={COPY.statisticheTitolo} />
+
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Statistiche non disponibili</h3>
-            <p>{error}</p>
-          </div>
+        <Notice title={COPY.statisticheErrore} tone="warning">
+          <p>{error}</p>
+        </Notice>
+      ) : null}
+
+      <section aria-label={COPY.totali}>
+        <ul className="admin-stats">
+          {totals.map((item) => (
+            <li key={item.label} className="admin-stat">
+              <span className="admin-stat__icon" aria-hidden="true">
+                <Icon name={item.icon} />
+              </span>
+              <span className="admin-stat__label">{item.label}</span>
+              <strong className="admin-stat__value">{loading || error ? "…" : item.value}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {!loading && activeEntries.length > 0 ? (
+        <div className="admin-distributions">
+          {distributions.map((distribution) => (
+            <Card key={distribution.key} title={distribution.title} titleAs="h2">
+              <ul className="admin-bars">
+                {distribution.items.map((item) => (
+                  <li key={`${distribution.key}-${item.label}`} className="admin-bar">
+                    <span className="admin-bar__label">{item.label}</span>
+                    <span className="admin-bar__value">
+                      {item.count} · {item.percent}%
+                    </span>
+                    <span aria-hidden="true" className="admin-bar__track">
+                      <span className="admin-bar__fill" style={{ width: `${item.percent}%` }} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ))}
         </div>
       ) : null}
 
-      <section className="admin-metrics">
-        <article className="admin-metric">
-          <strong>{loading ? "..." : activeEntries.length}</strong>
-          <span>Iscritti attivi del palo</span>
-        </article>
-        <article className="admin-metric">
-          <strong>{loading ? "..." : entries.length}</strong>
-          <span>Registrazioni totali</span>
-        </article>
-        <article className="admin-metric">
-          <strong>{loading ? "..." : authenticatedEntries.length}</strong>
-          <span>Iscritti con account</span>
-        </article>
-        <article className="admin-metric">
-          <strong>{loading ? "..." : anonymousEntries.length}</strong>
-          <span>Iscritti come ospiti</span>
-        </article>
-      </section>
-
-      <div className="card-grid card-grid--three">
-        <article className="surface-panel surface-panel--subtle">
-          <h3>Unità</h3>
-          <ul className="plain-list">
-            {unitDistribution.map((item) => (
-              <li key={`unit-${item.label}`}>
-                <strong>{item.label}</strong>
-                <span>{item.count} • {item.percent}%</span>
-              </li>
-            ))}
-          </ul>
-        </article>
-
-        <article className="surface-panel surface-panel--subtle">
-          <h3>Organizzazione</h3>
-          <ul className="plain-list">
-            {organizationDistribution.map((item) => (
-              <li key={`org-${item.label}`}>
-                <strong>{item.label}</strong>
-                <span>{item.count} • {item.percent}%</span>
-              </li>
-            ))}
-          </ul>
-        </article>
-
-        <article className="surface-panel surface-panel--subtle">
-          <h3>Città</h3>
-          <ul className="plain-list">
-            {cityDistribution.map((item) => (
-              <li key={`city-${item.label}`}>
-                <strong>{item.label}</strong>
-                <span>{item.count} • {item.percent}%</span>
-              </li>
-            ))}
-          </ul>
-        </article>
-      </div>
-
-      <section className="admin-section">
-        <div className="admin-section__head">
-          <div>
-            <h2>Iscritti globali del palo</h2>
-          </div>
+      <section className="admin-block">
+        <div className="admin-block__head">
+          <h2>{COPY.iscrittiGlobali}</h2>
         </div>
-
-        {loading ? (
-          <p className="subtle-text">Sto preparando gli iscritti del palo...</p>
-        ) : entries.length === 0 ? (
-          <EmptyState
-            title="Nessuna registrazione"
-            description="Le iscrizioni globali compariranno qui."
-          />
-        ) : (
-          <div className="stack">
-            {entries.map(({ eventId, eventTitle, registration }) => (
-              <article key={`${eventId}:${registration.id}`} className="surface-panel surface-panel--subtle admin-registration-row">
-                <div>
-                  <strong>{registration.fullName}</strong>
-                  <p>{eventTitle}</p>
-                  <p>
-                    {getGenderRoleCategoryLabel(registration.genderRoleCategory) || "Organizzazione non indicata"}
-                    {" • "}
-                    {registration.unitNameSnapshot || "Unità non indicata"}
-                  </p>
-                </div>
-                <div className="admin-registration-row__meta">
-                  <StatusBadge
-                    label={getRegistrationStatusLabel(registration.registrationStatus)}
-                    tone={getRegistrationStatusTone(registration.registrationStatus)}
-                  />
-                  <Link className="admin-inline-link" to={`/admin/events/${eventId}`}>
-                    Apri attività
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+        {list ? <Card>{list}</Card> : null}
       </section>
     </div>
   );

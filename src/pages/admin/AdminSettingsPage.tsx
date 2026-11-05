@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AdminPushSettingsCard } from "@/components/AdminPushSettingsCard";
-import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
 import { ModalFeedback } from "@/components/admin/ModalFeedback";
+import { AdminListSkeleton } from "@/components/AdminListSkeleton";
 import { EmptyState } from "@/components/EmptyState";
-import { StatusBadge } from "@/components/StatusBadge";
+import { Button, Icon, Notice, PageHeader, Pill } from "@/components/ui";
 import { ADMIN } from "@/copy/admin";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { storageService } from "@/services/firebase/storageService";
@@ -31,6 +32,7 @@ import {
 } from "@/utils/formFields";
 import { withWriteTimeout } from "@/utils/writeTimeout";
 import { DEFAULT_STAKE_ID } from "@/config/app";
+import "@/styles/adminPages.css";
 
 interface SettingsActionCardProps {
   icon: "building" | "badge" | "key" | "list" | "chart" | "sparkles" | "bell";
@@ -91,14 +93,15 @@ function SettingsActionCard({
   onClick,
 }: SettingsActionCardProps) {
   return (
-    <button className="settings-action-card" onClick={onClick} type="button">
-      <span className="settings-action-card__icon">
-        <AppIcon name={icon} />
+    <button className="admin-action" onClick={onClick} type="button">
+      <span className="admin-action__icon" aria-hidden="true">
+        <Icon name={icon} />
       </span>
-      <span className="settings-action-card__content">
+      <span className="admin-action__content">
         <strong>{title}</strong>
-        <small>{description}</small>
+        <span>{description}</span>
       </span>
+      <Icon name="arrow-right" className="admin-action__arrow" />
     </button>
   );
 }
@@ -189,7 +192,7 @@ function OrganizationMetaModal({
       onClose={onClose}
       size="wide"
     >
-      <form className="form-stack form-stack--compact" onSubmit={handleSubmit}>
+      <form className="form-stack form-stack--compact admin-modal" onSubmit={handleSubmit}>
         <div className="card-grid card-grid--two">
           <label className="field">
             <span>Nome del palo</span>
@@ -428,7 +431,7 @@ function UnitsModal({
       onClose={onClose}
       footer={error ? <ModalFeedback error={error} /> : undefined}
     >
-      <div className="form-stack form-stack--compact">
+      <div className="form-stack form-stack--compact admin-modal">
         <div className="inline-actions inline-actions--compact">
           <input
             className="input"
@@ -605,7 +608,7 @@ function StandardFieldsModal({
       onClose={onClose}
       size="wide"
     >
-      <form className="form-stack form-stack--compact" onSubmit={handleSubmit}>
+      <form className="form-stack form-stack--compact admin-modal" onSubmit={handleSubmit}>
         <div className="checkbox-grid">
           <label className="toggle-field">
             <input
@@ -798,7 +801,7 @@ function AssignAdminModal({
       {loading ? (
         <p className="subtle-text">Sto caricando gli utenti...</p>
       ) : (
-        <div className="stack">
+        <div className="stack admin-modal">
           {users.map((user) => (
             <article key={user.id} className="surface-panel surface-panel--subtle assign-admin-row">
               <div>
@@ -806,9 +809,7 @@ function AssignAdminModal({
                 <p>{user.email || "Email non disponibile"}</p>
               </div>
               {user.role === "admin" || user.role === "super_admin" ? (
-                <span className="surface-chip">
-                  {user.role === "super_admin" ? "Super admin" : "Admin"}
-                </span>
+                <Pill tone="info">{user.role === "super_admin" ? "Super admin" : "Admin"}</Pill>
               ) : (
                 <button
                   className="button button--primary"
@@ -904,69 +905,61 @@ export function AdminSettingsPage() {
   );
 
   return (
-    <div className="page">
+    <div className="page page--admin-settings">
+      <PageHeader description={COPY.altroDescrizione} title={COPY.altroTitolo} />
+
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Altro non disponibile</h3>
-            <p>{error}</p>
-          </div>
-        </div>
+        <Notice title={COPY.altroErrore} tone="warning">
+          <p>{error}</p>
+        </Notice>
       ) : null}
 
       {loading || !organization ? (
         <>
-          <p className="subtle-text">Sto preparando l'area operativa...</p>
-          <div className="card-grid card-grid--two">{pageLinks}</div>
+          {loading ? <AdminListSkeleton label={COPY.altroCaricamento} rows={2} /> : null}
+          <div className="admin-actions">{pageLinks}</div>
         </>
       ) : (
         <>
-          <section className="admin-section">
-            <div className="admin-section__head">
-              <div>
-                <h2>Operatività</h2>
-              </div>
+          <section className="admin-block">
+            <div className="admin-block__head">
+              <h2>{COPY.operativita}</h2>
             </div>
 
-            <div className="stack">
-              <button className="button button--primary" onClick={() => setCreateModalOpen(true)} type="button">
-                Crea nuova attività
-              </button>
-
-              <div className="card-grid card-grid--two">
-                <SettingsActionCard
-                  description="Griglia completa delle attività"
-                  icon="list"
-                  onClick={() => navigate("/admin/events")}
-                  title="Tutte le attività"
-                />
-                {pageLinks}
-                <SettingsActionCard
-                  description="Statistiche del palo e iscritti globali"
-                  icon="chart"
-                  onClick={() => navigate("/admin/stats")}
-                  title="Statistiche"
-                />
-                <SettingsActionCard
-                  description="Tentativi recenti di iscrizione e supporto"
-                  icon="list"
-                  onClick={() => setModal("logs")}
-                  title="Log"
-                />
-              </div>
+            <div className="admin-actions">
+              <Button className="admin-actions__create" icon="plus" onClick={() => setCreateModalOpen(true)}>
+                {COPY.nuovaAttivita}
+              </Button>
+              <SettingsActionCard
+                description="Griglia completa delle attività"
+                icon="list"
+                onClick={() => navigate("/admin/events")}
+                title="Tutte le attività"
+              />
+              {pageLinks}
+              <SettingsActionCard
+                description="Statistiche del palo e iscritti globali"
+                icon="chart"
+                onClick={() => navigate("/admin/stats")}
+                title="Statistiche"
+              />
+              <SettingsActionCard
+                description="Tentativi recenti di iscrizione e supporto"
+                icon="list"
+                onClick={() => setModal("logs")}
+                title="Log"
+              />
             </div>
           </section>
 
           <AdminPushSettingsCard />
 
-          <section className="admin-section">
-            <div className="admin-section__head">
-              <div>
-                <h2>Organizzazione</h2>
-              </div>
+          <section className="admin-block">
+            <div className="admin-block__head">
+              <h2>{COPY.organizzazione}</h2>
             </div>
 
-            <div className="card-grid card-grid--two">
+            <div className="admin-actions">
               <SettingsActionCard
                 description="Lista unità del palo"
                 icon="building"
@@ -1029,7 +1022,7 @@ export function AdminSettingsPage() {
               onClose={() => setModal(null)}
               size="wide"
             >
-              <div className="stack">
+              <div className="stack admin-modal">
                 <div className="support-monitor__filters">
                   <label className="field">
                     <span>Cerca</span>
@@ -1073,25 +1066,23 @@ export function AdminSettingsPage() {
                         </div>
 
                         <div className="admin-registration-row__meta support-monitor__meta">
-                          <StatusBadge
-                            label={getAttemptStatusLabel(attempt.status)}
-                            tone={getAttemptStatusTone(attempt.status)}
-                          />
+                          <Pill dot tone={getAttemptStatusTone(attempt.status)}>
+                            {getAttemptStatusLabel(attempt.status)}
+                          </Pill>
                           <small>
                             {attempt.displayMode === "standalone" ? "PWA" : "Browser"}
                             {" • "}
                             {attempt.online ? "online" : "offline"}
                           </small>
-                          <button
-                            className="button button--ghost button--small"
+                          <Button
                             onClick={() => {
                               setModal(null);
                               navigate(`/admin/events/${attempt.eventId}`);
                             }}
-                            type="button"
+                            variant="secondary"
                           >
-                            Apri attività
-                          </button>
+                            {COPY.apriAttivita}
+                          </Button>
                         </div>
                       </article>
                     ))}

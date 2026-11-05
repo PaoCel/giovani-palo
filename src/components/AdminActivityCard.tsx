@@ -1,117 +1,75 @@
 import { Link } from "react-router-dom";
 
-import { AppIcon } from "@/components/AppIcon";
-import { StatusBadge } from "@/components/StatusBadge";
+import { ActivityScene } from "@/components/activities/ActivityScene";
+import { Icon, Pill } from "@/components/ui";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
+import { fillCopy } from "@/copy/parole";
 import type { Event } from "@/types";
-import { formatDateRange } from "@/utils/formatters";
+import { formatEventWindow } from "@/utils/formatters";
 import {
   getEffectiveEventStatus,
   getEventAudienceLabel,
   getEventStatusLabel,
   getEventStatusTone,
 } from "@/utils/events";
+import "@/styles/adminPages.css";
 
 interface AdminActivityCardProps {
   event: Event;
   to: string;
-  variant?: "grid" | "feature";
   registrationsCount?: number;
+  /** Attività finita o annullata: foto spenta, come nel catalogo. */
+  past?: boolean;
 }
 
-export function AdminActivityCard({
-  event,
-  to,
-  variant = "grid",
-  registrationsCount,
-}: AdminActivityCardProps) {
-  const effectiveStatus = getEffectiveEventStatus(event);
-
-  if (variant === "feature") {
-    return (
-      <article className="admin-activity-card admin-activity-card--feature">
-        <Link className="admin-activity-card__poster-link" to={to}>
-          {event.heroImageUrl ? (
-            <div
-              className="admin-activity-card__poster"
-              style={{ backgroundImage: `url(${event.heroImageUrl})` }}
-            />
-          ) : (
-            <div className="admin-activity-card__poster admin-activity-card__poster--fallback">
-              <AppIcon name="ticket" />
-            </div>
-          )}
-        </Link>
-
-        <div className="admin-activity-card__content">
-          <div className="chip-row">
-            <StatusBadge
-              label={getEventStatusLabel(effectiveStatus)}
-              tone={getEventStatusTone(effectiveStatus)}
-            />
-            <span className="surface-chip">{getEventAudienceLabel(event.audience)}</span>
-            {event.overnight ? <span className="surface-chip">Pernottamento</span> : null}
-            {typeof registrationsCount === "number" ? (
-              <span className="surface-chip">{registrationsCount} iscritti</span>
-            ) : null}
-          </div>
-
-          <Link className="admin-activity-card__title-link" to={to}>
-            <h3>{event.title}</h3>
-          </Link>
-
-          <p>{formatDateRange(event.startDate, event.endDate)}</p>
-          <p>{event.location}</p>
-
-          <Link className="admin-activity-card__link" to={to}>
-            Dettagli attività
-          </Link>
-        </div>
-      </article>
-    );
-  }
+// Card delle attività negli elenchi admin (home e /admin/events): tutta
+// cliccabile, porta alla scheda di gestione. Su telefono è una riga con la
+// foto a sinistra, da 640 px la card con la foto sopra, come nel catalogo.
+export function AdminActivityCard({ event, to, registrationsCount, past = false }: AdminActivityCardProps) {
+  const status = getEffectiveEventStatus(event);
 
   return (
-    <article className="admin-activity-card">
-      <Link className="admin-activity-card__poster-link" to={to}>
-        {event.heroImageUrl ? (
-          <div
-            className="admin-activity-card__poster"
-            style={{ backgroundImage: `url(${event.heroImageUrl})` }}
-          />
-        ) : (
-          <div className="admin-activity-card__poster admin-activity-card__poster--fallback">
-            <AppIcon name="ticket" />
-          </div>
-        )}
-
-        <div className="admin-activity-card__badges">
-          <StatusBadge
-            label={getEventStatusLabel(effectiveStatus)}
-            tone={getEventStatusTone(effectiveStatus)}
-          />
-          <span className="surface-chip">{getEventAudienceLabel(event.audience)}</span>
-        </div>
-      </Link>
-
-      <div className="admin-activity-card__meta">
-        <Link className="admin-activity-card__title-link" to={to}>
-          <h3>{event.title}</h3>
-        </Link>
-        <p>{formatDateRange(event.startDate, event.endDate)}</p>
-        {event.location ? <p>{event.location}</p> : null}
-        {typeof registrationsCount === "number" || event.overnight ? (
-          <div className="admin-activity-card__meta-chips">
-            {typeof registrationsCount === "number" ? (
-              <span className="surface-chip admin-activity-card__count">
-                {registrationsCount} iscritti
-              </span>
-            ) : null}
-            {event.overnight ? (
-              <span className="surface-chip admin-activity-card__count">Pernottamento</span>
-            ) : null}
-          </div>
-        ) : null}
+    <Link className={past ? "admin-card admin-card--past" : "admin-card"} to={to}>
+      <div
+        className="admin-card__media"
+        style={event.heroImageUrl ? { backgroundImage: `url(${event.heroImageUrl})` } : undefined}
+      >
+        {event.heroImageUrl ? null : <ActivityScene className="admin-card__scene" />}
       </div>
-    </article>
+      <div className="admin-card__body">
+        <div className="admin-card__main">
+          <div className="admin-card__pills">
+            <Pill dot tone={getEventStatusTone(status)}>
+              {getEventStatusLabel(status)}
+            </Pill>
+            <Pill>{getEventAudienceLabel(event.audience)}</Pill>
+          </div>
+          <h3 className="admin-card__title">{event.title}</h3>
+          <div className="admin-card__meta">
+            <p>
+              <Icon name="calendar" />
+              <span>{formatEventWindow(event)}</span>
+            </p>
+            <p>
+              <Icon name="map-pin" />
+              <span>{event.location.trim() || COPY.luogoDaDefinire}</span>
+            </p>
+          </div>
+          {typeof registrationsCount === "number" || event.overnight ? (
+            <div className="admin-card__pills">
+              {typeof registrationsCount === "number" ? (
+                <Pill tone="sand" icon="users">
+                  {registrationsCount === 1
+                    ? COPY.iscrittiUno
+                    : fillCopy(COPY.iscritti, { n: String(registrationsCount) })}
+                </Pill>
+              ) : null}
+              {event.overnight ? <Pill>{COPY.pernottamento}</Pill> : null}
+            </div>
+          ) : null}
+        </div>
+        <Icon name="arrow-right" className="admin-card__arrow" />
+      </div>
+    </Link>
   );
 }

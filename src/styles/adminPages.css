@@ -1,0 +1,953 @@
+/* Pagine admin di elenco e di servizio (home, Attività, Gallerie, Feed, Altro,
+   Statistiche), fase 6b del restyling (docs/REDESIGN_BRIEF.md). Solo token di
+   tokens.css; niente larghezze fisse né nowrap sulle etichette (inglese e
+   spagnolo). Le regole di pagina hanno .page nel selettore: vincono su .page e
+   sulle classi storiche di base.css qualunque sia l'ordine dei fogli. */
+
+.page.page--admin-dashboard,
+.page.page--admin-events,
+.page.page--admin-list,
+.page.page--admin-settings,
+.page.page--admin-stats {
+  gap: var(--space-5);
+}
+
+/* ---------- Blocchi di pagina: titolo h2 e descrizione ---------- */
+.admin-block {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.admin-block__head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-block__head--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.admin-block__head h2 {
+  margin: 0;
+  color: var(--heading);
+  font: 500 var(--title-sm) / var(--leading-tight) var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.admin-block__head p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+/* ---------- Card di un'attività (AdminActivityCard) ----------
+   La card del catalogo: foto sopra, testo sotto a tutta larghezza. Su
+   telefono la foto è una fascia 3:1 (l'elenco admin è lungo), da 640 px 16:9. */
+.admin-card-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.admin-card:hover {
+  border-color: var(--primary);
+}
+
+.admin-card:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.admin-card__media {
+  position: relative;
+  aspect-ratio: 3 / 1;
+  background: #9fb8cf center / cover no-repeat;
+}
+
+.admin-card__scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.admin-card--past .admin-card__media {
+  filter: saturate(0.55);
+}
+
+.admin-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.admin-card__main {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.admin-card__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-card__title {
+  margin: 0;
+  color: var(--heading);
+  font: 500 var(--title-sm) / 1.18 var(--font-display);
+  letter-spacing: -0.01em;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.admin-card__meta {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-card__meta p {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+.admin-card__meta p > span {
+  min-width: 0;
+}
+
+.admin-card__meta .ui-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.admin-card__arrow {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) {
+  .admin-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .admin-card__media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .admin-card__body {
+    padding: var(--space-4) var(--space-5) var(--space-5);
+  }
+}
+
+@media (min-width: 1180px) {
+  .admin-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Caricamento degli elenchi ---------- */
+.admin-skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-skeleton__row {
+  display: block;
+  height: 88px;
+  border-radius: var(--radius-card);
+  background: linear-gradient(90deg, var(--surface-cool), var(--surface-card), var(--surface-cool));
+  background-size: 200% 100%;
+  animation: admin-shimmer 1.4s var(--ease) infinite;
+}
+
+@keyframes admin-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton__row {
+    animation: none;
+  }
+}
+
+/* ---------- Tasto «+» di Attività ----------
+   Sopra la barra in basso (z-dock); da 1024 px c'è la barra laterale e il
+   tasto nella testata della pagina, quindi sparisce. */
+.page--admin-events .admin-fab {
+  position: fixed;
+  right: var(--gutter);
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  z-index: var(--z-dock);
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(27, 63, 103, 0.28);
+  cursor: pointer;
+}
+
+.page--admin-events .admin-fab:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.page--admin-events .admin-fab .ui-icon {
+  width: 24px;
+  height: 24px;
+}
+
+@media (max-width: 1023px) {
+  /* Su telefono e tablet l'azione è il «+»: niente doppione in cima, e
+     spazio in fondo perché il «+» non copra l'ultima card. */
+  .page--admin-events .ui-page-header__actions {
+    display: none;
+  }
+
+  .page.page--admin-events {
+    padding-bottom: calc(var(--space-8) + 56px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page--admin-events .admin-fab {
+    display: none;
+  }
+}
+
+/* ---------- Home /admin ---------- */
+
+/* Minimi dei componenti condivisi, solo in questa home (come in /me e
+   /unit): pill e testi della galleria, tipo e data del feed. */
+.page--admin-dashboard .status-badge,
+.page--admin-dashboard .ag-live__pill,
+.page--admin-dashboard .ag-card__hint,
+.page--admin-dashboard .feed-card__kind,
+.page--admin-dashboard .feed-card__date {
+  font-size: var(--text-xs);
+}
+
+.page--admin-dashboard .button--small {
+  min-height: var(--target);
+}
+
+/* Code Persone (MembershipQueueCards): stessa pelle di Card link della home
+   del dirigente; il componente resta com'è altrove. */
+.page--admin-dashboard .mship-dash {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.page--admin-dashboard .mship-dash-card {
+  gap: var(--space-4);
+  min-height: var(--control);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.page--admin-dashboard .mship-dash-card:hover {
+  border-color: var(--primary);
+}
+
+.page--admin-dashboard .mship-dash-card:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.page--admin-dashboard .mship-dash-card .mship-count {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 var(--space-2);
+  background: var(--sand-soft);
+  color: var(--on-sand-soft);
+  font-size: var(--text-md);
+}
+
+.page--admin-dashboard .mship-dash-card .mship-count--hot {
+  background: var(--action-sand);
+  color: var(--ink);
+}
+
+.page--admin-dashboard .mship-dash-card__text {
+  display: grid;
+  gap: 2px;
+}
+
+.page--admin-dashboard .mship-dash-card__text strong {
+  color: var(--heading);
+  font-size: var(--text-md);
+  line-height: 1.3;
+}
+
+.page--admin-dashboard .mship-dash-card__text span {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.page--admin-dashboard .mship-dash-card svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+/* ---------- Totali (home e Statistiche) ----------
+   Su telefono una card sola a righe (etichetta a sinistra, numero a destra):
+   in tre colonne a 320 px «Partecipanti totali» non ci sta. Da 640 px
+   riquadri affiancati. */
+.admin-stats {
+  display: grid;
+  margin: 0;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  list-style: none;
+}
+
+.admin-stat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) 0;
+}
+
+.admin-stat + .admin-stat {
+  border-top: 1px solid var(--line);
+}
+
+.admin-stat__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-cool);
+  color: var(--ink);
+}
+
+.admin-stat__icon .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-stat__label {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.3;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.admin-stat__value {
+  color: var(--heading);
+  font: 500 var(--title-sm) / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .admin-stats {
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: var(--space-3);
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .admin-stat {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: start;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .admin-stat + .admin-stat {
+    border-top: 1px solid var(--line);
+  }
+
+  .admin-stat__value {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: var(--title-md);
+  }
+
+  .admin-stat__label {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    color: var(--text-secondary);
+  }
+}
+
+@media (min-width: 720px) {
+  .page--admin-dashboard .mship-dash {
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  }
+}
+
+/* ---------- Righe degli elenchi (Gallerie, Feed) ---------- */
+.admin-rows {
+  display: grid;
+  margin: 0 calc(-1 * var(--space-3));
+  padding: 0;
+  list-style: none;
+}
+
+.admin-rows > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.admin-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+a.admin-row:hover {
+  background: var(--surface-cool);
+}
+
+a.admin-row:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+.admin-row--plain {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-row__thumb {
+  position: relative;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-inset);
+  background: #9fb8cf center / cover no-repeat;
+}
+
+.admin-row__scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.admin-row__info {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.admin-row__title {
+  color: var(--heading);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: 1.3;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.admin-row__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-row__arrow {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+.admin-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---------- Moduli dentro le Card (nuova galleria, nuovo post) ---------- */
+.admin-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.admin-form .field > span {
+  font-size: var(--text-sm);
+}
+
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+  min-height: var(--target);
+  font-size: var(--text-md);
+}
+
+.admin-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.admin-form .checkbox-row {
+  min-height: var(--target);
+  font-size: var(--text-sm);
+}
+
+
+
+/* ---------- Indietro (dettaglio galleria) ---------- */
+.admin-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  min-height: var(--target);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.admin-back:hover {
+  border-color: var(--primary);
+}
+
+.admin-back:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.admin-back .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Dettaglio galleria (GalleryAdminPanel) ----------
+   Il pannello è anche nella scheda dell'attività: qui prende solo i minimi
+   (13 px, 44 px), il titolo intero che va a capo e la griglia che non sborda. */
+.page.page--admin-gallery {
+  gap: var(--space-4);
+}
+
+.page--admin-gallery .gallery-toolbar {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.page--admin-gallery .gallery-toolbar__status {
+  gap: var(--space-2) var(--space-3);
+}
+
+.page--admin-gallery .gallery-toolbar__title {
+  flex: 1 1 100%;
+  order: 2;
+  max-width: none;
+  color: var(--heading);
+  font: 500 var(--title-sm) / 1.2 var(--font-display);
+  white-space: normal;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.page--admin-gallery .gallery-toolbar__count {
+  order: 1;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.page--admin-gallery .gallery-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--warning-surface);
+  color: var(--warning-ink);
+  font-size: var(--text-xs);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.page--admin-gallery .gallery-status--published {
+  background: var(--success-surface);
+  color: var(--success-ink);
+}
+
+.page--admin-gallery .gallery-toolbar__actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.page--admin-gallery .gallery-toolbar__actions .icon-button {
+  width: var(--target);
+  height: var(--target);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.page--admin-gallery .gallery-toolbar__actions .icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.page--admin-gallery .gallery-toolbar__actions .button--small {
+  min-height: var(--target);
+  font-size: var(--text-sm);
+}
+
+.page--admin-gallery .gallery-tiles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.page--admin-gallery .gallery-tile__label,
+.page--admin-gallery .gallery-tile__error {
+  font-size: var(--text-xs);
+}
+
+.page--admin-gallery .gallery-tile__icon-btn {
+  min-width: var(--target);
+  min-height: var(--target);
+}
+
+.page--admin-gallery .gallery-toast {
+  font-size: var(--text-sm);
+}
+
+@media (min-width: 540px) {
+  .page--admin-gallery .gallery-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 880px) {
+  .page--admin-gallery .gallery-tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .page--admin-gallery .gallery-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+/* ---------- Altro: card azione (SettingsActionCard) ---------- */
+.admin-actions {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-actions__create {
+  justify-self: start;
+}
+
+.admin-action {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  width: 100%;
+  min-height: var(--control);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.admin-action:hover {
+  border-color: var(--primary);
+}
+
+.admin-action:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.admin-action__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-control);
+  background: var(--surface-cool);
+  color: var(--ink);
+}
+
+.admin-action__icon .ui-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.admin-action__content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-action__content strong {
+  color: var(--heading);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+
+.admin-action__content span {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.admin-action__arrow {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) {
+  .admin-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-actions__create {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- Statistiche ---------- */
+.admin-row__text {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+.admin-row__text--muted {
+  color: var(--text-secondary);
+}
+
+.admin-rows--cards .admin-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-distributions {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-bars {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+}
+
+.admin-bar__label {
+  color: var(--heading);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.35;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.admin-bar__value {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-bar__track {
+  grid-column: 1 / -1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-cool);
+}
+
+.admin-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+@media (min-width: 900px) {
+  .admin-distributions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* ---------- Modali di Altro (Unità, Moduli, Profilo, Assegna admin, Log) ----------
+   AppModal è un portale fuori dalla pagina: i minimi stanno sulla radice del
+   contenuto (.admin-modal), non sotto .page. */
+.admin-modal .toggle-field {
+  min-height: var(--target);
+  align-items: center;
+  cursor: pointer;
+}
+
+
+
+.admin-modal .button--small {
+  min-height: var(--target);
+}
+
+.admin-modal .support-monitor__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.admin-modal .support-monitor__meta small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+/* ---------- Caselle (Fissa in cima al feed, campi dei Moduli) ----------
+   Casella disegnata da 22 px dentro un'area toccabile da 44: il margine
+   negativo la fa occupare 22 px nella riga. I colori nelle SVG sono quelli di
+   --line-strong/--text-secondary e --primary (un data URI non legge i token). */
+.admin-form .checkbox-row input[type="checkbox"],
+.admin-modal .toggle-field input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  box-sizing: border-box;
+  width: var(--target);
+  height: var(--target);
+  min-height: 0;
+  margin: -11px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-inset);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect x='12' y='12' width='20' height='20' rx='6' fill='%23fff' stroke='%2352687b' stroke-width='2'/%3E%3C/svg%3E") center / 44px 44px no-repeat;
+  cursor: pointer;
+}
+
+.admin-form .checkbox-row input[type="checkbox"]:checked,
+.admin-modal .toggle-field input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect x='11' y='11' width='22' height='22' rx='6' fill='%23235d90'/%3E%3Cpath d='M16.5 22.5l3.8 3.8 7.2-8' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.admin-form .checkbox-row input[type="checkbox"]:disabled,
+.admin-modal .toggle-field input[type="checkbox"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-form .checkbox-row input[type="checkbox"]:focus-visible,
+.admin-modal .toggle-field input[type="checkbox"]:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -8px;
+}
+
+.admin-form .checkbox-row {
+  gap: var(--space-3);
+  padding-left: 11px;
+}
+
+.admin-modal .toggle-field {
+  padding-left: calc(1rem + 11px);
+}

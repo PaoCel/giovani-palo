@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
-import { AppIcon } from "@/components/AppIcon";
 import { PlannerCalendar } from "@/components/PlannerCalendar";
+import { Button, Notice } from "@/components/ui";
+import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { adminEventsService } from "@/services/firestore/adminEventsService";
@@ -44,32 +45,25 @@ export function AdminCalendarPage() {
   );
 
   return (
-    <div className="page page--planner">
+    <div className="page page--calendar">
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Calendario non disponibile</h3>
-            <p>{error}</p>
-          </div>
-        </div>
+        <Notice title={COPY.calendarioErrore} tone="warning">
+          <p>{error}</p>
+        </Notice>
       ) : null}
 
-      <PlannerCalendar
+      {/* In errore i mesi direbbero «Spazio libero»: resta solo l'avviso. */}
+      {error ? null : <PlannerCalendar
         events={data.events}
         loading={loading}
         onEventSelect={(event) => navigate(`/admin/events/${event.id}`)}
         organizationName={data.organization?.stakeName ?? "Attività GU e GD"}
         toolbarAction={
-          <button
-            aria-label="Crea nuova attività"
-            className="icon-button icon-button--primary planner-toolbar__create"
-            onClick={() => setCreateModalOpen(true)}
-            type="button"
-          >
-            <AppIcon name="plus" />
-          </button>
+          <Button disabled={!data.organization} icon="plus" onClick={() => setCreateModalOpen(true)}>
+            {COPY.nuovaAttivita}
+          </Button>
         }
-      />
+      />}
 
       {createModalOpen && data.organization && session ? (
         <AdminEventEditorModal

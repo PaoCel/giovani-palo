@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ACCEDI } from "../src/copy/accedi.ts";
 import { SONDAGGIO } from "../src/copy/sondaggio.ts";
 import { ADMIN } from "../src/copy/admin.ts";
+import { ADMIN_ELENCHI } from "../src/copy/adminElenchi.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
 import { ATTIVITA } from "../src/copy/attivita.ts";
 import { CAMP, CAMP_GROUPS } from "../src/copy/camp.ts";
@@ -515,6 +516,7 @@ const COPY = {
   PAROLE,
   ACCEDI,
   ADMIN,
+  ADMIN_ELENCHI,
   ANNULLA,
   ATTIVITA,
   CAMP,
