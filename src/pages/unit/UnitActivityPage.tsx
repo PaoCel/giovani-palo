@@ -1038,8 +1038,9 @@ export function UnitActivityPage() {
         ) : null}
 
         {/* Sempre montata sul campeggio: il salvataggio parte 250 ms dopo il
-            segno e smontarla al cambio di scheda lo cancellerebbe. */}
-        {data.event && session?.firebaseUser.uid && isCamp ? (
+            segno e smontarla al cambio di scheda lo cancellerebbe. Senza
+            iscrizione propria le rules negano lettura e scrittura: non si monta. */}
+        {data.event && session?.firebaseUser.uid && isCamp && hasOwnRegistration ? (
           <div className="unit-activity-packing" hidden={visibleTab !== "packing"}>
             <CampPackingChecklist event={data.event} userId={session.firebaseUser.uid} variant="unit" />
           </div>

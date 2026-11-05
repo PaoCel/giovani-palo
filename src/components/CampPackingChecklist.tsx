@@ -43,8 +43,9 @@ export function CampPackingChecklist({
       })
       .catch(() => {
         if (!active) return;
+        // Resta "non caricata": il salvataggio non parte, così una lettura
+        // fallita (rete, permessi) non sovrascrive la checklist con una vuota.
         setChecked({});
-        setLoaded(true);
         setSyncError(
           "Impossibile caricare la checklist.",
         );
