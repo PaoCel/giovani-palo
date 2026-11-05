@@ -352,7 +352,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
   return <section className="room-planner" aria-label="Gestione stanze">
     <header className="rp-header">
       <div><span className="rp-eyebrow"><AppIcon name="key" /> Pernottamento</span><h2>Organizza le stanze</h2><p>Organizza i posti, rispetta le preferenze e rifinisci la bozza insieme agli altri admin.</p></div>
-      <span className={`rp-status ${dirty ? "rp-status--dirty" : ""}`}><span />{dirty ? "Modifiche da salvare" : "Bozza riservata"}</span>
+      <span className={`rp-status ${dirty ? "rp-status--dirty" : ""}`}><span />{dirty ? "Modifiche da salvare" : plan.published ? "Stanze comunicate ai partecipanti" : "Bozza riservata"}</span>
     </header>
     <div className="rp-stats">
       <div><strong>{summary.assigned}<small> / {toPlace.length}</small></strong><span>partecipanti assegnati</span></div>
