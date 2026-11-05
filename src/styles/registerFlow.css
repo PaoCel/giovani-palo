@@ -1009,6 +1009,12 @@
   justify-content: center;
 }
 
+/* Opened from an AppModal (z-index 1250, the step sheet of Crea attività):
+   both live in <body> and the later one must stay on top. */
+.app-modal-backdrop ~ .bottom-sheet-layer {
+  z-index: 1260;
+}
+
 .bottom-sheet-scrim {
   position: absolute;
   inset: 0;

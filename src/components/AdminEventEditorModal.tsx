@@ -1,23 +1,41 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppModal } from "@/components/AppModal";
-import { AppIcon } from "@/components/AppIcon";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
-import { EssentialEventForm } from "@/components/EssentialEventForm";
-import { EventEditorForm } from "@/components/EventEditorForm";
-import { EventFormConfigEditor } from "@/components/EventFormConfigEditor";
-import { EventPublicationPreview } from "@/components/EventPublicationPreview";
-import { EVENT_CREATION as COPY } from "@/copy/eventCreation";
+import { BottomSheet } from "@/components/register/BottomSheet";
+import { Icon } from "@/components/ui";
+import { StepIndexList, StepParticipants, StepPoster, StepRegistrations, StepReview, StepWhat, StepWhen, type SetValue } from "@/components/activityWizard/WizardSteps";
+import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
+import { ACTIVITY_TYPES, EVENT_CREATION as COPY } from "@/copy/eventCreation";
+import { fillCopy } from "@/copy/parole";
 import { storageService } from "@/services/firebase/storageService";
-import { eventFormsService } from "@/services/firestore/eventFormsService";
+import { eventFormsService, getDefaultEventFormConfig } from "@/services/firestore/eventFormsService";
 import { eventsService } from "@/services/firestore/eventsService";
-import type { Event, EventFormConfig, EventWriteInput, OrganizationProfile } from "@/types";
+import type { ActivityType, CustomField, Event, EventFormConfig, OrganizationProfile } from "@/types";
+import {
+  STEP_FIELDS,
+  WIZARD_STEPS,
+  buildWizardFormPayload,
+  buildWizardPayload,
+  countActiveRegistrations,
+  getInitialWizardValues,
+  getPublicationChecklist,
+  getStepSummaries,
+  getTypeChangeEffects,
+  hasOvernight,
+  isStepDirty,
+  stepNeedsDraft,
+  stepNumber,
+  validateWizardStep,
+  type FieldErrors,
+  type WizardStepId,
+  type WizardValues,
+} from "@/utils/activityWizard";
 import { getAdminActionError } from "@/utils/adminErrors";
 import { getPublicationIssues } from "@/utils/eventCreation";
-import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
-import { formatDateRange } from "@/utils/formatters";
+import { getVisibleStandardFieldDefinitions, isRoomRelatedStandardFieldKey } from "@/utils/formFields";
 import { isOffline, withWriteTimeout, WRITE_TIMEOUT_CODE } from "@/utils/writeTimeout";
-import "@/styles/eventCreation.css";
+import "@/styles/activityWizard.css";
 
 interface AdminEventEditorModalProps {
   organization: OrganizationProfile;
@@ -25,69 +43,126 @@ interface AdminEventEditorModalProps {
   sessionUid: string;
   initialEvent?: Event | null;
   initialFormConfig?: EventFormConfig | null;
+  /** overview and preview open step 6; options opens step 5. */
   initialStep?: "overview" | "options" | "preview";
-  /** Con initialStep "options": passo e campo da cui partire. */
+  /** With initialStep "options": the field to focus (Alloggio). */
   focusField?: "roomsInfo";
+  /** Active registrations, for the notices of decision 3 and of a draft with registrations. */
+  activeRegistrations?: number;
   onClose: () => void;
   onCompleted?: (eventId: string) => void;
 }
 
-type Step = "essentials" | "overview" | "options" | "form" | "preview";
+type Confirm =
+  | { kind: "discardNew"; canCreate: boolean }
+  | { kind: "leaveStep"; then: () => void }
+  | { kind: "discardReturn" }
+  | { kind: "unpublish" }
+  | { kind: "cancel" };
+
+const REQUIREMENT_KEYS = ["requiresAccount", "requiresParentAuthorization", "requiresEmergencyContacts", "requiresMedicalNotes", "requiresImageConsent"] as const;
 
 // Account/activity changes dispose the previous editing context and its callbacks.
 export function AdminEventEditorModal(props: AdminEventEditorModalProps) {
-  return <EventEditorSession key={`${props.sessionUid}:${props.stakeId}:${props.initialEvent?.id ?? "new"}`} {...props} />;
+  return <ActivityWizardSession key={`${props.sessionUid}:${props.stakeId}:${props.initialEvent?.id ?? "new"}`} {...props} />;
 }
 
-function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, initialFormConfig, initialStep, focusField, onClose, onCompleted }: AdminEventEditorModalProps) {
-  const [step, setStep] = useState<Step>(initialEvent ? initialStep ?? "overview" : "essentials");
-  const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [savedEvent, setSavedEvent] = useState<Event | null>(initialEvent ? { ...initialEvent, ...(initialFormConfig ? { allowGuestRegistration: initialFormConfig.allowGuestRegistration, requireLoginForEdit: initialFormConfig.requireLoginForEdit } : {}) } : null);
+function firstStep(initialEvent: Event | null | undefined, initialStep: AdminEventEditorModalProps["initialStep"]): WizardStepId {
+  if (!initialEvent) return "what";
+  return initialStep === "options" ? "participants" : "review";
+}
+
+function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent, initialFormConfig, initialStep, focusField, activeRegistrations, onClose, onCompleted }: AdminEventEditorModalProps) {
+  const fieldDefinitions = useMemo(() => getVisibleStandardFieldDefinitions(organization.registrationDefaults.fieldOverrides), [organization.registrationDefaults.fieldOverrides]);
+  const defaults = useMemo(() => ({
+    allowGuestRegistration: organization.registrationDefaults.allowGuestRegistration,
+    enabledStandardFields: getDefaultEventFormConfig(organization.registrationDefaults).enabledStandardFields,
+  }), [organization.registrationDefaults]);
+  const [savedEvent, setSavedEvent] = useState<Event | null>(initialEvent ?? null);
   const [formConfig, setFormConfig] = useState<EventFormConfig | null>(initialFormConfig ?? null);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [discardAction, setDiscardAction] = useState<"close" | "back" | null>(null);
+  const savedValues = useMemo(() => getInitialWizardValues(savedEvent, formConfig, defaults), [savedEvent, formConfig, defaults]);
+  const emptyValues = useMemo(() => getInitialWizardValues(null, null, defaults), [defaults]);
+  const [values, setValues] = useState<WizardValues>(savedValues);
+  const [step, setStep] = useState<WizardStepId>(firstStep(initialEvent, initialStep));
+  const [returnToReview, setReturnToReview] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [refreshed, setRefreshed] = useState(!initialEvent);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [guestReviewed, setGuestReviewed] = useState(false);
+  const [indexOpen, setIndexOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
+  const [typeSheet, setTypeSheet] = useState<{ next: ActivityType; effects: NonNullable<ReturnType<typeof getTypeChangeEffects>> } | null>(null);
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [now] = useState(() => Date.now());
   const pending = useRef<{ promise: Promise<void>; completed: () => void; fallback: string } | null>(null);
   const runLock = useRef(false);
   const mounted = useRef(true);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  // Field to focus once the opening server read is over: fields stay disabled while it runs.
-  const pendingFocus = useRef(initialStep === "options" ? focusField : undefined);
-  const [refreshed, setRefreshed] = useState(!initialEvent);
   const errorRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   const creationId = useRef(crypto.randomUUID());
-  const essentialFormId = useId();
   const stagedImages = useRef(new Set<string>());
   const committedImage = useRef(initialEvent?.heroImagePath ?? "");
   const pendingImage = useRef("");
-  const standardFieldDefinitions = useMemo(() => getVisibleStandardFieldDefinitions(organization.registrationDefaults.fieldOverrides), [organization.registrationDefaults.fieldOverrides]);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; for (const path of stagedImages.current) { if (path !== committedImage.current && path !== pendingImage.current) void storageService.deleteFile(path).catch(() => undefined); } }; }, []);
+  const uploadToken = useRef(0);
+  const pendingFocus = useRef(initialStep === "options" ? focusField : undefined);
+  const registrationsCount = activeRegistrations ?? countActiveRegistrations(savedEvent);
+
   useEffect(() => {
-    const heading = content.current?.closest(".app-modal")?.querySelector<HTMLElement>("h2");
-    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      for (const path of stagedImages.current) {
+        if (path !== committedImage.current && path !== pendingImage.current) void storageService.deleteFile(path).catch(() => undefined);
+      }
+    };
+  }, []);
+  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  useEffect(() => {
     content.current?.closest(".app-modal__body")?.scrollTo(0, 0);
+    headingRef.current?.focus({ preventScroll: true });
   }, [step]);
   useEffect(() => {
-    if (initialEvent) {
-      void run(() => refreshSavedEvent(initialEvent.id), () => setRefreshed(true), COPY.saveError);
-    }
+    if (initialEvent) void run(() => refreshSavedEvent(initialEvent.id, "all"), () => setRefreshed(true), COPY.loadError);
   }, []);
 
-  async function refreshSavedEvent(eventId: string) {
-    // Read the activity first, then the form. A concurrent change can leave
-    // an older revision (which the next write rejects), never a newer
-    // revision paired with an older cached form.
+  const locked = busy || waiting || !refreshed;
+  useEffect(() => {
+    if (!pendingFocus.current || step !== "participants" || locked) return;
+    const field = content.current?.querySelector<HTMLElement>(`[data-focus-field="${pendingFocus.current}"]`);
+    if (!field) return;
+    pendingFocus.current = undefined;
+    field.focus();
+  }, [step, locked]);
+
+  /**
+   * Activity first, then the form, both from the server: a concurrent change
+   * can leave an older revision (rejected by the next write), never a newer
+   * revision paired with an older cached form. `sync` says which steps take
+   * the saved values; the others keep what is being typed.
+   */
+  async function refreshSavedEvent(eventId: string, sync: "all" | ReadonlySet<WizardStepId>) {
     const event = await eventsService.getEventById(stakeId, eventId, true);
     if (!event) throw new Error("Attività non disponibile.");
     const config = await eventFormsService.getFormConfig(stakeId, eventId, true);
-    if (mounted.current) {
-      setSavedEvent({ ...event, allowGuestRegistration: config.allowGuestRegistration, requireLoginForEdit: config.requireLoginForEdit });
-      setFormConfig(config);
-    }
+    if (!mounted.current) return;
+    const merged = { ...event, allowGuestRegistration: config.allowGuestRegistration, requireLoginForEdit: config.requireLoginForEdit };
+    setSavedEvent(merged);
+    setFormConfig(config);
+    const fresh = getInitialWizardValues(merged, config, defaults);
+    setValues(current => {
+      if (sync === "all") return fresh;
+      const next = { ...current };
+      for (const synced of sync) for (const key of STEP_FIELDS[synced]) (next as Record<string, unknown>)[key] = fresh[key];
+      return next;
+    });
   }
 
   // A retry after a timeout awaits the SAME write. It cannot create another
@@ -96,23 +171,139 @@ function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, i
     if (runLock.current) return;
     if (isOffline() && !pending.current) { setError(getAdminActionError({ code: "unavailable" }, fallback)); return; }
     runLock.current = true;
-    setBusy(true); setError(null); setFeedback(null);
+    setBusy(true); setError(null); setConflict(false); setFeedback(null);
     const action = pending.current ?? { promise: Promise.resolve().then(work), completed, fallback };
     pending.current = action;
     try {
       await withWriteTimeout(action.promise);
       if (!mounted.current) return;
-      pending.current = null; setWaiting(false); setDirty(false);
+      pending.current = null; setWaiting(false);
       action.completed();
     } catch (caughtError) {
       if (!mounted.current) return;
       if ((caughtError as { code?: string })?.code === WRITE_TIMEOUT_CODE) setWaiting(true);
       else { pending.current = null; setWaiting(false); }
-      setError(getAdminActionError(caughtError, action.fallback));
+      const message = getAdminActionError(caughtError, action.fallback);
+      if (message === COPY.revisionConflict) { setConflict(true); setError(COPY.revisionConflictReload); } else setError(message);
     } finally {
       runLock.current = false;
       if (mounted.current) setBusy(false);
     }
+  }
+
+  const set: SetValue = (key, value) => {
+    setValues(current => ({ ...current, [key]: value }));
+    setErrors(current => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setFeedback(null);
+  };
+
+  const guestReviewMissing = values.recordsEnabled && values.recordsGuestEnabled && savedEvent?.recordsGuestEnabled !== true && !guestReviewed;
+  const validate = (target: WizardStepId) => validateWizardStep(target, values, { guestReviewMissing });
+  const dirty = (target: WizardStepId) => savedEvent ? isStepDirty(target, values, savedValues) : isStepDirty(target, values, emptyValues);
+  const stepDirty = dirty(step);
+  const hasTyped = WIZARD_STEPS.some(target => dirty(target));
+
+  function showErrors(found: FieldErrors) {
+    setErrors(found);
+    const first = Object.keys(found)[0];
+    if (!first) return;
+    requestAnimationFrame(() => {
+      const field = content.current?.querySelector<HTMLElement>(`[data-field="${first}"]`)
+        ?? content.current?.querySelector<HTMLElement>("[aria-invalid='true'], .wz-error");
+      field?.focus();
+      field?.scrollIntoView({ block: "center" });
+    });
+  }
+
+  function validSteps() {
+    return new Set(WIZARD_STEPS.filter(target => Object.keys(validate(target)).length === 0));
+  }
+
+  function goTo(target: WizardStepId, options: { fromReview?: boolean } = {}) {
+    setErrors({});
+    setEditingQuestion(null);
+    setReturnToReview(Boolean(options.fromReview));
+    setStep(target);
+  }
+
+  /** Saves the steps that are valid (always including `target`), then `after`. */
+  function save(target: WizardStepId, after: () => void) {
+    const event = savedEvent;
+    if (!event) return;
+    const steps = validSteps();
+    const payload = buildWizardPayload(values, event, steps, LEGAL_DOC_VERSIONS);
+    if (event.isPublic) {
+      // A published activity must stay publishable: an emptied description or
+      // window is refused here, on the step that holds it.
+      const issues = getPublicationIssues({ ...payload, status: "draft" });
+      if (issues.length) { setError(issues.join(" ")); return; }
+    }
+    const form = steps.has("registrations") && isStepDirty("registrations", values, savedValues)
+      ? { ...buildWizardFormPayload(values), standardFieldDefinitions: fieldDefinitions }
+      : undefined;
+    void run(async () => {
+      pendingImage.current = payload.heroImagePath ?? "";
+      const updated = await eventsService.updateEvent(stakeId, event.id, payload, event.updatedAt, form);
+      if (!updated) throw new Error("Impossibile rileggere l'attività aggiornata.");
+      committedImage.current = updated.heroImagePath;
+      pendingImage.current = "";
+      stagedImages.current.delete(updated.heroImagePath);
+      await refreshSavedEvent(event.id, steps);
+    }, () => { setGuestReviewed(false); after(); }, COPY.saveError);
+  }
+
+  function createDraft(after: (eventId: string) => void) {
+    const whatErrors = validate("what");
+    if (Object.keys(whatErrors).length) { goTo("what"); showErrors(whatErrors); return; }
+    const payload = buildWizardPayload(values, null, new Set<WizardStepId>(["what", "when"]), LEGAL_DOC_VERSIONS);
+    void run(async () => {
+      // Stable id: a retry after a timeout reuses it and cannot create a second draft.
+      await eventsService.createEvent(stakeId, payload, sessionUid, creationId.current);
+      await refreshSavedEvent(creationId.current, "all");
+    }, () => after(creationId.current), COPY.saveError);
+  }
+
+  function next() {
+    const found = validate(step);
+    if (Object.keys(found).length) { showErrors(found); return; }
+    const index = WIZARD_STEPS.indexOf(step);
+    const target = returnToReview ? "review" : WIZARD_STEPS[Math.min(index + 1, WIZARD_STEPS.length - 1)];
+    if (!savedEvent) {
+      if (step === "what") { goTo("when"); return; }
+      createDraft(() => goTo("poster"));
+      return;
+    }
+    if (stepDirty) save(step, () => goTo(target));
+    else goTo(target);
+  }
+
+  function back() {
+    if (returnToReview) {
+      if (stepDirty) setConfirm({ kind: "discardReturn" });
+      else goTo("review");
+      return;
+    }
+    const index = WIZARD_STEPS.indexOf(step);
+    if (index === 0) return;
+    const target = WIZARD_STEPS[index - 1];
+    // A valid step is saved on the way back; an invalid one keeps its fields
+    // in memory and is left out of every save until it is fixed.
+    if (savedEvent && stepDirty && Object.keys(validate(step)).length === 0) save(step, () => goTo(target));
+    else goTo(target);
+  }
+
+  function resetStep(target: WizardStepId) {
+    setValues(current => {
+      const nextValues = { ...current };
+      for (const key of STEP_FIELDS[target]) (nextValues as Record<string, unknown>)[key] = savedValues[key];
+      return nextValues;
+    });
+    setErrors({});
   }
 
   function finish() {
@@ -121,97 +312,270 @@ function EventEditorSession({ organization, stakeId, sessionUid, initialEvent, i
     else if (waiting) onCompleted?.(creationId.current);
     onClose();
   }
-  function requestExit(action: "close" | "back") {
-    if (runLock.current || uploading) return;
-    if (dirty && !waiting) { setDiscardAction(action); return; }
-    if (action === "close") finish();
-    else { setDirty(false); setError(null); setFeedback(null); setStep("overview"); }
+
+  function finishCreated(eventId: string) {
+    onCompleted?.(eventId);
+    onClose();
   }
 
-  async function handleUploadImage(file: File) {
+  function requestExit() {
+    if (runLock.current || uploading) return;
+    if (waiting) { finish(); return; }
+    if (!savedEvent) {
+      if (!hasTyped) { onClose(); return; }
+      const canCreate = Object.keys(validate("what")).length === 0 && Object.keys(validate("when")).length === 0;
+      setConfirm({ kind: "discardNew", canCreate });
+      return;
+    }
+    if (!stepDirty) { finish(); return; }
+    const found = validate(step);
+    if (Object.keys(found).length) { setConfirm({ kind: "leaveStep", then: () => finish() }); return; }
+    save(step, () => finish());
+  }
+
+  function jump(target: WizardStepId) {
+    setIndexOpen(false);
+    if (target === step) return;
+    if (!savedEvent && stepNeedsDraft(target)) return;
+    if (!savedEvent || !stepDirty) { goTo(target); return; }
+    const found = validate(step);
+    if (Object.keys(found).length) { setConfirm({ kind: "leaveStep", then: () => { resetStep(step); goTo(target); } }); return; }
+    save(step, () => goTo(target));
+  }
+
+  function changeType(nextType: ActivityType) {
+    if (nextType === values.activityType) return;
+    const effects = getTypeChangeEffects(values.activityType, nextType, values);
+    if (!effects) { set("activityType", nextType); return; }
+    if (savedEvent) { setTypeSheet({ next: nextType, effects }); return; }
+    applyType(nextType, effects);
+  }
+
+  function applyType(nextType: ActivityType, effects: NonNullable<ReturnType<typeof getTypeChangeEffects>>) {
+    setValues(current => ({
+      ...current,
+      activityType: nextType,
+      ...effects.requirements,
+      allowGuestRegistration: effects.requirements.requiresAccount ? false : current.allowGuestRegistration,
+      roomsInfo: effects.clearsRooms ? "" : current.roomsInfo,
+    }));
+  }
+
+  async function handlePick(file: File) {
+    const token = ++uploadToken.current;
     setUploading(true);
+    setUploadError(null);
     try {
+      // No previousPath: the saved poster stays until the step is saved.
       const image = await storageService.uploadEventImage({ file, uploadedBy: sessionUid, stakeId, eventId: savedEvent?.id });
       stagedImages.current.add(image.path);
-      if (mounted.current) setDirty(true);
-      else void storageService.deleteFile(image.path).catch(() => undefined);
-      return image;
-    } finally { if (mounted.current) setUploading(false); }
+      if (!mounted.current || token !== uploadToken.current) {
+        if (image.path !== committedImage.current) void storageService.deleteFile(image.path).catch(() => undefined);
+        return;
+      }
+      set("heroImageUrl", image.url);
+      set("heroImagePath", image.path);
+    } catch (caughtError) {
+      if (mounted.current && token === uploadToken.current) setUploadError(caughtError instanceof Error && caughtError.message ? caughtError.message : COPY.posterError);
+    } finally {
+      if (mounted.current && token === uploadToken.current) setUploading(false);
+    }
   }
 
-  async function handleSave(input: EventWriteInput) {
-    let event: Event | null = null;
-    await run(async () => {
-      pendingImage.current = input.heroImagePath ?? "";
-      event = savedEvent
-        ? await eventsService.updateEvent(stakeId, savedEvent.id, input, savedEvent.updatedAt)
-        : await eventsService.createEvent(stakeId, { ...input, status: "draft", isPublic: false, isVisible: false }, sessionUid, creationId.current);
-      if (!event) throw new Error("Impossibile rileggere l'attività aggiornata.");
-      committedImage.current = event.heroImagePath;
-      pendingImage.current = "";
-      stagedImages.current.delete(event.heroImagePath);
-      await refreshSavedEvent(event.id);
-    }, () => { setStep("overview"); setFeedback(initialEvent ? COPY.savedChanges : COPY.saved); }, COPY.saveError);
+  function cancelUpload() {
+    uploadToken.current += 1;
+    setUploading(false);
   }
-  async function handleSaveForm(config: EventFormConfig) {
+
+  function publish() {
+    if (!savedEvent || savedEvent.isPublic || getPublicationChecklist(savedEvent, Date.now()).length) return;
+    const event = savedEvent;
+    void run(async () => { await eventsService.publishEvent(stakeId, event.id, event.updatedAt); }, () => finish(), COPY.publishError);
+  }
+
+  function unpublish() {
     if (!savedEvent) return;
-    await run(async () => {
-      await eventFormsService.saveFormConfig(stakeId, savedEvent.id, config, standardFieldDefinitions, { expectedUpdatedAt: savedEvent.updatedAt });
-      await refreshSavedEvent(savedEvent.id);
-    }, () => { setStep("overview"); setFeedback(COPY.savedForm); }, COPY.formError);
-  }
-  async function openStep(next: Step) {
-    if (!savedEvent || busy || waiting) return;
-    if (next === "form" || next === "preview") {
-      await run(async () => {
-        const config = await eventFormsService.getFormConfig(stakeId, savedEvent.id, true);
-        if (mounted.current) setFormConfig(config);
-      }, () => setStep(next), COPY.formError);
-    } else { setError(null); setFeedback(null); setStep(next); }
-  }
-  async function publish() {
-    if (!savedEvent || !formConfig || getPublicationIssues(savedEvent).length || savedEvent.isPublic) return;
-    await run(async () => { await eventsService.publishEvent(stakeId, savedEvent.id, savedEvent.updatedAt); }, finish, COPY.publishError);
+    const event = savedEvent;
+    setConfirm(null);
+    void run(async () => {
+      await eventsService.unpublishEvent(stakeId, event.id, event.updatedAt);
+      await refreshSavedEvent(event.id, "all");
+    }, () => setFeedback(COPY.unpublished), COPY.unpublishError);
   }
 
-  const titles: Record<Step, string> = { essentials: savedEvent ? COPY.essentials : "Crea nuova attività", overview: savedEvent?.isPublic ? "Gestisci attività" : "La tua bozza", options: COPY.customize, form: COPY.registration, preview: COPY.preview };
-  const locked = busy || waiting || uploading;
-  useEffect(() => {
-    if (!pendingFocus.current || step !== "options" || locked || !refreshed) return;
-    const field = content.current?.querySelector<HTMLElement>(`[data-focus-field="${pendingFocus.current}"]`);
-    if (!field) return;
-    pendingFocus.current = undefined;
-    field.focus();
-  }, [step, locked, refreshed]);
+  function setCancelled(cancelled: boolean) {
+    if (!savedEvent) return;
+    const event = savedEvent;
+    setConfirm(null);
+    void run(async () => {
+      await eventsService.setEventCancelled(stakeId, event.id, cancelled, event.updatedAt);
+      await refreshSavedEvent(event.id, "all");
+    }, () => setFeedback(cancelled ? COPY.cancelledNotice : COPY.reopened), COPY.saveError);
+  }
+
+  function reload() {
+    if (!savedEvent) return;
+    const keep = step;
+    const event = savedEvent;
+    void run(() => refreshSavedEvent(event.id, new Set(WIZARD_STEPS.filter(target => target !== keep))), () => undefined, COPY.loadError);
+  }
+
+  // Notices of decision 3 (new requirements apply to new registrations only)
+  // and of a form changed after registrations started.
+  const turnedOn = REQUIREMENT_KEYS.some(key => values[key] && !savedValues[key]);
+  const requirementNotice = savedEvent && registrationsCount > 0 && turnedOn
+    ? registrationsCount === 1 ? COPY.newRequirementsNoticeOne : fillCopy(COPY.newRequirementsNotice, { n: String(registrationsCount) })
+    : null;
+  const formChanged = JSON.stringify(values.enabledStandardFields) !== JSON.stringify(savedValues.enabledStandardFields)
+    || JSON.stringify(values.customFields) !== JSON.stringify(savedValues.customFields);
+  const registrationNotices = [requirementNotice, savedEvent && registrationsCount > 0 && formChanged ? COPY.existingAnswersNotice : null].filter((text): text is string => Boolean(text));
+
+  const summaries = getStepSummaries(savedEvent, now);
+  const checks = savedEvent ? getPublicationChecklist(savedEvent, Date.now()) : [];
+  const questionCount = savedValues.customFields.length + savedValues.enabledStandardFields.filter(key => key !== "parentConfirmed").length;
+  const kicker = !savedEvent ? COPY.kickerNew : fillCopy(savedEvent.isPublic ? COPY.kickerPublished : COPY.kickerDraft, { titolo: savedEvent.title });
+  const overnight = hasOvernight(values);
+  const addable = fieldDefinitions.filter(field => !values.enabledStandardFields.includes(field.key) && field.key !== "parentConfirmed"
+    && (overnight || !isRoomRelatedStandardFieldKey(field.key))
+    && !(field.key === "genderRoleCategory" && values.audience !== "congiunta"));
+  const optionalEmpty = step === "participants" && !stepDirty && STEP_FIELDS.participants.every(key => !values[key]);
+
+  function addCustomQuestion() {
+    const field: CustomField = { id: `custom-${crypto.randomUUID()}`, key: "", label: "", type: "shortText", required: false, helpText: "", options: [] };
+    set("customFields", [...values.customFields, field]);
+    setEditingQuestion(field.id);
+    setAddOpen(false);
+  }
+
+  const savedPill = savedEvent && !stepDirty && !busy ? <span className="wz-saved" role="status"><Icon name="check" />{COPY.saved}</span> : null;
+  const stepper = <div className="wz-top">
+    <div className="wz-top__row">
+    <button type="button" className="wz-stepper" aria-haspopup="dialog" aria-label={`${fillCopy(COPY.stepOf, { n: String(stepNumber(step)) })} · ${step === "review" && savedEvent?.isPublic ? COPY.steps.manage : COPY.steps[step]}. ${COPY.openIndex}`}
+      onClick={() => setIndexOpen(true)} disabled={busy}>
+      <strong>{fillCopy(COPY.stepOf, { n: String(stepNumber(step)) })}</strong>
+      <span>· {step === "review" && savedEvent?.isPublic ? COPY.steps.manage : COPY.steps[step]}</span>
+      <Icon name="arrow-right" />
+    </button>
+    </div>
+    <div className="wz-progress" aria-hidden="true">
+      {WIZARD_STEPS.map((target, index) => {
+        const summary = summaries[index];
+        const current = WIZARD_STEPS.indexOf(step);
+        const className = index === current ? "now" : index < current && summary.state === "optional" ? "skip" : index < current || summary.state === "done" && savedEvent ? "done" : "";
+        return <i key={target} className={className} />;
+      })}
+    </div>
+  </div>;
+
+  const primaryLabel = busy ? (savedEvent ? COPY.saving : COPY.creating)
+    : returnToReview ? COPY.saveAndReturn
+      : !savedEvent && step === "when" ? COPY.createDraft
+        : optionalEmpty ? COPY.skip : COPY.next;
+  const footer = <div className="wz-foot">
+    {step === "review"
+      ? <>
+        <button type="button" className={savedEvent?.isPublic ? "wz-button wz-button--soft wz-button--block" : "wz-button wz-button--ghost"} disabled={locked}
+          onClick={() => savedEvent?.isPublic ? finish() : goTo("participants")}>
+          {savedEvent?.isPublic ? COPY.close : <><Icon name="arrow-left" />{COPY.back}</>}
+        </button>
+        {!savedEvent?.isPublic ? <button type="button" className="wz-button wz-button--primary" disabled={locked || checks.length > 0} onClick={publish}>
+          {busy ? COPY.publishing : COPY.publish}
+        </button> : null}
+      </>
+      : <>
+        {step !== "what" || returnToReview ? <button type="button" className="wz-button wz-button--ghost" disabled={locked || uploading} onClick={back}>
+          {returnToReview ? COPY.backToReview : <><Icon name="arrow-left" />{COPY.back}</>}
+        </button> : null}
+        <button type="button" className="wz-button wz-button--primary" disabled={locked || uploading} onClick={next}>
+          {primaryLabel}{!busy && !returnToReview && !(!savedEvent && step === "when") ? <Icon name="arrow-right" /> : null}
+        </button>
+      </>}
+  </div>;
+
+  const manage = savedEvent && (savedEvent.isPublic || savedEvent.status === "cancelled") ? <div className="wz-manage">
+    {savedEvent.isPublic && savedEvent.status !== "cancelled" && savedEvent.status !== "completed"
+      ? <button type="button" className="wz-button wz-button--soft" disabled={locked} onClick={() => setConfirm({ kind: "unpublish" })}>{COPY.unpublish}</button> : null}
+    {savedEvent.status === "cancelled"
+      ? <button type="button" className="wz-button wz-button--soft" disabled={locked} onClick={() => setCancelled(false)}>{COPY.reopen}</button>
+      : savedEvent.isPublic && savedEvent.status !== "completed"
+        ? <button type="button" className="wz-button wz-button--link wz-button--danger" disabled={locked} onClick={() => setConfirm({ kind: "cancel" })}>{COPY.cancelActivity}</button>
+        : null}
+  </div> : null;
+
   return <>
-    <AppModal title={titles[step]} subtitle={savedEvent?.isPublic ? "Attività pubblicata" : COPY.draft} onClose={() => requestExit("close")} size="wide"
-      footer={step !== "overview" ? <div className="event-creation__actions event-creation__footer">
-        {savedEvent ? <button type="button" className="button button--ghost" disabled={locked} onClick={() => requestExit("back")}>{savedEvent.isPublic ? "Torna alla gestione" : COPY.back}</button> : null}
-        {step === "essentials" ? <button form={essentialFormId} type="submit" className="button button--primary" disabled={locked}>{busy ? "Salvataggio..." : savedEvent ? "Salva modifiche" : COPY.create}</button> : null}
-        {step === "preview" ? <button type="button" className="button button--primary" disabled={locked || !savedEvent || !formConfig || getPublicationIssues(savedEvent).length > 0} onClick={() => void publish()}>{busy ? "Pubblicazione..." : COPY.publish}</button> : null}
-      </div> : undefined}>
-      <div className="event-creation" ref={content} onChangeCapture={() => setDirty(true)}>
-        {error ? <div ref={errorRef} tabIndex={-1} className="form-error" role="alert">{error}</div> : null}
-        {feedback ? <div className="form-success" role="status">{feedback}</div> : null}
-        {waiting ? <button className="button button--primary" type="button" disabled={busy} onClick={() => void run(() => Promise.resolve(), () => undefined, COPY.saveError)}>{busy ? "Verifica in corso..." : "Verifica salvataggio"}</button> : null}
-        {step === "essentials" ? <EssentialEventForm formId={essentialFormId} event={savedEvent} defaults={organization.registrationDefaults} busy={locked} onSave={handleSave} /> : null}
-        {step === "options" ? <fieldset disabled={locked}><EventEditorForm compact busy={locked} focusField={focusField} initialEvent={savedEvent} onUploadImage={handleUploadImage} onSubmit={handleSave} onDirtyChange={() => setDirty(true)} statusMode="simplified" submitLabel="Salva modifiche" /></fieldset> : null}
-        {step === "form" ? formConfig ? <fieldset disabled={locked}><EventFormConfigEditor busy={locked} eventAudience={savedEvent?.audience ?? "congiunta"} initialConfig={formConfig} allowRoomFields={savedEvent?.overnight ?? false} onSave={handleSaveForm} onDirtyChange={() => setDirty(true)} standardFieldDefinitions={standardFieldDefinitions} /></fieldset> : <p>Sto preparando il modulo...</p> : null}
-        {step === "overview" && savedEvent ? <>
-          <article className="event-creation__preview"><div><h3>{savedEvent.title}</h3><p>{formatDateRange(savedEvent.startDate, savedEvent.endDate)}</p><p>{savedEvent.location}</p></div></article>
-          {!savedEvent.isPublic ? <p className="event-creation__hint">{COPY.findDraft}</p> : null}
-          <div className="event-creation__options">
-            {([
-              ["essentials", COPY.essentials, "Nome, tipo, date, luogo e dettagli facoltativi."],
-              ["options", COPY.customize, COPY.customizeBody],
-              ["form", COPY.registration, COPY.registrationBody],
-            ] as const).map(([next, title, body]) => <button key={next} type="button" className="event-creation__option" disabled={locked} onClick={() => void openStep(next)}><span><strong>{title}</strong><small>{body}</small></span><AppIcon name="arrow-right" /></button>)}
-          </div>
-          <div className="event-creation__actions"><button type="button" className="button button--ghost" disabled={busy} onClick={() => requestExit("close")}>{savedEvent.isPublic ? "Chiudi" : "Esci dalla bozza"}</button>{!savedEvent.isPublic ? <button type="button" className="button button--primary" disabled={locked || savedEvent.status === "cancelled" || savedEvent.status === "completed"} onClick={() => void openStep("preview")}>{COPY.preview}</button> : null}</div>
-        </> : null}
-        {step === "preview" && savedEvent ? <EventPublicationPreview event={savedEvent} config={formConfig} /> : null}
+    <AppModal title={kicker} onClose={requestExit} size="wide" className="app-modal--wizard" headerExtra={stepper} titleExtra={savedPill} footer={footer}>
+      <div className="wz" ref={content}>
+        {error ? <div ref={errorRef} tabIndex={-1} className="wz-alert" role="alert">
+          <span>{error}</span>
+          {conflict ? <button type="button" className="wz-button wz-button--soft" disabled={busy} onClick={reload}>{COPY.reload}</button> : null}
+        </div> : null}
+        {feedback ? <div className="wz-success" role="status">{feedback}</div> : null}
+        {waiting ? <button className="wz-button wz-button--primary" type="button" disabled={busy}
+          onClick={() => void run(() => Promise.resolve(), () => undefined, COPY.saveError)}>{busy ? COPY.checking : COPY.checkSave}</button> : null}
+        <fieldset className="wz-fieldset" disabled={locked}>
+          {step === "what" ? <StepWhat values={values} set={set} errors={errors} headingRef={headingRef} onTypeChange={changeType} notice={requirementNotice} /> : null}
+          {step === "when" ? <StepWhen values={values} set={set} errors={errors} headingRef={headingRef} hasDraft={Boolean(savedEvent)} onTypeSuggestion={changeType} /> : null}
+          {step === "poster" ? <StepPoster values={values} set={set} errors={errors} headingRef={headingRef} uploading={uploading} uploadError={uploadError}
+            disabled={locked} onPick={file => void handlePick(file)} onCancelUpload={cancelUpload} /> : null}
+          {step === "registrations" ? <StepRegistrations values={values} set={set} errors={errors} headingRef={headingRef} fieldDefinitions={fieldDefinitions}
+            onAddQuestion={() => setAddOpen(true)} editingQuestion={editingQuestion} setEditingQuestion={setEditingQuestion} notices={registrationNotices} /> : null}
+          {step === "participants" ? <StepParticipants values={values} set={set} errors={errors} headingRef={headingRef} event={savedEvent}
+            focusRooms={focusField === "roomsInfo" && initialStep === "options"} guestReviewed={guestReviewed} onGuestReviewed={next => {
+              setGuestReviewed(next);
+              if (next) setErrors(current => { const copy = { ...current }; delete copy.recordsGuestReviewed; return copy; });
+            }} /> : null}
+          {step === "review" && savedEvent ? <StepReview event={savedEvent} headingRef={headingRef} checks={checks} now={Date.now()} questionCount={questionCount}
+            onEdit={target => goTo(target, { fromReview: true })} manage={manage} returningCount={savedEvent.isPublic ? 0 : registrationsCount} /> : null}
+        </fieldset>
       </div>
     </AppModal>
-    {discardAction ? <ConfirmSheet title={COPY.discardTitle} body={COPY.discardBody} cancelLabel={COPY.keepEditing} confirmLabel={COPY.discard} tone="danger" onCancel={() => setDiscardAction(null)} onConfirm={() => { const action = discardAction; setDiscardAction(null); setDirty(false); if (action === "close") finish(); else { setError(null); setStep("overview"); } }} /> : null}
+
+    {indexOpen ? <BottomSheet title={COPY.index.title} closeLabel={COPY.index.close} onClose={() => setIndexOpen(false)}
+      footer={<button type="button" className="wz-button wz-button--ghost wz-button--block" onClick={() => setIndexOpen(false)}>{COPY.index.close}</button>}>
+      <StepIndexList summaries={summaries} current={step} hasDraft={Boolean(savedEvent)} onPick={jump} />
+    </BottomSheet> : null}
+
+    {addOpen ? <BottomSheet title={COPY.addQuestionTitle} lead={COPY.addQuestionLead} closeLabel={COPY.close} onClose={() => setAddOpen(false)}
+      footer={<button type="button" className="wz-button wz-button--ghost wz-button--block" onClick={() => setAddOpen(false)}>{COPY.close}</button>}>
+      <ul className="wz-plist">
+        {addable.map(field => <li key={field.key}>
+          <button type="button" className="wz-pitem" onClick={() => { set("enabledStandardFields", [...values.enabledStandardFields, field.key]); setAddOpen(false); }}>
+            <span className="wz-pitem__n" aria-hidden="true"><Icon name="plus" /></span>
+            <span><strong>{field.label}</strong>{field.helpText ? <small>{field.helpText}</small> : null}</span>
+          </button>
+        </li>)}
+        <li><button type="button" className="wz-pitem" onClick={addCustomQuestion}>
+          <span className="wz-pitem__n" aria-hidden="true"><Icon name="pencil" /></span>
+          <span><strong>{COPY.ownQuestion}</strong><small>{COPY.ownQuestionHint}</small></span>
+        </button></li>
+      </ul>
+    </BottomSheet> : null}
+
+    {typeSheet ? <BottomSheet title={fillCopy(COPY.typeChangeTitle, { tipo: ACTIVITY_TYPES[typeSheet.next].label })} closeLabel={fillCopy(COPY.typeChangeKeep, { tipo: ACTIVITY_TYPES[values.activityType].label })}
+      onClose={() => setTypeSheet(null)}
+      footer={<div className="wz-sheet-buttons">
+        <button type="button" className="wz-button wz-button--primary wz-button--block" onClick={() => setTypeSheet(null)}>{fillCopy(COPY.typeChangeKeep, { tipo: ACTIVITY_TYPES[values.activityType].label })}</button>
+        <button type="button" className="wz-button wz-button--link wz-button--block" onClick={() => { applyType(typeSheet.next, typeSheet.effects); setTypeSheet(null); }}>{fillCopy(COPY.typeChangeConfirm, { tipo: ACTIVITY_TYPES[typeSheet.next].label })}</button>
+      </div>}>
+      <ul className="wz-changes">
+        <li>{typeSheet.effects.turnsOn ? COPY.typeChangeOn : COPY.typeChangeOff}</li>
+        {typeSheet.effects.clearsRooms ? <li>{COPY.typeChangeRooms}</li> : null}
+        <li>{typeSheet.effects.turnsOn ? COPY.typeChangeManualOn : COPY.typeChangeManual}</li>
+        {registrationsCount > 0 && typeSheet.effects.turnsOn ? <li>{registrationsCount === 1 ? COPY.newRequirementsNoticeOne : fillCopy(COPY.newRequirementsNotice, { n: String(registrationsCount) })}</li> : null}
+      </ul>
+    </BottomSheet> : null}
+
+    {confirm?.kind === "discardNew" ? <ConfirmSheet title={COPY.discardNewTitle} body={COPY.discardNewBody} cancelLabel={COPY.keepEditing} confirmLabel={COPY.discardNew} tone="danger"
+      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); onClose(); }}>
+      {confirm.canCreate ? <button type="button" className="wz-button wz-button--soft wz-button--block" onClick={() => { setConfirm(null); createDraft(finishCreated); }}>{COPY.createAndExit}</button> : null}
+    </ConfirmSheet> : null}
+    {confirm?.kind === "leaveStep" ? <ConfirmSheet title={COPY.leaveStepTitle} body={COPY.leaveStepBody} cancelLabel={COPY.keepEditing} confirmLabel={COPY.leaveStep} tone="danger"
+      onCancel={() => setConfirm(null)} onConfirm={() => { const then = confirm.then; setConfirm(null); then(); }} /> : null}
+    {confirm?.kind === "discardReturn" ? <ConfirmSheet title={COPY.discardReturnTitle} body={COPY.discardReturnBody} cancelLabel={COPY.keepEditing} confirmLabel={COPY.discardReturn} tone="danger"
+      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); resetStep(step); goTo("review"); }} /> : null}
+    {confirm?.kind === "unpublish" ? <ConfirmSheet title={COPY.unpublishTitle} body={COPY.unpublishBody} cancelLabel={COPY.unpublishKeep} confirmLabel={COPY.unpublish} tone="danger"
+      onCancel={() => setConfirm(null)} onConfirm={unpublish} /> : null}
+    {confirm?.kind === "cancel" ? <ConfirmSheet title={COPY.cancelTitle} body={COPY.cancelBody} cancelLabel={COPY.cancelKeep} confirmLabel={COPY.cancelActivity} tone="danger"
+      onCancel={() => setConfirm(null)} onConfirm={() => setCancelled(true)} /> : null}
   </>;
 }

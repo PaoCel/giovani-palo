@@ -526,7 +526,8 @@ function StandardFieldsModal({
   const [allowGuestRegistration, setAllowGuestRegistration] = useState(
     organization.registrationDefaults.allowGuestRegistration,
   );
-  const [requireLoginForEdit, setRequireLoginForEdit] = useState(
+  // Decisione 4 (5 novembre 2026): non è più una scelta; il valore salvato si conserva.
+  const [requireLoginForEdit] = useState(
     organization.registrationDefaults.requireLoginForEdit,
   );
   const [fields, setFields] = useState(baseFields);
@@ -619,14 +620,6 @@ function StandardFieldsModal({
             <span>Consenti iscrizione ospite di default</span>
           </label>
 
-          <label className="toggle-field">
-            <input
-              type="checkbox"
-              checked={requireLoginForEdit}
-              onChange={(eventInput) => setRequireLoginForEdit(eventInput.target.checked)}
-            />
-            <span>{ADMIN.richiediAccountPerModificare}</span>
-          </label>
         </div>
 
         <div className="surface-panel surface-panel--subtle form-subsection">

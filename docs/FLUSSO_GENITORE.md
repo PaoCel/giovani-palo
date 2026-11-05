@@ -345,6 +345,8 @@ figli** è nella fase 5: non c'è nulla in Famiglia da perdere.
 | più figli | **i tuoi figli** | — |
 | chi partecipa, lato staff | partecipante (invariato) | — |
 | "minore" | solo nei testi legali e nell'autorizzazione | nelle schermate del genitore |
+| attività senza notti fuori, senza requisiti rafforzati (5 novembre 2026) | **In giornata** (`activityType: "standard"` resta nei dati) | Standard |
+| destinatari GU e GD insieme | **Congiunta** | — |
 
 Il progetto non ha un catalogo i18n: ogni sostituzione si fa in tutti i file
 che usano la parola vecchia, non solo nelle schermate nuove.

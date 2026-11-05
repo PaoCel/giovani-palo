@@ -27,4 +27,7 @@ export const FORBIDDEN_FORMS = [
   // Una frase sola per il concetto: "Annulla l'iscrizione", sempre con l'articolo.
   ["Annulla iscrizione", /\bAnnulla\s+iscrizione\b/giu],
   ["Crea account", /\bCrea\s+account\b/gu],
+  // Tipo di attività (decisione di Paolo, 5 novembre 2026): «In giornata».
+  // Solo come testo intero (stringa o JSX), non gli identificatori "standard".
+  ["Standard come tipo di attività", /(?:["'`>]\s*)Standard(?=\s*["'`<])/gu],
 ];

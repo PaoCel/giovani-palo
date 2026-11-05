@@ -4880,6 +4880,7 @@ export function AdminEventDetailPage() {
       {editModalOpen && data?.organization && session ? (
         <AdminEventEditorModal
           initialEvent={resolvedEvent}
+          activeRegistrations={currentCount}
           initialStep={editorInitialStep}
           focusField={editorFocusField}
           initialFormConfig={formConfig}

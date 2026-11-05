@@ -11,6 +11,12 @@ interface AppModalProps {
   children: ReactNode;
   footer?: ReactNode;
   size?: "default" | "wide" | "compact";
+  /** Extra class on the dialog (e.g. the step sheet of Crea attività). */
+  className?: string;
+  /** Rendered under the title row, still inside the fixed header area. */
+  headerExtra?: ReactNode;
+  /** Small status next to the title (e.g. «Salvata»). */
+  titleExtra?: ReactNode;
 }
 
 export function AppModal({
@@ -20,6 +26,9 @@ export function AppModal({
   children,
   footer,
   size = "default",
+  className,
+  headerExtra,
+  titleExtra,
 }: AppModalProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);
@@ -66,6 +75,7 @@ export function AppModal({
           "app-modal",
           size === "wide" ? "app-modal--wide" : "",
           size === "compact" ? "app-modal--compact" : "",
+          className ?? "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -76,8 +86,9 @@ export function AppModal({
         tabIndex={-1}
       >
         <header className="app-modal__header">
-          <div>
+          <div className={titleExtra ? "app-modal__title app-modal__title--extra" : "app-modal__title"}>
             <h2 id={titleId}>{title}</h2>
+            {titleExtra}
             {subtitle ? <p>{subtitle}</p> : null}
           </div>
           <button
@@ -89,6 +100,8 @@ export function AppModal({
             <AppIcon name="x" />
           </button>
         </header>
+
+        {headerExtra ? <div className="app-modal__header-extra">{headerExtra}</div> : null}
 
         <div className="app-modal__body">{children}</div>
 

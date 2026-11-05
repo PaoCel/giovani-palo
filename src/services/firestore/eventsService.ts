@@ -20,9 +20,9 @@ import {
   getDefaultEventFormConfig,
 } from "@/services/firestore/eventFormsService";
 import { organizationService } from "@/services/firestore/organizationService";
-import type { ActivityType, Event, EventStatus, EventWriteInput } from "@/types";
+import type { ActivityType, Event, EventFormConfig, EventStatus, EventWriteInput } from "@/types";
 import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
-import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys } from "@/utils/formFields";
+import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys, type StandardFieldDefinition } from "@/utils/formFields";
 import { eventSpansMultipleCalendarDays, sanitizeEventAudience } from "@/utils/events";
 import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
 import { assertEventRevision, getPublicationIssues, nextEventRevision } from "@/utils/eventCreation";
@@ -406,10 +406,22 @@ export const eventsService = {
     return event;
   },
 
-  async updateEvent(stakeId: string, eventId: string, input: EventWriteInput, expectedUpdatedAt?: string) {
+  /**
+   * Activity and form in one transaction against the seen revision. With
+   * `form` (step Iscrizioni of the wizard) its fields replace the saved ones;
+   * without it the saved form is kept.
+   */
+  async updateEvent(stakeId: string, eventId: string, input: EventWriteInput, expectedUpdatedAt?: string, form?: {
+    enabledStandardFields: EventFormConfig["enabledStandardFields"];
+    customFields: EventFormConfig["customFields"];
+    standardFieldDefinitions?: StandardFieldDefinition[];
+  }) {
     const data = normalizeEventInput(input);
     const reference = doc(db, "stakes", stakeId, "activities", eventId);
-    const currentFormConfig = await eventFormsService.getFormConfig(stakeId, eventId, true);
+    const savedFormConfig = await eventFormsService.getFormConfig(stakeId, eventId, true);
+    const currentFormConfig = form
+      ? { ...savedFormConfig, enabledStandardFields: form.enabledStandardFields, customFields: form.customFields }
+      : savedFormConfig;
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(reference);
       if (!snapshot.exists()) throw new Error("Attività non disponibile.");
@@ -429,7 +441,7 @@ export const eventsService = {
               : removeRoomStandardFieldKeys(currentFormConfig.enabledStandardFields)
           ).concat(data.audience !== "congiunta" ? ["genderRoleCategory"] : []),
         ),
-      }, undefined, { batch: transaction, updatedAt });
+      }, form?.standardFieldDefinitions, { batch: transaction, updatedAt });
       transaction.update(reference, { ...data, updatedAt });
     });
     invalidateCache("events:public");
@@ -461,6 +473,48 @@ export const eventsService = {
       if (issues.length) throw new Error(issues.join(" "));
       transaction.update(reference, {
         status: "registrations_open", isPublic: true, isVisible: true, updatedAt: nextEventRevision(event.updatedAt),
+      });
+    });
+    invalidateCache("events:public");
+    return this.getEventById(stakeId, eventId, true);
+  },
+
+  /**
+   * «Togli dal catalogo» (docs/ATTIVITA_MODULARI.md, contract written before
+   * the code): back to draft, nobody but staff sees it, registrations,
+   * authorizations and signatures stay. Only the activity document changes.
+   */
+  async unpublishEvent(stakeId: string, eventId: string, expectedUpdatedAt?: string) {
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error("Attività non disponibile.");
+      const event = mapEvent(snapshot.id, snapshot.data(), stakeId);
+      // A repeated tap or a retry after a timeout changes nothing.
+      if (!event.isPublic) return;
+      assertEventRevision(snapshot.data().updatedAt, expectedUpdatedAt);
+      transaction.update(reference, {
+        status: "draft", isPublic: false, isVisible: false, updatedAt: nextEventRevision(event.updatedAt),
+      });
+    });
+    invalidateCache("events:public");
+    return this.getEventById(stakeId, eventId, true);
+  },
+
+  /** Annulla / Riapri from «Gestisci», against the seen revision. */
+  async setEventCancelled(stakeId: string, eventId: string, cancelled: boolean, expectedUpdatedAt?: string) {
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error("Attività non disponibile.");
+      const event = mapEvent(snapshot.id, snapshot.data(), stakeId);
+      if ((event.status === "cancelled") === cancelled) return;
+      assertEventRevision(snapshot.data().updatedAt, expectedUpdatedAt);
+      transaction.update(reference, {
+        // Reopening a public activity gives back the only status the rules
+        // accept for registrations; a draft goes back to draft.
+        status: cancelled ? "cancelled" : event.isPublic ? "registrations_open" : "draft",
+        updatedAt: nextEventRevision(event.updatedAt),
       });
     });
     invalidateCache("events:public");

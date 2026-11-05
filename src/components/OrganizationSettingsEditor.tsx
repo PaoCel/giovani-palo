@@ -447,19 +447,6 @@ export function OrganizationSettingsEditor({
             <span>Consenti iscrizione ospite di default</span>
           </label>
 
-          <label className="toggle-field">
-            <input
-              type="checkbox"
-              checked={values.requireLoginForEdit}
-              onChange={(event) =>
-                setValues((current) => ({
-                  ...current,
-                  requireLoginForEdit: event.target.checked,
-                }))
-              }
-            />
-            <span>{ADMIN.richiediAccountPerModificare}</span>
-          </label>
         </div>
 
         <div className="checkbox-grid">

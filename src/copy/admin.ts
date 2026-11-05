@@ -7,8 +7,6 @@ import { DOMANDE } from "./domande.ts";
 import { PAROLE } from "./parole.ts";
 
 export const ADMIN = {
-  // Interruttore `requireLoginForEdit`, uguale in tutte le schermate.
-  richiediAccountPerModificare: "Richiedi un account per modificare l'iscrizione",
   // Impostazioni del palo, campo `accountHelpText`.
   testoGuidaAccountPlaceholder: "Testo guida nella pagina Accedi.",
 
