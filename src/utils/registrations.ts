@@ -1,10 +1,12 @@
 import type {
   EventFormConfig,
+  GenderRoleCategory,
   Registration,
   RegistrationAnswerValue,
   RegistrationStatus,
 } from "@/types";
 import { isMinorBirthDate } from "@/utils/age";
+import { getGenderRoleCategoryLabel } from "@/utils/profile";
 import {
   normalizeStandardFieldKeys,
   visibleStandardFieldDefinitions,
@@ -192,10 +194,15 @@ export function getRegistrationAnswerEntries(
       continue;
     }
 
+    // Il modulo salva il valore ("giovane_donna"), a schermo va l'etichetta.
+    const categoryLabel =
+      standardField.key === "genderRoleCategory" && typeof value === "string"
+        ? getGenderRoleCategoryLabel(value as GenderRoleCategory)
+        : "";
     entries.push({
       key: standardField.key,
       label: standardField.label,
-      value: formatRegistrationAnswerValue(value),
+      value: categoryLabel || formatRegistrationAnswerValue(value),
     });
   }
 
