@@ -61,7 +61,7 @@ export function CampHighlightCard() {
         </Link>
 
         <div className="camp-highlight-card__body">
-          <span className="surface-chip">Foto & video · {mediaLabel}</span>
+          <span className="surface-chip">Foto e video · {mediaLabel}</span>
           <h3>{event.title}</h3>
           <p className="subtle-text">{formatEventWindow(event)}</p>
           <div className="chip-row">

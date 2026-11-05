@@ -9516,6 +9516,12 @@ p.admin-person-fields__note {
   font-size: 1.05rem;
 }
 
+/* La pill del conteggio sta nelle home /me e /admin: testo secondario al
+   minimo del restyling (13 px), senza toccare surface-chip altrove. */
+.camp-highlight-card__body .surface-chip {
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 520px) {
   .camp-highlight-card {
     flex-direction: column;
