@@ -25,6 +25,7 @@ import {
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAuth } from "@/hooks/useAuth";
 import { parentAuthorizationService } from "@/services/firestore/parentAuthorizationService";
+import { registrationsService } from "@/services/firestore/registrationsService";
 import { unitLeaderService } from "@/services/firestore/unitLeaderService";
 import { unitTransportNotesService } from "@/services/firestore/unitTransportNotesService";
 import type { CampPatrolRole, CampPublicMember, Registration, UserProfile } from "@/types";
@@ -452,6 +453,27 @@ export function UnitActivityPage() {
     { contextKey: "", ids: [] as string[] },
   );
   const resolvedIds = loadedResolved.contextKey === contextKey ? loadedResolved.ids : [];
+
+  // Lo zaino si legge e si salva solo con un'iscrizione propria all'attività
+  // (firestore.rules, packingChecklists: hasOwnRegistration). Il dirigente
+  // che non partecipa non vede la scheda invece di un errore dei permessi.
+  const leaderUid = session?.firebaseUser.uid ?? "";
+  const { data: loadedOwnRegistration } = useAsyncData(
+    async () => ({
+      contextKey,
+      found: leaderUid
+        ? Boolean(
+            await registrationsService
+              .getRegistrationByActor(stakeId, eventId, { userId: leaderUid })
+              .catch(() => null),
+          )
+        : false,
+    }),
+    [contextKey, leaderUid, stakeId, eventId],
+    { contextKey: "", found: false },
+  );
+  const hasOwnRegistration =
+    loadedOwnRegistration.contextKey === contextKey && loadedOwnRegistration.found;
   function setResolvedIds(ids: string[]) {
     setLoadedResolved({ contextKey, ids });
   }
@@ -686,7 +708,7 @@ export function UnitActivityPage() {
   const tabDefinitions = getUnitActivityTabs({
     showOrganization,
     isCamp,
-    hasUser: Boolean(session?.firebaseUser.uid),
+    hasUser: Boolean(leaderUid) && hasOwnRegistration,
   });
   const visibleTab = getVisibleUnitActivityTab(tabDefinitions, activeTab);
   const showTabs = Boolean(data.event) && tabDefinitions.length > 1;

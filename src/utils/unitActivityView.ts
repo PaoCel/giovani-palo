@@ -20,7 +20,9 @@ const TABS: UnitActivityTabDefinition[] = [
 /**
  * Iscritti c'è sempre; Organizzazione quando l'attività è caricata (comitati e
  * gruppi valgono per ogni tipo, così «Gestisci» resta raggiungibile); Zaino
- * solo sul campeggio e con un account (la checklist si salva per utente).
+ * solo sul campeggio e con un account iscritto all'attività (la checklist si
+ * salva per utente e le rules la aprono solo a chi ha un'iscrizione propria):
+ * `hasUser` lo passa la pagina già combinato con l'iscrizione.
  */
 export function getUnitActivityTabs(input: {
   showOrganization: boolean;

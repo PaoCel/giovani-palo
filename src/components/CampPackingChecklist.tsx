@@ -41,14 +41,12 @@ export function CampPackingChecklist({
         );
         setLoaded(true);
       })
-      .catch((caughtError) => {
+      .catch(() => {
         if (!active) return;
         setChecked({});
         setLoaded(true);
         setSyncError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Impossibile caricare la checklist.",
+          "Impossibile caricare la checklist.",
         );
       });
 
@@ -67,11 +65,9 @@ export function CampPackingChecklist({
       packingChecklistService
         .saveCheckedItemIds(event.stakeId, event.id, userId, checkedItemIds)
         .then(() => setSyncError(null))
-        .catch((caughtError) => {
+        .catch(() => {
           setSyncError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : "Impossibile salvare la checklist.",
+            "Impossibile salvare la checklist.",
           );
         });
     }, 250);

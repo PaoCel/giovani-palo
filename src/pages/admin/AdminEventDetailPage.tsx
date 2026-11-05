@@ -2613,14 +2613,18 @@ export function AdminEventDetailPage() {
                   >
                     Modifica
                   </Button>
-                  <Button
-                    disabled={busy === "delete"}
-                    icon="globe"
-                    onClick={() => void handlePublish()}
-                    variant="secondary"
-                  >
-                    Rendi pubblica
-                  </Button>
+                  {/* Su un'attività già pubblica il tasto non ha niente da fare:
+                      al suo posto c'è Condividi. */}
+                  {!resolvedEvent.isPublic ? (
+                    <Button
+                      disabled={busy === "delete"}
+                      icon="globe"
+                      onClick={() => void handlePublish()}
+                      variant="secondary"
+                    >
+                      Rendi pubblica
+                    </Button>
+                  ) : null}
                 </>
               ) : null}
               {resolvedEvent.isPublic ? (
