@@ -160,8 +160,10 @@ const REQUIREMENTS: { key: "requiresParentAuthorization" | "requiresEmergencyCon
   { key: "requiresImageConsent", label: COPY.imageConsent, hint: COPY.imageConsentHint },
 ];
 
-export function StepRegistrations({ values, set, errors, headingRef, fieldDefinitions, onAddQuestion, editingQuestion, setEditingQuestion, notices }: StepProps & {
+export function StepRegistrations({ values, set, errors, headingRef, fieldDefinitions, stakeFields, onAddQuestion, editingQuestion, setEditingQuestion, notices }: StepProps & {
   fieldDefinitions: StandardFieldDefinition[];
+  /** Standard fields the stake asks by default: not «Aggiunta da te». */
+  stakeFields: readonly StandardFieldKey[];
   onAddQuestion: () => void;
   editingQuestion: string | null;
   setEditingQuestion: (id: string | null) => void;
@@ -206,7 +208,7 @@ export function StepRegistrations({ values, set, errors, headingRef, fieldDefini
       <ul className="wz-qlist">
         {always.length ? <li className="wz-q"><strong>{always.map(labelOf).join(", ")}</strong><Pill>{COPY.alwaysAsked}</Pill></li> : null}
         {added.map(key => <li className="wz-q" key={key}>
-          <strong>{labelOf(key)}</strong><Pill tone="sand">{COPY.addedByYou}</Pill>
+          <strong>{labelOf(key)}</strong>{stakeFields.includes(key) ? <Pill>{COPY.fromStake}</Pill> : <Pill tone="sand">{COPY.addedByYou}</Pill>}
           <button type="button" className="wz-q__action" aria-label={`${COPY.questionRemove}: ${labelOf(key)}`}
             onClick={() => set("enabledStandardFields", enabled.filter(value => value !== key))}>{COPY.questionRemove}</button>
         </li>)}

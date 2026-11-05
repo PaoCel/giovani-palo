@@ -146,7 +146,7 @@
 .wz-button svg { width: 18px; height: 18px; flex: none; }
 .wz-button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 .wz-button:disabled, .wz-button--disabled { opacity: .55; cursor: default; }
-.wz-button--primary { min-height: var(--control); background: var(--ink); color: #fff; }
+.wz-button--primary { min-height: var(--control); background: var(--primary); color: #fff; }
 .wz-button--soft { background: var(--surface-cool); color: var(--primary); border-color: var(--line); }
 .wz-button--ghost { background: transparent; color: var(--heading); }
 .wz-button--link { background: transparent; color: var(--primary); padding: 0 6px; }
@@ -299,8 +299,13 @@
 .wz-pitem .ui-pill { white-space: nowrap; }
 .wz-changes { display: grid; gap: var(--space-2); margin: 0; padding-left: 18px; color: var(--text-body); font-size: var(--text-sm); line-height: var(--leading-body); }
 
+.wz-when__line input[type="time"] { padding-left: 10px; padding-right: 8px; }
+
 @media (max-width: 360px) {
   .wz-poster { grid-template-columns: 6.5rem minmax(0, 1fr); }
-  .wz-when__line { grid-template-columns: minmax(0, 1fr) 6.25rem; }
+  /* The time field needs room for "19:00" plus the browser's clock button. */
+  .wz-when__line { grid-template-columns: minmax(0, 1fr) 7.25rem; }
   .wz-seg__item { font-size: var(--text-xs); }
+  .wz-pitem { grid-template-columns: 30px minmax(0, 1fr); }
+  .wz-pitem .ui-pill { grid-column: 2; justify-self: start; }
 }

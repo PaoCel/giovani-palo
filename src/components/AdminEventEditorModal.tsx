@@ -260,7 +260,9 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
   function createDraft(after: (eventId: string) => void) {
     const whatErrors = validate("what");
     if (Object.keys(whatErrors).length) { goTo("what"); showErrors(whatErrors); return; }
-    const payload = buildWizardPayload(values, null, new Set<WizardStepId>(["what", "when"]), LEGAL_DOC_VERSIONS, defaults);
+    // Every valid step goes in: the requirements switched on by the type
+    // (step 4) must be written with the draft, not only kept in memory.
+    const payload = buildWizardPayload(values, null, validSteps(), LEGAL_DOC_VERSIONS, defaults);
     void run(async () => {
       // Stable id: a retry after a timeout reuses it and cannot create a second draft.
       await eventsService.createEvent(stakeId, payload, sessionUid, creationId.current);
@@ -527,7 +529,7 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
           {step === "when" ? <StepWhen values={values} set={set} errors={errors} headingRef={headingRef} hasDraft={Boolean(savedEvent)} onTypeSuggestion={changeType} /> : null}
           {step === "poster" ? <StepPoster values={values} set={set} errors={errors} headingRef={headingRef} uploading={uploading} uploadError={uploadError}
             disabled={locked} onPick={file => void handlePick(file)} onCancelUpload={cancelUpload} /> : null}
-          {step === "registrations" ? <StepRegistrations values={values} set={set} errors={errors} headingRef={headingRef} fieldDefinitions={fieldDefinitions}
+          {step === "registrations" ? <StepRegistrations values={values} set={set} errors={errors} headingRef={headingRef} fieldDefinitions={fieldDefinitions} stakeFields={defaults.enabledStandardFields}
             onAddQuestion={() => setAddOpen(true)} editingQuestion={editingQuestion} setEditingQuestion={setEditingQuestion} notices={registrationNotices} /> : null}
           {step === "participants" ? <StepParticipants values={values} set={set} errors={errors} headingRef={headingRef} event={savedEvent}
             focusRooms={focusField === "roomsInfo" && initialStep === "options"} guestReviewed={guestReviewed} onGuestReviewed={next => {

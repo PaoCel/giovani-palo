@@ -126,6 +126,7 @@ export const EVENT_CREATION = {
   whatWeAsk: "Cosa chiediamo",
   alwaysAsked: "Sempre chiesti",
   addedByYou: "Aggiunta da te",
+  fromStake: "Del palo",
   addQuestion: "Aggiungi una domanda",
   addQuestionTitle: "Cosa vuoi chiedere?",
   addQuestionLead: "Scegli una domanda pronta o scrivine una tua.",
