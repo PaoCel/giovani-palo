@@ -90,7 +90,7 @@
   align-items: center;
   gap: 0.5rem;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -101,7 +101,7 @@
   border-radius: 999px;
   background: var(--warning-soft);
   color: var(--warning);
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
 }
 
@@ -131,7 +131,7 @@
 
 .rna-tile small {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 
@@ -248,7 +248,7 @@
 
 .rna-proposal__who small {
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 .rna-avatar {
@@ -260,7 +260,7 @@
   border-radius: 13px;
   background: var(--accent-soft);
   color: #876134;
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.02em;
 }
@@ -289,7 +289,7 @@
 
 .rna-facts dt {
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -368,7 +368,7 @@
 
 .rna-panel__note {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
   text-align: right;
 }
@@ -429,7 +429,7 @@
 .rna-field label,
 .rna-field__top label {
   color: var(--heading);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 
@@ -442,19 +442,19 @@
 
 .rna-counter {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 
 .rna-field__hint {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 
 .rna-field__error {
   color: var(--danger);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -533,7 +533,7 @@
 .rna-choices__label {
   margin-top: 0.2rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -590,7 +590,7 @@
   align-items: center;
   gap: 0.3rem 0.7rem;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
 }
 
 /* --- Motivi rapidi (Rifiuta) --------------------------------------------- */
@@ -604,7 +604,7 @@
 
 .rna-quick__label {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -617,7 +617,7 @@
   background: #fff;
   color: var(--heading);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.35;
   text-align: left;
@@ -665,7 +665,7 @@
   border-radius: 999px;
   background: var(--rna-cat-bg);
   color: var(--rna-cat-fg);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   line-height: 1.3;
   white-space: nowrap;
@@ -786,7 +786,7 @@
   background: var(--bg-soft);
   color: var(--heading);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.3;
   text-align: left;
@@ -891,7 +891,7 @@
 
 .rna-people__who small {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
 }
 
 /* --- Sezioni chiuse ---------------------------------------------------------- */
@@ -999,7 +999,7 @@
 .rna-list__reason span {
   margin-right: 0.3rem;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1010,7 +1010,7 @@
   flex-shrink: 0;
   gap: 0.1rem;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   text-align: right;
 }
 
@@ -1026,7 +1026,7 @@
   border-radius: 999px;
   background: var(--accent-soft);
   color: #876134;
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1090,7 +1090,7 @@
 
 .rna-switch__who small {
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 .rna-switch__track {
@@ -1178,7 +1178,7 @@
 .rna-manage__eyebrow {
   margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1344,14 +1344,14 @@
   border-radius: 999px;
   background: var(--bg-soft);
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   text-align: center;
 }
 
 .rna-filter small {
   color: var(--primary);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1394,7 +1394,7 @@
 
 .rna-queue-bar p {
   color: #56657a;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
@@ -1462,7 +1462,7 @@
   align-items: center;
   gap: 0.15rem 0.5rem;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 .rna-unit {
@@ -1470,7 +1470,7 @@
   border-radius: 999px;
   background: var(--primary-soft);
   color: var(--primary);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -1485,7 +1485,7 @@
   border-radius: 999px;
   background: var(--accent-soft);
   color: #876134;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.02em;
 }
@@ -1534,7 +1534,7 @@
   flex-wrap: wrap;
   gap: 0.25rem 1.2rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -1555,7 +1555,7 @@
   border-radius: 999px;
   background: var(--warning-soft);
   color: #6f4b12;
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   line-height: 1.3;
 }
@@ -1616,7 +1616,7 @@
 .rna-dupmore small {
   display: block;
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
 }
 
 .rna-dupmore svg {
@@ -1645,7 +1645,7 @@
   justify-content: space-between;
   gap: 0.6rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1784,7 +1784,7 @@
 
 .rna-req__hint {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 
@@ -1885,7 +1885,7 @@
 .rna-bulk__count small {
   display: block;
   color: rgba(255, 255, 255, 0.7);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
@@ -1935,7 +1935,7 @@
 
 .rna-bulk--confirm .rna-bulk__count small {
   margin-top: 0.2rem;
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
@@ -1974,7 +1974,7 @@
   border-radius: 999px;
   background: var(--primary-soft);
   color: var(--primary);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   line-height: 1.3;
 }
@@ -1987,7 +1987,7 @@
 
 .rna-origin__typed {
   color: #56657a;
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
@@ -2006,7 +2006,7 @@
   background: transparent;
   color: #9b3f36;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -2080,7 +2080,7 @@
   border-radius: 999px;
   background: var(--warning-soft);
   color: #6f4b12;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   line-height: 1.4;
 }
@@ -2161,7 +2161,7 @@
   align-items: center;
   gap: 0.5rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2171,7 +2171,7 @@
   padding: 0.05rem 0.5rem;
   border-radius: 999px;
   background: var(--bg-soft);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   letter-spacing: 0;
 }
 
@@ -2257,7 +2257,7 @@
   border-radius: 999px;
   background: rgba(20, 39, 70, 0.08);
   color: #56657a;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-style: normal;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -2335,11 +2335,11 @@
   align-items: center;
   gap: 0.2rem 0.6rem;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 .rna-preview__meta .rna-pill {
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .rna-preview__never {
@@ -2347,7 +2347,7 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   color: #56657a;
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 .rna-preview__never span {
@@ -2705,4 +2705,9 @@
     animation: none;
     transition: none;
   }
+}
+
+/* Restyling fase 6c (minimi): i chip toccabili arrivano a 44 px. */
+.rna-chip-button {
+  min-height: var(--target);
 }
