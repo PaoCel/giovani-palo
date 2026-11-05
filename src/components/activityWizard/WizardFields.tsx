@@ -1,4 +1,4 @@
-import { useId, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useRef, type ReactNode, type Ref } from "react";
 
 import { joinLocalDateTime, splitLocalDateTime } from "@/utils/activityWizard";
 
@@ -46,13 +46,21 @@ export function OptionalRow({ title, hint, open, onToggle, toggleLabel, children
   title: string; hint: string; open: boolean; onToggle: () => void; toggleLabel: string; children: ReactNode;
 }) {
   const id = useId();
+  const body = useRef<HTMLDivElement>(null);
+  const openedByTap = useRef(false);
+  // Opened with a tap: the cursor goes to the first field, ready to type.
+  useEffect(() => {
+    if (!open || !openedByTap.current) return;
+    openedByTap.current = false;
+    body.current?.querySelector<HTMLElement>("textarea, input")?.focus();
+  }, [open]);
   return <div className={open ? "wz-opt__row wz-opt__row--open" : "wz-opt__row"}>
-    <button type="button" className="wz-opt__head" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+    <button type="button" className="wz-opt__head" aria-expanded={open} aria-controls={id} onClick={() => { openedByTap.current = !open; onToggle(); }}>
       <span><strong>{title}</strong><small>{hint}</small></span>
       <span className="wz-opt__plus" aria-hidden="true">{open ? "−" : "+"}</span>
       <span className="sr-only">{toggleLabel}</span>
     </button>
-    {open ? <div className="wz-opt__body" id={id}>{children}</div> : null}
+    {open ? <div className="wz-opt__body" id={id} ref={body}>{children}</div> : null}
   </div>;
 }
 
