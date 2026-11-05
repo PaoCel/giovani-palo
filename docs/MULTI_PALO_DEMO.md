@@ -67,7 +67,7 @@ e `--config firebase.staging.json`, mai `--project` da solo.
   e secret `BREVO_API_KEY`, `WEB_PUSH_PRIVATE_KEY` nel progetto di staging.
 
 **Stato al 2026-11-05**: staging allineato a `main` (rules, indici, storage, 39
-functions con `--force` per le politiche di retry, hosting v43). Il service
+functions con `--force` per le politiche di retry; hosting v44 da `cfb180e`, sempre il 5/11). Il service
 agent di Storage ha ora `roles/firebaserules.firestoreServiceAgent`, senza il
 quale le storage rules che leggono Firestore negavano gli upload.
 **Stato al 2026-10-07**: pubblicati rules, indici, storage, 16 functions e hosting;
@@ -146,7 +146,7 @@ gcloud iam service-accounts keys delete <KEY_ID> --iam-account $SA \
 `~/.config/giovani-palo-demo.env` (permessi 600, fuori dal repo) contiene
 `DEMO_PASSWORD` e `DEMO_PARENT_EMAIL`; `node --env-file` lo legge senza passare dalla
 shell. Ultimo seed su staging: 2026-11-05 (`--today 2026-11-05`, 40 iscrizioni, 8
-media). La chiave appena creata può dare `UNAUTHENTICATED` per un minuto:
+media, piano tende del campeggio concluso, 38 moduli firmati con PDF). La chiave appena creata può dare `UNAUTHENTICATED` per un minuto:
 si aspetta e si ritenta. Test: `functions/tests/demoSeedContentEmulator.test.mjs`
 (contenuti visti dai quattro ruoli con le query del client) e il blocco "dati
 demo" di `multiStakeIsolationEmulator.test.mjs`, da lanciare in due

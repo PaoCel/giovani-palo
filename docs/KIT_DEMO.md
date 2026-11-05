@@ -106,7 +106,8 @@ compreso), con rules, indici, storage e 39 functions allineati. Seed
 quattro account di ruolo, tre attività e 40 iscrizioni. Le attività sono un
 viaggio al tempio futuro con piano stanze pubblicato, un campeggio futuro e un
 campeggio appena concluso con galleria (8 illustrazioni senza persone, da
-`tools/demo-media`), pattuglie, comitati, staff e sondaggio con 11 risposte.
+`tools/demo-media`), pattuglie, comitati, staff, piano tende pubblicato e
+sondaggio con 11 risposte. Ogni autorizzazione firmata ha il suo PDF (38).
 In più 4 post nella home del palo. Procedure in
 [MULTI_PALO_DEMO.md](MULTI_PALO_DEMO.md).
 
