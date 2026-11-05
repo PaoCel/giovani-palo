@@ -64,9 +64,9 @@ sotto 13 px; «target» = controlli sotto 44 px di altezza.
 | Programma a momenti | dentro la scheda | 31 ott | `moments-panel`, `moment-card`, pill «ci sei». Componente buono da portare sui token, non da ridisegnare. |
 | Alloggi e stanze | scheda giovane, admin | 1 nov | Lato giovane è una riga «Alloggio» dentro «Informazioni utili» e «La tua stanza»: poco visibile per un'informazione che i ragazzi cercano. |
 | Comitati e gruppi | scheda giovane, unità, admin | 31 ott | Card con iniziali, incarico, componenti. Sulla scheda unità i cinque comitati vuoti occupano mezza pagina. |
-| Home dirigente | `/unit` | 20 ott (code Persone) | Card delle code Persone chiare. **Difetto in produzione:** la freccia delle righe attività era larga 155-228 px (fino a metà schermo a desktop), corretto in produzione il 3 novembre (`a0d9dfe` su `main`, service worker v38). Quattro riquadri numerici in fila che a 375 tagliano l'ultima etichetta. |
-| Persone (unità e admin) | `/unit/persone`, `/admin/persone` | 3 nov | Stesso pannello `StakePeoplePanel` per dirigente e admin. Pulita: nessun piccolo salvo 1, target tutti 44, nessuno sbordo a 320. Testata con `PageHero`. È la base della pagina admin del mockup. |
-| Scheda attività unità | `/unit/activities/:id` | 20 ott | La peggiore: 124 testi piccoli su 190 (10,9-12,8 px), 8 controlli su 14 sotto 44 («Reinvia email» 24 px, trasporto 22 px). Nome e ruolo incollati senza spazio nel testo («Mario RossiGiovane uomo»). |
+| Home dirigente | `/unit` | 5 nov (fase 4b del restyling) | Sui componenti `ui` (`src/styles/unitHome.css`, testi in `src/copy/homeUnita.ts`), con la barra in basso come le altre aree (scelta del 5 novembre). |
+| Persone (unità e admin) | `/unit/persone`, `/admin/persone` | 5 nov (fase 4b del restyling) | Stesso pannello `StakePeoplePanel` per dirigente e admin, portato sui componenti `ui` (`membership.css`). |
+| Scheda attività unità | `/unit/activities/:id` | 5 nov (fase 5 del restyling) | Sui componenti `ui` (`unitActivity.css`, schede da `src/utils/unitActivityView.ts`). La scheda Zaino c'è solo sul campeggio e per il dirigente con un'iscrizione propria. |
 | Catalogo pubblico | `/activities` | 4 nov (fase 3 del restyling) | `PageHeader`, periodo come tre pulsanti (In programma, Passate, Tutte) sopra i menu Palo, Organizzazione e Iscrizioni, card `PublicActivityCard` tutta cliccabile (foto 16:9, stato vero, data, luogo, «Le iscrizioni chiudono tra…»), una colonna su telefono e tre a desktop. Vuoti con illustrazione e azione: «Mostra le attività passate», «Mostra le attività in programma», «Togli i filtri»; palo senza attività senza azione. La stessa card è in `/me/activities`, con lo stato dell'iscrizione per chi è iscritto. |
 | Dettaglio pubblico | `/activities/:id` | 4 nov (fase 3 del restyling) | Testata come la scheda giovane (foto, pill, titolo, date, luogo, descrizione, Iscriviti e Condividi); da 980 px colonna «Iscrizione» a destra (apertura, chiusura, campi, account, privacy, azione) al posto di «Informazioni principali» e «Prima di compilare»; sotto i 980 l'azione sta solo nella barra in basso. Ad attività finita l'azione è «Apri il sondaggio» se c'è un sondaggio aperto a tutti, altrimenti nessuna. Pill di stato da `src/utils/publicEventState.ts`, stessa regola del tasto: il difetto «Iscrizioni aperte» su un'attività finita è chiuso. |
 | Firma genitore | `/parent-consent/:token` | 3 nov | Target 44 sistemati fuori da questo task. Da portare sui token solo quando ci saranno. |
@@ -220,10 +220,11 @@ Come sono fatti nel codice:
 2. Home giovani `/me`: porta la home social sui token (cambio visivo minimo).
 3. Catalogo e dettaglio pubblico (fatto il 4 novembre).
 4. Testata comune e navigazione admin (fatte il 4 novembre), poi Persone e home dirigente `/unit`.
-5. Scheda attività unità `/unit/activities/:id` (la più densa di testo
-   piccolo).
-6. Il resto pagina per pagina: famiglia, admin eventi, form iscrizione (solo
-   ritmo visivo, la logica di `RegistrationEditor` non si riscrive).
+5. Scheda attività unità `/unit/activities/:id` (fatta il 5 novembre).
+6. Il resto pagina per pagina: famiglia, profilo e ritmo del form iscrizione
+   (6a), elenchi admin e calendario (6b), scheda attività admin (6c), unite
+   su `main` il 5 novembre. Restano fuori la Notte dei record (pelle sua) e
+   la firma genitore.
 
 Un commit per pagina, prima e dopo a 320, 390, 430 e desktop.
 
