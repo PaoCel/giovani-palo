@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { AppIcon } from "@/components/AppIcon";
 import { AppModal } from "@/components/AppModal";
@@ -11,12 +11,12 @@ import {
 } from "@/components/ConsentChoices";
 import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighlight";
 import { MembershipBanner } from "@/components/membership/MembershipBanner";
-import { EmptyState } from "@/components/EmptyState";
-import { StatusBadge } from "@/components/StatusBadge";
+import { Button, ButtonLink, Card, EmptyState, Notice, PageHeader, Pill } from "@/components/ui";
 import { FAMIGLIA } from "@/copy/famiglia";
 import { fillCopy } from "@/copy/parole";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import genitoreFigliaIllustration from "@/assets/flusso-genitore/genitore-figlia.webp";
 import { FamilyRoomCard } from "@/pages/family/FamilyRoomCard";
 import { childrenService, type ChildWriteInput } from "@/services/firestore/childrenService";
 import { eventsService } from "@/services/firestore/eventsService";
@@ -40,6 +40,8 @@ import {
 } from "@/utils/familyCancel";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
 import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTimeout";
+
+import "@/styles/family.css";
 
 const AVATAR_PALETTE = ["#235d90", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
 
@@ -404,8 +406,7 @@ export function FamilyDashboardPage() {
             {describeConsent(authorization.socialPublicationConsent)}
           </span>
         </div>
-        <button
-          className="button button--soft button--small"
+        <Button
           disabled={busy}
           onClick={() =>
             openConsentModal({
@@ -414,10 +415,10 @@ export function FamilyDashboardPage() {
               eventTitle,
             })
           }
-          type="button"
+          variant="secondary"
         >
           Cambia le scelte
-        </button>
+        </Button>
       </div>
     );
   }
@@ -576,252 +577,225 @@ export function FamilyDashboardPage() {
   }
 
   return (
-    <div className="page page--user-dashboard page--family">
+    <div className="page family-page">
+      <PageHeader
+        actions={
+          familyReady && !loading && data.children.length > 0 ? (
+            <Button icon="plus" onClick={openCreateChild} variant="secondary">
+              {FAMIGLIA.aggiungiFiglio}
+            </Button>
+          ) : null
+        }
+        description="Gestisci i profili dei tuoi figli e le loro iscrizioni alle attività."
+        eyebrow={FAMIGLIA.homeEyebrow}
+        title="La tua famiglia"
+      />
+
       <MembershipBanner />
 
-      <ActivityMediaHighlight />
+      {error ? (
+        <Notice title="Impossibile caricare i dati" tone="warning">
+          <p>{error}</p>
+        </Notice>
+      ) : null}
 
-      <section className="user-dashboard-section">
-        <div className="user-section-heading">
-          <h2>La tua famiglia</h2>
-          <p className="subtle-text">
-            Gestisci i profili dei tuoi figli e le loro iscrizioni alle attività.
+      {actionError ? (
+        <Notice title="Azione non completata" tone="warning">
+          <p>{actionError}</p>
+        </Notice>
+      ) : null}
+
+      {notice ? (
+        <Notice tone="info">
+          <p>{notice}</p>
+        </Notice>
+      ) : null}
+
+      {staleDataWarning ? (
+        <Notice tone="info">
+          <p>
+            Le scelte sono salvate, ma non ho potuto verificare i dati più recenti.
+            Ricarica la pagina tra poco per esserne certo.
           </p>
-        </div>
+        </Notice>
+      ) : null}
 
-        {error ? (
-          <div className="notice notice--warning">
-            <div>
-              <h3>Impossibile caricare i dati</h3>
-              <p>{error}</p>
-            </div>
-          </div>
-        ) : null}
-
-        {actionError ? (
-          <div className="notice notice--warning">
-            <div>
-              <h3>Azione non completata</h3>
-              <p>{actionError}</p>
-            </div>
-          </div>
-        ) : null}
-
-        {notice ? (
-          <div className="notice notice--info" role="status">
-            <div>
-              <p>{notice}</p>
-            </div>
-          </div>
-        ) : null}
-
-        {staleDataWarning ? (
-          <div className="notice notice--info">
-            <div>
-              <p>
-                Le scelte sono salvate, ma non ho potuto verificare i dati più recenti.
-                Ricarica la pagina tra poco per esserne certo.
-              </p>
-            </div>
-          </div>
-        ) : null}
-
+      <section aria-label={FAMIGLIA.homeTitolo} className="family-page__children">
         {(loading || !familyReady) && !error ? (
-          <p className="subtle-text">Sto caricando i profili della famiglia...</p>
+          <div aria-busy="true" className="family-page__loading" role="status">
+            <span className="family-page__skeleton" />
+            <span className="family-page__skeleton" />
+            <span className="sr-only">Sto caricando i profili della famiglia...</span>
+          </div>
         ) : !familyReady ? null : data.children.length === 0 ? (
           <EmptyState
-            title="Nessun figlio collegato"
-            description={FAMIGLIA.nessunFiglioDescrizione}
             action={
-              <button className="button button--primary" onClick={openCreateChild} type="button">
-                <AppIcon name="plus" />
-                <span>{FAMIGLIA.aggiungiFiglio}</span>
-              </button>
+              <Button icon="plus" onClick={openCreateChild}>
+                {FAMIGLIA.aggiungiFiglio}
+              </Button>
             }
+            description={FAMIGLIA.nessunFiglioDescrizione}
+            illustration={genitoreFigliaIllustration}
+            title="Nessun figlio collegato"
           />
         ) : (
-          <div className="stack">
-            {data.children.map((child) => {
-              const childRegistrations = activeRegistrations.filter(
-                (registration) => registration.childId === child.id,
-              );
-              const cancelledConsentRegistrations = data.registrations.filter(
-                (registration) =>
-                  registration.childId === child.id &&
-                  registration.registrationStatus === "cancelled" &&
-                  registration.parentAuthorization?.status === "authorized",
-              );
+          data.children.map((child) => {
+            const childRegistrations = activeRegistrations.filter(
+              (registration) => registration.childId === child.id,
+            );
+            const cancelledConsentRegistrations = data.registrations.filter(
+              (registration) =>
+                registration.childId === child.id &&
+                registration.registrationStatus === "cancelled" &&
+                registration.parentAuthorization?.status === "authorized",
+            );
 
-              return (
-                <article key={child.id} className="family-child-card">
-                  <div className="family-child-card__head">
-                    <span
-                      aria-hidden="true"
-                      className="child-avatar"
-                      style={{ background: getAvatarColor(child.fullName || child.firstName) }}
-                    >
-                      {getChildInitials(child)}
-                    </span>
-                    <div className="family-child-card__identity">
-                      <strong>{child.fullName || child.firstName}</strong>
-                      <span>
-                        {child.unitName || "Unità da definire"}
-                        {child.birthDate ? ` · ${formatDateOnly(child.birthDate)}` : ""}
-                      </span>
-                    </div>
-                    <span
-                      className={
-                        childRegistrations.length > 0
-                          ? "status-badge status-badge--success"
-                          : "status-badge status-badge--neutral"
-                      }
-                    >
-                      {childRegistrations.length > 0
-                        ? `${childRegistrations.length} iscrizion${childRegistrations.length === 1 ? "e" : "i"}`
-                        : "Nessuna iscrizione"}
-                    </span>
-                  </div>
-
-                  {childRegistrations.length === 0 ? (
-                    <p className="subtle-text">
-                      Nessuna iscrizione attiva: iscrivilo a una prossima attività.
-                    </p>
-                  ) : (
-                    <div className="family-child-card__registrations">
-                      {childRegistrations.map((registration) => {
-                        const event = eventById.get(registration.eventId);
-                        return (
-                          <div
-                            key={`${registration.eventId}:${registration.id}`}
-                            className="family-reg-group"
-                          >
-                            <div className="family-reg-row">
-                              <StatusBadge
-                                label={getRegistrationStatusLabel(registration.registrationStatus)}
-                                tone={getRegistrationStatusTone(registration.registrationStatus)}
-                              />
-                              <div className="family-reg-row__info">
-                                <strong>{event?.title ?? "Attività"}</strong>
-                                {event ? <span>{formatEventWindow(event)}</span> : null}
-                              </div>
-                              {registration.registrationStatus === "pending_parent_authorization" ? (
-                                <button
-                                  className="button button--primary button--small"
-                                  disabled={busy}
-                                  onClick={() => void handleAuthorizeNow(registration)}
-                                  type="button"
-                                >
-                                  {busy ? FAMIGLIA.apertura : FAMIGLIA.autorizzaOra}
-                                </button>
-                              ) : null}
-                              <Link
-                                className="button button--ghost button--small"
-                                to={`${withRegisterFor(getActivityRegistrationPath(registration.eventId, registration.stakeId), "figlio")}&passo=modulo&child=${encodeURIComponent(child.id)}`}
-                              >
-                                Gestisci
-                              </Link>
-                            </div>
-                            {registration.assignedRoomName ? (
-                              <FamilyRoomCard
-                                activityId={registration.eventId}
-                                childId={child.id}
-                                childName={child.firstName || child.fullName}
-                                parentUid={parentUid}
-                                roomName={registration.assignedRoomName}
-                                stakeId={registration.stakeId}
-                              />
-                            ) : null}
-                            {renderConsentRow(registration, child, false)}
-                            <div className="family-reg-extra">
-                              {shouldShowResumeSigning(registration) ? (
-                                <p className="family-reg-note">{FAMIGLIA.riprendiFirma}</p>
-                              ) : null}
-                              <button
-                                aria-label={fillCopy(FAMIGLIA.annullaIscrizioneDi, {
-                                  nome: child.firstName || child.fullName,
-                                  attivita: event?.title ?? FAMIGLIA.attivitaGenerica,
-                                })}
-                                className="family-reg-cancel"
-                                disabled={busy || cancelling}
-                                onClick={() => openCancelSheet(registration, child)}
-                                type="button"
-                              >
-                                {FAMIGLIA.annullaIscrizione}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {cancelledConsentRegistrations.length > 0 ? (
-                    <div className="family-child-card__registrations">
-                      {cancelledConsentRegistrations.map((registration) =>
-                        renderConsentRow(registration, child, true),
-                      )}
-                    </div>
-                  ) : null}
-
-                  <div className="inline-actions">
-                    <Link
-                      className="button button--primary button--small"
+            return (
+              <Card
+                className="family-child"
+                footer={
+                  <div className="family-child__actions">
+                    <ButtonLink
+                      className="family-child__primary"
+                      icon="ticket"
                       to={getActivitiesPath(data.stakeId)}
                     >
-                      <AppIcon name="ticket" />
-                      <span>Iscrivi a un'attività</span>
-                    </Link>
-                    <button
-                      className="button button--soft button--small"
-                      disabled={busy}
-                      onClick={() => openEditChild(child)}
-                      type="button"
-                    >
+                      Iscrivi a un'attività
+                    </ButtonLink>
+                    <Button disabled={busy} onClick={() => openEditChild(child)} variant="secondary">
                       Modifica profilo
-                    </button>
-                    <button
-                      className="button button--ghost button--small"
-                      disabled={busy}
-                      onClick={() => handleDeleteChild(child)}
-                      type="button"
-                    >
+                    </Button>
+                    <Button disabled={busy} onClick={() => handleDeleteChild(child)} variant="ghost">
                       Rimuovi
-                    </button>
+                    </Button>
                   </div>
-                </article>
-              );
-            })}
+                }
+                key={child.id}
+              >
+                <div className="family-child__head">
+                  <span
+                    aria-hidden="true"
+                    className="family-child__avatar"
+                    style={{ background: getAvatarColor(child.fullName || child.firstName) }}
+                  >
+                    {getChildInitials(child)}
+                  </span>
+                  <div className="family-child__identity">
+                    <h2>{child.fullName || child.firstName}</h2>
+                    <p>
+                      {child.unitName || "Unità da definire"}
+                      {child.birthDate ? ` · ${formatDateOnly(child.birthDate)}` : ""}
+                    </p>
+                  </div>
+                  <Pill className="family-child__count" tone={childRegistrations.length > 0 ? "sand" : "neutral"}>
+                    {childRegistrations.length > 0
+                      ? `${childRegistrations.length} iscrizion${childRegistrations.length === 1 ? "e" : "i"}`
+                      : "Nessuna iscrizione"}
+                  </Pill>
+                </div>
 
-            <div className="inline-actions">
-              <button className="button button--soft" onClick={openCreateChild} type="button">
-                <AppIcon name="plus" />
-                <span>{FAMIGLIA.aggiungiFiglio}</span>
-              </button>
-            </div>
-          </div>
+                {childRegistrations.length === 0 ? (
+                  <p className="family-child__empty">
+                    Nessuna iscrizione attiva: iscrivilo a una prossima attività.
+                  </p>
+                ) : (
+                  <div className="family-child__registrations">
+                    {childRegistrations.map((registration) => {
+                      const event = eventById.get(registration.eventId);
+                      return (
+                        <div
+                          key={`${registration.eventId}:${registration.id}`}
+                          className="family-reg"
+                        >
+                          <div className="family-reg__head">
+                            <Pill dot tone={getRegistrationStatusTone(registration.registrationStatus)}>
+                              {getRegistrationStatusLabel(registration.registrationStatus)}
+                            </Pill>
+                            <h3>{event?.title ?? "Attività"}</h3>
+                            {event ? <p>{formatEventWindow(event)}</p> : null}
+                          </div>
+                          <div className="family-reg__actions">
+                            {registration.registrationStatus === "pending_parent_authorization" ? (
+                              <Button
+                                disabled={busy}
+                                onClick={() => void handleAuthorizeNow(registration)}
+                              >
+                                {busy ? FAMIGLIA.apertura : FAMIGLIA.autorizzaOra}
+                              </Button>
+                            ) : null}
+                            <ButtonLink
+                              to={`${withRegisterFor(getActivityRegistrationPath(registration.eventId, registration.stakeId), "figlio")}&passo=modulo&child=${encodeURIComponent(child.id)}`}
+                              variant="secondary"
+                            >
+                              Gestisci
+                            </ButtonLink>
+                          </div>
+                          {registration.assignedRoomName ? (
+                            <FamilyRoomCard
+                              activityId={registration.eventId}
+                              childId={child.id}
+                              childName={child.firstName || child.fullName}
+                              parentUid={parentUid}
+                              roomName={registration.assignedRoomName}
+                              stakeId={registration.stakeId}
+                            />
+                          ) : null}
+                          {renderConsentRow(registration, child, false)}
+                          <div className="family-reg-extra">
+                            {shouldShowResumeSigning(registration) ? (
+                              <p className="family-reg-note">{FAMIGLIA.riprendiFirma}</p>
+                            ) : null}
+                            <button
+                              aria-label={fillCopy(FAMIGLIA.annullaIscrizioneDi, {
+                                nome: child.firstName || child.fullName,
+                                attivita: event?.title ?? FAMIGLIA.attivitaGenerica,
+                              })}
+                              className="family-reg-cancel"
+                              disabled={busy || cancelling}
+                              onClick={() => openCancelSheet(registration, child)}
+                              type="button"
+                            >
+                              {FAMIGLIA.annullaIscrizione}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {cancelledConsentRegistrations.length > 0 ? (
+                  <div className="family-child__registrations">
+                    {cancelledConsentRegistrations.map((registration) =>
+                      renderConsentRow(registration, child, true),
+                    )}
+                  </div>
+                ) : null}
+              </Card>
+            );
+          })
         )}
       </section>
+
+      <ActivityMediaHighlight />
 
       {removeTarget ? (
         <AppModal
           footer={
             <div className="family-cancel-actions">
-              <button
-                className="button button--primary"
+              <Button
                 disabled={busy}
                 onClick={() => setRemoveTarget(null)}
-                type="button"
               >
                 {FAMIGLIA.tieniProfilo}
-              </button>
-              <button
-                className="button button--danger"
+              </Button>
+              <Button
                 disabled={busy}
                 onClick={() => void handleConfirmRemove()}
-                type="button"
+                variant="danger"
               >
                 {busy ? FAMIGLIA.rimozione : FAMIGLIA.confermaRimuovi}
-              </button>
+              </Button>
             </div>
           }
           onClose={() => {
@@ -876,10 +850,11 @@ export function FamilyDashboardPage() {
           subtitle="I dati servono a precompilare le iscrizioni alle attività."
           onClose={() => setChildModalOpen(false)}
         >
-          <form className="stack" onSubmit={(event) => void handleChildSubmit(event)}>
+          <form className="family-form" onSubmit={(event) => void handleChildSubmit(event)}>
             <label className="field">
               <span>Nome *</span>
               <input
+                className="input"
                 required
                 type="text"
                 value={childForm.firstName}
@@ -891,6 +866,7 @@ export function FamilyDashboardPage() {
             <label className="field">
               <span>Cognome *</span>
               <input
+                className="input"
                 required
                 type="text"
                 value={childForm.lastName}
@@ -902,6 +878,7 @@ export function FamilyDashboardPage() {
             <label className="field">
               <span>Data di nascita *</span>
               <input
+                className="input"
                 required
                 type="date"
                 value={childForm.birthDate}
@@ -914,6 +891,7 @@ export function FamilyDashboardPage() {
               <span id={`${childFormIds}-gruppo`}>Gruppo *</span>
               {/* The wrapping label would add the options to the accessible name. */}
               <select
+                className="input"
                 aria-labelledby={`${childFormIds}-gruppo`}
                 required
                 value={childForm.genderRoleCategory}
@@ -933,6 +911,7 @@ export function FamilyDashboardPage() {
             <label className="field">
               <span id={`${childFormIds}-unita`}>Unità (rione/ramo)</span>
               <select
+                className="input"
                 aria-labelledby={`${childFormIds}-unita`}
                 value={childForm.unitId}
                 onChange={(event) =>
@@ -955,17 +934,16 @@ export function FamilyDashboardPage() {
               </p>
             ) : null}
 
-            <div className="inline-actions">
-              <button className="button button--primary" disabled={busy} type="submit">
+            <div className="family-dialog-actions">
+              <Button disabled={busy} type="submit">
                 {busy ? "Salvataggio..." : editingChild ? "Salva modifiche" : "Aggiungi"}
-              </button>
-              <button
-                className="button button--ghost"
+              </Button>
+              <Button
                 onClick={() => setChildModalOpen(false)}
-                type="button"
+                variant="ghost"
               >
                 Annulla
-              </button>
+              </Button>
             </div>
           </form>
         </AppModal>
@@ -1016,28 +994,18 @@ function ConsentModal({
       subtitle={`Per ${target.childName} · ${target.eventTitle}`}
       onClose={onClose}
       footer={
-        <div className="inline-actions">
-          <button
-            className="button button--primary"
-            disabled={!canSave}
-            onClick={onSave}
-            type="button"
-          >
+        <div className="family-dialog-actions">
+          <Button disabled={!canSave} onClick={onSave}>
             {saving ? "Salvataggio..." : "Salva"}
-          </button>
+          </Button>
           {stale ? (
-            <button
-              className="button button--soft"
-              disabled={reloading}
-              onClick={onReload}
-              type="button"
-            >
+            <Button disabled={reloading} onClick={onReload} variant="secondary">
               {reloading ? "Un attimo..." : "Ricarica le scelte"}
-            </button>
+            </Button>
           ) : null}
-          <button className="button button--ghost" disabled={saving} onClick={onClose} type="button">
+          <Button disabled={saving} onClick={onClose} variant="ghost">
             Annulla
-          </button>
+          </Button>
         </div>
       }
     >
@@ -1090,22 +1058,12 @@ function CancelRegistrationSheet({
     <AppModal
       footer={
         <div className="family-cancel-actions">
-          <button
-            className="button button--primary"
-            disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
+          <Button disabled={busy} onClick={onClose}>
             {FAMIGLIA.tieniIscrizione}
-          </button>
-          <button
-            className="button button--danger"
-            disabled={busy}
-            onClick={onConfirm}
-            type="button"
-          >
+          </Button>
+          <Button disabled={busy} onClick={onConfirm} variant="danger">
             {busy ? FAMIGLIA.annullamento : FAMIGLIA.confermaAnnulla}
-          </button>
+          </Button>
         </div>
       }
       onClose={onClose}

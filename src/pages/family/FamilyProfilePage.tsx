@@ -3,11 +3,14 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
-import { SectionCard } from "@/components/SectionCard";
+import { Button, Card, Notice, PageHeader } from "@/components/ui";
+import { PERCORSO } from "@/copy/percorso";
 import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
 import { usersService } from "@/services/firestore/usersService";
 import { getRoleLabel } from "@/utils/roles";
+
+import "@/styles/family.css";
 
 export function FamilyProfilePage() {
   const { session, signOut } = useAuth();
@@ -81,80 +84,85 @@ export function FamilyProfilePage() {
   }
 
   return (
-    <div className="page">
-      <SectionCard
+    <div className="page family-profile">
+      <PageHeader
+        description={
+          <>
+            Account:{" "}
+            <span className="family-profile__email">
+              {session.firebaseUser.email ?? "senza email"}
+            </span>{" "}
+            · Ruolo: {getRoleLabel(session.profile.role)}
+          </>
+        }
         title="Profilo genitore"
-        description={`Account: ${session.firebaseUser.email ?? "senza email"} · Ruolo: ${getRoleLabel(session.profile.role)}`}
-      >
-        {error ? (
-          <div className="notice notice--warning">
-            <div>
-              <h3>Operazione non riuscita</h3>
-              <p>{error}</p>
+      />
+
+      {error ? (
+        <Notice title="Operazione non riuscita" tone="warning">
+          <p>{error}</p>
+        </Notice>
+      ) : null}
+
+      {feedback ? (
+        <Notice tone="success">
+          <p>{feedback}</p>
+        </Notice>
+      ) : null}
+
+      <div className="family-profile__cards">
+        <Card className="family-profile__form" title={PERCORSO.tappaDati}>
+          <form className="family-form" onSubmit={(event) => void handleSave(event)}>
+            <label className="field">
+              <span>Nome *</span>
+              <input
+                className="input"
+                required
+                type="text"
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Cognome</span>
+              <input
+                className="input"
+                type="text"
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+              />
+            </label>
+            <div className="family-dialog-actions">
+              <Button busy={busy === "save"} disabled={busy !== null} type="submit">
+                {busy === "save" ? "Salvataggio..." : "Salva profilo"}
+              </Button>
             </div>
+          </form>
+        </Card>
+
+        <Card subtitle={session.profile.stakeName || "Non definito"} title="Palo" variant="cool">
+          <StakeMembershipStatus stakeName={session.profile.stakeName} />
+        </Card>
+
+        <Card
+          subtitle="Un account genitore gestisce le iscrizioni dei figli. Se invece partecipi tu alle attività, usa un account partecipante."
+          title="Tipo di account"
+          variant="cool"
+        >
+          <div className="family-dialog-actions">
+            <Button
+              disabled={busy !== null}
+              onClick={() => setParticipantSheetOpen(true)}
+              variant="secondary"
+            >
+              {TIPO_ACCOUNT.passaPartecipante}
+            </Button>
+            <Button onClick={() => void signOut()} variant="ghost">
+              Esci
+            </Button>
           </div>
-        ) : null}
-
-        {feedback ? (
-          <div className="notice notice--info">
-            <div>
-              <p>{feedback}</p>
-            </div>
-          </div>
-        ) : null}
-
-        <form className="stack" onSubmit={(event) => void handleSave(event)}>
-          <label className="field">
-            <span>Nome *</span>
-            <input
-              required
-              type="text"
-              value={firstName}
-              onChange={(event) => setFirstName(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>Cognome</span>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(event) => setLastName(event.target.value)}
-            />
-          </label>
-          <div className="inline-actions">
-            <button className="button button--primary" disabled={busy !== null} type="submit">
-              {busy === "save" ? "Salvataggio..." : "Salva profilo"}
-            </button>
-          </div>
-        </form>
-      </SectionCard>
-
-      <SectionCard title="Palo" description={session.profile.stakeName || "Non definito"}>
-        <StakeMembershipStatus stakeName={session.profile.stakeName} />
-      </SectionCard>
-
-      <SectionCard
-        title="Tipo di account"
-        description="Un account genitore gestisce le iscrizioni dei figli. Se invece partecipi tu alle attività, usa un account partecipante."
-      >
-        <div className="inline-actions">
-          <button
-            className="button button--soft"
-            disabled={busy !== null}
-            onClick={() => setParticipantSheetOpen(true)}
-            type="button"
-          >
-            {TIPO_ACCOUNT.passaPartecipante}
-          </button>
-          <button
-            className="button button--ghost"
-            onClick={() => void signOut()}
-            type="button"
-          >
-            Esci
-          </button>
-        </div>
-      </SectionCard>
+        </Card>
+      </div>
 
       {participantSheetOpen ? (
         <ConfirmSheet

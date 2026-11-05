@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { StakeMembershipStatus } from "@/components/membership/StakeMembershipStatus";
-import { UserPageIntro } from "@/components/UserPageIntro";
+import { Button, Card, Notice, PageHeader } from "@/components/ui";
+import { getUserDisplayName } from "@/components/UserPageIntro";
+import { PERCORSO } from "@/copy/percorso";
 import { TIPO_ACCOUNT } from "@/copy/tipoAccount";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -12,6 +14,8 @@ import { usersService } from "@/services/firestore/usersService";
 import type { GenderRoleCategory } from "@/types";
 import { DEFAULT_STAKE_ID } from "@/config/app";
 import { isMinorOn } from "@/utils/profileCompletion";
+
+import "@/styles/myProfile.css";
 
 const MANUAL_UNIT_VALUE = "__manual_unit__";
 
@@ -150,52 +154,178 @@ export function MyProfilePage() {
     }
   }
 
+  const stakeName = organization?.stakeName || session.profile.stakeName;
+  const hasLeaders = Boolean(
+    organization &&
+      (organization.youngMenPresident ||
+        organization.youngMenCounselors.length ||
+        organization.youngWomenPresident ||
+        organization.youngWomenCounselors.length ||
+        organization.supportContact),
+  );
+
   return (
-    <div className="page">
-      <UserPageIntro />
+    <div className="page my-profile">
+      <PageHeader title={getUserDisplayName(session)} />
 
       {error ? (
-        <div className="notice notice--warning">
-          <div>
-            <h3>Aggiornamento non riuscito</h3>
-            <p>{error}</p>
-          </div>
-        </div>
+        <Notice title="Aggiornamento non riuscito" tone="warning">
+          <p>{error}</p>
+        </Notice>
       ) : null}
 
       {feedback ? (
-        <div className="notice notice--info">
-          <div>
-            <h3>Profilo aggiornato</h3>
-            <p>{feedback}</p>
-          </div>
-        </div>
+        <Notice title="Profilo aggiornato" tone="success">
+          <p>{feedback}</p>
+        </Notice>
       ) : null}
 
-      <section className="card user-profile-card">
-        <div className="user-profile-card__meta">
-          <div className="surface-panel surface-panel--subtle">
-            <strong>Palo</strong>
-            <p>{organization?.stakeName || session.profile.stakeName || "Non definito"}</p>
-            <StakeMembershipStatus stakeName={organization?.stakeName || session.profile.stakeName} />
-          </div>
-          <div className="surface-panel surface-panel--subtle">
-            <strong>Email</strong>
-            <p>{session.profile.email || session.firebaseUser.email || "Non disponibile"}</p>
-          </div>
-        </div>
-
-        {organization &&
-        (organization.youngMenPresident ||
-          organization.youngMenCounselors.length ||
-          organization.youngWomenPresident ||
-          organization.youngWomenCounselors.length ||
-          organization.supportContact) ? (
-          <div className="surface-panel surface-panel--subtle stake-leaders-card">
-            <h3>Responsabili del palo</h3>
+      <div className="my-profile__layout">
+        <Card className="my-profile__form" title={PERCORSO.tappaDati}>
+          <form className="form-stack" onSubmit={handleSubmit}>
             <div className="card-grid card-grid--two">
+              <label className="field">
+                <span>Nome</span>
+                <input
+                  className="input"
+                  value={values.firstName}
+                  onChange={(eventInput) =>
+                    setValues((current) => ({ ...current, firstName: eventInput.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Cognome</span>
+                <input
+                  className="input"
+                  value={values.lastName}
+                  onChange={(eventInput) =>
+                    setValues((current) => ({ ...current, lastName: eventInput.target.value }))
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="card-grid card-grid--two">
+              <label className="field">
+                <span>Data di nascita</span>
+                <input
+                  className="input"
+                  type="date"
+                  value={values.birthDate}
+                  onChange={(eventInput) =>
+                    setValues((current) => ({ ...current, birthDate: eventInput.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span id={`${labelIds}-organizzazione`}>Organizzazione</span>
+                {/* The wrapping label would add the options to the accessible name. */}
+                <select
+                  aria-labelledby={`${labelIds}-organizzazione`}
+                  className="input"
+                  value={values.genderRoleCategory}
+                  onChange={(eventInput) =>
+                    setValues((current) => ({
+                      ...current,
+                      genderRoleCategory: eventInput.target.value as GenderRoleCategory,
+                    }))
+                  }
+                >
+                  <option value="giovane_uomo">Giovane uomo</option>
+                  <option value="giovane_donna">Giovane donna</option>
+                  <option value="dirigente">Dirigente</option>
+                  <option value="accompagnatore">Accompagnatore</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="field">
+              <span id={`${labelIds}-unita`}>Unità di appartenenza</span>
+              {hasConfiguredUnits ? (
+                <select
+                  aria-labelledby={`${labelIds}-unita`}
+                  className="input"
+                  value={unitSelectValue}
+                  onChange={(eventInput) => {
+                    const { value } = eventInput.target;
+
+                    if (value === MANUAL_UNIT_VALUE) {
+                      setManualUnitMode(true);
+                      setValues((current) => ({
+                        ...current,
+                        unitName: isConfiguredUnit(unitOptions, current.unitName) ? "" : current.unitName,
+                      }));
+                      return;
+                    }
+
+                    setManualUnitMode(false);
+                    setValues((current) => ({ ...current, unitName: value }));
+                  }}
+                >
+                  <option value="">Seleziona un'unità</option>
+                  {unitOptions.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                  {canUseManualUnit ? (
+                    <option value={MANUAL_UNIT_VALUE}>Unità non in elenco</option>
+                  ) : null}
+                </select>
+              ) : canUseManualUnit ? null : (
+                <select aria-labelledby={`${labelIds}-unita`} className="input" disabled value="">
+                  <option value="">Nessuna unità configurata</option>
+                </select>
+              )}
+              {showManualUnitInput ? (
+                <input
+                  className="input"
+                  placeholder="Scrivi la tua unità"
+                  value={values.unitName}
+                  onChange={(eventInput) =>
+                    setValues((current) => ({ ...current, unitName: eventInput.target.value }))
+                  }
+                />
+              ) : null}
+              <small>
+                {showManualUnitInput
+                  ? "Se la tua unità non è ancora in elenco, scrivila qui."
+                  : hasConfiguredUnits
+                    ? "Seleziona l'unità configurata per il tuo palo."
+                    : "L'amministratore deve prima configurare almeno un'unità."}
+              </small>
+            </label>
+
+            <div className="my-profile__actions">
+              <Button busy={busy} type="submit">
+                {busy ? "Salvataggio..." : "Salva profilo"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        <div className="my-profile__side">
+          <Card variant="cool">
+            <dl className="my-profile__facts">
+              <div>
+                <dt>Palo</dt>
+                <dd>{stakeName || "Non definito"}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd>{session.profile.email || session.firebaseUser.email || "Non disponibile"}</dd>
+              </div>
+            </dl>
+            <StakeMembershipStatus stakeName={stakeName} />
+          </Card>
+
+          {organization && hasLeaders ? (
+            <Card className="my-profile__leaders" title="Responsabili del palo" variant="cool">
               {(organization.youngMenPresident || organization.youngMenCounselors.length) ? (
-                <div className="stake-leaders-card__group">
+                <div className="my-profile__leader-group">
                   <strong>GU</strong>
                   {organization.youngMenPresident ? <p>{organization.youngMenPresident}</p> : null}
                   {organization.youngMenCounselors.length ? (
@@ -205,7 +335,7 @@ export function MyProfilePage() {
               ) : null}
 
               {(organization.youngWomenPresident || organization.youngWomenCounselors.length) ? (
-                <div className="stake-leaders-card__group">
+                <div className="my-profile__leader-group">
                   <strong>GD</strong>
                   {organization.youngWomenPresident ? <p>{organization.youngWomenPresident}</p> : null}
                   {organization.youngWomenCounselors.length ? (
@@ -213,162 +343,35 @@ export function MyProfilePage() {
                   ) : null}
                 </div>
               ) : null}
-            </div>
 
-            {organization.supportContact ? (
-              <p className="stake-leaders-card__support">Supporto: {organization.supportContact}</p>
-            ) : null}
-          </div>
-        ) : null}
+              {organization.supportContact ? (
+                <p className="my-profile__support">Supporto: {organization.supportContact}</p>
+              ) : null}
+            </Card>
+          ) : null}
 
-        <form className="form-stack" onSubmit={handleSubmit}>
-          <div className="card-grid card-grid--two">
-            <label className="field">
-              <span>Nome</span>
-              <input
-                className="input"
-                value={values.firstName}
-                onChange={(eventInput) =>
-                  setValues((current) => ({ ...current, firstName: eventInput.target.value }))
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Cognome</span>
-              <input
-                className="input"
-                value={values.lastName}
-                onChange={(eventInput) =>
-                  setValues((current) => ({ ...current, lastName: eventInput.target.value }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="card-grid card-grid--two">
-            <label className="field">
-              <span>Data di nascita</span>
-              <input
-                className="input"
-                type="date"
-                value={values.birthDate}
-                onChange={(eventInput) =>
-                  setValues((current) => ({ ...current, birthDate: eventInput.target.value }))
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span id={`${labelIds}-organizzazione`}>Organizzazione</span>
-              {/* The wrapping label would add the options to the accessible name. */}
-              <select
-                aria-labelledby={`${labelIds}-organizzazione`}
-                className="input"
-                value={values.genderRoleCategory}
-                onChange={(eventInput) =>
-                  setValues((current) => ({
-                    ...current,
-                    genderRoleCategory: eventInput.target.value as GenderRoleCategory,
-                  }))
-                }
-              >
-                <option value="giovane_uomo">Giovane uomo</option>
-                <option value="giovane_donna">Giovane donna</option>
-                <option value="dirigente">Dirigente</option>
-                <option value="accompagnatore">Accompagnatore</option>
-              </select>
-            </label>
-          </div>
-
-          <label className="field">
-            <span id={`${labelIds}-unita`}>Unità di appartenenza</span>
-            {hasConfiguredUnits ? (
-              <select
-                aria-labelledby={`${labelIds}-unita`}
-                className="input"
-                value={unitSelectValue}
-                onChange={(eventInput) => {
-                  const { value } = eventInput.target;
-
-                  if (value === MANUAL_UNIT_VALUE) {
-                    setManualUnitMode(true);
-                    setValues((current) => ({
-                      ...current,
-                      unitName: isConfiguredUnit(unitOptions, current.unitName) ? "" : current.unitName,
-                    }));
-                    return;
-                  }
-
-                  setManualUnitMode(false);
-                  setValues((current) => ({ ...current, unitName: value }));
-                }}
-              >
-                <option value="">Seleziona un'unità</option>
-                {unitOptions.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
-                  </option>
-                ))}
-                {canUseManualUnit ? (
-                  <option value={MANUAL_UNIT_VALUE}>Unità non in elenco</option>
-                ) : null}
-              </select>
-            ) : canUseManualUnit ? null : (
-              <select aria-labelledby={`${labelIds}-unita`} className="input" disabled value="">
-                <option value="">Nessuna unità configurata</option>
-              </select>
-            )}
-            {showManualUnitInput ? (
-              <input
-                className="input"
-                placeholder="Scrivi la tua unità"
-                value={values.unitName}
-                onChange={(eventInput) =>
-                  setValues((current) => ({ ...current, unitName: eventInput.target.value }))
-                }
-              />
-            ) : null}
-            <small>
-              {showManualUnitInput
-                ? "Se la tua unità non è ancora in elenco, scrivila qui."
-                : hasConfiguredUnits
-                  ? "Seleziona l'unità configurata per il tuo palo."
-                  : "L'amministratore deve prima configurare almeno un'unità."}
-            </small>
-          </label>
-
-          <div className="inline-actions">
-            <button className="button button--primary" disabled={busy} type="submit">
-              {busy ? "Salvataggio..." : "Salva profilo"}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {/* L'account di un minore non diventa mai da genitore (FLUSSO_GENITORE.md). */}
-      {session &&
-      !session.isAdmin &&
-      !session.isUnitLeader &&
-      !isMinorOn(session.profile.birthDate, new Date()) ? (
-        <section className="surface-panel">
-          <h2>Sei un genitore?</h2>
-          <p className="subtle-text">
-            Con un account genitore puoi creare i profili dei tuoi figli, iscriverli alle
-            attività e seguire lo stato delle loro iscrizioni da un'unica dashboard.
-          </p>
-          <div className="inline-actions">
-            <button
-              className="button button--soft"
-              disabled={switchingRole}
-              onClick={() => setParentSheetOpen(true)}
-              type="button"
+          {/* L'account di un minore non diventa mai da genitore (FLUSSO_GENITORE.md). */}
+          {!session.isAdmin &&
+          !session.isUnitLeader &&
+          !isMinorOn(session.profile.birthDate, new Date()) ? (
+            <Card
+              subtitle="Con un account genitore puoi creare i profili dei tuoi figli, iscriverli alle attività e seguire lo stato delle loro iscrizioni da un'unica dashboard."
+              title="Sei un genitore?"
+              variant="cool"
             >
-              {TIPO_ACCOUNT.passaGenitore}
-            </button>
-          </div>
-        </section>
-      ) : null}
+              <div className="my-profile__actions">
+                <Button
+                  disabled={switchingRole}
+                  onClick={() => setParentSheetOpen(true)}
+                  variant="secondary"
+                >
+                  {TIPO_ACCOUNT.passaGenitore}
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
 
       {parentSheetOpen ? (
         <ConfirmSheet

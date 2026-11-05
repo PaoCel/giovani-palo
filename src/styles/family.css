@@ -1,0 +1,288 @@
+/* Famiglia (/family e /family/profile), fase 6a del restyling
+   (docs/REDESIGN_BRIEF.md). Solo token di tokens.css; nomi e titoli vanno a
+   capo (mai puntini), niente larghezze fisse sulle etichette. Le pagine sono
+   lazy ma le regole che toccano .page hanno .page nel selettore, come nelle
+   altre pagine rifatte. */
+
+.page.family-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-5);
+}
+
+.family-page__children,
+.family-profile__cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+
+/* Da 980 px due colonne a scorrimento: le card dei figli hanno altezze molto
+   diverse e una griglia lascerebbe buchi sotto le più corte. */
+@media (min-width: 980px) {
+  .family-page__children:has(> .ui-card + .ui-card) {
+    display: block;
+    columns: 2;
+    column-gap: var(--space-4);
+  }
+
+  .family-page__children:has(> .ui-card + .ui-card) > .ui-card {
+    break-inside: avoid;
+    margin-bottom: var(--space-4);
+  }
+}
+
+/* Caricamento: due card vuote al posto di una riga di testo. */
+.family-page__loading {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.family-page__skeleton {
+  display: block;
+  height: 180px;
+  border-radius: var(--radius-card);
+  background: var(--surface-cool);
+}
+
+/* ---------- Card del figlio ---------- */
+.family-child__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.family-child__avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.family-child__identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.family-child__identity h2 {
+  margin: 0;
+  color: var(--heading);
+  font: 500 var(--title-sm) / var(--leading-tight) var(--font-display);
+  overflow-wrap: break-word;
+}
+
+.family-child__identity p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.family-child__count {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.family-child__empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.family-child__registrations {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.family-child__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.family-child__actions > .ui-button {
+  flex: 1 1 auto;
+}
+
+.family-child__actions > .family-child__primary {
+  flex-basis: 100%;
+}
+
+/* ---------- Iscrizione del figlio ---------- */
+.family-reg {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--surface-cool);
+}
+
+.family-reg__head {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.family-reg__head h3 {
+  margin: var(--space-1) 0 0;
+  color: var(--heading);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.family-reg__head p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.family-reg__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.family-reg__actions > .ui-button {
+  flex: 1 1 9rem;
+}
+
+/* Stanza (FamilyRoomCard) e «Foto e social»: righe bianche dentro la
+   superficie fredda dell'iscrizione. */
+.family-page .family-reg-room,
+.family-page .family-consent-row {
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-inset);
+  background: var(--surface-card);
+}
+
+.family-page .family-reg-room__icon,
+.family-page .family-consent-row__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-inset);
+  background: var(--info-surface);
+  color: var(--info-ink);
+}
+
+.family-page .family-reg-room__icon svg,
+.family-page .family-consent-row__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.family-page .family-reg-room__info strong,
+.family-page .family-consent-row__info strong {
+  color: var(--heading);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  overflow-wrap: break-word;
+}
+
+.family-page .family-reg-room__info span,
+.family-page .family-consent-row__info span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.family-page .family-reg-room__info .family-reg-room__mates {
+  color: var(--text-body);
+  font-size: var(--text-sm);
+}
+
+.family-page .family-reg-room__info .family-reg-room__error {
+  color: var(--warning-ink);
+}
+
+/* Iscrizione annullata ma firmata: la riga sta da sola, sul fondo freddo. */
+.family-page .family-child__registrations > .family-consent-row {
+  background: var(--surface-cool);
+}
+
+/* «Cambia le scelte» sotto il testo: su telefono l'etichetta non sta a fianco. */
+.family-page .family-consent-row {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.family-page .family-consent-row > .ui-button {
+  grid-column: 1 / -1;
+}
+
+.family-page .family-reg-extra {
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: 0;
+}
+
+.family-page .family-reg-note {
+  color: var(--warning-ink);
+  font-size: var(--text-xs);
+}
+
+.family-page .family-reg-cancel {
+  min-height: var(--target);
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  color: var(--danger-ink);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Dialoghi della famiglia (portale fuori dalla pagina) ---------- */
+.family-dialog-actions {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.family-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* ---------- Profilo del genitore ---------- */
+.page.family-profile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-5);
+}
+
+@media (min-width: 980px) {
+  .family-profile__cards {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  .family-profile__cards > .family-profile__form {
+    grid-row: span 2;
+  }
+}
+
+/* Card «Foto e video» (ActivityMediaHighlight) dentro Famiglia: stessi
+   minimi della home /me (homeSocial.css). */
+.family-page .ag-live__pill,
+.family-page .ag-card__hint {
+  font-size: var(--text-xs);
+}
+
+/* Un indirizzo email non ha punti di a capo: può spezzarsi ovunque, solo lui. */
+.family-profile__email {
+  overflow-wrap: anywhere;
+}
