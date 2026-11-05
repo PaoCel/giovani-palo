@@ -188,9 +188,16 @@ test("payload: roomsInfo si svuota senza pernottamento, si tiene con", () => {
   assert.equal(buildWizardPayload(values({ roomsInfo: "x", activityType: "standard", ...span }), null, ALL, VERSIONS).roomsInfo, "");
 });
 
-test("payload: requireLoginForEdit sempre true (decisione 4), anche su attività con valore spento", () => {
+test("payload: requireLoginForEdit acceso sulle attività nuove, le esistenti restano come sono (decisione 4)", () => {
   assert.equal(buildWizardPayload(values(), null, ALL, VERSIONS).requireLoginForEdit, true);
-  assert.equal(buildWizardPayload(values(), savedEvent({ requireLoginForEdit: false }), ALL, VERSIONS).requireLoginForEdit, true);
+  assert.equal(buildWizardPayload(values(), savedEvent({ requireLoginForEdit: false }), ALL, VERSIONS).requireLoginForEdit, false);
+  assert.equal(buildWizardPayload(values(), savedEvent({ requireLoginForEdit: true }), ALL, VERSIONS).requireLoginForEdit, true);
+  assert.equal(buildWizardPayload(values(), savedEvent(), ALL, VERSIONS).requireLoginForEdit, true, "senza campo");
+});
+
+test("payload: una bozza nuova prende i default del palo per gli step non ancora compilati", () => {
+  const p = buildWizardPayload(values({ allowGuestRegistration: true }), null, new Set(["what", "when"]), VERSIONS, { allowGuestRegistration: false });
+  assert.equal(p.allowGuestRegistration, false);
 });
 
 test("payload: con requiresAccount niente iscrizione senza account", () => {
@@ -283,6 +290,34 @@ test("modulo: un campo nuovo senza chiave ne riceve una", () => {
   }));
   assert.ok(out.customFields[0].key.length > 0);
   assert.ok(out.customFields[1].key.length > 0, "anche con etichetta non sluggabile");
+});
+
+test("modulo: due domande nuove con la stessa etichetta hanno chiavi diverse", () => {
+  const out = buildWizardFormPayload(values({
+    customFields: [
+      { id: "n1", key: "", label: "Taglia", type: "text", required: false },
+      { id: "n2", key: "", label: "Taglia", type: "text", required: false },
+    ],
+  }));
+  assert.notEqual(out.customFields[0].key, out.customFields[1].key);
+  assert.ok(out.customFields.every(f => f.key.length > 0));
+});
+
+test("modulo: una domanda nuova non riusa la chiave di un campo standard attivo né di una domanda esistente", () => {
+  const out = buildWizardFormPayload(values({
+    enabledStandardFields: ["phone"],
+    customFields: [
+      { id: "e1", key: "city", label: "Altro", type: "text", required: false },
+      { id: "n1", key: "", label: "Phone", type: "text", required: false },
+      { id: "n2", key: "", label: "City", type: "text", required: false },
+    ],
+  }));
+  const keys = out.customFields.map(f => f.key);
+  assert.equal(keys[0], "city", "la chiave esistente non cambia");
+  assert.notEqual(keys[1], "phone");
+  assert.notEqual(keys[2], "city");
+  assert.equal(new Set(keys).size, 3);
+  assert.ok(!keys.slice(1).includes("phone"));
 });
 
 test("modulo: opzioni dei select ripulite, quelle degli altri tipi svuotate", () => {
