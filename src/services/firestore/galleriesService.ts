@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   increment,
   limit,
   onSnapshot,
@@ -346,12 +347,20 @@ export const galleriesService = {
     await deleteDoc(galleryDoc(stakeId, galleryId));
   },
 
-  async listMedia(stakeId: string, galleryId: string): Promise<GalleryMedia[]> {
+  async listMedia(
+    stakeId: string,
+    galleryId: string,
+    options: { fresh?: boolean } = {},
+  ): Promise<GalleryMedia[]> {
     // Niente orderBy in query: Firestore esclude i doc senza il campo, e i
     // media legacy (gallerie precedenti a questo flow) spesso non hanno
     // `order`. Risultato: listMedia tornava [] e la galleria appariva vuota.
     // Sortiamo client-side col fallback a 0 di mapMedia.
-    const snapshot = await getDocsCacheFirst(mediaCollection(stakeId, galleryId));
+    // `fresh`: elenco completo dal server. La cache può avere solo i media
+    // delle anteprime (query con limit): l'admin vedrebbe "3 elementi" su 8 e
+    // "Pubblica" creerebbe i post del feed da una lista parziale.
+    const collectionRef = mediaCollection(stakeId, galleryId);
+    const snapshot = options.fresh ? await getDocs(collectionRef) : await getDocsCacheFirst(collectionRef);
     return snapshot.docs
       .map((d) => mapMedia(stakeId, galleryId, d.id, d.data()))
       .sort(sortMedia);

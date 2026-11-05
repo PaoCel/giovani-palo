@@ -49,7 +49,7 @@ export function GalleryAdminTab({ event }: GalleryAdminTabProps) {
         setMedia([]);
         return;
       }
-      const list = await galleriesService.listMedia(stakeId, found.id);
+      const list = await galleriesService.listMedia(stakeId, found.id, { fresh: true });
       setGallery(found);
       setMedia(list);
     } catch (caughtError) {

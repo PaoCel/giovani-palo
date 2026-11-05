@@ -259,7 +259,7 @@ export function GalleryAdminPanel({
         setFeedback("Galleria sospesa.");
       } else {
         await galleriesService.setPublished(stakeId, gallery.id, true);
-        const latestMedia = await galleriesService.listMedia(stakeId, gallery.id);
+        const latestMedia = await galleriesService.listMedia(stakeId, gallery.id, { fresh: true });
         const refreshed =
           (await galleriesService.getGallery(stakeId, gallery.id)) ?? gallery;
         await feedService.syncGalleryPosts(stakeId, uid, refreshed, latestMedia);
@@ -279,7 +279,7 @@ export function GalleryAdminPanel({
     setWorking(true);
     setFeedback(null);
     try {
-      const latestMedia = await galleriesService.listMedia(stakeId, gallery.id);
+      const latestMedia = await galleriesService.listMedia(stakeId, gallery.id, { fresh: true });
       await feedService.syncGalleryPosts(stakeId, uid, gallery, latestMedia);
       await galleriesService.markPostsCreated(stakeId, gallery.id, true);
       setFeedback("Feed aggiornato.");

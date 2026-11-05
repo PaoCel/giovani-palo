@@ -30,7 +30,7 @@ export function AdminGalleryDetailPage() {
       try {
         const [doc, list] = await Promise.all([
           galleriesService.getGallery(stakeId, galleryId),
-          galleriesService.listMedia(stakeId, galleryId),
+          galleriesService.listMedia(stakeId, galleryId, { fresh: true }),
         ]);
         if (!active) return;
         setGallery(doc);
