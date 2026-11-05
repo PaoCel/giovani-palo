@@ -294,12 +294,9 @@ export function AuthCredentialsForm({
         <Title className="auth-screen__title" id={`${authIds}-title`} ref={titleRef} tabIndex={-1}>
           {titles[mode]}
         </Title>
-        <p className="auth-screen__lead">{leads[mode]}</p>
+        {/* Sulla demo il sottotitolo non promette Google né account nuovi. */}
+        <p className="auth-screen__lead">{ACCOUNT_CREATION_CLOSED ? ACCEDI.demoAccountProva : leads[mode]}</p>
       </div>
-
-      {ACCOUNT_CREATION_CLOSED ? (
-        <p className="auth-screen__note auth-screen__note--emphasis">{ACCEDI.demoAccountProva}</p>
-      ) : null}
 
       {!compactLogin && !ACCOUNT_CREATION_CLOSED ? <div aria-label={ACCEDI.schede} className="auth-tabs" role="tablist">
         {tabOrder.map((tabMode) => (
@@ -460,7 +457,7 @@ export function AuthCredentialsForm({
         >
           {busy ? ACCEDI.attendi : isSignup ? ACCEDI.inviaCrea : ACCEDI.inviaAccedi}
         </button>
-        {!compactLogin ? <p className="auth-foot__note">
+        {!compactLogin && !ACCOUNT_CREATION_CLOSED ? <p className="auth-foot__note">
           {footNotes?.[mode] ?? (isSignup ? ACCEDI.notaCrea : ACCEDI.notaAccedi)}
         </p> : null}
       </div> : null}

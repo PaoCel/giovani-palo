@@ -18,4 +18,7 @@ test("il modulo di accesso nasconde schede e Google quando è chiusa", () => {
   assert.match(source, /!compactLogin && !ACCOUNT_CREATION_CLOSED \? <div aria-label=\{ACCEDI\.schede\}/);
   assert.match(source, /\{ACCOUNT_CREATION_CLOSED \? null : <button\s+className="auth-google-button"/);
   assert.match(source, /compactLogin \|\| ACCOUNT_CREATION_CLOSED \? "login" : initialMode/);
+  // Niente frasi che rimandano a Google o a "Crea un account".
+  assert.match(source, /ACCOUNT_CREATION_CLOSED \? ACCEDI\.demoAccountProva : leads\[mode\]/);
+  assert.match(source, /!compactLogin && !ACCOUNT_CREATION_CLOSED \? <p className="auth-foot__note">/);
 });
