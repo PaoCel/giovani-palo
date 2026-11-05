@@ -572,3 +572,66 @@ In produzione dal 1° novembre, su conferma di Paolo, dal clone pulito `99f0509`
 sul mini: prima `functions:roomManagementSave` (un server vecchio rifiuta anche
 `staffElsewhere: false`), poi hosting con service worker v36. Rules e indici
 invariati (ruleset live `0bb59f8a…` uguale al file).
+
+## Sesto incremento: Crea attività a step (5 novembre)
+
+Paolo, creando il «Gran galà di gennaio»: il flusso va rifatto a fondo, a step
+veri, ogni cosa chiesta chiaramente e una volta sola. Task
+`gugd-crea-attivita`. Oggi «Dati essenziali» e «Locandina e altre opzioni»
+chiedono due volte nome, tipo, date, luogo, descrizione, destinatari (con due
+etichette diverse), finestra iscrizioni, programma e cosa portare; «Anno» si
+chiede anche se deriva dalla data; «Iscrizione senza account» vive sia nelle
+opzioni sia nel modulo. Il backend non cambia: stessi campi, stesse rules,
+stessa bozza con `creationId` stabile e pubblicazione in transazione.
+
+Step: 1 Cos'è (nome, tipo, destinatari) · 2 Quando e dove (inizio, fine,
+luogo; qui nasce la bozza) · 3 Locandina e descrizione · 4 Iscrizioni
+(finestra, posti, chi può iscriversi, requisiti solo per i tipi rafforzati,
+domande del modulo) · 5 Per i partecipanti, facoltativo (programma, cosa
+portare, menu, allergie, alloggio se c'è pernottamento, note interne) ·
+6 Controlla e pubblica (riepilogo per step, cosa manca, extra: caminetto e
+Notte dei Record). «Anno» sparisce: si ricava dall'inizio.
+
+### Stati, superfici e ritorni
+
+| Stato | Superficie | Da qui dove vado | Come annullo o rimedio |
+| --- | --- | --- | --- |
+| Nuova, vuota | step 1 | Avanti (nessuna scrittura) | Esci chiude senza chiedere: non c'è niente da perdere |
+| Nuova con dati, prima della bozza | step 1-2 | Avanti; allo step 2 Avanti crea la bozza | Esci chiede «Scartare l'attività?» con Continua a compilare come scelta sicura; Indietro conserva tutto |
+| Creazione in corso o in timeout | step 2 | Avanti bloccato, un solo invio | Errore nello step con i dati intatti; Riprova riusa lo stesso id |
+| Bozza, step 3-5 | step | Avanti salva lo step e prosegue; un passo facoltativo ha «Salta» | Indietro salva se lo step è valido, altrimenti torna conservando i campi in memoria; Esci salva e torna all'elenco con «Bozza salvata» |
+| Step con campi non validi | step | resta lì, campo evidenziato e messaggio sotto | Esci chiede «Uscire senza salvare questo passo?»: i passi già salvati restano |
+| Locandina in caricamento | step 3 | Avanti attende la fine | Annulla caricamento; il file vecchio resta finché non salvi (lezione del 26/10) |
+| Indice degli step | barra in alto | tocco su «Passo 3 di 6» apre l'elenco: fatto, da completare, facoltativo | chiudere l'elenco riporta allo step dov'eri |
+| Bozza riaperta | step 6 | Modifica su una sezione apre quello step con «Salva e torna al riepilogo» | Torna al riepilogo senza salvare chiede scarto solo se hai cambiato qualcosa |
+| Pronta | step 6 | Pubblica, con l'effetto spiegato sopra il tasto | doppio tocco non duplica; errore nello step, Riprova |
+| Mancano dati | step 6 | ogni voce mancante porta allo step che la risolve | Pubblica resta spento con il motivo scritto |
+| Pubblicata | step 6 come «Gestisci» | Modifica salva subito e mantiene visibilità e stato | non si torna a bozza da qui (vedi decisione aperta) |
+| Pubblicata con iscritti, cambio iscrizioni | step 4 | avviso: chi è già iscritto non deve rifare il modulo | nessuna cancellazione di risposte; il campo tolto resta nei dati raccolti |
+| Bozza creata, ritorno agli step 1-2 | step 1-2 | il tasto diventa Avanti e salva, sparisce l'avviso sulla bozza | Indietro e Esci come negli step 3-5 |
+| Cambio di tipo dopo i requisiti | foglio sopra lo step 1 | elenca cosa si spegne o si accende e se «Alloggio» si cancella | «Lascia <tipo di prima>» è la scelta sicura; i requisiti si riaccendono a mano allo step 4 |
+| In giornata ma fine il giorno dopo | step 2 | «Finisce il giorno dopo: si dorme fuori?» cambia tipo con un tocco | «No, resta in giornata» lascia tutto com'è; vale anche al contrario (pernottamento in un giorno solo) |
+| Errore o timeout su Avanti | step 3-5 | resto sullo step, dati intatti, Riprova sulla stessa scrittura | Esci durante una scrittura aspetta l'esito; conflitto di revisione: «Ricarica» tiene i campi in memoria |
+| Prima della bozza, indice | foglio degli step | step 3-6 bloccati con «Prima crea la bozza» | saltare via da uno step non valido chiede come Esci |
+| Uscita prima della bozza con step 2 valido | foglio di conferma | «Crea la bozza ed esci» accanto a «Scarta» e «Continua a compilare» | niente si perde senza una scelta esplicita |
+| Bozza ripresa dopo giorni | step 6 | date di iscrizione passate segnalate con lo step che le corregge | Pubblica spento finché la chiusura è nel passato |
+
+Ingressi da conservare: elenco e home admin, calendario, impostazioni
+(creazione); scheda attività con `initialStep` overview → step 6, preview →
+step 6, options + `roomsInfo` → step 5 con il campo Alloggio a fuoco.
+
+Gli extra (caminetto, Notte dei Record con chiusura e record senza account,
+con la spunta «Ho controllato i titoli») stanno nello step 5, non accanto a
+Pubblica. Annullare l'attività resta in Gestisci, con conferma e «Riapri».
+Mockup v2 in `.claude/mockups/crea-attivita/` (ignorato da git), dopo la review
+UX di un altro agente (PASS WITH CONCERNS, recepita in questa tabella).
+
+Decisioni aperte per Paolo:
+1. «Togli dal catalogo» per un'attività pubblicata (torna bozza, iscrizioni
+   conservate), o resta solo «Annulla»?
+2. Etichette: «In giornata» al posto di «Standard» in tutta l'app; «Congiunta»
+   resta o diventa «Tutti»?
+3. Pubblicata con iscritti e cambio di tipo: i requisiti nuovi valgono anche
+   per chi è già iscritto (per esempio parte l'autorizzazione del genitore)?
+4. «Richiedi un account per modificare l'iscrizione» resta un interruttore a
+   parte o si fonde con «Anche senza account»?
