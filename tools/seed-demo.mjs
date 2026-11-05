@@ -84,6 +84,8 @@ try {
     if (!parentEmail) console.log("DEMO_PARENT_EMAIL non impostata: le copie firmate vanno a un indirizzo .invalid (nessuna mail reale).");
   }
 } catch (error) {
-  console.error(`ERRORE: ${error.message}`);
+  // deleteFiles({ force }) rifiuta con un array di errori, senza `message`.
+  const details = Array.isArray(error) ? error.map((item) => item?.message || String(item)).join("; ") : error?.message || String(error);
+  console.error(`ERRORE: ${details}`);
   process.exit(1);
 }

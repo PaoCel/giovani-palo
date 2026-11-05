@@ -926,6 +926,20 @@ export async function seedDemo(
   return { applied: true, ...dataset, clearedAlerts };
 }
 
+// Con `force` l'SDK rifiuta con un array di errori, uno per file. Un 404 vuol
+// dire "già cancellato": dopo la cancellazione dei documenti i trigger della
+// galleria (onGalleryMediaDeleted) svuotano le stesse cartelle in parallelo.
+export async function deletePrefix(bucket, prefix) {
+  try {
+    await bucket.deleteFiles({ prefix, force: true });
+  } catch (caught) {
+    const errors = (Array.isArray(caught) ? caught : [caught]).filter((error) => Number(error?.code) !== 404);
+    if (errors.length) {
+      throw new Error(`Storage ${prefix}: ${errors.map((error) => error?.message || String(error)).join("; ")}`);
+    }
+  }
+}
+
 /**
  * Cancella TUTTO ciò che appartiene al palo demo: documenti, profili e account
  * Auth di chi ha stakeId demo, token, cache firme dei genitori demo, Storage.
@@ -978,7 +992,7 @@ export async function resetDemo(
   for (const hash of cacheHashes) await db.doc(`parentAuthorizationSignatureCache/${hash}`).delete();
   await auth.deleteUsers(uids);
   if (bucket) {
-    for (const prefix of prefixes) await bucket.deleteFiles({ prefix, force: true });
+    for (const prefix of prefixes) await deletePrefix(bucket, prefix);
   }
   return { applied: true, plan };
 }
