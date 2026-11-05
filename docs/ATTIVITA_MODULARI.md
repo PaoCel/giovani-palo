@@ -638,3 +638,57 @@ Decisioni di Paolo, 5 novembre 2026 (mockup v2 approvato):
    acceso per le attività nuove, niente interruttore. Le attività esistenti con
    il valore spento restano come sono (censimento in sola lettura prima del
    rilascio).
+
+### Contratto di «Togli dal catalogo», prima del codice
+
+Dove: step 6 di un'attività pubblicata («Gestisci»), solo se non è annullata
+né conclusa (un'annullata si riapre prima). Foglio di conferma, scelta sicura
+per prima: «Lascia pubblicata»; tasto rosso «Togli dal catalogo».
+
+Scrittura: una transazione sul solo documento `stakes/{palo}/activities/{id}`
+(`eventsService.unpublishEvent`), contro la revisione vista: legge, se è già
+non pubblica non fa niente (doppio tocco e ritentativo innocui), altrimenti
+`assertEventRevision` e poi `status: "draft"`, `isPublic: false`,
+`isVisible: false`, `updatedAt: nextEventRevision(...)`. Modulo, iscrizioni,
+autorizzazioni, firme, stanze, comitati e galleria non si toccano. Nessuna
+callable: la scrittura è dell'admin del palo, che le rules ammettono già
+(`allow update: if isStakeAdmin`), e nessuna function legge `isPublic`.
+Ripubblicare è la `publishEvent` di sempre, dallo step 6: stessi controlli
+(`getPublicationIssues`, revisione), torna `registrations_open` e visibile.
+
+Chi vede e chi scrive, dopo (rules invariate, verificate nell'emulatore con
+le query esatte del client in
+`functions/tests/unpublishActivityRulesEmulator.test.mjs`):
+
+| Chi | Attività | Effetto |
+| --- | --- | --- |
+| Admin del palo | legge, elenca, ripubblica | la vede in elenco come bozza |
+| Dirigente di unità del palo | legge ed elenca (regola esistente) | invariato |
+| Visitatore, ospite, altro partecipante | `get` negato, assente dalla query del catalogo (`isPublic == true`, `isVisible == true`) | non la vede più |
+| Iscritto con `user_`/`guest_` | `get` ammesso (`hasOwnRegistration`) | sparisce da catalogo, home e elenco di /me (che leggono solo le pubbliche); il link diretto alla sua iscrizione funziona ancora |
+| Genitore con iscrizione `child_` | `get` dell'attività negato, iscrizioni lette come prima (query `parentUid`) | Famiglia mostra l'iscrizione con il titolo «Attività» |
+| Chiunque, iscrizione nuova | `create` negato (`activityAcceptsRegistrations` vuole pubblica e `registrations_open`) | nessuno si iscrive finché è bozza |
+| Titolare, iscrizione esistente | annullamento ammesso (`validOwnerCancellation`, non guarda l'attività) | può ancora annullare |
+| Genitore, autorizzazione | callable del link invariate, non leggono la pubblicazione | le firme restano e si possono ancora dare |
+
+Stati: pubblicata → (Togli dal catalogo) → bozza con iscritti → (Pubblica)
+→ pubblicata. La bozza con iscritti mostra sopra Pubblica quanti iscritti
+ritroveranno l'attività. Nessuna email o notifica parte né togliendo né
+ripubblicando.
+
+Decisione 4, osservato nel codice: `requireLoginForEdit` si scrive (default
+del palo, modulo) ma nessun percorso dei partecipanti lo legge. Fonderlo
+significa scriverlo `true` sulle attività nuove e togliere l'interruttore
+dagli editor; le attività esistenti tengono il loro valore, che non cambia
+nulla per chi si iscrive.
+
+Verifica del contratto (5 novembre, emulatore sul mini): 8 test su 8 con le
+rules invariate. Il rifiuto di un'iscrizione nuova su una bozza arriva come
+limite di 1000 espressioni di `validRegistrationCreate`, non come `false`:
+il rifiuto regge (lo stesso payload passa sull'attività pubblica), ma quel
+ramo è già al limite e un controllo in più lo farebbe sforare anche sulle
+attività pubbliche.
+
+Censimento in sola lettura della produzione (5 novembre): un palo
+(`roma-est`), 6 attività, tutte con `requireLoginForEdit` acceso, come il
+default del palo. Nessuna attività esistente da trattare.

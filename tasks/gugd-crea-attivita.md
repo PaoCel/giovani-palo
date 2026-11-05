@@ -13,8 +13,8 @@ started_at: 2026-11-05
 touched: 2026-11-05
 due:
 blocked_by: []
-branch:
-worktree:
+branch: task/gugd-crea-attivita
+worktree: .claude/worktrees/gugd-crea-attivita-56e185
 session:
 stopped_at: "5/11: mockup v2 approvato da Paolo, 4 decisioni registrate nella spec"
 next: "Costruzione su branch task/gugd-crea-attivita: contratto di «Togli dal catalogo» (rules, stati) prima del codice; censimento in sola lettura di requireLoginForEdit spento; poi foglio a 6 step, test di un altro agente, collaudo a 320/390/430/1440 su emulatori, review indipendente, deploy dopo conferma"
