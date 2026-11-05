@@ -41,7 +41,7 @@ Legenda delle dipendenze usata sotto:
 | Passo | Cosa si vede | Stato | Dipende da |
 | --- | --- | --- | --- |
 | 1 | Catalogo e dettaglio attività dal telefono | Oggi | R1 (hero, chip, CTA fissa) |
-| 2 | Iscrizione con Google o email, oppure senza account | Oggi | R4 (stepper); sullo staging "senza account" oggi dà errore, vedi §2 |
+| 2 | Iscrizione con Google o email, oppure senza account | Oggi | R4 (stepper); sulla demo la registrazione è chiusa e si entra con gli account di prova, vedi §2 |
 | 3 | Home con la prossima attività, la stanza quando lo staff pubblica il piano, la checklist zaino del campeggio | Oggi | R2 |
 | 4 | Galleria dell'attività: carica foto e video, segnala | Oggi | UI già nella direzione nuova |
 | 5 | Notte dei Record: propone un record, si iscrive, stampa il certificato | Oggi (pagina su misura) | S5b la trasforma in un momento del programma |
@@ -98,10 +98,16 @@ ambra). Va riallineato prima della sessione di redesign, insieme a `/unit` e
 
 ## 2. Ambiente demo
 
-Base: progetto `giovani-palo-staging`, dominio `demo.gugditalia.it` (risponde,
-`robots.txt` con `Disallow: /`, verificato il 2026-10-16), seed
-`tools/seed-demo.mjs` con il palo `palo-demo`, i quattro account di ruolo, due
-attività (viaggio e campeggio) e 25 iscrizioni. Procedure in
+Base: progetto `giovani-palo-staging`, dominio `demo.gugditalia.it`
+(`noindex`, `robots.txt` con `Disallow: /`). **Stato al 2026-11-05**: serve lo
+stesso codice di `main` di gugditalia.it (service worker v43, restyling
+compreso), con rules, indici, storage e 39 functions allineati. Seed
+`tools/seed-demo.mjs` applicato con `--today 2026-11-05`: palo `palo-demo`, i
+quattro account di ruolo, tre attività e 40 iscrizioni. Le attività sono un
+viaggio al tempio futuro con piano stanze pubblicato, un campeggio futuro e un
+campeggio appena concluso con galleria (8 illustrazioni senza persone, da
+`tools/demo-media`), pattuglie, comitati, staff e sondaggio con 11 risposte.
+In più 4 post nella home del palo. Procedure in
 [MULTI_PALO_DEMO.md](MULTI_PALO_DEMO.md).
 
 Regole che non cambiano:
@@ -118,14 +124,23 @@ Regole che non cambiano:
 
 ### Cosa manca per una demo guidata (la conduce Paolo)
 
-| # | Cosa | Perché |
+| # | Cosa | Stato al 2026-11-05 |
 | --- | --- | --- |
-| 1 | Seed riapplicato a ridosso della presentazione | le date sono relative a `--today` (ultimo seed 2026-10-07) e la firma di Matteo, se usata, va ripristinata con `--reset --apply` |
-| 2 | Seed più ricco | oggi mancano galleria, piano stanze pubblicato, Notte dei Record, staff del campeggio con pattuglie, sondaggio con risposte, post nel feed: senza questi metà percorsi sono vuoti |
-| 3 | Un'attività di taglia FSY (circa 550 ragazzi e 80 staff) | in produzione l'attività più grande ha 108 iscrizioni: elenchi, export e piano stanze non sono mai stati provati a quella scala |
-| 4 | Reset senza chiave temporanea | oggi serve una chiave del service account creata e cancellata a mano; meglio un job pianificato sullo staging |
-| 5 | Pulsanti che falliscono | con la registrazione chiusa "Crea un account" e "senza account" mostrano un errore: nasconderli o spiegarli sullo staging (decisione aperta) |
-| 6 | Redesign sulle pagine dei percorsi | R1-R5; la prima impressione di un ufficio è grafica |
+| 1 | Seed riapplicato a ridosso della presentazione | **da rifare prima di ogni presentazione**: le date sono relative a `--today` (ultimo seed 2026-11-05) e la galleria del campeggio concluso accetta caricamenti fino a 7 giorni dopo la fine. La firma di Matteo, se usata, si ripristina con `--reset --apply` |
+| 2 | Seed più ricco | **fatto**: galleria, piano stanze pubblicato, staff del campeggio con pattuglie e comitati, sondaggio con risposte, post nel feed, scelte foto e social varie. Manca la Notte dei Record |
+| 3 | Un'attività di taglia FSY (circa 550 ragazzi e 80 staff) | da fare: in produzione l'attività più grande ha 108 iscrizioni, e elenchi, export e piano stanze non sono mai stati provati a quella scala |
+| 4 | Reset senza chiave temporanea | da fare: serve ancora una chiave del service account creata e cancellata a mano; meglio un job pianificato sullo staging |
+| 5 | Pulsanti che falliscono | **fatto**: decisione di Paolo del 2026-11-05. Sulla demo "Crea un account" e Google non compaiono e la pagina Accedi dice "Demo: entra con uno degli account di prova." (`src/utils/accountCreation.ts`); in produzione non cambia nulla. Le attività demo non ammettono l'iscrizione senza account |
+| 6 | Redesign sulle pagine dei percorsi | **fatto**: il restyling è in produzione e sulla demo |
+
+Collaudo del 2026-11-05: i quattro percorsi (ragazzo, genitore, dirigente,
+admin) provati a 390 e 1440 px con lo stesso seed sugli emulatori, con la
+password di prova del seed, senza errori in console e senza schermate vuote.
+Sulla demo vera sono state controllate solo le pagine pubbliche: fuori da
+localhost la password la digita Paolo. Restano vuoti per scelta il piano tende
+del campeggio concluso e l'elenco dei moduli firmati: le autorizzazioni del
+seed non hanno PDF, quindi l'admin le vede come "Fallback legacy". Il percorso
+di firma si mostra dal vivo con il link di Matteo.
 
 ### Cosa manca in più per una demo pubblica da far provare
 

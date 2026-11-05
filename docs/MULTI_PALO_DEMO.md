@@ -66,6 +66,10 @@ e `--config firebase.staging.json`, mai `--project` da solo.
 - Functions: `functions/.env.giovani-palo-staging` (da `functions/.env.staging.example`)
   e secret `BREVO_API_KEY`, `WEB_PUSH_PRIVATE_KEY` nel progetto di staging.
 
+**Stato al 2026-11-05**: staging allineato a `main` (rules, indici, storage, 39
+functions con `--force` per le politiche di retry, hosting v43). Il service
+agent di Storage ha ora `roles/firebaserules.firestoreServiceAgent`, senza il
+quale le storage rules che leggono Firestore negavano gli upload.
 **Stato al 2026-10-07**: pubblicati rules, indici, storage, 16 functions e hosting;
 dominio `demo.gugditalia.it` attivo (record `CNAME demo` verso
 `giovani-palo-staging.web.app` su register.it, certificato emesso da Firebase).
@@ -75,8 +79,8 @@ limita le mail vere a `paolocelestini23@gmail.com`.
 - **Auth**: Identity Platform con email/password, dominio `demo.gugditalia.it`
   autorizzato e **registrazione chiusa** (`client.permissions.disabledUserSignup`):
   `accounts:signUp` risponde `ADMIN_ONLY_OPERATION`, anche per l'accesso anonimo.
-  Conseguenza: su staging "Crea un account" e l'iscrizione "senza account" mostrano
-  un errore; gli account li crea solo il seed (Admin SDK). Per riaprire la
+  Gli account li crea solo il seed (Admin SDK); dal 2026-11-05 la build di
+  staging non mostra "Crea un account" né Google (`src/utils/accountCreation.ts`). Per riaprire la
   registrazione: `PATCH .../admin/v2/projects/giovani-palo-staging/config?updateMask=client.permissions.disabledUserSignup`
   con `false`.
 - **Primo deploy delle functions** (gen2 su progetto nuovo): serve un Owner per i
@@ -107,7 +111,14 @@ node tools/create-stake.mjs --project <id> --id palo-napoli --name "Palo di Napo
 
 `tools/seed-demo.mjs` scrive il palo `palo-demo` con admin, dirigente di unità,
 partecipante e genitore (2 figli: uno già autorizzato, uno in attesa per
-provare "Autorizza ora" e il link di firma), 2 attività e 25 iscrizioni.
+provare "Autorizza ora" e il link di firma), 3 attività e 40 iscrizioni: viaggio
+futuro con piano stanze pubblicato, campeggio futuro, campeggio concluso con
+galleria, pattuglie, comitati, staff e sondaggio; più i post della home. Il nome
+del campeggio segue la stagione delle date. Le immagini della galleria sono
+illustrazioni senza persone in `tools/demo-media` (rigenerabili con
+`python3 tools/demo-media/generate.py`), caricate su Storage a ogni seed con
+mediaId nuovi: un mediaId cancellato lascia una tombstone che cancellerebbe i
+file ricaricati con lo stesso id. `--no-media` salta i file.
 Rifiuta produzione e qualsiasi progetto che non sia emulatore `demo-*` o
 `*-staging`/`*-demo`. Deterministico: ids fissi, date relative a `--today`.
 
@@ -134,7 +145,13 @@ gcloud iam service-accounts keys delete <KEY_ID> --iam-account $SA \
 
 `~/.config/giovani-palo-demo.env` (permessi 600, fuori dal repo) contiene
 `DEMO_PASSWORD` e `DEMO_PARENT_EMAIL`; `node --env-file` lo legge senza passare dalla
-shell. Seed applicato su staging il 2026-10-07 (palo `palo-demo`, 25 iscrizioni).
+shell. Ultimo seed su staging: 2026-11-05 (`--today 2026-11-05`, 40 iscrizioni, 8
+media). La chiave appena creata può dare `UNAUTHENTICATED` per un minuto:
+si aspetta e si ritenta. Test: `functions/tests/demoSeedContentEmulator.test.mjs`
+(contenuti visti dai quattro ruoli con le query del client) e il blocco "dati
+demo" di `multiStakeIsolationEmulator.test.mjs`, da lanciare in due
+`emulators:exec` separati (insieme un test del palo A fallisce per una corsa
+dei trigger).
 
 `--reset` cancella tutto il palo demo (documenti, profili e account Auth con
 `stakeId` demo, token, cache firme dei genitori demo, prefissi Storage del palo).
