@@ -3343,27 +3343,24 @@ export function AdminEventDetailPage() {
                   </p>
                 </div>
                 <div className="admin-section-actions">
-                  <button
-                    className="button button--ghost button--small"
-                    disabled={
-                      busy !== null ||
-                      loading ||
-                      legacyApprovedWithoutPdfCount === 0
-                    }
-                    onClick={() => showConfirm({ kind: "legacyApprovals" })}
-                    type="button"
-                  >
-                    <AppIcon name="refresh" />
-                    <span>
-                      {busy === "backfillLegacyApprovals"
-                        ? "Conversione..."
-                        : `Fallback legacy${
-                            legacyApprovedWithoutPdfCount > 0
-                              ? ` (${legacyApprovedWithoutPdfCount})`
-                              : ""
-                          }`}
-                    </span>
-                  </button>
+                  {/* Senza approvazioni da convertire il tasto non ha niente
+                      da fare: si mostra solo quando serve. */}
+                  {legacyApprovedWithoutPdfCount > 0 ||
+                  busy === "backfillLegacyApprovals" ? (
+                    <button
+                      className="button button--ghost button--small"
+                      disabled={busy !== null || loading}
+                      onClick={() => showConfirm({ kind: "legacyApprovals" })}
+                      type="button"
+                    >
+                      <AppIcon name="refresh" />
+                      <span>
+                        {busy === "backfillLegacyApprovals"
+                          ? "Conversione..."
+                          : `Fallback legacy (${legacyApprovedWithoutPdfCount})`}
+                      </span>
+                    </button>
+                  ) : null}
                   <button
                     className="button button--ghost button--small"
                     disabled={
