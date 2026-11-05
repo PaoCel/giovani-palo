@@ -692,3 +692,29 @@ attività pubbliche.
 Censimento in sola lettura della produzione (5 novembre): un palo
 (`roma-est`), 6 attività, tutte con `requireLoginForEdit` acceso, come il
 default del palo. Nessuna attività esistente da trattare.
+
+### Verifica del sesto incremento (5 novembre)
+
+Costruito su `task/gugd-crea-attivita` (`93a5130`, `8ed1168`): un foglio solo
+(`AdminEventEditorModal` + `src/components/activityWizard/`, logica pura in
+`src/utils/activityWizard.ts`) al posto dei quattro editor di prima, cancellati.
+Ogni Avanti salva i soli step validi, attività e modulo nella stessa
+transazione; la bozza nasce allo step 2 con i requisiti del tipo e i default
+del palo. Le chiavi delle domande esistenti non cambiano più quando cambia il
+testo (il vecchio editor le rigenerava).
+
+- Test puri `tests/activityWizard.test.mjs` scritti da un altro agente: 55/55.
+  Suite client sul mini 1872/1882 (il solo rosso è il test che chiede git, non
+  disponibile nella copia del mini; verde sull'Air); typecheck e build verdi.
+- Rules: `unpublishActivityRulesEmulator` 8/8.
+- Collaudo su emulatori con il seed demo a 320/390/430/1440: flusso completo
+  con locandina, uscite, indice, cambio tipo, Togli dal catalogo su un'attività
+  con 17 iscritti (catalogo anonimo e link diretto chiusi, poi riaperti),
+  ingresso Alloggio dalla tab Stanze. Confronti col mockup a 390.
+- Review indipendente: PASS WITH CONCERNS, 8 rilievi tutti corretti
+  (il principale: la bozza ignorava «iscrizione senza account» spento dal palo).
+
+Differenze dal mockup rimaste: date e ore con i campi nativi del browser
+(niente «sab 23 gen 2027» scritto), titolo in più sullo step 6, «Consenso foto
+e video» spento di default sui tipi rafforzati come prima (il mockup lo
+mostra acceso). Non provati: Safari iOS, produzione.
