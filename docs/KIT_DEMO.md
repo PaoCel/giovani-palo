@@ -137,10 +137,10 @@ Collaudo del 2026-11-05: i quattro percorsi (ragazzo, genitore, dirigente,
 admin) provati a 390 e 1440 px con lo stesso seed sugli emulatori, con la
 password di prova del seed, senza errori in console e senza schermate vuote.
 Sulla demo vera sono state controllate solo le pagine pubbliche: fuori da
-localhost la password la digita Paolo. Restano vuoti per scelta il piano tende
-del campeggio concluso e l'elenco dei moduli firmati: le autorizzazioni del
-seed non hanno PDF, quindi l'admin le vede come "Fallback legacy". Il percorso
-di firma si mostra dal vivo con il link di Matteo.
+localhost la password la digita Paolo. Dal 5 novembre il seed ha anche il
+piano tende pubblicato del campeggio concluso e il PDF di ogni modulo firmato,
+generato con lo stesso codice della firma vera, con firma digitata e dati
+sintetici. Il percorso di firma si mostra dal vivo con il link di Matteo.
 
 ### Cosa manca in più per una demo pubblica da far provare
 
@@ -328,22 +328,70 @@ delle note private (§4).
 
 ### Video di 3 minuti
 
-Registrato su `demo.gugditalia.it` con il seed appena riapplicato: telefono a
-390 px per ragazzo e genitore, desktop per admin e dirigente. Voce di Paolo,
-sottotitoli in italiano (in inglese per la sede europea). Niente dati veri,
-niente volti.
+Si registra solo su `demo.gugditalia.it`, mai su gugditalia.it: in produzione ci
+sono nomi e dati di ragazzi veri. Il ragazzo e il genitore si mostrano sul
+telefono (390 px), l'admin e il dirigente sul desktop. Voce di Paolo, con i
+sottotitoli in italiano (in inglese per la sede europea). Niente volti e niente
+dati veri.
 
-| Tempo | Sullo schermo | Voce (traccia) |
+**Prima di registrare** (il giorno stesso o quello prima):
+
+1. Riapplicare il seed con `--reset --apply` e `--today` uguale al giorno della
+   registrazione (procedura in `MULTI_PALO_DEMO.md`). Le date dipendono da
+   `--today`. La galleria del campeggio concluso accetta foto fino a 7 giorni
+   dopo la fine, e la firma di Matteo si usa una volta sola.
+2. Copiare dall'output del seed il link di firma di Matteo.
+3. Su ogni dispositivo uscire dagli account dell'ultima prova. Il pannello di
+   Chrome con «Sei già dentro» non va inquadrato.
+4. Mail di prova: la copia firmata arriva a `DEMO_PARENT_EMAIL`, che è una
+   casella vera. Non inquadrare la casella di posta, oppure sfocarla in
+   montaggio.
+
+Account (password `DEMO_PASSWORD`, nel file locale di Paolo):
+
+| Ruolo | Login | Chi è nei dati |
 | --- | --- | --- |
-| 0:00-0:15 | home della demo sul telefono, titolo | "Questa è l'app con cui il nostro palo organizza le attività dei giovani." |
-| 0:15-0:40 | admin crea il campeggio, chiede l'autorizzazione dei genitori, apre le iscrizioni | "L'admin crea l'attività in pochi minuti e decide cosa chiedere nel modulo." |
-| 0:40-1:05 | ragazzo si iscrive dal telefono | "Il ragazzo si iscrive dal telefono. Se è minorenne, al genitore arriva la richiesta di autorizzazione." |
-| 1:05-1:30 | genitore apre la mail, firma, sceglie il consenso foto, riceve il PDF | "Il genitore firma da un link e sceglie se le foto si possono usare." |
-| 1:30-1:50 | dirigente di unità vede chi manca | "Il dirigente vede chi della sua unità non ha ancora l'autorizzazione." |
-| 1:50-2:15 | piano stanze con i compagni suggeriti, pubblicazione; il ragazzo vede "La tua stanza" | "Le stanze si fanno qui, con i vincoli già applicati, e ognuno vede solo la sua." |
-| 2:15-2:40 | galleria durante l'attività, segnalazione; Notte dei Record | "Durante l'attività i ragazzi caricano le foto, e una segnalazione le nasconde subito." |
-| 2:40-2:55 | i numeri reali e le due righe di privacy | "Da marzo: 5 attività, 326 iscrizioni, 116 autorizzazioni firmate online." |
-| 2:55-3:00 | contatto | "Se vi serve per FSY o per altri pali, parliamone." |
+| Admin di palo | `admin.demo@example.invalid` | Elena Marchetti, Palo Demo |
+| Dirigente | `dirigente.demo@example.invalid` | Roberto Ferri, Rione Aurora; è anche staff del campeggio concluso |
+| Ragazza | `partecipante.demo@example.invalid` | Sofia Bianchi, 15 anni. Iscritta al viaggio al tempio e al campeggio d'autunno, non al campeggio d'inverno |
+| Genitore | `genitore.demo@example.invalid` | Laura Conti, con due figli: Chiara (viaggio e campeggio d'autunno) e Matteo (viaggio, autorizzazione in attesa) |
+
+Attività nei dati (date con `--today 2026-11-05`; con un'altra data scorrono
+nello stesso modo):
+
+- **Viaggio al Tempio**: fra un mese, iscrizioni aperte, 14 confermati e
+  Matteo in attesa. Piano stanze pubblicato, con 4 stanze.
+- **Campeggio d'inverno**: fra 80 giorni, iscrizioni aperte, 8 iscritti.
+  Sofia non è iscritta.
+- **Campeggio d'autunno**: concluso da 5 giorni. 15 iscritti, galleria con 8
+  foto, sondaggio con 11 risposte, pattuglie, comitati e staff. Piano tende
+  pubblicato con 4 tende. Ci sono 38 moduli firmati con il PDF, in totale,
+  sulle tre attività.
+
+Scaletta:
+
+| Tempo | Chi, dove | Cosa si fa | Voce (traccia) |
+| --- | --- | --- | --- |
+| 0:00-0:15 | anonimo, telefono, home | la home del palo con le attività | "Questa è l'app con cui il nostro palo organizza le attività dei giovani." |
+| 0:15-0:40 | admin, desktop, Attività → Campeggio d'inverno | il modulo, «autorizzazione del genitore» attiva, le iscrizioni aperte. Creare un'attività da zero si può, ma richiede più di 25 secondi | "L'admin crea l'attività e decide cosa chiedere nel modulo." |
+| 0:40-1:05 | Sofia, telefono | si iscrive al Campeggio d'inverno. Come mail del genitore scrive `DEMO_PARENT_EMAIL` | "Il ragazzo si iscrive dal telefono. Se è minorenne, al genitore arriva la richiesta di autorizzazione." |
+| 1:05-1:30 | genitore, telefono, link di Matteo | apre il link, sceglie foto e social, firma e vede la conferma | "Il genitore firma da un link e sceglie se le foto si possono usare." |
+| 1:30-1:50 | dirigente, desktop, `/unit` | la sua unità, chi manca all'appello e l'autorizzazione in attesa. Registrare questa scena prima della 1:05-1:30, quando Matteo è ancora in attesa | "Il dirigente vede chi della sua unità non ha ancora l'autorizzazione." |
+| 1:50-2:15 | admin, desktop, Viaggio al Tempio → Stanze; poi Sofia, telefono | il piano stanze pubblicato e, sul telefono di Sofia, «La tua stanza» con i compagni. In alternativa, le Tende del campeggio d'autunno | "Le stanze si fanno qui, con i vincoli già applicati, e ognuno vede solo la sua." |
+| 2:15-2:35 | Sofia, telefono, campeggio d'autunno | la galleria del campeggio, una foto e il sondaggio | "Dopo l'attività i ragazzi trovano le foto e lasciano un parere." |
+| 2:35-2:45 | admin, desktop, campeggio d'autunno → Elenco consensi | «N moduli firmati disponibili» e lo ZIP dei moduli. Aprire un PDF solo se si vede intero, senza la mail | "Ogni modulo firmato resta in PDF, pronto da scaricare." |
+| 2:45-2:55 | titolo | i numeri d'uso reali, solo se Paolo decide che si possono citare (domanda 4), e le due righe di privacy | "Da marzo: 5 attività, 326 iscrizioni, 116 autorizzazioni firmate online." |
+| 2:55-3:00 | titolo | contatto | "Se vi serve per FSY o per altri pali, parliamone." |
+
+L'ordine di registrazione è diverso da quello del montaggio. Si fa prima il
+dirigente, con Matteo ancora in attesa, poi il genitore che firma. Quando la
+firma è usata, per rifarla serve `--reset --apply`.
+
+Non si inquadrano:
+- la Notte dei Record, che non è nel seed;
+- la scheda admin di un ragazzo, che mostra la mail e i contatti del genitore
+  di prova;
+- il pannello delle stanze in bozza, perché nella demo è tutto pubblicato.
 
 Dopo S2 la riga della galleria può dire che le foto le vedono solo i membri
 verificati del palo; prima no. Versione per FSY: al posto del genitore
