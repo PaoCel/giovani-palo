@@ -103,6 +103,19 @@ const SURVEY_ANSWERS = [
   { category: "dirigente", giudizio: 5, programma: 4.5, ricordo: "Il servizio al paese vicino il sabato mattina.", parole: ["servizio", "gratitudine", "sole"] },
   { category: "giovane_donna", giudizio: 4.5, programma: 5, ricordo: "Conoscere ragazze delle altre unità.", parole: ["nuove amiche", "giochi", "stelle"] },
 ];
+// Scelte del genitore varie, perché le pill dei consensi mostrino tutti i casi:
+// quasi tutti sì alle foto, social divisi, qualche firma senza risposta.
+const consentMix = (index) =>
+  index % 7 === 6
+    ? { photoConsent: "not_answered", socialPublicationConsent: "not_answered" }
+    : { photoConsent: index % 5 === 4 ? "refused" : "accepted", socialPublicationConsent: index % 2 === 0 ? "accepted" : "refused" };
+// Le date sono relative a `today`: il nome della stagione segue la data di
+// inizio, così un seed di novembre non presenta un "Campeggio estivo" a gennaio.
+const campTitle = (iso) => {
+  const month = new Date(iso).getUTCMonth() + 1;
+  const season = month === 12 || month <= 2 ? "d'inverno" : month <= 5 ? "di primavera" : month <= 8 ? "estivo" : "d'autunno";
+  return `Campeggio ${season}`;
+};
 const tokenFor = (seed) => {
   const hex = crypto.createHash("sha256").update(`demo-media-token/${seed}`).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
@@ -111,7 +124,8 @@ const hashToken = (raw) => crypto.createHash("sha256").update(raw, "utf8").diges
 export const hashEmail = (email) =>
   crypto.createHash("sha256").update(String(email).trim().toLowerCase(), "utf8").digest("hex");
 
-function authorizedState({ parentName, parentEmail, now }) {
+// Scelte foto e social della firma: "accepted" | "refused" | "not_answered".
+function authorizedState({ parentName, parentEmail, now, photoConsent = "not_answered", socialPublicationConsent = "not_answered" }) {
   const [parentFirstName, ...rest] = parentName.split(" ");
   return {
     status: "authorized",
@@ -137,8 +151,8 @@ function authorizedState({ parentName, parentEmail, now }) {
     expiresAt: null,
     legalVersions: null,
     consents: null,
-    photoConsent: "not_answered",
-    socialPublicationConsent: "not_answered",
+    photoConsent,
+    socialPublicationConsent,
     signatureUrl: null,
     signaturePath: null,
     pdfUrl: null,
@@ -346,7 +360,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
   };
   const camp = {
     ...activityBase,
-    title: "Campeggio estivo",
+    title: campTitle(at(80, 15)),
     description: "Campeggio di palo con pattuglie e comitati. Dati sintetici di esempio.",
     location: "Campo scout di esempio",
     program: "Quattro giorni di attività all'aperto, servizio e serate attorno al fuoco.",
@@ -431,6 +445,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     answers: { ...request(), transportMode: "Pullman organizzato", photoInternalConsent: true },
     parentAuthorization: authorizedState({
       parentName: `${parent.firstName} ${parent.lastName}`, parentEmail: realParentEmail.toLowerCase(), now: at(-6),
+      photoConsent: "accepted", socialPublicationConsent: "refused",
     }),
     createdAt: at(-7),
   }));
@@ -438,12 +453,12 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     firstName: participant.firstName, lastName: participant.lastName, genderRoleCategory: "giovane_donna",
     birthDate: "2011-03-14", unit: aurora, status: "confirmed", mode: "authenticated", userId: participant.uid,
     answers: { transportMode: "Vengo con la mia famiglia", photoInternalConsent: true },
-    parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-8) }),
+    parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-8), ...consentMix(0) }),
     createdAt: at(-9),
   }));
 
   youth.forEach((person, index) => {
-    const withAuthorization = authorizedState({ ...genitoreSintetico, now: at(-5) });
+    const withAuthorization = authorizedState({ ...genitoreSintetico, now: at(-5), ...consentMix(index + 1) });
     const common = {
       firstName: person.firstName, lastName: person.lastName, genderRoleCategory: person.gender,
       birthDate: person.birthDate, unit: person.unit, mode: "authenticated", userId: person.uid,
@@ -469,7 +484,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
   // hanno bisogno di un'attività iniziata o finita (le altre due sono future).
   const pastCamp = {
     ...activityBase,
-    title: "Campeggio d'autunno",
+    title: campTitle(at(-9, 15)),
     description: "Quattro giorni in tenda con pattuglie, comitati e serate attorno al fuoco. Dati sintetici di esempio.",
     location: "Campo scout di esempio",
     program: "Arrivo e montaggio delle tende, giochi a pattuglie, escursione al lago, serata delle unità e rientro.",
@@ -496,7 +511,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     firstName: participant.firstName, lastName: participant.lastName, genderRoleCategory: "giovane_donna",
     birthDate: "2011-03-14", unit: aurora, status: "confirmed", mode: "authenticated", userId: participant.uid,
     answers: { transportMode: "Pullman organizzato", photoInternalConsent: true },
-    parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-20) }),
+    parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-20), ...consentMix(0) }),
     createdAt: at(-30),
   }));
   pastReg(`child_${parent.uid}_${chiara.id}`, registrationDoc({
@@ -506,6 +521,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     answers: { ...request({ submittedAt: at(-28) }), transportMode: "Vengo con la mia famiglia", photoInternalConsent: true },
     parentAuthorization: authorizedState({
       parentName: `${parent.firstName} ${parent.lastName}`, parentEmail: realParentEmail.toLowerCase(), now: at(-27),
+      photoConsent: "accepted", socialPublicationConsent: "refused",
     }),
     createdAt: at(-28),
   }));
@@ -520,7 +536,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
       firstName: person.firstName, lastName: person.lastName, genderRoleCategory: person.gender,
       birthDate: person.birthDate, unit: person.unit, status: "confirmed", mode: "authenticated", userId: person.uid,
       answers: { transportMode: TRANSPORT_CHOICES[index % TRANSPORT_CHOICES.length], photoInternalConsent: index % 3 !== 0 },
-      parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-25 + (index % 5)) }),
+      parentAuthorization: authorizedState({ ...genitoreSintetico, now: at(-25 + (index % 5)), ...consentMix(index + 1) }),
       createdAt: at(-32 + (index % 6)),
     }));
   });
@@ -780,14 +796,14 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
   });
   post("post-sondaggio-campeggio", {
     title: "Com'è andato il campeggio?",
-    body: "Grazie a tutti per il Campeggio d'autunno. Il sondaggio è anonimo e richiede due minuti: ci aiuta a preparare il prossimo.",
+    body: `Grazie a tutti per il ${pastCamp.title}. Il sondaggio è anonimo e richiede due minuti: ci aiuta a preparare il prossimo.`,
     activityId: PAST_CAMP_ID,
     createdAt: at(-4, 19),
   });
   if (mediaDocs.length) {
     post("post-galleria-campeggio", {
       type: "gallery",
-      title: "Le foto del Campeggio d'autunno",
+      title: `Le foto del ${pastCamp.title}`,
       body: "Alba, tende e serata al fuoco: la galleria resta aperta ancora qualche giorno per chi vuole aggiungere le sue.",
       activityId: PAST_CAMP_ID,
       galleryId,
@@ -799,7 +815,7 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
   }
   post("post-campeggio-estivo", {
     type: "activity_reminder",
-    title: "Campeggio estivo: si aprono le iscrizioni",
+    title: `${camp.title}: si aprono le iscrizioni`,
     body: "Le date e il programma sono nella scheda dell'attività. Le pattuglie si formano a iscrizioni chiuse.",
     activityId: "campeggio-estivo",
     ctaLabel: "Vai all'attività",
