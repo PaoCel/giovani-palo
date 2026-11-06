@@ -10,14 +10,14 @@ surface: [web]
 source: paolo
 opened: 2026-11-05
 started_at: 2026-11-05
-touched: 2026-11-05
+touched: 2026-11-06
 due:
 blocked_by: []
 branch: task/gugd-crea-attivita
 worktree: .claude/worktrees/gugd-crea-attivita-56e185
 session:
-stopped_at: "5/11 sera: foglio a 6 step su task/gugd-crea-attivita (8ed1168), collaudo e review fatti; merge e deploy in attesa della conferma di Paolo"
-next: "Conferma di Paolo per merge su main e deploy hosting (service worker v45, porta anche 89722b7); poi prova su iPhone (Safari) e in produzione col browser loggato"
+stopped_at: "6/11: in produzione (hosting da copia pulita di 98c8202 sul mini, service worker v45, index-Cq5eqzxb.js uguale su gugditalia.it e web.app); con il deploy è uscito anche cfb180e (tasto Fallback legacy solo se serve)"
+next: "Paolo: prova nel browser loggato in produzione e su iPhone (Safari) la creazione con locandina; decidere se Consenso foto e video parte acceso sui tipi rafforzati come nel mockup"
 verified: "5/11: test puri del foglio 55/55 (altro agente); suite client sul mini 1872/1882, unico rosso il test git non eseguibile nella copia del mini e verde sull'Air; tsc e build verdi; rules Togli dal catalogo 8/8 sull'emulatore; collaudo Playwright su emulatori col seed demo a 320/390/430/1440 (flusso, uscite, indice, cambio tipo, Togli dal catalogo con 17 iscritti e catalogo anonimo, ingresso Alloggio), 3 difetti trovati e corretti, ricontrollati a mano a 320 e 390; review indipendente PASS WITH CONCERNS, 8 rilievi corretti; censimento prod requireLoginForEdit: 6/6 accese. Non provati: Safari iOS, produzione, conflitto di revisione nel browser."
 links: []
 done_at:
@@ -58,5 +58,6 @@ descrizione, destinatari) → «Modulo d'iscrizione» → «Controlla e pubblica
 - [x] mockup v2 approvato e 4 decisioni prese (5/11)
 - [x] contratto «Togli dal catalogo» (rules invariate, 8/8 emulatore) e censimento requireLoginForEdit (6/6 accese)
 - [x] costruzione, test, collaudo, review (5/11)
-- [ ] merge su main e deploy hosting con service worker v45, dopo conferma di Paolo
+- [x] merge su main e deploy hosting con service worker v45 (6/11, conferma di Paolo; build del v44 = bundle live prima del deploy)
+- [ ] prova nel browser loggato in produzione e su iPhone (Safari) con locandina
 - [ ] decidere: «Consenso foto e video» acceso di default sui tipi rafforzati (mockup) o spento (oggi)
