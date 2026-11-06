@@ -17,6 +17,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { ANNULLA } from "@/copy/annulla";
+import { ANNUNCIATA } from "@/copy/annunciata";
+import { EVENT_CREATION } from "@/copy/eventCreation";
 import { ADMIN } from "@/copy/admin";
 import { EVENTO } from "@/copy/evento";
 import { SONDAGGIO } from "@/copy/sondaggio";
@@ -107,7 +109,9 @@ import {
   planAdminReactivate,
 } from "@/utils/adminRegistration";
 import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
-import { formatDateOnly, formatDateRange, formatDateTime } from "@/utils/formatters";
+import { formatDateOnly, formatDateTime, formatEventWhen } from "@/utils/formatters";
+import { getPublicationChecklist, stepNumber, type WizardStepId } from "@/utils/activityWizard";
+import { getAnnouncementIssues } from "@/utils/eventCreation";
 import {
   downloadCampManagementExcel,
   downloadRegistrationsExcel,
@@ -123,6 +127,7 @@ import {
   getEventAudienceLabel,
   getEventStatusLabel,
   getEventStatusTone,
+  isAnnouncedEvent,
   isCampEvent,
 } from "@/utils/events";
 import { getPhotoConsentBadges } from "@/utils/parentAuthorization";
@@ -368,6 +373,9 @@ function getParentAuthorizationBadge(
 // Foglio di conferma aperto (mai un dialogo del browser). Ognuno si lega
 // all'oggetto con cui è stato aperto: se sparisce, o se cambiano account o
 // rotta, il foglio si chiude e nessuna azione parte per l'oggetto sbagliato.
+// Where the activity editor opens (AdminEventEditorModal initialStep).
+type EditorStep = "overview" | "options" | "preview" | "firstTodo" | WizardStepId;
+
 type AdminConfirm =
   | { kind: "removePatrol"; patrolId: string }
   | { kind: "removeCommittee"; committeeId: string }
@@ -376,6 +384,8 @@ type AdminConfirm =
   | { kind: "reloadCamp" }
   | { kind: "deleteQuestion"; questionId: string }
   | { kind: "deleteActivity" }
+  | { kind: "announce" }
+  | { kind: "unpublish" }
   | { kind: "legacyApprovals" }
   | { kind: "consentCompletion"; digest: string; total: number }
   | { kind: "cancelRegistration"; registrationId: string }
@@ -401,10 +411,12 @@ export function AdminEventDetailPage() {
   const [roomDraftDirty, setRoomDraftDirty] = useState(false);
   const [editorBlockedByRooms, setEditorBlockedByRooms] = useState(false);
   const [editorFocusField, setEditorFocusField] = useState<"roomsInfo" | undefined>(undefined);
-  const [editorInitialStep, setEditorInitialStep] = useState<"overview" | "options" | "preview">("overview");
+  const [editorInitialStep, setEditorInitialStep] = useState<EditorStep>("overview");
   const [busy, setBusy] = useState<
     | null
     | "publish"
+    | "announce"
+    | "unpublish"
     | "delete"
     | "resendParentAuth"
     | "saveParentEmail"
@@ -1759,7 +1771,33 @@ export function AdminEventDetailPage() {
     openEditor("preview");
   }
 
-  function openEditor(step: "overview" | "options" | "preview", focusField?: "roomsInfo") {
+  // «Annuncia» from a draft, and «Togli dal catalogo» from an announced
+  // activity (settimo incremento): the same services and confirmations as step 6.
+  async function handleVisibilityChange(kind: "announce" | "unpublish") {
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
+    const expectedUpdatedAt = resolvedEvent.updatedAt;
+    setBusy(kind);
+    setConfirmError(null);
+    setActionInfo(null);
+    try {
+      await withWriteTimeout(kind === "announce"
+        ? eventsService.announceEvent(stakeId, resolvedEventId, expectedUpdatedAt)
+        : eventsService.unpublishEvent(stakeId, resolvedEventId, expectedUpdatedAt));
+      if (eventContextRef.current !== startedFor) return;
+      if (run === confirmRunRef.current) showConfirm(null);
+      setActionInfo(kind === "announce" ? ANNUNCIATA.annunciaFatto : ANNUNCIATA.togliFatto);
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, kind === "announce" ? EVENT_CREATION.announceError : EVENT_CREATION.unpublishError));
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openEditor(step: EditorStep, focusField?: "roomsInfo") {
     setEditorInitialStep(step);
     setEditorFocusField(focusField);
     if (activeTab === "overnight" && roomDraftDirty) {
@@ -2301,6 +2339,8 @@ export function AdminEventDetailPage() {
     busyLabel: string;
     busy: boolean;
     onConfirm: () => void;
+    // Default "danger"; «Annuncia» takes nothing away.
+    tone?: "neutral" | "danger";
   } => {
     if (!confirmSheet) return null;
     // Un'altra azione in corso: il foglio aspetta, non ne parte una seconda.
@@ -2393,6 +2433,27 @@ export function AdminEventDetailPage() {
           onConfirm: guard(() => handleDeleteQuestion(question)),
         };
       }
+      case "announce":
+        return {
+          title: ANNUNCIATA.annunciaDaBozzaTitolo,
+          body: ANNUNCIATA.annunciaDaBozzaTesto,
+          cancelLabel: ANNUNCIATA.lasciaInBozza,
+          confirmLabel: ANNUNCIATA.annuncia,
+          busyLabel: ADMIN.salvataggio,
+          busy: busy === "announce",
+          tone: "neutral",
+          onConfirm: guard(() => handleVisibilityChange("announce")),
+        };
+      case "unpublish":
+        return {
+          title: EVENT_CREATION.unpublishTitle,
+          body: EVENT_CREATION.unpublishBody,
+          cancelLabel: ANNUNCIATA.togliSceltaSicura,
+          confirmLabel: EVENT_CREATION.unpublish,
+          busyLabel: EVENT_CREATION.unpublishing,
+          busy: busy === "unpublish",
+          onConfirm: guard(() => handleVisibilityChange("unpublish")),
+        };
       case "deleteActivity":
         return {
           title: fillCopy(ADMIN.eliminaAttivitaTitolo, {
@@ -4984,7 +5045,7 @@ export function AdminEventDetailPage() {
           onCancel={() => showConfirm(null)}
           onConfirm={confirmView.onConfirm}
           title={confirmView.title}
-          tone="danger"
+          tone={confirmView.tone ?? "danger"}
         >
           {confirmView.people && confirmView.people.length > 0 ? (
             <ul className="plain-list plain-list--compact camp-confirm-people">

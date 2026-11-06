@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { ANNUNCIATA } from "../src/copy/annunciata.ts";
 import { CATALOGO } from "../src/copy/catalogo.ts";
 import { MOMENTI } from "../src/copy/momenti.ts";
 import { fillCopy } from "../src/copy/parole.ts";
@@ -24,21 +25,24 @@ import {
 // 1. status "cancelled" => cancelled, qualunque siano le date.
 // 2. status "completed" => ended, anche con date future.
 // 3. attività finita (fine < adesso; senza fine vale l'inizio) => ended,
-//    qualunque sia lo status.
-// 4. status diverso da "registrations_open" (planned, confirmed,
-//    registrations_closed): prima dell'apertura => upcoming, altrimenti
-//    closed, anche dentro la finestra d'iscrizione.
-// 5. status "registrations_open": prima dell'apertura => upcoming, dopo la
+//    qualunque sia lo status (planned compresa: niente «Iscrizioni a breve»).
+// 4. status "planned" => announced, a prescindere dalle date d'iscrizione
+//    (anche dentro la finestra o nel passato). Etichetta «Iscrizioni a breve»,
+//    tono info. getRegistrationAvailability è sempre "not-open-yet".
+// 5. status diverso da "registrations_open" (confirmed, registrations_closed):
+//    prima dell'apertura => upcoming, altrimenti closed, anche dentro la
+//    finestra d'iscrizione.
+// 6. status "registrations_open": prima dell'apertura => upcoming, dopo la
 //    chiusura => closed, dentro la finestra => open. Gli estremi sono
 //    inclusi: adesso === apertura e adesso === chiusura sono open.
-// 6. date d'iscrizione vuote o non valide, attività non finita => open, senza
+// 7. date d'iscrizione vuote o non valide, attività non finita => open, senza
 //    errori.
 //
-// Etichette e toni: open => «Iscrizioni aperte» (success); upcoming =>
-// «Iscrizioni dal {data}» (info), con giorno e mese breve in it-IT e l'anno
-// solo se l'apertura cade in un anno diverso da quello di adesso; closed =>
-// «Iscrizioni chiuse» (warning); ended => «Conclusa» (neutral); cancelled =>
-// «Annullata» (danger).
+// Etichette e toni: open => «Iscrizioni aperte» (success); announced =>
+// «Iscrizioni a breve» (info); upcoming => «Iscrizioni dal {data}» (info),
+// con giorno e mese breve in it-IT e l'anno solo se l'apertura cade in un
+// anno diverso da quello di adesso; closed => «Iscrizioni chiuse» (warning);
+// ended => «Conclusa» (neutral); cancelled => «Annullata» (danger).
 //
 // Il conto alla rovescia (getRegistrationCountdown) è null se la chiusura è
 // passata, non valida o a 7 giorni o più; altrimenti «Le iscrizioni chiudono
@@ -130,12 +134,28 @@ test("attività finita: senza fine vale l'inizio", () => {
 });
 
 test("status diverso da registrations_open: upcoming prima dell'apertura, poi closed", () => {
-  for (const status of ["planned", "confirmed", "registrations_closed"]) {
+  for (const status of ["confirmed", "registrations_closed"]) {
     assert.equal(phase({ status }, local(2026, 10, 20)), "upcoming", `${status} prima`);
     // Dentro la finestra d'iscrizione, ma lo status non è aperto.
     assert.equal(phase({ status }, NOW), "closed", `${status} dentro la finestra`);
     assert.equal(phase({ status }, local(2026, 11, 25)), "closed", `${status} dopo`);
   }
+});
+
+test("planned: fase announced a prescindere dalle date d'iscrizione", () => {
+  assert.equal(phase({ status: "planned" }, local(2026, 10, 20)), "announced", "prima dell'apertura");
+  assert.equal(phase({ status: "planned" }, NOW), "announced", "dentro la finestra");
+  assert.equal(phase({ status: "planned" }, local(2026, 11, 25)), "announced", "dopo la chiusura");
+  assert.equal(
+    phase({ status: "planned", registrationOpen: "", registrationClose: "" }),
+    "announced",
+    "date d'iscrizione vuote",
+  );
+  assert.equal(
+    phase({ status: "planned", registrationOpen: iso(local(2026, 10, 1)), registrationClose: iso(local(2026, 10, 20)) }),
+    "announced",
+    "finestra già nel passato, attività ancora in corso",
+  );
 });
 
 test("registrations_open: prima, dentro e dopo la finestra", () => {
@@ -167,8 +187,9 @@ test("coerenza con getRegistrationAvailability per un ospite", () => {
     ["aperta", { registrationOpen: iso(now - DAY), registrationClose: iso(now + DAY) }, "open", "guest-allowed"],
     ["non ancora aperta", { registrationOpen: iso(now + DAY), registrationClose: iso(now + 2 * DAY) }, "upcoming", "not-open-yet"],
     ["chiusa per data", { registrationOpen: iso(now - 2 * DAY), registrationClose: iso(now - DAY) }, "closed", "closed"],
-    ["planned prima dell'apertura", { status: "planned", registrationOpen: iso(now + DAY), registrationClose: iso(now + 2 * DAY) }, "upcoming", "not-open-yet"],
-    ["planned dentro la finestra", { status: "planned", registrationOpen: iso(now - DAY), registrationClose: iso(now + DAY) }, "closed", "closed"],
+    ["planned prima dell'apertura", { status: "planned", registrationOpen: iso(now + DAY), registrationClose: iso(now + 2 * DAY) }, "announced", "not-open-yet"],
+    ["planned dentro la finestra", { status: "planned", registrationOpen: iso(now - DAY), registrationClose: iso(now + DAY) }, "announced", "not-open-yet"],
+    ["planned dopo la chiusura", { status: "planned", registrationOpen: iso(now - 2 * DAY), registrationClose: iso(now - DAY) }, "announced", "not-open-yet"],
     ["registrations_closed dentro la finestra", { status: "registrations_closed", registrationOpen: iso(now - DAY), registrationClose: iso(now + DAY) }, "closed", "closed"],
   ];
 
@@ -179,6 +200,26 @@ test("coerenza con getRegistrationAvailability per un ospite", () => {
   }
 });
 
+test("planned: not-open-yet anche con sessione autenticata e dentro la finestra", () => {
+  const now = Date.now();
+  const e = event({
+    status: "planned",
+    startDate: iso(now + 30 * DAY),
+    endDate: iso(now + 31 * DAY),
+    registrationOpen: iso(now - DAY),
+    registrationClose: iso(now + DAY),
+  });
+  const session = {
+    isAuthenticated: true,
+    isAnonymous: false,
+    isParent: false,
+    profile: { genderRoleCategory: "giovane_uomo" },
+  };
+  assert.equal(getPublicEventPhase(e, now), "announced");
+  assert.equal(getRegistrationAvailability(e, { allowGuestRegistration: true }, session), "not-open-yet");
+  assert.equal(getRegistrationAvailability(e, { allowGuestRegistration: true }, { ...session, isParent: true }), "not-open-yet");
+});
+
 test("getPublicEventState: etichetta e tono per ogni fase", () => {
   assert.deepEqual(getPublicEventState(event(), NOW), {
     phase: "open",
@@ -186,9 +227,9 @@ test("getPublicEventState: etichetta e tono per ogni fase", () => {
     tone: "success",
   });
   assert.deepEqual(getPublicEventState(event({ status: "planned" }), NOW), {
-    phase: "closed",
-    label: MOMENTI.iscrizioniChiuse,
-    tone: "warning",
+    phase: "announced",
+    label: ANNUNCIATA.iscrizioniABreve,
+    tone: "info",
   });
   assert.deepEqual(
     getPublicEventState(event({ startDate: iso(local(2026, 10, 1)), endDate: iso(local(2026, 10, 2)) }), NOW),

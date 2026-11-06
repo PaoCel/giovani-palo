@@ -83,6 +83,15 @@ test("step 2: inizio, fine e luogo sono obbligatori", () => {
   assert.deepEqual(validateWizardStep("when", values()), {});
 });
 
+test("step 2: con locationOptional il luogo non è chiesto, senza flag sì", () => {
+  const missing = values({ location: "" });
+  assert.equal(validateWizardStep("when", missing).location, COPY.errors.location);
+  assert.equal(validateWizardStep("when", missing, { locationOptional: false }).location, COPY.errors.location);
+  assert.equal(validateWizardStep("when", missing, { locationOptional: true }).location, undefined);
+  assert.deepEqual(validateWizardStep("when", missing, { locationOptional: true }), {});
+  assert.equal(validateWizardStep("when", values({ location: "  " }), { locationOptional: true }).location, undefined);
+});
+
 test("step 2: la fine prima dell'inizio è rifiutata, a pari data no", () => {
   const before = validateWizardStep("when", values({ endDate: "2027-01-23T18:00" }));
   assert.equal(before.endDate, COPY.errors.endBeforeStart);
@@ -215,8 +224,26 @@ test("payload: una bozza resta bozza e privata, anche senza attività salvata", 
   }
 });
 
-test("payload: una pubblicata non annullata torna registrations_open, pubblica e con la visibilità di prima", () => {
-  for (const status of ["draft", "registrations_open", "registrations_closed", "published"]) {
+test("payload: planned resta planned, registrations_open resta, bozza resta bozza", () => {
+  const planned = buildWizardPayload(values(), savedEvent({ status: "planned", isPublic: true, isVisible: true }), ALL, VERSIONS);
+  assert.equal(planned.status, "planned");
+  assert.equal(planned.isPublic, true);
+  assert.equal(planned.isVisible, true);
+
+  const open = buildWizardPayload(values(), savedEvent({ status: "registrations_open", isPublic: true, isVisible: true }), ALL, VERSIONS);
+  assert.equal(open.status, "registrations_open");
+  assert.equal(open.isPublic, true);
+  assert.equal(open.isVisible, true);
+
+  for (const saved of [null, savedEvent({ status: "draft", isPublic: false })]) {
+    const draft = buildWizardPayload(values(), saved, ALL, VERSIONS);
+    assert.equal(draft.status, "draft");
+    assert.equal(draft.isPublic, false);
+  }
+});
+
+test("payload: altre pubbliche non annullate tornano registrations_open, con la visibilità di prima", () => {
+  for (const status of ["registrations_closed", "published"]) {
     const p = buildWizardPayload(values(), savedEvent({ status, isPublic: true, isVisible: true }), ALL, VERSIONS);
     assert.equal(p.status, "registrations_open", status);
     assert.equal(p.isPublic, true);
@@ -498,6 +525,11 @@ test("riepilogo: pubblicata, il riepilogo è fatto con etichetta «Pubblicata»"
   assert.equal(review.label, COPY.index.published);
 });
 
+test("riepilogo: planned, lo step review resta da fare", () => {
+  const review = getStepSummaries(publishable({ isPublic: true, status: "planned" }), NOW).find(x => x.step === "review");
+  assert.equal(review.state, "todo");
+});
+
 // ---------- isStepDirty ----------
 
 test("isStepDirty guarda solo i campi dello step", () => {
@@ -574,4 +606,42 @@ test("andata e ritorno: valori iniziali di un'attività salvata ricostruiscono l
   assert.equal(p.roomsInfo, "Stanza 1");
   assert.equal(p.maxParticipants, 12);
   assert.equal(p.overnight, true);
+});
+
+// ---------- timeToBeDefined ----------
+
+test("valori iniziali: timeToBeDefined arriva dall'attività salvata", () => {
+  assert.equal(getInitialWizardValues(null, null).timeToBeDefined, false);
+  assert.equal(getInitialWizardValues(savedEvent(), null).timeToBeDefined, false);
+  assert.equal(getInitialWizardValues(savedEvent({ timeToBeDefined: true }), null).timeToBeDefined, true);
+  assert.equal(getInitialWizardValues(savedEvent({ timeToBeDefined: false }), null).timeToBeDefined, false);
+});
+
+test("payload: timeToBeDefined resta true se la fine è 23:59, diventa false con un'altra ora", () => {
+  const defined = buildWizardPayload(values({ timeToBeDefined: true, endDate: "2027-01-23T23:59" }), null, ALL, VERSIONS);
+  assert.equal(defined.timeToBeDefined, true);
+  const other = buildWizardPayload(values({ timeToBeDefined: true, endDate: "2027-01-23T23:00" }), null, ALL, VERSIONS);
+  assert.equal(other.timeToBeDefined, false);
+  const off = buildWizardPayload(values({ timeToBeDefined: false, endDate: "2027-01-23T23:59" }), null, ALL, VERSIONS);
+  assert.equal(off.timeToBeDefined, false);
+});
+
+test("payload: timeToBeDefined non si tocca se lo step when non è in fromSteps", () => {
+  const announced = savedEvent({
+    timeToBeDefined: true,
+    startDate: iso("2027-01-23T00:00"),
+    endDate: iso("2027-01-23T23:59"),
+    status: "planned",
+    isPublic: true,
+    isVisible: true,
+  });
+  const dirtyWhen = values({ timeToBeDefined: false, startDate: "2027-01-23T19:00", endDate: "2027-01-23T22:00" });
+  const p = buildWizardPayload(dirtyWhen, announced, new Set(["poster"]), VERSIONS);
+  assert.equal(p.timeToBeDefined, true);
+  assert.equal(p.startDate, announced.startDate);
+  assert.equal(p.endDate, announced.endDate);
+
+  const timed = savedEvent({ timeToBeDefined: false, endDate: iso("2027-01-23T23:00") });
+  const keepFalse = buildWizardPayload(values({ timeToBeDefined: true, endDate: "2027-01-23T23:59" }), timed, new Set(["what"]), VERSIONS);
+  assert.equal(keepFalse.timeToBeDefined, false);
 });

@@ -31,6 +31,9 @@
 //   è lo stato, non il payload.
 // - annullamento del titolare: updateDoc(reg, { registrationStatus: "cancelled",
 //   updatedAt }) (parentCancelRulesEmulator).
+// - «Elimina» della rapida (deleteAnnouncedEvent): getDocs di formFields e
+//   registrations, poi transazione get attività + delete dei formFields, di
+//   config/form e dell'attività, solo se ancora planned e stessa revisione.
 //
 // Nota del progetto: il rifiuto di una create iscrizione su una bozza arrivava
 // come «maximum of 1000 expressions» invece di false della rule. expectDenied
@@ -266,6 +269,36 @@ function reopenEvent(db, activityId) {
     const nextStatus = current.statusBeforeCancel || (current.isPublic ? "registrations_open" : "draft");
     transaction.update(ref, { status: nextStatus, updatedAt: nowIso() });
   });
+}
+
+/**
+ * «Elimina» della rapida, come eventsService.deleteAnnouncedEvent: legge
+ * formFields e registrations, poi in transazione cancella i campi, config/form
+ * e l'attività se è ancora planned con la revisione vista.
+ */
+async function deleteAnnounced(db, activityId, expectedUpdatedAt) {
+  const reference = activityRef(db, activityId);
+  const [fields, registrations] = await Promise.all([
+    getDocs(collection(reference, "formFields")),
+    getDocs(collection(reference, "registrations")),
+  ]);
+  if (!registrations.empty) throw new Error("Nel frattempo è cambiata: aprila dalla scheda.");
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists()) return;
+    const data = snapshot.data();
+    if (data.status !== "planned" || data.updatedAt !== expectedUpdatedAt) {
+      throw new Error("Nel frattempo è cambiata: aprila dalla scheda.");
+    }
+    for (const field of fields.docs) transaction.delete(field.ref);
+    transaction.delete(doc(reference, "config", "form"));
+    transaction.delete(reference);
+  });
+}
+
+async function formFieldMap(activityId) {
+  const snapshot = await adminDb.collection(`${activityPath(activityId)}/formFields`).get();
+  return Object.fromEntries(snapshot.docs.map((item) => [item.id, item.data()]));
 }
 
 const catalogIds = async (db) =>
@@ -591,5 +624,39 @@ describe("Annunciata: le rules esistenti reggono il contratto", () => {
     assert.equal((await adminDb.doc(fx.regPath("con-iscritto", newUser)).get()).exists, false);
     assert.equal((await adminDb.doc(fx.regPath("con-iscritto", registrationId.guest())).get()).exists, false);
     assert.equal((await adminDb.doc(fx.regPath("con-iscritto", registrationId.child())).get()).exists, false);
+  });
+
+  test("8. Elimina della rapida: ammessa all'admin del palo; negata a partecipante e admin di un altro palo", async () => {
+    await createAnnounced(fs("admin"), "elimina-ok", uid("admin"));
+    const created = await stored(activityPath("elimina-ok"));
+    await deleteAnnounced(fs("admin"), "elimina-ok", created.updatedAt);
+    assert.equal((await adminDb.doc(activityPath("elimina-ok")).get()).exists, false);
+    assert.equal((await adminDb.doc(formPath("elimina-ok")).get()).exists, false);
+    assert.deepEqual(await formFieldMap("elimina-ok"), {});
+
+    await createAnnounced(fs("admin"), "elimina-utente", uid("admin"));
+    await createAnnounced(fs("admin"), "elimina-altro-palo", uid("admin"));
+    const beforeUser = await stored(activityPath("elimina-utente"));
+    const beforeUserForm = await stored(formPath("elimina-utente"));
+    const beforeUserFields = await formFieldMap("elimina-utente");
+    const beforeOther = await stored(activityPath("elimina-altro-palo"));
+    const beforeOtherForm = await stored(formPath("elimina-altro-palo"));
+    const beforeOtherFields = await formFieldMap("elimina-altro-palo");
+
+    await expectDenied(
+      () => deleteAnnounced(fs("utente"), "elimina-utente", beforeUser.updatedAt),
+      "partecipante: elimina della rapida",
+    );
+    await expectDenied(
+      () => deleteAnnounced(fs("adminAltroPalo"), "elimina-altro-palo", beforeOther.updatedAt),
+      "admin di un altro palo: elimina della rapida",
+    );
+
+    assert.deepEqual(await stored(activityPath("elimina-utente")), beforeUser);
+    assert.deepEqual(await stored(formPath("elimina-utente")), beforeUserForm);
+    assert.deepEqual(await formFieldMap("elimina-utente"), beforeUserFields);
+    assert.deepEqual(await stored(activityPath("elimina-altro-palo")), beforeOther);
+    assert.deepEqual(await stored(formPath("elimina-altro-palo")), beforeOtherForm);
+    assert.deepEqual(await formFieldMap("elimina-altro-palo"), beforeOtherFields);
   });
 });

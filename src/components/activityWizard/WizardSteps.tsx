@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode, type Ref } from "react";
 
 import { GuestRecordsToggle } from "@/components/admin/recordNight/GuestRecordsToggle";
 import { Icon, Pill } from "@/components/ui";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { ACTIVITY_TYPES, EVENT_CREATION as COPY } from "@/copy/eventCreation";
 import { fillCopy } from "@/copy/parole";
 import type { ActivityType, CustomField, Event, EventAudience, StandardFieldKey } from "@/types";
@@ -16,8 +17,8 @@ import {
   type WizardStepId,
   type WizardValues,
 } from "@/utils/activityWizard";
-import { getEventAudienceLabel } from "@/utils/events";
-import { formatDateRange } from "@/utils/formatters";
+import { getEventAudienceLabel, isAnnouncedEvent } from "@/utils/events";
+import { formatEventWhen } from "@/utils/formatters";
 import type { StandardFieldDefinition } from "@/utils/formFields";
 
 import { DateTimeField, FieldError, OptionalRow, StepHead, Switch, Switches } from "./WizardFields";
@@ -83,8 +84,13 @@ export function StepWhen({ values, set, errors, headingRef, hasDraft, onTypeSugg
   const suggestionKey = `${values.activityType}|${values.startDate}|${values.endDate}`;
   return <>
     <StepHead headingRef={headingRef} title={COPY.whenTitle} lead={COPY.whenLead} />
-    <DateTimeField id="startDate" label={COPY.start} value={values.startDate} error={errors.startDate} fallbackTime="19:00" onChange={next => set("startDate", next)} />
-    <DateTimeField id="endDate" label={COPY.end} value={values.endDate} error={errors.endDate} fallbackTime="23:00" onChange={next => set("endDate", next)} />
+    {/* Time still to be chosen (quick sheet): 00:00 and 23:59 stand for «no
+        time» and show empty; a new day keeps them, a real end time written
+        here clears the flag on save (buildWizardPayload). */}
+    <DateTimeField id="startDate" label={COPY.start} value={values.startDate} error={errors.startDate}
+      fallbackTime={values.timeToBeDefined ? "00:00" : "19:00"} hiddenTime={values.timeToBeDefined ? "00:00" : undefined} onChange={next => set("startDate", next)} />
+    <DateTimeField id="endDate" label={COPY.end} value={values.endDate} error={errors.endDate}
+      fallbackTime={values.timeToBeDefined ? "23:59" : "23:00"} hiddenTime={values.timeToBeDefined ? "23:59" : undefined} onChange={next => set("endDate", next)} />
     {suggestion && dismissed !== suggestionKey ? <div className="wz-ask" role="group" aria-labelledby={`${ids}-ask`}>
       <strong id={`${ids}-ask`}>{suggestion === "overnight" ? COPY.nextDayTitle : COPY.sameDayTitle}</strong>
       <span>{suggestion === "overnight" ? COPY.nextDayBody : COPY.sameDayBody}</span>
@@ -305,6 +311,9 @@ export function StepReview({ event, headingRef, checks, now, onEdit, questionCou
   onEdit: (step: WizardStepId) => void; questionCount: number; manage: ReactNode; returningCount: number;
 }) {
   const summaries = getStepSummaries(event, now);
+  // Announced (settimo incremento): completed step by step, then opened.
+  const announced = isAnnouncedEvent(event);
+  const managing = event.isPublic && !announced;
   const short = (iso: string) => new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" }).format(new Date(iso));
   const validIso = (iso: string) => Boolean(iso) && Number.isFinite(Date.parse(iso));
   const descriptionLength = event.description.trim().length;
@@ -313,7 +322,7 @@ export function StepReview({ event, headingRef, checks, now, onEdit, questionCou
     event.roomsInfo ? COPY.rooms : "", event.organizerNotes ? COPY.staffNotes : ""].filter(Boolean);
   const lines: Record<Exclude<WizardStepId, "review">, string> = {
     what: fillCopy(COPY.summaryWhat, { tipo: ACTIVITY_TYPES[event.activityType ?? "standard"].label, per: getEventAudienceLabel(event.audience) }),
-    when: [validIso(event.startDate) && validIso(event.endDate) ? formatDateRange(event.startDate, event.endDate) : "", event.location].filter(Boolean).join(" · "),
+    when: [validIso(event.startDate) && validIso(event.endDate) ? formatEventWhen(event, { missingTime: ANNUNCIATA.daScegliere }) : "", event.location.trim() || ANNUNCIATA.daScegliere].filter(Boolean).join(" · "),
     poster: `${event.heroImageUrl ? COPY.summaryPosterYes : COPY.summaryPosterNo} · ${descriptionLength ? fillCopy(COPY.summaryDescription, { n: String(descriptionLength) }) : COPY.summaryNoDescription}`,
     registrations: [
       validIso(event.registrationOpen) && validIso(event.registrationClose) ? fillCopy(COPY.summaryWindow, { apre: short(event.registrationOpen), chiude: short(event.registrationClose) }) : COPY.summaryNoWindow,
@@ -327,7 +336,8 @@ export function StepReview({ event, headingRef, checks, now, onEdit, questionCou
     ? `${new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long" }).format(new Date(opens))} alle ${new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(new Date(opens))}`
     : "";
   return <>
-    <StepHead headingRef={headingRef} title={event.isPublic ? COPY.steps.manage : COPY.steps.review} lead={event.isPublic ? COPY.manageLead : COPY.reviewLead} />
+    <StepHead headingRef={headingRef} title={managing ? COPY.steps.manage : announced ? COPY.reviewAnnounced : COPY.steps.review}
+      lead={managing ? COPY.manageLead : announced ? COPY.reviewAnnouncedLead : COPY.reviewLead} />
     <article className="wz-hero">
       <div className="wz-hero__poster">{event.heroImageUrl ? <img src={event.heroImageUrl} alt="" /> : <Icon name="sparkles" />}</div>
       <div><h4>{event.title}</h4>
@@ -346,22 +356,25 @@ export function StepReview({ event, headingRef, checks, now, onEdit, questionCou
         </li>;
       })}
     </ul>
-    {!event.isPublic && checks.length ? <div className="wz-issues" role="status">
-      <strong>{COPY.missing}</strong>
+    {!managing && checks.length ? <div className="wz-issues" role="status">
+      <strong>{announced ? ANNUNCIATA.daCompletareTitolo : COPY.missing}</strong>
       <ul>{checks.map(check => <li key={check.message}>
         <button type="button" className="wz-issues__link" onClick={() => onEdit(check.step)}>
           <span>{check.message}</span><small>{`${stepNumber(check.step)} · ${COPY.steps[check.step]}`}</small>
         </button>
       </li>)}</ul>
     </div> : null}
-    {!event.isPublic && !checks.length ? <p className="wz-effect">{openWhen ? fillCopy(COPY.publishEffect, { apertura: openWhen }) : COPY.publishEffectOpen}</p> : null}
+    {!managing && !checks.length ? <p className="wz-effect">{announced
+      ? openWhen ? fillCopy(COPY.reviewAnnouncedEffectLater, { apertura: openWhen }) : ANNUNCIATA.apriIscrizioniEffetto
+      : openWhen ? fillCopy(COPY.publishEffect, { apertura: openWhen }) : COPY.publishEffectOpen}</p> : null}
     {!event.isPublic && returningCount > 0 ? <p className="wz-notice">{returningCount === 1 ? COPY.returningRegistrationsOne : fillCopy(COPY.returningRegistrations, { n: String(returningCount) })}</p> : null}
     {manage}
   </>;
 }
 
-export function StepIndexList({ summaries, current, hasDraft, onPick }: {
+export function StepIndexList({ summaries, current, hasDraft, onPick, labelOf = step => COPY.steps[step] }: {
   summaries: ReturnType<typeof getStepSummaries>; current: WizardStepId; hasDraft: boolean; onPick: (step: WizardStepId) => void;
+  labelOf?: (step: WizardStepId) => string;
 }) {
   return <ol className="wz-plist">
     {summaries.map(item => {
@@ -372,7 +385,7 @@ export function StepIndexList({ summaries, current, hasDraft, onPick }: {
           <span className={item.state === "done" && !now ? "wz-pitem__n wz-pitem__n--done" : "wz-pitem__n"} aria-hidden="true">
             {item.state === "done" && !now ? <Icon name="check" /> : stepNumber(item.step)}
           </span>
-          <strong>{COPY.steps[item.step]}</strong>
+          <strong>{labelOf(item.step)}</strong>
           {item.label ? <Pill tone={item.state === "done" ? "success" : item.state === "todo" ? "warning" : "neutral"}>{item.label}</Pill> : null}
         </button>
       </li>;

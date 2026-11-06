@@ -173,6 +173,10 @@ export const EVENT_CREATION = {
   // 6 · Controlla e pubblica / Gestisci
   reviewLead: "Controlla ogni parte prima di pubblicare.",
   manageLead: "Ogni modifica si salva subito e resta pubblicata.",
+  // Passo 6 di un'attività annunciata (settimo incremento): si apre, non si pubblica.
+  reviewAnnounced: "Controlla e apri",
+  reviewAnnouncedLead: "Controlla ogni parte prima di aprire le iscrizioni.",
+  reviewAnnouncedEffectLater: "Ragazzi e famiglie potranno iscriversi da {apertura}.",
   edit: "Modifica",
   summaryWhat: "{tipo} · {per}",
   summaryPosterYes: "Locandina caricata",
@@ -254,6 +258,8 @@ export const EVENT_CREATION = {
   },
   saveError: "Impossibile salvare l'attività.",
   publishError: "Impossibile pubblicare l'attività.",
+  openRegistrationsError: "Impossibile aprire le iscrizioni.",
+  announceError: "Impossibile annunciare l'attività.",
   unpublishError: "Impossibile togliere l'attività dal catalogo.",
   loadError: "Impossibile aprire l'attività.",
   revisionConflict: "L'attività è cambiata durante la modifica. Chiudi e riapri l'attività per rivedere i dati aggiornati.",

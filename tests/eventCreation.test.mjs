@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import {
   buildEssentialDraft,
   validateEssentialDraft,
+  getAnnouncementIssues,
   getPublicationIssues,
 } from "../src/utils/eventCreation.ts";
+import { ANNUNCIATA } from "../src/copy/annunciata.ts";
+import { EVENT_CREATION } from "../src/copy/eventCreation.ts";
 
 // Attesi dai percorsi della spec ATTIVITA_MODULARI: creare e salvare il
 // modulo conserva una bozza privata; pubblicare richiede una scelta separata.
@@ -151,4 +154,30 @@ test("l'anteprima segnala insieme i dati rimandati nella creazione essenziale", 
     registrationClose: "",
   }));
   assert.ok(issues.length >= 2, "l'admin deve vedere sia descrizione sia finestra mancanti prima di pubblicare");
+});
+
+test("annuncio: nome e giorno bastano, luogo e descrizione vuoti vanno bene", () => {
+  assert.deepEqual(getAnnouncementIssues({
+    title: "Serata insieme",
+    startDate: "2027-01-15T00:00:00.000Z",
+    status: "draft",
+  }), []);
+  assert.deepEqual(getAnnouncementIssues({
+    title: "  Serata insieme  ",
+    startDate: "2027-01-15T18:00:00.000Z",
+    status: "planned",
+  }), []);
+});
+
+test("annuncio: senza nome o senza giorno non si annuncia", () => {
+  assert.deepEqual(getAnnouncementIssues({ title: "", startDate: "2027-01-15T00:00:00.000Z", status: "draft" }), [ANNUNCIATA.annunciaSenzaDati]);
+  assert.deepEqual(getAnnouncementIssues({ title: "  ", startDate: "2027-01-15T00:00:00.000Z", status: "draft" }), [ANNUNCIATA.annunciaSenzaDati]);
+  assert.deepEqual(getAnnouncementIssues({ title: "Serata insieme", startDate: "", status: "draft" }), [ANNUNCIATA.annunciaSenzaDati]);
+  assert.deepEqual(getAnnouncementIssues({ title: "Serata insieme", startDate: "non-una-data", status: "draft" }), [ANNUNCIATA.annunciaSenzaDati]);
+});
+
+test("annuncio: annullata o conclusa è rifiutata", () => {
+  const base = { title: "Serata insieme", startDate: "2027-01-15T00:00:00.000Z" };
+  assert.deepEqual(getAnnouncementIssues({ ...base, status: "cancelled" }), [EVENT_CREATION.cancelled]);
+  assert.deepEqual(getAnnouncementIssues({ ...base, status: "completed" }), [EVENT_CREATION.cancelled]);
 });

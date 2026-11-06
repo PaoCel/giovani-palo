@@ -22,6 +22,11 @@ export const ANNUNCIATA = {
   // Foglio rapido.
   rapidaTitolo: "Nuova attività",
   rapidaKicker: "Nel calendario",
+  rapidaTesta: "Mettila in calendario",
+  rapidaTestaTesto: "Bastano nome, tipo e data. Il resto lo aggiungi quando lo sai.",
+  dal: "Dal",
+  oraSuggerimento: "L'ora è facoltativa: senza, scriviamo «ora da definire».",
+  aggiungiInMese: "Aggiungi in {mese}",
   nome: "Nome",
   nomePlaceholder: "Es. Serata giochi",
   tipo: "Tipo",
@@ -63,6 +68,8 @@ export const ANNUNCIATA = {
   // Uscita con dati non salvati.
   uscitaTitolo: "Questa attività non è ancora nel calendario",
   uscitaTesto: "Quello che hai scritto qui non è salvato.",
+  uscitaGiroUna: "L'attività già salvata in questo giro resta nel calendario.",
+  uscitaGiro: "Le {n} attività già salvate in questo giro restano nel calendario.",
   continuaCompilare: "Continua a compilare",
   salvaEdEsci: "Salva ed esci",
   scartaCampi: "Scarta i campi",
