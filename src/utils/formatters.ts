@@ -45,8 +45,48 @@ export function formatDateRange(startDate: string, endDate: string) {
   return `${formatShortDate(startDate)} - ${formatShortDate(endDate)}`;
 }
 
-export function formatEventWindow(event: Event) {
-  return formatDateRange(event.startDate, event.endDate);
+function formatClock(date: Date) {
+  return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** 00:00 locale: con `timeToBeDefined` vuol dire «ora non ancora scelta». */
+export function isMidnight(isoDate: string) {
+  const date = new Date(isoDate);
+  return date.getHours() === 0 && date.getMinutes() === 0;
+}
+
+type WhenEvent = Pick<Event, "startDate" | "endDate"> & { timeToBeDefined?: boolean };
+
+/**
+ * L'unico formattatore di «quando» di un'attività (settimo incremento). Con
+ * `timeToBeDefined` la fine non ha ora (niente «23:59») e l'inizio si mostra
+ * solo se non è 00:00: «12 dic 2026 · dalle 19:00» o «12 dic 2026 · ora da
+ * definire»; su più giorni solo i giorni, come sempre.
+ */
+export function formatEventWhen(event: WhenEvent, options: { missingTime?: string } = {}) {
+  if (!event.timeToBeDefined) {
+    return formatDateRange(event.startDate, event.endDate);
+  }
+  const start = new Date(event.startDate);
+  const end = new Date(event.endDate || event.startDate);
+  if (start.toDateString() !== end.toDateString()) {
+    return `${formatShortDate(event.startDate)} - ${formatShortDate(event.endDate)}`;
+  }
+  const time = isMidnight(event.startDate)
+    ? options.missingTime ?? "ora da definire"
+    : `dalle ${formatClock(start)}`;
+  return `${formatShortDate(event.startDate)} • ${time}`;
+}
+
+/** Inizio di un'attività con l'ora, o solo il giorno se l'ora non è scelta. */
+export function formatEventStart(event: Pick<Event, "startDate"> & { timeToBeDefined?: boolean }) {
+  return event.timeToBeDefined && isMidnight(event.startDate)
+    ? formatShortDate(event.startDate)
+    : formatDateTime(event.startDate);
+}
+
+export function formatEventWindow(event: WhenEvent) {
+  return formatEventWhen(event);
 }
 
 export function toDatetimeLocalValue(isoDate?: string | null) {

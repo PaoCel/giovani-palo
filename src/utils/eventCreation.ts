@@ -1,6 +1,7 @@
 import type { ActivityType, Event, EventWriteInput } from "../types/models.ts";
 import { eventSpansMultipleCalendarDays } from "./events.ts";
 import { fromDatetimeLocalValue } from "./formatters.ts";
+import { ANNUNCIATA } from "../copy/annunciata.ts";
 import { EVENT_CREATION } from "../copy/eventCreation.ts";
 
 type RequirementChanges = Partial<Pick<EventWriteInput,
@@ -78,6 +79,19 @@ export function getPublicationIssues(event: PublicationEvent): string[] {
   if (!event.description.trim()) issues.push("Aggiungi una descrizione per chi legge l'attività.");
   if (!validDate(event.registrationOpen) || !validDate(event.registrationClose)) issues.push("Scegli apertura e chiusura delle iscrizioni.");
   else if (Date.parse(event.registrationClose) < Date.parse(event.registrationOpen)) issues.push("La chiusura iscrizioni deve essere successiva all'apertura.");
+  if (event.status === "cancelled" || event.status === "completed") issues.push("Un'attività annullata o conclusa non può essere pubblicata da questo percorso.");
+  return issues;
+}
+
+type AnnouncementEvent = Pick<Event, "title" | "startDate" | "status">;
+
+/**
+ * «Annuncia» (settimo incremento): bastano nome e giorno. Il resto (luogo,
+ * descrizione, finestra d'iscrizione) serve solo per aprire le iscrizioni.
+ */
+export function getAnnouncementIssues(event: AnnouncementEvent): string[] {
+  const issues: string[] = [];
+  if (!event.title.trim() || !validDate(event.startDate)) issues.push(ANNUNCIATA.annunciaSenzaDati);
   if (event.status === "cancelled" || event.status === "completed") issues.push("Un'attività annullata o conclusa non può essere pubblicata da questo percorso.");
   return issues;
 }

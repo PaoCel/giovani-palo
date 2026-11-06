@@ -305,6 +305,12 @@ export interface Event {
   status: EventStatus;
   isPublic: boolean;
   isVisible: boolean;
+  // Settimo incremento (docs/ATTIVITA_MODULARI.md): ora non ancora decisa.
+  // startDate alle 00:00, endDate alle 23:59; la fine non si mostra mai,
+  // l'inizio solo se diverso da 00:00. Assente sulle attività di prima = false.
+  timeToBeDefined?: boolean;
+  // Scritto da «Annulla attività», riletto da «Riapri».
+  statusBeforeCancel?: EventStatus | null;
   allowGuestRegistration: boolean;
   requireLoginForEdit: boolean;
   registrationOpen: string;
@@ -505,6 +511,8 @@ export interface EventWriteInput {
   status: EventStatus;
   isPublic: boolean;
   isVisible?: boolean;
+  // Assente = il salvataggio non tocca il valore già scritto.
+  timeToBeDefined?: boolean;
   registrationOpen: string;
   registrationClose: string;
   registrationOpenAt?: string;

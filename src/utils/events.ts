@@ -78,8 +78,8 @@ export function getEventStatusTone(status: Event["status"]): EventTone {
     case "registrations_open":
       return "success";
     case "confirmed":
-      return "info";
     case "planned":
+      return "info";
     case "draft":
       return "warning";
     case "cancelled":
@@ -92,7 +92,7 @@ export function getEventStatusTone(status: Event["status"]): EventTone {
 export function getEventStatusLabel(status: Event["status"]) {
   switch (status) {
     case "planned":
-      return "In programma";
+      return "Annunciata";
     case "confirmed":
       return "Confermata";
     case "registrations_open":
@@ -108,15 +108,29 @@ export function getEventStatusLabel(status: Event["status"]) {
   }
 }
 
+/**
+ * Annunciata (docs/ATTIVITA_MODULARI.md, «Settimo incremento»): la vedono
+ * tutti, nessuno può iscriversi. Le rules la trattano come ogni pubblica non
+ * aperta: `activityAcceptsRegistrations` vuole `registrations_open`.
+ */
+export function isAnnouncedEvent(event: Pick<Event, "status" | "isPublic">) {
+  return event.status === "planned" && event.isPublic;
+}
+
 export function getEffectiveEventStatus(
   event: Pick<Event, "status" | "isPublic" | "registrationOpen" | "registrationClose">,
-): Extract<Event["status"], "draft" | "registrations_open" | "registrations_closed" | "cancelled"> {
+): Extract<Event["status"], "draft" | "planned" | "registrations_open" | "registrations_closed" | "cancelled"> {
   if (event.status === "cancelled") {
     return "cancelled";
   }
 
   if (!event.isPublic || event.status === "draft") {
     return "draft";
+  }
+
+  // Annunciata: le date d'iscrizione sono provvisorie, non la aprono.
+  if (event.status === "planned") {
+    return "planned";
   }
 
   const now = Date.now();
@@ -144,6 +158,11 @@ export function getRegistrationAvailability(
 
   if (event.status === "cancelled" || event.status === "completed") {
     return "closed";
+  }
+
+  // Annunciata: «Iscrizioni a breve» qualunque cosa dicano le date provvisorie.
+  if (event.status === "planned") {
+    return "not-open-yet";
   }
 
   if (event.status !== "registrations_open") {

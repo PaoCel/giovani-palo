@@ -43,6 +43,8 @@ export interface WizardValues {
   startDate: string;
   endDate: string;
   location: string;
+  /** Ora non ancora scelta (rapida): le ore 00:00/23:59 si mostrano vuote. */
+  timeToBeDefined: boolean;
   // 3 · Locandina e descrizione
   heroImageUrl: string;
   heroImagePath: string;
@@ -74,7 +76,7 @@ export interface WizardValues {
 
 export const STEP_FIELDS: Record<WizardStepId, readonly (keyof WizardValues)[]> = {
   what: ["title", "activityType", "audience"],
-  when: ["startDate", "endDate", "location"],
+  when: ["startDate", "endDate", "location", "timeToBeDefined"],
   poster: ["heroImageUrl", "heroImagePath", "description"],
   registrations: [
     "registrationOpen", "registrationClose", "maxParticipants", "requiresAccount", "allowGuestRegistration",
@@ -113,6 +115,7 @@ export function getInitialWizardValues(event: Event | null, config: EventFormCon
     startDate: localValue(event?.startDate),
     endDate: localValue(event?.endDate),
     location: event?.location ?? "",
+    timeToBeDefined: event?.timeToBeDefined === true,
     heroImageUrl: event?.heroImageUrl ?? "",
     heroImagePath: event?.heroImagePath ?? "",
     description: event?.description ?? "",
@@ -152,6 +155,19 @@ export type FieldErrors = Partial<Record<keyof WizardValues | "recordsGuestRevie
 export interface StepValidationContext {
   /** Record senza account accesi ora: serve la spunta «Ho controllato i titoli». */
   guestReviewMissing?: boolean;
+  /**
+   * L'attività esiste già (rapida): il luogo serve solo per aprire le
+   * iscrizioni e sta nella lista «Da completare», non blocca Avanti.
+   */
+  locationOptional?: boolean;
+}
+
+/**
+ * Fine «senza ora» della rapida: 23:59. Il passo 2 salvato con un'ora di fine
+ * vera toglie `timeToBeDefined` (l'ora d'inizio da sola dice «dalle 19:00»).
+ */
+export function isOpenEndTime(localValue: string) {
+  return splitLocalDateTime(localValue).time === "23:59";
 }
 
 /** Errori dei campi di uno step: vuoto vuol dire che lo step si può salvare. */
@@ -164,7 +180,7 @@ export function validateWizardStep(step: WizardStepId, values: WizardValues, con
     if (!validDate(values.startDate)) errors.startDate = COPY.errors.start;
     if (!validDate(values.endDate)) errors.endDate = COPY.errors.end;
     else if (validDate(values.startDate) && Date.parse(values.endDate) < Date.parse(values.startDate)) errors.endDate = COPY.errors.endBeforeStart;
-    if (!values.location.trim()) errors.location = COPY.errors.location;
+    if (!values.location.trim() && !context.locationOptional) errors.location = COPY.errors.location;
   }
   if (step === "registrations") {
     if (values.registrationOpen && !validDate(values.registrationOpen)) errors.registrationOpen = COPY.errors.date;
@@ -191,6 +207,9 @@ function statusAfterSave(saved: Event | null): Pick<EventWriteInput, "status" | 
     return { status, isPublic: false, isVisible: saved?.isVisible ?? false };
   }
   if (saved.status === "cancelled" || saved.status === "completed") return { status: saved.status, isPublic: true, isVisible: saved.isVisible };
+  // Annunciata (settimo incremento): every step saved keeps it announced;
+  // only «Apri le iscrizioni» (publishEvent) opens registrations.
+  if (saved.status === "planned") return { status: "planned", isPublic: true, isVisible: saved.isVisible };
   // The existing rules accept registrations only with registrations_open,
   // also for a future publication: dates gate availability in the client.
   return { status: "registrations_open", isPublic: true, isVisible: saved.isVisible };
@@ -234,6 +253,7 @@ export function buildWizardPayload(values: WizardValues, saved: Event | null, fr
     startDate: iso(startDate),
     endDate: iso(endDate),
     location: pick("location").trim(),
+    timeToBeDefined: pick("timeToBeDefined") && isOpenEndTime(endDate),
     program: pick("program").trim(),
     publicNotes: saved?.publicNotes ?? "",
     organizerNotes: pick("organizerNotes").trim(),
@@ -377,7 +397,10 @@ export function getStepSummaries(event: Event | null, now = Date.now()): StepSum
       if (stepNeedsDraft(step)) return { step, state: "locked", label: COPY.index.locked };
       return { step, state: "todo", label: COPY.index.todo };
     }
-    if (step === "review") return { step, state: event.isPublic ? "done" : "todo", label: event.isPublic ? COPY.index.published : "" };
+    if (step === "review") {
+      const open = event.isPublic && event.status !== "planned";
+      return { step, state: open ? "done" : "todo", label: open ? COPY.index.published : "" };
+    }
     if (step === "participants") {
       const filled = Boolean(event.program || event.whatToBring || event.menuInfo || event.allergiesInfo || event.roomsInfo
         || event.organizerNotes || event.questionsEnabled || event.recordsEnabled);
