@@ -989,6 +989,11 @@ export function AdminEventDetailPage() {
   const resolvedEvent = event;
   const resolvedEventId = eventId;
   const effectiveStatus = getEffectiveEventStatus(resolvedEvent);
+  // Annunciata (settimo incremento): what is missing to open registrations.
+  const announced = isAnnouncedEvent(resolvedEvent);
+  const publicationChecks = getPublicationChecklist(resolvedEvent);
+  const draftActive = !resolvedEvent.isPublic && resolvedEvent.status !== "cancelled" && resolvedEvent.status !== "completed";
+  const canAnnounce = draftActive && getAnnouncementIssues(resolvedEvent).length === 0;
   const currentCount = activeRegistrations.length;
   const authenticatedCount = activeRegistrations.filter(
     (registration) => registration.submittedByMode === "authenticated",
@@ -2675,15 +2680,27 @@ export function AdminEventDetailPage() {
                     Modifica
                   </Button>
                   {/* Su un'attività già pubblica il tasto non ha niente da fare:
-                      al suo posto c'è Condividi. */}
-                  {!resolvedEvent.isPublic ? (
+                      al suo posto c'è Condividi. Un'annunciata ha il riquadro
+                      «Da completare» sotto la testata; una bozza si annuncia o,
+                      se completa, apre le iscrizioni (la conferma è al passo 6). */}
+                  {canAnnounce ? (
+                    <Button
+                      disabled={busy !== null}
+                      icon="megaphone"
+                      onClick={() => showConfirm({ kind: "announce" })}
+                      variant="secondary"
+                    >
+                      {ANNUNCIATA.annuncia}
+                    </Button>
+                  ) : null}
+                  {!resolvedEvent.isPublic && (!draftActive || publicationChecks.length === 0) ? (
                     <Button
                       disabled={busy === "delete"}
                       icon="globe"
                       onClick={() => void handlePublish()}
                       variant="secondary"
                     >
-                      Rendi pubblica
+                      {draftActive ? ANNUNCIATA.apriIscrizioni : "Rendi pubblica"}
                     </Button>
                   ) : null}
                 </>
@@ -2692,7 +2709,7 @@ export function AdminEventDetailPage() {
                 <ShareButton
                   className="admin-event-hero__icon-button"
                   iconOnly
-                  text="Guarda questa attività e apri l'iscrizione."
+                  text={announced ? ANNUNCIATA.condividi : "Guarda questa attività e apri l'iscrizione."}
                   title={resolvedEvent.title}
                   url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
                 />
@@ -2717,16 +2734,12 @@ export function AdminEventDetailPage() {
             <>
               <span className="admin-event-hero__meta">
                 <Icon name="calendar" />
-                <span>
-                  {formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}
-                </span>
+                <span>{formatEventWhen(resolvedEvent)}</span>
               </span>
-              {resolvedEvent.location ? (
-                <span className="admin-event-hero__meta">
-                  <Icon name="map-pin" />
-                  <span>{resolvedEvent.location}</span>
-                </span>
-              ) : null}
+              <span className="admin-event-hero__meta">
+                <Icon name="map-pin" />
+                <span>{resolvedEvent.location.trim() || ANNUNCIATA.luogoDaDefinire}</span>
+              </span>
             </>
           }
           eyebrow={
@@ -2751,6 +2764,49 @@ export function AdminEventDetailPage() {
           title={resolvedEvent.title}
         />
       </section>
+
+      {announced && !isCampManagerOnly ? (
+        // Al posto di «Rendi pubblica»: ogni voce apre il suo passo, il tasto
+        // il primo da completare; a lista vuota porta al passo 6, dove sta
+        // l'unica conferma di «Apri le iscrizioni».
+        <section aria-labelledby="announce-todo-title" className="surface-panel surface-panel--subtle announce-todo">
+          <h3 id="announce-todo-title">{ANNUNCIATA.daCompletareTitolo}</h3>
+          {publicationChecks.length ? (
+            <ul>
+              {publicationChecks.map((check) => (
+                <li key={check.message}>
+                  <button className="announce-todo__item" onClick={() => openEditor(check.step)} type="button">
+                    <i aria-hidden="true" className="announce-todo__dot" />
+                    <span>
+                      {check.message}
+                      <small>{`${stepNumber(check.step)} · ${EVENT_CREATION.steps[check.step]}`}</small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="announce-todo__actions">
+            <Button
+              disabled={busy !== null}
+              onClick={() => {
+                setActionInfo(null);
+                openEditor(publicationChecks.length ? "firstTodo" : "preview");
+              }}
+            >
+              {publicationChecks.length ? ANNUNCIATA.completaDettagli : ANNUNCIATA.apriIscrizioni}
+            </Button>
+            <Button
+              disabled={busy !== null}
+              onClick={() => showConfirm({ kind: "unpublish" })}
+              variant="ghost"
+            >
+              {EVENT_CREATION.unpublish}
+            </Button>
+          </div>
+          <p>{ANNUNCIATA.passiAvviso}</p>
+        </section>
+      ) : null}
 
       {!isCampManagerOnly ? (
         // Ogni scheda è una rotta: è una navigazione (aria-current), non un
@@ -2790,16 +2846,11 @@ export function AdminEventDetailPage() {
               </div>
               <div>
                 <dt>Quando</dt>
-                <dd>
-                  {formatDateRange(
-                    resolvedEvent.startDate,
-                    resolvedEvent.endDate,
-                  )}
-                </dd>
+                <dd>{formatEventWhen(resolvedEvent)}</dd>
               </div>
               <div>
                 <dt>Luogo</dt>
-                <dd>{resolvedEvent.location || "-"}</dd>
+                <dd>{resolvedEvent.location.trim() || ANNUNCIATA.luogoDaDefinire}</dd>
               </div>
               <div>
                 <dt>Apertura iscrizioni</dt>
@@ -4949,9 +5000,10 @@ export function AdminEventDetailPage() {
           sessionUid={session.firebaseUser.uid}
           stakeId={stakeId}
           onClose={() => setEditModalOpen(false)}
-          onCompleted={() => {
+          onCompleted={(_eventId, notice) => {
             setRefreshKey((current) => current + 1);
             setEditModalOpen(false);
+            if (notice) setActionInfo(notice);
           }}
         />
       ) : null}
