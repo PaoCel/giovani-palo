@@ -55,9 +55,9 @@ function ActivityRow({ summary }: { summary: UnitActivitySummary }) {
     <li>
       <Link className="unit-home-row" to={`/unit/activities/${summary.eventId}`}>
         <span className="unit-home-row__info">
-          {summary.eventStatus === "planned" ? <Pill dot tone="info">{ANNUNCIATA.statoStaff}</Pill> : null}
           <strong className="unit-home-row__title">{summary.eventTitle}</strong>
           <span className="unit-home-row__date">{formatDate(summary.eventStartDate)}</span>
+          {summary.eventStatus === "planned" ? <Pill dot tone="info">{ANNUNCIATA.statoStaff}</Pill> : null}
         </span>
         <span className="unit-home-row__stats">
           {shown.map((stat) => (

@@ -1640,6 +1640,7 @@ export function ActivityRegisterPage() {
         <section className="flow-step">
           <EmptyState
             title={ANNUNCIATA.registerChiuso}
+            description={ANNUNCIATA.schedaRiquadroTesto}
             action={
               <Link
                 className="button button--primary"
