@@ -2686,7 +2686,7 @@ export function AdminEventDetailPage() {
                   {canAnnounce ? (
                     <Button
                       disabled={busy !== null}
-                      icon="megaphone"
+                      icon="eye"
                       onClick={() => showConfirm({ kind: "announce" })}
                       variant="secondary"
                     >

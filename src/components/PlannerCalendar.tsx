@@ -3,10 +3,12 @@ import { useMemo, useState, type ReactNode } from "react";
 import { AppModal } from "@/components/AppModal";
 import { EmptyState, Icon, Pill } from "@/components/ui";
 import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { fillCopy } from "@/copy/parole";
 import type { Event } from "@/types";
 import { getMonthAriaLabel } from "@/utils/adminLists";
-import { capitalize, formatDateRange } from "@/utils/formatters";
+import { getEffectiveEventStatus, getEventStatusLabel } from "@/utils/events";
+import { capitalize, formatEventWhen } from "@/utils/formatters";
 import "@/styles/plannerCalendar.css";
 
 interface PlannerCalendarProps {
@@ -15,6 +17,17 @@ interface PlannerCalendarProps {
   organizationName?: string | null;
   onEventSelect: (event: Event) => void;
   toolbarAction?: ReactNode;
+  /** Admin calendar: announced activities filled, drafts dashed. */
+  adminMarks?: boolean;
+  /** Admin calendar: «Aggiungi in <mese>» in the month window. */
+  onAddInMonth?: (year: number, monthIndex: number) => void;
+}
+
+// Sign of the admin status pill on the calendar (docs/ATTIVITA_MODULARI.md,
+// «Resa con dati mancanti»): announced filled, drafts dashed.
+function getAdminMark(event: Event) {
+  const status = getEffectiveEventStatus(event);
+  return status === "planned" || status === "draft" ? status : null;
 }
 
 function getMonthStart(year: number, monthIndex: number) {
@@ -60,6 +73,8 @@ export function PlannerCalendar({
   organizationName,
   onEventSelect,
   toolbarAction,
+  adminMarks = false,
+  onAddInMonth,
 }: PlannerCalendarProps) {
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -157,12 +172,18 @@ export function PlannerCalendar({
                   <span className="cal-month__events" aria-hidden="true">
                     {count > 0 ? (
                       <>
-                        {month.events.slice(0, MONTH_PREVIEW).map((event) => (
-                          <span key={`${month.monthLabel}-${event.id}`} className="cal-month__event">
-                            <span className="cal-day">{getPlannerEventLabel(event)}</span>
-                            <span className="cal-month__title">{event.title}</span>
-                          </span>
-                        ))}
+                        {month.events.slice(0, MONTH_PREVIEW).map((event) => {
+                          const mark = adminMarks ? getAdminMark(event) : null;
+                          return (
+                            <span key={`${month.monthLabel}-${event.id}`} className={mark ? `cal-month__event cal-month__event--${mark}` : "cal-month__event"}>
+                              <span className="cal-day">{getPlannerEventLabel(event)}</span>
+                              <span className="cal-month__title">
+                                {event.title}
+                                {mark ? <span className="cal-mark"> · {getEventStatusLabel(mark)}</span> : null}
+                              </span>
+                            </span>
+                          );
+                        })}
                         {count > MONTH_PREVIEW ? (
                           <span className="cal-month__more">
                             {fillCopy(COPY.altreAttivita, { n: String(count - MONTH_PREVIEW) })}
@@ -182,6 +203,20 @@ export function PlannerCalendar({
 
       {selectedMonth ? (
         <AppModal
+          footer={onAddInMonth ? (
+            <button
+              className="ui-button ui-button--primary"
+              onClick={() => {
+                const monthIndex = selectedMonth.index;
+                setSelectedMonthIndex(null);
+                onAddInMonth(year, monthIndex);
+              }}
+              type="button"
+            >
+              <Icon name="plus" />
+              {fillCopy(ANNUNCIATA.aggiungiInMese, { mese: selectedMonth.monthLabel.toLocaleLowerCase("it-IT") })}
+            </button>
+          ) : undefined}
           onClose={() => setSelectedMonthIndex(null)}
           size="wide"
           subtitle={COPY.attivitaDelMese}
@@ -196,7 +231,9 @@ export function PlannerCalendar({
             />
           ) : (
             <ul className="cal-list">
-              {selectedMonth.events.map((event) => (
+              {selectedMonth.events.map((event) => {
+                const mark = adminMarks ? getAdminMark(event) : null;
+                return (
                 <li key={event.id}>
                   <button
                     className="cal-list__row"
@@ -206,16 +243,18 @@ export function PlannerCalendar({
                     }}
                     type="button"
                   >
-                    <span className="cal-day cal-day--lg">{getPlannerEventLabel(event)}</span>
+                    <span className={mark ? `cal-day cal-day--lg cal-day--${mark}` : "cal-day cal-day--lg"}>{getPlannerEventLabel(event)}</span>
                     <span className="cal-list__content">
                       <strong>{event.title}</strong>
-                      <span>{formatDateRange(event.startDate, event.endDate)}</span>
+                      {mark ? <span className="cal-list__mark">{getEventStatusLabel(mark)}</span> : null}
+                      <span>{formatEventWhen(event)}</span>
                       <span>{event.location || COPY.luogoDaDefinire}</span>
                     </span>
                     <Icon name="arrow-right" className="cal-list__arrow" />
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </AppModal>

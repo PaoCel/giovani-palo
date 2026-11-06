@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { PlannerCalendar } from "@/components/PlannerCalendar";
+import { QuickActivitySheet } from "@/components/activityWizard/QuickActivitySheet";
 import { Button, Notice } from "@/components/ui";
 import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -22,12 +22,20 @@ const initialData: CalendarData = {
   events: [],
 };
 
+// First day of the month, or today in the current month (AAAA-MM-GG).
+function getMonthQuickDate(year: number, monthIndex: number, now = new Date()) {
+  const current = now.getFullYear() === year && now.getMonth() === monthIndex;
+  const day = current ? now.getDate() : 1;
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function AdminCalendarPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
   const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const [refreshKey, setRefreshKey] = useState(0);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  // null = closed; "" = no day prefilled; AAAA-MM-GG from «Aggiungi in <mese>».
+  const [quickDate, setQuickDate] = useState<string | null>(null);
   const { data, loading, error } = useAsyncData(
     async () => {
       const [events, organization] = await Promise.all([
@@ -57,23 +65,25 @@ export function AdminCalendarPage() {
         events={data.events}
         loading={loading}
         onEventSelect={(event) => navigate(`/admin/events/${event.id}`)}
+        adminMarks
+        onAddInMonth={data.organization ? (year, monthIndex) => setQuickDate(getMonthQuickDate(year, monthIndex)) : undefined}
         organizationName={data.organization?.stakeName ?? "Attività GU e GD"}
         toolbarAction={
-          <Button disabled={!data.organization} icon="plus" onClick={() => setCreateModalOpen(true)}>
+          <Button disabled={!data.organization} icon="plus" onClick={() => setQuickDate("")}>
             {COPY.nuovaAttivita}
           </Button>
         }
       />}
 
-      {createModalOpen && data.organization && session ? (
-        <AdminEventEditorModal
+      {quickDate !== null && data.organization && session ? (
+        <QuickActivitySheet
+          initialDate={quickDate}
           organization={data.organization}
           sessionUid={session.firebaseUser.uid}
           stakeId={stakeId}
-          onClose={() => setCreateModalOpen(false)}
-          onCompleted={(eventId) => {
-            setRefreshKey((current) => current + 1);
-            navigate(`/admin/events/${eventId}`);
+          onClose={(changed) => {
+            setQuickDate(null);
+            if (changed) setRefreshKey((current) => current + 1);
           }}
         />
       ) : null}
