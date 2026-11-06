@@ -2,9 +2,10 @@ import { Link } from "react-router-dom";
 
 import { ActivityScene } from "@/components/activities/ActivityScene";
 import { Icon, Pill } from "@/components/ui";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import type { Event } from "@/types";
 import { getEventAudienceLabel } from "@/utils/events";
-import { formatEventWindow } from "@/utils/formatters";
+import { formatEventCardWhen } from "@/utils/eventCardWhen";
 import {
   getPublicEventState,
   getRegistrationCountdown,
@@ -26,6 +27,7 @@ export function PublicActivityCard({ event, to, status }: PublicActivityCardProp
   const pill = status ?? state;
   const countdown =
     !status && state.phase === "open" ? getRegistrationCountdown(event.registrationClose) : null;
+  const announced = state.phase === "announced";
   const finished = state.phase === "ended" || state.phase === "cancelled";
 
   return (
@@ -39,7 +41,7 @@ export function PublicActivityCard({ event, to, status }: PublicActivityCardProp
       <div className="public-card__body">
         <div className="public-card__main">
           <div className="public-pills">
-            <Pill dot tone={pill.tone}>
+            <Pill className={announced && !status ? "public-pill--soon" : undefined} dot tone={pill.tone}>
               {pill.label}
             </Pill>
             <Pill>{getEventAudienceLabel(event.audience)}</Pill>
@@ -48,12 +50,12 @@ export function PublicActivityCard({ event, to, status }: PublicActivityCardProp
           <div className="public-meta">
             <p>
               <Icon name="calendar" />
-              <span>{formatEventWindow(event)}</span>
+              <span>{formatEventCardWhen(event)}</span>
             </p>
-            {event.location.trim() ? (
+            {event.location.trim() || announced ? (
               <p>
                 <Icon name="map-pin" />
-                <span>{event.location}</span>
+                <span>{event.location.trim() || ANNUNCIATA.luogoDaDefinire}</span>
               </p>
             ) : null}
           </div>

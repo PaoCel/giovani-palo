@@ -532,3 +532,44 @@
     display: none;
   }
 }
+
+/* Attività annunciata: iscrizioni non ancora aperte (docs/ATTIVITA_MODULARI.md) */
+.ui-pill.public-pill--soon {
+  background: var(--sand-soft);
+  color: var(--on-sand-soft);
+}
+
+.public-soon {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--sand-soft);
+  color: var(--on-sand-soft);
+}
+
+.public-soon__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.public-soon__icon .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.public-soon strong {
+  display: block;
+  color: var(--heading);
+  font-size: var(--text-md);
+}
+
+.public-soon span:not(.public-soon__icon) {
+  font-size: var(--text-sm);
+}

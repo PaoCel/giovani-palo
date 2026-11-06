@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 
 import type { Event, Question } from "@/types";
-import { formatDateRange } from "@/utils/formatters";
+import { formatEventWhen } from "@/utils/formatters";
 
 interface QuestionsPdfArgs {
   event: Event;
@@ -32,7 +32,7 @@ export function downloadQuestionsPdf({ event, questions }: QuestionsPdfArgs) {
 
   doc.setFont("times", "italic");
   doc.setFontSize(13);
-  const subtitle = `${event.title} - ${formatDateRange(event.startDate, event.endDate)}${event.location ? ` - ${event.location}` : ""}`;
+  const subtitle = `${event.title} - ${formatEventWhen(event)}${event.location ? ` - ${event.location}` : ""}`;
   const subtitleLines = doc.splitTextToSize(subtitle, contentWidth);
   doc.text(subtitleLines, marginX, y);
   y += subtitleLines.length * 7 + 6;

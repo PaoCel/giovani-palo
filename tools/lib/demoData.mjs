@@ -373,9 +373,66 @@ export function buildDemoDataset({ today, parentEmail, appUrl, stakeId = DEMO_ST
     registrationClose: at(60, 22),
     maxParticipants: 60,
   };
+  // Annunciate (settimo incremento, docs/ATTIVITA_MODULARI.md): create in
+  // rapida, visibili a tutti con «Iscrizioni a breve», nessuna iscrizione.
+  // Ora non scelta = 00:00-23:59 ora di Roma con timeToBeDefined.
+  const rome = (offsetDays, hour, minute = 0) => {
+    const guess = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + offsetDays, hour, minute));
+    const name = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Rome", timeZoneName: "shortOffset" })
+      .formatToParts(guess).find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+    const hours = Number(name.replace("GMT", "") || 0);
+    return new Date(guess.getTime() - hours * 3_600_000).toISOString();
+  };
+  const announcedBase = {
+    ...activityBase,
+    status: "planned",
+    description: "",
+    program: "",
+    activityType: "standard",
+    overnight: false,
+    requiresAccount: false,
+    requiresParentAuthorization: false,
+    requiresEmergencyContacts: false,
+    requiresMedicalNotes: false,
+    registrationOpen: "",
+    registrationClose: "",
+    maxParticipants: null,
+    timeToBeDefined: true,
+    year: base.getUTCFullYear(),
+  };
+  const announcedGames = {
+    ...announcedBase,
+    title: "Serata giochi",
+    location: "Cappella di via Roma",
+    startDate: rome(12, 0),
+    endDate: rome(12, 23, 59),
+  };
+  const announcedPizza = {
+    ...announcedBase,
+    title: "Pizza di inizio anno",
+    location: "",
+    startDate: rome(19, 19),
+    endDate: rome(19, 23, 59),
+  };
+  const announcedTrip = {
+    ...announcedBase,
+    title: "Uscita in montagna",
+    location: "",
+    activityType: "trip",
+    overnight: true,
+    requiresAccount: true,
+    requiresParentAuthorization: true,
+    requiresEmergencyContacts: true,
+    requiresMedicalNotes: true,
+    startDate: rome(45, 0),
+    endDate: rome(46, 23, 59),
+  };
   const activities = [
     { id: "viaggio-tempio", doc: trip },
     { id: "campeggio-estivo", doc: camp },
+    { id: "serata-giochi", doc: announcedGames },
+    { id: "pizza-inizio-anno", doc: announcedPizza },
+    { id: "uscita-montagna", doc: announcedTrip },
   ];
   for (const { id, doc } of activities) {
     add(`stakes/${stakeId}/activities/${id}`, doc);

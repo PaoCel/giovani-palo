@@ -43,7 +43,7 @@ import {
 } from "@/utils/activityLinks";
 import { getParentEmailAddress, getParentEmailOutcome } from "@/utils/childChoice";
 import { canManageFamily, suggestsChildAfterOwn } from "@/utils/family";
-import { formatDateRange, formatDateTime } from "@/utils/formatters";
+import { formatDateTime, formatEventWhen } from "@/utils/formatters";
 import {
   getEventAudienceLabel,
   getRegistrationAvailability,
@@ -643,7 +643,7 @@ export function MyActivityDetailPage() {
                 <p>
                   <Icon name="calendar" />
                   <span>
-                    {formatDateRange(data.event.startDate, data.event.endDate)}
+                    {formatEventWhen(data.event)}
                   </span>
                 </p>
                 {data.event.location ? (
