@@ -16,10 +16,10 @@ blocked_by: []
 branch: task/gugd-crea-attivita-rapida
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/gugd-crea-attivita-rapida
 session: daadcc0a-9c58-489b-a07b-6d8d87c0e6a0
-stopped_at: ""
-next: ""
+stopped_at: Spec Settimo incremento (variante B) e mockup pronti; test rules e review UX in corso con Grok
+next: "Eseguire il test rules sul mini, recepire la review UX, approvazione mockup di Paolo"
 verified: ""
-links: []
+links: ["[docs/ATTIVITA_MODULARI.md#settimo-incremento-modalità-rapida-e-attività-annunciata-6-novembre]"]
 done_at:
 ---
 

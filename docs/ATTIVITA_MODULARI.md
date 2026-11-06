@@ -718,3 +718,206 @@ Differenze dal mockup rimaste: date e ore con i campi nativi del browser
 (niente «sab 23 gen 2027» scritto), titolo in più sullo step 6, «Consenso foto
 e video» spento di default sui tipi rafforzati come prima (il mockup lo
 mostra acceso). Non provati: Safari iOS, produzione.
+
+## Settimo incremento: modalità rapida e attività annunciata (6 novembre)
+
+Paolo: bisogna mettere in calendario molte attività di cui si sa solo cosa
+sono e quando; quasi tutti creeranno in rapida e completeranno dopo. Scelta
+la variante B: **un'attività creata in rapida è «annunciata»**, cioè la
+vedono ragazzi e famiglie con «Iscrizioni a breve», ma nessuno può ancora
+iscriversi. Task `gugd-crea-attivita-rapida`. Mockup in
+`.claude/mockups/crea-attivita-rapida/` (ignorato da git). Niente codice
+prima dell'approvazione dei mockup; rules provate nell'emulatore prima.
+
+### Annunciata: i dati
+
+Annunciata = `status: "planned"`, `isPublic: true`, `isVisible: true`.
+`"planned"` è già nell'enum (`EventStatus`) e `sanitizeStatus` lo lascia
+passare; oggi nessun codice lo scrive e il seed demo non lo usa.
+
+Campi nuovi sull'attività, scritti solo dall'admin del palo (le rules delle
+attività non hanno un'allowlist dei campi: `allow create, update, delete: if
+isStakeAdmin(stakeId)`, quindi nessuna rule da toccare):
+- `timeToBeDefined: boolean`. Senza ora la rapida salva `startDate` alle
+  00:00 del giorno, `endDate` alle 23:59 del giorno di fine (o dello stesso
+  giorno) e `timeToBeDefined: true`. Il passo 2 mostra le ore vuote, non
+  00:00; salvarlo con le ore scritte rimette `false`. Le functions leggono le
+  date solo per le finestre di momenti e galleria: 00:00-23:59 è la finestra
+  giusta.
+- `statusBeforeCancel`: lo scrive «Annulla attività», lo rilegge «Riapri»
+  (oggi Riapri di una pubblica scrive sempre `registrations_open`). Senza il
+  campo (attività annullate prima del rilascio) Riapri fa come oggi.
+
+Il luogo resta `location: ""` quando manca: `validateEssentialDraft` lo
+chiede oggi per la bozza del passo 2; la rapida ha un controllo suo (nome,
+tipo, data valida) e il luogo diventa obbligatorio solo per aprire le
+iscrizioni, dentro `getPublicationIssues`, come oggi.
+
+### Le rules bastano: verifica
+
+Testo in `firestore.rules` 270-312 e 1738-1744:
+- `isPublicActivityDoc` = `isPublic == true && isVisible != false && status
+  != 'draft'`: `get` dell'annunciata ammesso a tutti, anche senza account;
+  vale anche per `config/form`, `formFields`, sondaggio ospite.
+- `isPublicActivityListDoc` = `isPublic == true && isVisible == true`: la
+  query del catalogo (`listPublicEventsUncached`, due uguaglianze, indici
+  automatici) la trova.
+- `activityAcceptsRegistrations` = pubblica, visibile e `status ==
+  'registrations_open'`: ogni iscrizione nuova su un'annunciata è rifiutata
+  dal server, a prescindere dalle date. È anzi l'unico blocco server sulle
+  date: oggi una `registrations_open` con apertura nel futuro accetta
+  iscrizioni lato server (le ferma solo il client). Fuori da qui, nel backlog.
+- Modifica e annullamento di iscrizioni esistenti non guardano lo status
+  dell'attività: con un'annunciata non ne esistono, salvo quelle di prima di
+  un «Togli dal catalogo».
+- Nessun indice coinvolto, `storage.rules` non legge l'attività.
+
+Test nell'emulatore con le query esatte del client, rules invariate:
+`functions/tests/announcedActivityRulesEmulator.test.mjs` (esito sotto, in
+«Verifica delle rules»).
+
+### Chi vede, chi scrive
+
+| Chi | Annunciata | Effetto |
+| --- | --- | --- |
+| Admin del palo | crea (rapida), legge, elenca, modifica, apre le iscrizioni, toglie dal catalogo, annulla, cancella | pill «Annunciata», riquadro «Da completare per aprire le iscrizioni» |
+| Dirigente di unità del palo | legge ed elenca (regola esistente) | entra nei suoi riepiloghi (`unitLeaderService` esclude solo `draft` e `cancelled`) |
+| Visitatore senza account | `get` e query del catalogo ammessi | card e pagina con «Iscrizioni a breve», nessun tasto verso il modulo |
+| Ospite anonimo, partecipante | come il visitatore; `config/form` leggibile come per ogni pubblica | idem; `/register` mostra «Le iscrizioni non sono ancora aperte» |
+| Chiunque, iscrizione nuova (`user_`, `guest_`, `child_`) | `create` negato da `activityAcceptsRegistrations` | anche chiamando le API a mano |
+| Genitore | come il visitatore | nessun invito a iscrivere un figlio |
+| Iscritti di prima (attività aperta, poi tolta e riannunciata) | `get` per `hasOwnRegistration`, annullamento ammesso | vedono la loro iscrizione; nessuno se ne aggiunge |
+| Functions | nessun trigger su `status` o `isPublic` delle attività | niente notifiche né all'annuncio né all'apertura |
+
+### Censimento dei consumer di status e isPublic (6 novembre)
+
+Fatto in sola lettura su `src/`, `functions/`, rules, indici, `tools/` e
+test. Cosa succede oggi con un'annunciata, e cosa cambia:
+
+| Consumer | Oggi con un'annunciata | Cambia |
+| --- | --- | --- |
+| `activityWizard.ts` `statusAfterSave` | **ogni salvataggio dei passi la porta a `registrations_open`** | tiene `planned`; test `activityWizard.test.mjs:218` da aggiornare |
+| `eventsService.setEventCancelled` | Riapri apre le iscrizioni | torna a `statusBeforeCancel` |
+| `eventsService.publishEvent` | esce subito se è già pubblica | porta anche `planned → registrations_open`, stessi controlli |
+| servizio nuovo `announceEvent` | non esiste | bozza → annunciata, transazione contro la revisione, idempotente, controlla solo nome e data |
+| `events.ts` `getEffectiveEventStatus` | ignora `planned`, decide dalle date: con date dentro la finestra dice «aperte» | stato `announced` |
+| `AdminActivityCard`, scheda admin, `AdminDashboardPage:83` | pill «Iscrizioni aperte/chiuse», la conta tra le aperte | pill «Annunciata», non conta tra le aperte |
+| `MeDashboardPage:41-61` (/me) | dentro la finestra la mette in cima con **«Iscriviti»** verso una pagina chiusa | mai card «Iscriviti»; sta tra le prossime con la pill |
+| `publicEventState.ts` `getPublicEventPhase`/`State` | «Iscrizioni dal {data}» o «Iscrizioni chiuse» (chiuse prima di aprire) | fase `announced`, pill «Iscrizioni a breve»; test `publicEventState.test.mjs:133-188` da estendere |
+| `PublicActivityCard`, `ActivitiesPage` (catalogo, filtro e ordinamento) | pill sbagliata, esclusa dal filtro «aperte» | pill giusta; nel filtro sta con le non ancora aperte |
+| `events.ts` `getRegistrationAvailability` | «not-open-yet» o «closed» secondo le date provvisorie | sempre «not-open-yet» per `planned` |
+| `ActivityDetailPage` (scheda pubblica) | tasto spento, ma mostra apertura e chiusura provvisorie | niente date d'iscrizione, riquadro «Le iscrizioni non sono ancora aperte» |
+| `ActivityRegisterPage` (`/register`) | «Non ancora aperte» o «Chiuse»; per genitore il modulo resta visibile ma non si invia | schermata «Le iscrizioni non sono ancora aperte», niente modulo |
+| `MyCalendarPage`, `PlannerCalendar` (calendario /me) | compare, senza stato | invariato (il calendario mostra giorno e titolo) |
+| `FamilyDashboardPage`, `MyActivitiesPage`, `MyActivityDetailPage` | solo con iscrizioni, che non possono esserci | invariato |
+| `unitLeaderService` | inclusa | invariato, con la pill dell'helper |
+| `familyCancel.ts`, `adminLists.ts`, `campHighlight`, gallery, Notte dei Record, sondaggio | filtri su date e flag, solo contesto | invariato |
+| `functions/lib/activityMoments.js` | momenti visibili se `status` non è bozza né annullata, ma servono iscritti | invariato |
+| `functions/lib/activityGallery.js`, scheduler, `sendAdminPushForNewRegistration` | solo date o solo iscrizioni (rifiutate) | invariato |
+| `ShareButton` della scheda admin | «Guarda questa attività e apri l'iscrizione.» | testo per l'annunciata: «Guarda questa attività: le iscrizioni aprono a breve.» |
+| Cache `events:public` (60 s) | il passaggio ad aperta si vede subito solo per chi lo fa | accettato: il server rifiuta comunque finché è annunciata |
+
+### La schermata rapida
+
+- **«Nuova attività» apre la rapida** da ogni ingresso: elenco (testata e
+  tasto «+»), calendario, home admin, impostazioni. Il calendario ha in più
+  «Aggiungi in <mese>» nella finestra del mese, con la data sul primo giorno
+  di quel mese.
+- **Un foglio solo, senza passi**: Nome; Tipo (cinque scelte compatte, «Su
+  più giorni, si dorme a casa» accorciato in «Su più giorni»); Quando (data
+  obbligatoria, ora facoltativa); per i tipi rafforzati «Fino al»
+  (facoltativo); Luogo (facoltativo). Destinatari «Congiunta», come oggi alla
+  creazione; si cambia al passo 1. Sotto i campi, una riga sola: «La vedranno
+  ragazzi e famiglie, con le iscrizioni non ancora aperte.»
+- **«Salva nel calendario»** crea l'annunciata (`createEvent` di oggi con
+  `creationId` stabile: un ritentativo non ne crea una seconda; attività e
+  modulo nello stesso batch). Il foglio resta aperto con «È nel calendario»
+  e l'elenco delle attività aggiunte in quel giro; «Aggiungine un'altra»
+  svuota nome, date e luogo, tiene il tipo, cursore sul nome; «Fatto»
+  chiude e lascia la pagina dov'era (oggi `onCompleted` porta alla scheda:
+  in fila sarebbe un'uscita a ogni salvataggio).
+- **«Aggiungi i dettagli adesso»** crea la stessa annunciata e apre i 6 passi
+  sul primo con voci aperte (di solito il 2 se mancano ora o luogo, se no il
+  3).
+
+### Da annunciata a iscrizioni aperte: «Completa i dettagli»
+
+- Scheda admin dell'annunciata: riquadro «Da completare per aprire le
+  iscrizioni» con le voci di `getPublicationChecklist` (stesse frasi, ognuna
+  con il suo passo) e il tasto «Completa i dettagli», che apre i 6 passi sul
+  primo passo con voci aperte. Al posto di «Rendi pubblica» nella testata.
+- Nei passi, kicker «Annunciata · {titolo}» e, sopra i tasti, «La vedono già
+  ragazzi e famiglie: ogni passo salvato si vede subito.» Ogni Avanti salva
+  come nel sesto incremento e tiene `planned`.
+- Passo 6: al posto di «Pubblica», «Apri le iscrizioni», spento con il
+  motivo finché la lista non è vuota; l'effetto è scritto sopra il tasto
+  («Da adesso ragazzi e famiglie possono iscriversi»).
+- Lista vuota: sulla scheda il tasto del riquadro diventa «Apri le
+  iscrizioni», che porta al passo 6 (la conferma resta una sola, lì).
+
+### Stati, superfici e ritorni
+
+Ogni passaggio ha la strada per tornare allo stato di prima.
+
+| Stato | Superficie | Da qui dove vado | Come torno allo stato di prima |
+| --- | --- | --- | --- |
+| Rapida vuota | foglio | i tasti restano accesi: premuti, segnano il campo mancante | Chiudi senza domande |
+| Rapida con dati | foglio | Salva nel calendario; Aggiungi i dettagli adesso | Chiudi chiede «Scartare l'attività?»: «Continua a compilare» (scelta sicura), «Salva nel calendario ed esci» se i campi bastano, «Scarta» |
+| Campo mancante | foglio | errore sotto il campo, focus sul primo | niente è stato scritto |
+| Scrittura in corso o in timeout | foglio | tasti bloccati, un solo invio | errore sopra i campi con i dati intatti; «Riprova» riusa lo stesso id; Chiudi durante la scrittura aspetta l'esito |
+| Appena annunciata | foglio, «È nel calendario» | Aggiungine un'altra; Aggiungi i dettagli; Fatto | **«Annulla»** (solo l'ultima, finché il foglio è aperto) la cancella con `deleteEvent` (nessuna iscrizione può esistere) e riporta il foglio com'era prima di Salva, campi compresi. Chi l'ha vista nel catalogo in quei secondi trova «Attività non disponibile» |
+| Annunciata | scheda admin | Completa i dettagli; Togli dal catalogo; Annulla attività; cestino | Togli dal catalogo → bozza, ritorno con «Annuncia» (scheda e passo 6). Annulla attività → annullata, ritorno con «Riapri» (torna annunciata). Il cestino chiede conferma come oggi |
+| Annunciata | passi 1-5 | Avanti salva, resta annunciata | come nel sesto incremento: Indietro, Esci, conflitto di revisione |
+| Annunciata completa | passo 6 | Apri le iscrizioni | → aperta. Ritorno: «Rimetti annunciata» in Gestisci finché non c'è nessun iscritto (conteggio di `statsSummary`); con iscritti la strada indietro è «Togli dal catalogo», come oggi |
+| Aperta da annunciata | Gestisci | come le pubblicate di oggi | sopra |
+| Bozza (da Togli dal catalogo, o vecchia bozza) | scheda, passo 6 | Annuncia (conferma: «Lascia in bozza» scelta sicura); Apri le iscrizioni se completa | Annuncia ↔ Togli dal catalogo |
+| Annullata da annunciata | Gestisci | Riapri | → annunciata |
+| Annunciata con la data passata | ovunque | `hasEventEnded` la fa «Conclusa» per tutti | lo staff può cambiarne le date dai passi; torna annunciata |
+
+### Resa con dati mancanti, superficie per superficie
+
+Lezione del 26 ottobre: una bozza essenziale deve reggere in tutti i
+consumer. Allo staff «Da scegliere» (come le date d'iscrizione oggi), al
+pubblico «da definire» («Luogo da definire» c'è già in `adminElenchi.ts`).
+
+| Superficie | Ora | Luogo | Descrizione | Locandina | Programma, cosa portare | Finestra iscrizioni |
+| --- | --- | --- | --- | --- | --- | --- |
+| Card del catalogo e della home | solo il giorno | «Luogo da definire» | non c'è nella card | immagine del tipo di oggi | — | pill «Iscrizioni a breve», niente conto alla rovescia |
+| Scheda pubblica | «ora da definire» dopo la data | «Luogo da definire» | sezione nascosta | immagine del tipo | sezioni nascoste | riquadro «Le iscrizioni non sono ancora aperte», nessuna data provvisoria; barra «Iscrizioni a breve» spenta |
+| `/register` | — | — | — | — | — | «Le iscrizioni non sono ancora aperte», tasto verso la scheda |
+| /me, calendario /me | solo il giorno | «Luogo da definire» | — | come la card | — | pill della card, mai «Iscriviti» |
+| Card admin, elenco, dashboard | «ora da definire» | «Luogo da definire» | — | immagine del tipo | — | pill «Annunciata» |
+| Calendario admin | — (giorno) | — | — | — | — | il segno della pill (annunciate piene, bozze tratteggiate) |
+| Scheda admin | «ora da definire» | «Luogo da definire» | voce del riquadro | voce facoltativa | «Da scegliere» nei dettagli | «Da scegliere» (come oggi) |
+| Passo 6 riepilogo | «Da scegliere» | «Da scegliere» | «Da scegliere» | «Nessuna locandina» | «Facoltativo» | «Da scegliere» |
+| Dirigente di unità | solo il giorno | «Luogo da definire» | — | — | — | pill «Annunciata» |
+| Condividi | — | — | — | — | — | «Guarda questa attività: le iscrizioni aprono a breve.» |
+
+Il formattatore è uno solo: `formatEventWhen(event)` legge
+`timeToBeDefined`; i 19 file che oggi chiamano i formattatori di data e ora
+sull'attività passano da lì.
+
+### Decisioni prese qui, da confermare con i mockup
+
+1. Anche «Aggiungi i dettagli adesso» crea un'annunciata: ciò che è nella
+   rapida è nel calendario di tutti. Per preparare in privato resta «Togli
+   dal catalogo» (bozza) e poi «Annuncia» o «Apri le iscrizioni».
+2. «Rimetti annunciata» solo senza iscritti.
+3. Nessuna notifica all'annuncio né all'apertura: fuori da qui, come un
+   «Avvisami» per le famiglie.
+4. Illustrazione di «È nel calendario»: nel mockup `inviata.webp` del flusso
+   genitore; proposta, una nuova dello stesso set («calendario»).
+
+### Finitura
+
+Campi a 16 px, testo secondario ≥ 13 px, target ≥ 44 px; foglio con un solo
+scorrimento e tasti fissi con `env(safe-area-inset-bottom)`; con la tastiera
+aperta il campo attivo resta sopra i tasti; dopo «Aggiungine un'altra» il
+focus va sul nome senza salti; a 320 px le cinque scelte del tipo vanno a
+capo, niente scroll orizzontale; `overflow-anchor: none` come nel sesto
+incremento. Collaudo a 320/390/430/1440 sul mini col seed demo (con
+un'annunciata, una con ora da definire e una senza luogo).
+
+### Verifica delle rules
+
+Da fare prima del codice.
