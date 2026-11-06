@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { AdminActivityCard } from "@/components/AdminActivityCard";
-import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AdminListSkeleton } from "@/components/AdminListSkeleton";
+import { QuickActivitySheet } from "@/components/activityWizard/QuickActivitySheet";
 import { Button, EmptyState, Icon, Notice, PageHeader, Pill } from "@/components/ui";
 import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -28,7 +27,6 @@ const initialData: EventsData = {
 
 export function AdminEventsPage() {
   const { session } = useAuth();
-  const navigate = useNavigate();
   const stakeId = session?.profile.stakeId ?? DEFAULT_STAKE_ID;
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -122,14 +120,13 @@ export function AdminEventsPage() {
       {content}
 
       {createModalOpen && data.organization && session ? (
-        <AdminEventEditorModal
+        <QuickActivitySheet
           organization={data.organization}
           sessionUid={session.firebaseUser.uid}
           stakeId={stakeId}
-          onClose={() => setCreateModalOpen(false)}
-          onCompleted={(eventId) => {
-            setRefreshKey((current) => current + 1);
-            navigate(`/admin/events/${eventId}`);
+          onClose={(changed) => {
+            setCreateModalOpen(false);
+            if (changed) setRefreshKey((current) => current + 1);
           }}
         />
       ) : null}
