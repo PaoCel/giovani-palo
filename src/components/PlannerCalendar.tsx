@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 
 import { AppModal } from "@/components/AppModal";
-import { EmptyState, Icon, Pill } from "@/components/ui";
+import { Button, EmptyState, Icon, Pill } from "@/components/ui";
 import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
 import { ANNUNCIATA } from "@/copy/annunciata";
 import { fillCopy } from "@/copy/parole";
@@ -204,18 +204,16 @@ export function PlannerCalendar({
       {selectedMonth ? (
         <AppModal
           footer={onAddInMonth ? (
-            <button
-              className="ui-button ui-button--primary"
+            <Button
+              icon="plus"
               onClick={() => {
                 const monthIndex = selectedMonth.index;
                 setSelectedMonthIndex(null);
                 onAddInMonth(year, monthIndex);
               }}
-              type="button"
             >
-              <Icon name="plus" />
               {fillCopy(ANNUNCIATA.aggiungiInMese, { mese: selectedMonth.monthLabel.toLocaleLowerCase("it-IT") })}
-            </button>
+            </Button>
           ) : undefined}
           onClose={() => setSelectedMonthIndex(null)}
           size="wide"
@@ -247,6 +245,7 @@ export function PlannerCalendar({
                     <span className="cal-list__content">
                       <strong>{event.title}</strong>
                       {mark ? <span className="cal-list__mark">{getEventStatusLabel(mark)}</span> : null}
+                      {!adminMarks && event.status === "planned" ? <span className="cal-list__mark">{ANNUNCIATA.iscrizioniABreve}</span> : null}
                       <span>{formatEventWhen(event)}</span>
                       <span>{event.location || COPY.luogoDaDefinire}</span>
                     </span>
