@@ -1,7 +1,7 @@
 ---
 id: gugd-crea-attivita-rapida
 title: "Crea attività: modalità rapida (bozza o annunciata)"
-status: in-progress
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: L
@@ -12,13 +12,13 @@ opened: 2026-11-06
 started_at: 2026-11-06
 touched: 2026-11-06
 due:
-blocked_by: []
+blocked_by: ["decisione: approvazione dei mockup della rapida (variante B)"]
 branch: task/gugd-crea-attivita-rapida
 worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/gugd-crea-attivita-rapida
 session: daadcc0a-9c58-489b-a07b-6d8d87c0e6a0
-stopped_at: Spec Settimo incremento (variante B) e mockup pronti; test rules e review UX in corso con Grok
-next: "Eseguire il test rules sul mini, recepire la review UX, approvazione mockup di Paolo"
-verified: ""
+stopped_at: "Spec e mockup B rivisti dopo la review UX di Grok (BLOCKED, 14 rilievi recepiti); rules 7/7 nell'emulatore"
+next: "Dopo l'approvazione: codice (servizi di stato, rapida, superfici pubbliche), test da un altro agente, collaudo sul mini"
+verified: "Rules invariate: announcedActivityRulesEmulator 7/7 sul mini (fa31bbf). Mockup e spec non ancora approvati."
 links: ["[docs/ATTIVITA_MODULARI.md#settimo-incremento-modalità-rapida-e-attività-annunciata-6-novembre]"]
 done_at:
 ---
