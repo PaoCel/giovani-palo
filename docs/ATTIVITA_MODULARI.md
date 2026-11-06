@@ -920,4 +920,28 @@ un'annunciata, una con ora da definire e una senza luogo).
 
 ### Verifica delle rules
 
-Da fare prima del codice.
+6 novembre, emulatore Firestore sul mini (copia QA `~/qa/gugd-rapida`, il
+mirror di un worktree perde `node_modules` a ogni sync), rules invariate:
+`announcedActivityRulesEmulator` **7 test su 7**. Scritto da un altro agente
+(Grok) con le chiamate del client: batch di creazione con `config/form`,
+transazioni di annuncio, apertura, «Rimetti annunciata», togli, annulla e
+riapri con `statusBeforeCancel`, query del catalogo, `getDoc` della scheda e
+del modulo, iscrizioni `user_`/`guest_`/`child_` con il payload delle fixture.
+
+- Admin del palo crea, annuncia, apre, rimette annunciata, toglie, annulla e
+  riapre; un partecipante sulle stesse scritture: negato, documento invariato.
+- Visitatore, ospite, partecipante, genitore: `get`, catalogo e `config/form`
+  dell'annunciata ammessi; dopo «Togli dal catalogo» negati e assente.
+- Iscrizione nuova su un'annunciata: negata per i tre prefissi; **lo stesso
+  payload passa appena le iscrizioni sono aperte** (a negare è lo stato).
+  Il rifiuto arriva come limite di 1000 espressioni di
+  `validRegistrationCreate`, come per la bozza nel sesto incremento.
+- Iscritto di prima su un'attività rimessa annunciata: legge e annulla la
+  propria iscrizione; nessuna nuova.
+- Dirigente del palo: `get` e `list`. Un altro palo: catalogo ammesso, list
+  senza filtro negata (c'è una bozza).
+
+Osservato e non cambiato: `isPublicActivityListDoc` non guarda `status`,
+quindi un'annullata lasciata pubblica resta nel catalogo (oggi è voluto:
+«Annullata» si vede); `hasOwnRegistration` non conta le iscrizioni `child_`
+(un genitore non legge una bozza del figlio, già noto).
