@@ -23,6 +23,23 @@ export const CATALOGO = {
   mostraInProgramma: "Mostra le attività in programma",
   vuotoPalo: "Ancora nessuna attività",
   vuotoPaloTesto: "Le attività del palo compariranno qui appena pubblicate.",
+  palo: "Palo",
+  mese: "Mese",
+  tuttiIMesi: "Tutti i mesi",
+  tipo: "Tipo",
+  tuttiITipi: "Tutti i tipi",
+  tipi: {
+    standard: "Attività",
+    overnight: "Pernottamento",
+    trip: "Gita",
+    camp: "Campeggio",
+    multi_day: "Più giorni",
+  },
+  dettagli: "Dettagli",
+  dettagliIscrizione: "Dettagli e iscrizione",
+  legenda:
+    "Attività pubbliche dei pali d'Italia. Un palo senza attività pubblicate resta vuoto.",
+  caricamento: "Caricamento delle attività.",
   // Stato dell'attività per chi non è iscritto (src/utils/publicEventState.ts).
   // «Iscrizioni chiuse» e «Iscrizioni dal {data}» sono quelle dei momenti.
   iscrizioniAperte: "Iscrizioni aperte",

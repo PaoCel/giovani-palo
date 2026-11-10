@@ -6,6 +6,7 @@ import { AppLoader } from "@/components/AppLoader";
 import { RouteErrorPanel } from "@/components/RouteErrorPanel";
 import { AdminLayout } from "@/layouts/AdminLayout";
 import { FamilyLayout } from "@/layouts/FamilyLayout";
+import { PublicSiteLayout } from "@/components/publicSite/PublicSiteLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { UnitLeaderLayout } from "@/layouts/UnitLeaderLayout";
 import { UserLayout } from "@/layouts/UserLayout";
@@ -75,11 +76,18 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorPanel />,
   },
   {
-    element: <PublicLayout />,
+    element: <PublicSiteLayout />,
     errorElement: <RouteErrorPanel />,
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/activities", element: <ActivitiesPage /> },
+      { path: "/login", element: <LoginPage /> },
+    ],
+  },
+  {
+    element: <PublicLayout />,
+    errorElement: <RouteErrorPanel />,
+    children: [
       { path: "/activities/:eventId", element: <ActivityDetailPage /> },
       {
         path: "/activities/:eventId/register",
@@ -118,7 +126,6 @@ export const router = createBrowserRouter([
         path: "/privacy/photos",
         element: lazyPage(() => import("@/pages/public/PhotoConsentPage"), "PhotoConsentPage"),
       },
-      { path: "/login", element: <LoginPage /> },
       {
         path: "/password-reset",
         element: lazyPage(() => import("@/pages/auth/PasswordResetPage"), "PasswordResetPage"),

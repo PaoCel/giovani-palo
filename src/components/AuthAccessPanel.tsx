@@ -6,6 +6,7 @@ import { AppLoader } from "@/components/AppLoader";
 import { AuthCredentialsForm, type AuthMode } from "@/components/auth/AuthCredentialsForm";
 import type { ChiSeiChoice } from "@/components/auth/ChiSeiPanel";
 import { ACCEDI } from "@/copy/accedi";
+import { ISCRIZIONE } from "@/copy/iscrizione";
 import { fillCopy } from "@/copy/parole";
 import { PROFILO } from "@/copy/profilo";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +42,8 @@ interface AuthAccessPanelProps {
   initialMode?: AuthMode;
   description?: string;
   backAction?: ReactNode;
+  appearance?: "app" | "public";
+  guestHref?: string;
 }
 
 function getRoleHome(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
@@ -124,6 +127,8 @@ export function AuthAccessPanel({
   initialMode = "login",
   description,
   backAction,
+  appearance = "app",
+  guestHref = "/activities",
 }: AuthAccessPanelProps) {
   const navigate = useNavigate();
   const { session, loading, signOut } = useAuth();
@@ -167,8 +172,12 @@ export function AuthAccessPanel({
     }
   }
 
+  function frame(node: ReactNode) {
+    return appearance === "public" ? <div className="auth-box">{node}</div> : node;
+  }
+
   if (loading) {
-    return <AppLoader label={ACCEDI.verificaSessione} />;
+    return frame(<AppLoader label={ACCEDI.verificaSessione} />);
   }
 
   if (session && !session.isAnonymous && requiresProfileCompletion) {
@@ -181,7 +190,7 @@ export function AuthAccessPanel({
     );
 
     if (canChoose && !chiSei) {
-      return (
+      return frame(
         <Suspense fallback={<AppLoader label={ACCEDI.attendi} />}>
           <ChiSeiPanel
             busy={signingOut}
@@ -189,13 +198,13 @@ export function AuthAccessPanel({
             onSignOut={() => void handleSignOut()}
             selected={null}
           />
-        </Suspense>
+        </Suspense>,
       );
     }
 
     const isParentForm = canChoose && chiSei === "genitore";
 
-    return (
+    return frame(
       <Suspense fallback={<AppLoader label={ACCEDI.attendi} />}>
         <ProfileForm
           context={
@@ -216,7 +225,7 @@ export function AuthAccessPanel({
           title={PROFILO.titoloDati}
           variant={isParentForm ? "genitore" : "io"}
         />
-      </Suspense>
+      </Suspense>,
     );
   }
 
@@ -232,7 +241,7 @@ export function AuthAccessPanel({
     const email = session.firebaseUser.email || session.profile.email || "";
     const roleLabel = getRoleLabel(session.profile.role);
 
-    return (
+    return frame(
       <section className="auth-screen auth-screen--signed-in">
         <div className="auth-screen__copy">
           <h1 className="auth-screen__title">{ACCEDI.giaDentro}</h1>
@@ -272,7 +281,7 @@ export function AuthAccessPanel({
             <span>{ACCEDI.esciECambiaAccount}</span>
           </button>
         </div>
-      </section>
+      </section>,
     );
   }
 
@@ -285,10 +294,26 @@ export function AuthAccessPanel({
             : ACCEDI.ospiteIscrizione
           : null
       }
+      appearance={appearance}
+      extra={
+        appearance === "public" ? (
+          <div className="guest">
+            <p>
+              <strong>{ACCEDI.soloIscrizione}</strong> {ACCEDI.soloIscrizioneTesto}
+            </p>
+            <Link className="btn btn-ghost btn-block" to={guestHref}>
+              {ISCRIZIONE.continuaSenzaAccount}
+            </Link>
+          </div>
+        ) : undefined
+      }
       initialMode={credentialsMode}
-      leads={{ login: ACCEDI.leadAccedi, signup: ACCEDI.leadCrea }}
+      leads={{
+        login: ACCEDI.leadAccedi,
+        signup: appearance === "public" ? ACCEDI.leadCreaSito : ACCEDI.leadCrea,
+      }}
       onAuthStart={() => setActedHere(true)}
-      signupNote={effectiveDescription}
+      signupNote={appearance === "public" ? undefined : effectiveDescription}
       titles={{ login: ACCEDI.titoloAccedi, signup: ACCEDI.titoloCrea }}
     />
   );

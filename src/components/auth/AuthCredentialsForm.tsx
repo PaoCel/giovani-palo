@@ -51,6 +51,8 @@ interface AuthCredentialsFormProps {
   // Prima di ogni tentativo di accesso: chi orchestra sa che l'azione è
   // partita da qui (Accedi va avanti da sola solo dopo un'azione).
   onAuthStart?: () => void;
+  // Pagine pubbliche col tema 2026: stessi controlli, aspetto del mockup.
+  appearance?: "app" | "public";
 }
 
 function GoogleMark() {
@@ -97,6 +99,7 @@ export function AuthCredentialsForm({
   footNotes,
   autoFocusTitle = false,
   onAuthStart,
+  appearance = "app",
 }: AuthCredentialsFormProps) {
   const { signInWithEmail, signInWithGoogle, signUpWithEmail, sendPasswordReset } = useAuth();
   const authIds = useId();
@@ -286,6 +289,111 @@ export function AuthCredentialsForm({
             : tabOrder[0];
     setMode(nextMode);
     document.getElementById(tabIds[nextMode])?.focus();
+  }
+
+  if (appearance === "public") {
+    const tabList = ACCOUNT_CREATION_CLOSED ? null : (
+      <div aria-label={ACCEDI.schede} className="tabs" role="tablist">
+        {tabOrder.map((tabMode) => (
+          <button
+            aria-controls={panelId}
+            aria-selected={mode === tabMode}
+            id={tabIds[tabMode]}
+            key={tabMode}
+            onClick={() => setMode(tabMode)}
+            onKeyDown={handleTabKeyDown}
+            role="tab"
+            tabIndex={mode === tabMode ? 0 : -1}
+            type="button"
+          >
+            {tabMode === "login" ? ACCEDI.schedaAccedi : ACCEDI.schedaCrea}
+          </button>
+        ))}
+      </div>
+    );
+
+    return (
+      <div className="auth-box">
+        {tabList}
+        {anonymousNote ? <p className="lead">{anonymousNote}</p> : null}
+        <form aria-labelledby={ACCOUNT_CREATION_CLOSED ? undefined : tabIds[mode]} className="pane" id={panelId} noValidate onSubmit={handleEmailAuth}>
+          <p className="lead">{ACCOUNT_CREATION_CLOSED ? ACCEDI.demoAccountProva : leads[mode]}</p>
+          {ACCOUNT_CREATION_CLOSED ? null : (
+            <button className="btn btn-ghost btn-block google" disabled={busy} onClick={() => void handleGoogleAuth()} type="button">
+              <GoogleMark />
+              <span>{ACCEDI.google}</span>
+            </button>
+          )}
+          {ACCOUNT_CREATION_CLOSED ? null : (
+            <p className="or">
+              <span>{ACCEDI.oppureConEmail}</span>
+            </p>
+          )}
+          <label className="field">
+            <span>{ACCEDI.email}</span>
+            <input
+              autoComplete="email"
+              className={fieldErrors.email ? "input input--error" : "input"}
+              inputMode="email"
+              type="email"
+              value={email}
+              onChange={(event) => setFieldValue("email", event.target.value, setEmail)}
+            />
+          </label>
+          <label className="field">
+            <span>{ACCEDI.password}</span>
+            <span className="pw">
+              <input
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                className={fieldErrors.password ? "input input--error" : "input"}
+                type={showPasswords ? "text" : "password"}
+                value={password}
+                onChange={(event) => setFieldValue("password", event.target.value, setPassword)}
+              />
+              <button
+                aria-label={showPasswords ? ACCEDI.nascondiPassword : ACCEDI.mostraPassword}
+                className="show"
+                onClick={() => setShowPasswords((current) => !current)}
+                type="button"
+              >
+                {showPasswords ? ACCEDI.nascondi : ACCEDI.mostra}
+              </button>
+            </span>
+            {isSignup ? <small>{ACCEDI.passwordMinimo}</small> : null}
+          </label>
+          {isSignup ? (
+            <label className="field">
+              <span>{ACCEDI.confermaPassword}</span>
+              <input
+                autoComplete="new-password"
+                className={fieldErrors.confirmPassword ? "input input--error" : "input"}
+                type={showPasswords ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(event) => setFieldValue("confirmPassword", event.target.value, setConfirmPassword)}
+              />
+            </label>
+          ) : (
+            <button className="small-link as-btn" disabled={busy} onClick={() => void handlePasswordReset()} type="button">
+              {ACCEDI.passwordDimenticata}
+            </button>
+          )}
+          {error || feedback ? (
+            <div ref={messageRef}>
+              {error ? (
+                <p className="pub-alert" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              {feedback ? <p role="status">{feedback}</p> : null}
+            </div>
+          ) : null}
+          <button className="btn btn-primary btn-block" disabled={busy} type="submit">
+            {busy ? ACCEDI.attendi : isSignup ? ACCEDI.inviaCrea : ACCEDI.inviaAccedi}
+          </button>
+        </form>
+        {extra}
+      </div>
+    );
   }
 
   return (
