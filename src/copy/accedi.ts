@@ -8,6 +8,13 @@ export const ACCEDI = {
   titoloCrea: PAROLE.creaUnAccount,
   leadAccedi: "Con l'account che usi di solito: Google o email.",
   leadCrea: "Ti serve per seguire le iscrizioni e ritrovarle la prossima volta.",
+  // Stessa scheda, sulla pagina pubblica col tema 2026.
+  leadCreaSito: "Salvi i tuoi dati e ritrovi più in fretta iscrizioni, foto e sondaggi.",
+  passwordMinimo: "Almeno 6 caratteri.",
+  soloIscrizione: "Vuoi solo iscriverti a un'attività?",
+  soloIscrizioneTesto:
+    "Puoi farlo anche senza account. L'autorizzazione del genitore arriva via email.",
+  accediInFretta: "Accedi per iscriverti più in fretta",
   schede: "Accedi o crea un account",
   schedaAccedi: PAROLE.accedi,
   schedaCrea: PAROLE.creaUnAccount,

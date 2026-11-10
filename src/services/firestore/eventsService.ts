@@ -325,6 +325,33 @@ export const eventsService = {
       .sort((left, right) => left.startDate.localeCompare(right.startDate));
   },
 
+  // «Tutta Italia»: le attività pubbliche di ogni palo attivo, in parallelo.
+  // Ogni lista resta nella cache di listPublicEvents.
+  async listPublicEventsForStakes(stakeIds: readonly string[]) {
+    if (stakeIds.length === 0) {
+      return [];
+    }
+
+    const lists = await Promise.all(stakeIds.map((stakeId) => this.listPublicEvents(stakeId)));
+    const seen = new Set<string>();
+    const events: Event[] = [];
+
+    for (const list of lists) {
+      for (const event of list) {
+        const key = `${event.stakeId}:${event.id}`;
+
+        if (seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        events.push(event);
+      }
+    }
+
+    return events.sort((left, right) => left.startDate.localeCompare(right.startDate));
+  },
+
   async getEventById(stakeId: string, eventId: string, serverOnly = false) {
     // Display reads may use cache; editing and conflict recovery must reread
     // the server revision, including updates committed in another context.

@@ -1,306 +1,224 @@
-import { useId, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useId } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
-import giovaniArt from "@/assets/flusso-genitore/giovani.webp";
-import { PublicActivityCard } from "@/components/activities/PublicActivityCard";
-import { Button, EmptyState, Notice, PageHeader } from "@/components/ui";
+import { usePublicStake } from "@/components/publicSite/PublicStakeProvider";
 import { CATALOGO } from "@/copy/catalogo";
-import { MOMENTI } from "@/copy/momenti";
+import { HOME } from "@/copy/home";
+import { usePublishedActivities } from "@/hooks/usePublishedActivities";
 import { fillCopy } from "@/copy/parole";
-import { useAsyncData } from "@/hooks/useAsyncData";
-import { eventsService } from "@/services/firestore/eventsService";
-import { stakesService } from "@/services/firestore/stakesService";
-import type { Event, EventAudience } from "@/types";
+import type { Event } from "@/types";
 import { getActivityPath } from "@/utils/activityLinks";
-import { getPublicEventPhase, hasEventEnded } from "@/utils/publicEventState";
-import { getStoredPublicStakeId, storePublicStakeId } from "@/utils/stakeSelection";
-import "@/styles/publicActivity.css";
+import {
+  formatListWhen,
+  isPublicActivityType,
+  monthDay,
+  monthKey,
+  monthLabel,
+  publicActivityTypeLabel,
+  publicActivityTypeOf,
+  shortMonth,
+} from "@/utils/publicCatalog";
+import { getPublicEventState, hasEventEnded } from "@/utils/publicEventState";
 
-type AudienceFilter = "all" | EventAudience;
-type RegistrationFilter = "all" | "open" | "closed";
-type TimeFilter = "upcoming" | "past" | "all";
-
-function isAudienceFilter(value: string | null): value is AudienceFilter {
-  return (
-    value === "all" ||
-    value === "congiunta" ||
-    value === "giovane_uomo" ||
-    value === "giovane_donna"
-  );
+function coverUrl(event: Event) {
+  return event.coverImageUrl?.trim() || event.heroImageUrl?.trim() || "";
 }
 
-function isRegistrationFilter(value: string | null): value is RegistrationFilter {
-  return value === "all" || value === "open" || value === "closed";
-}
+function statusClass(phase: ReturnType<typeof getPublicEventState>["phase"]) {
+  if (phase === "open") {
+    return "open";
+  }
 
-function isTimeFilter(value: string | null): value is TimeFilter {
-  return value === "upcoming" || value === "past" || value === "all";
-}
+  if (phase === "upcoming") {
+    return "soon";
+  }
 
-// Stessa regola della pill di stato e del tasto d'iscrizione: prima il filtro
-// leggeva solo event.status e teneva fra le aperte le attività finite.
-function isOpen(event: Event) {
-  return getPublicEventPhase(event) === "open";
+  return "closed";
 }
-
-const TIME_OPTIONS: Array<{ value: TimeFilter; label: string }> = [
-  { value: "upcoming", label: CATALOGO.inProgramma },
-  { value: "past", label: CATALOGO.passate },
-  { value: "all", label: CATALOGO.tutte },
-];
 
 export function ActivitiesPage() {
   const filterIds = useId();
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedStakeId = searchParams.get("stake") ?? "";
-  const requestedAudience = searchParams.get("audience");
-  const requestedRegistration = searchParams.get("registrations");
-  const requestedTime = searchParams.get("time");
-  const audienceFilter = isAudienceFilter(requestedAudience) ? requestedAudience : "all";
-  const registrationFilter = isRegistrationFilter(requestedRegistration)
-    ? requestedRegistration
-    : "all";
-  const timeFilter: TimeFilter = isTimeFilter(requestedTime) ? requestedTime : "upcoming";
-  const { data: stakes, loading: stakesLoading } = useAsyncData(
-    () => stakesService.listActiveStakes(),
-    [],
-    [],
-  );
-  const selectedStakeId = useMemo(() => {
-    // Ottimistico: finché la lista pali non è arrivata ci fidiamo del palo
-    // richiesto/memorizzato, così la query attività parte SUBITO in parallelo
-    // invece di aspettare la lista (prima era un waterfall di due query).
-    const stakesReady = stakes.length > 0;
+  const { stakes, stakeId, stakeName, selectStake } = usePublicStake();
+  const { events, error, loading } = usePublishedActivities(stakeId);
+  const time = searchParams.get("time") === "past" ? "past" : "upcoming";
+  const month = searchParams.get("month") ?? "";
+  const type = searchParams.get("type") ?? "";
+  const typeFilter = isPublicActivityType(type) ? type : "";
+  const paloId = `${filterIds}-palo`;
+  const meseId = `${filterIds}-mese`;
+  const tipoId = `${filterIds}-tipo`;
 
-    if (requestedStakeId && (!stakesReady || stakes.some((stake) => stake.id === requestedStakeId))) {
-      return requestedStakeId;
+  const months = [...new Set(events.map((event) => monthKey(event.startDate)).filter(Boolean))].sort();
+  const rows = events
+    .filter((event) => (time === "past" ? hasEventEnded(event) : !hasEventEnded(event)))
+    .filter((event) => !month || monthKey(event.startDate) === month)
+    .filter((event) => !typeFilter || publicActivityTypeOf(event) === typeFilter)
+    .sort((left, right) => {
+      const delta = new Date(left.startDate).getTime() - new Date(right.startDate).getTime();
+      return time === "past" ? -delta : delta;
+    });
+
+  function setParam(key: "time" | "month" | "type", value: string) {
+    const next = new URLSearchParams(searchParams);
+
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
     }
 
-    const storedStakeId = getStoredPublicStakeId();
-
-    if (storedStakeId && (!stakesReady || stakes.some((stake) => stake.id === storedStakeId))) {
-      return storedStakeId;
-    }
-
-    return stakes[0]?.id ?? "";
-  }, [requestedStakeId, stakes]);
-  const { data: events, loading, error } = useAsyncData(
-    () => (selectedStakeId ? eventsService.listPublicEvents(selectedStakeId) : Promise.resolve([])),
-    [selectedStakeId],
-    [],
-  );
-  // Non dichiarare "nessuna attività" finché non abbiamo davvero interrogato
-  // un palo: prima questo stato compariva durante il caricamento e l'utente
-  // pensava che le attività non esistessero.
-  const resolvingStake = stakesLoading && !selectedStakeId;
-  const showSkeleton = loading || resolvingStake;
-
-  const filteredEvents = useMemo(() => {
-    return [...events]
-      .filter((event) => (audienceFilter === "all" ? true : event.audience === audienceFilter))
-      .filter((event) => {
-        if (registrationFilter === "all") {
-          return true;
-        }
-
-        return registrationFilter === "open" ? isOpen(event) : !isOpen(event);
-      })
-      .filter((event) => {
-        if (timeFilter === "all") {
-          return true;
-        }
-
-        const past = hasEventEnded(event);
-        return timeFilter === "past" ? past : !past;
-      })
-      .sort((left, right) => {
-        const leftPast = hasEventEnded(left);
-        const rightPast = hasEventEnded(right);
-
-        if (leftPast !== rightPast) {
-          return leftPast ? 1 : -1;
-        }
-
-        if (leftPast) {
-          return new Date(right.startDate).getTime() - new Date(left.startDate).getTime();
-        }
-
-        if (isOpen(left) !== isOpen(right)) {
-          return isOpen(left) ? -1 : 1;
-        }
-
-        return new Date(left.startDate).getTime() - new Date(right.startDate).getTime();
-      });
-  }, [audienceFilter, events, registrationFilter, timeFilter]);
-
-  function updateSearchParams(values: Partial<Record<"stake" | "audience" | "registrations" | "time", string>>) {
-    const nextParams = new URLSearchParams(searchParams);
-
-    for (const [key, value] of Object.entries(values)) {
-      nextParams.set(key, value);
-    }
-    setSearchParams(nextParams, { replace: true });
+    setSearchParams(next, { replace: true });
   }
 
-  function updateSearchParam(key: "stake" | "audience" | "registrations" | "time", value: string) {
-    updateSearchParams({ [key]: value });
-  }
-
-  const selectedStakeName = stakes.find((stake) => stake.id === selectedStakeId)?.name;
-  const hasNarrowingFilters = audienceFilter !== "all" || registrationFilter !== "all";
-  const emptyState = events.length === 0 ? (
-    <EmptyState
-      action={null}
-      description={CATALOGO.vuotoPaloTesto}
-      illustration={giovaniArt}
-      title={CATALOGO.vuotoPalo}
-    />
-  ) : hasNarrowingFilters ? (
-    <EmptyState
-      action={
-        <Button onClick={() => updateSearchParams({ audience: "all", registrations: "all" })}>
-          {CATALOGO.togliFiltri}
-        </Button>
-      }
-      description={CATALOGO.vuotoFiltriTesto}
-      illustration={giovaniArt}
-      title={CATALOGO.vuotoFiltri}
-    />
-  ) : timeFilter === "upcoming" ? (
-    <EmptyState
-      action={<Button onClick={() => updateSearchParam("time", "past")}>{CATALOGO.mostraPassate}</Button>}
-      description={CATALOGO.vuotoInProgrammaTesto}
-      illustration={giovaniArt}
-      title={CATALOGO.vuotoInProgramma}
-    />
-  ) : (
-    <EmptyState
-      action={
-        <Button onClick={() => updateSearchParam("time", "upcoming")}>{CATALOGO.mostraInProgramma}</Button>
-      }
-      description={CATALOGO.vuotoPassateTesto}
-      illustration={giovaniArt}
-      title={CATALOGO.vuotoPassate}
-    />
-  );
+  const scope = stakeId ? stakeName || CATALOGO.caricamento : HOME.tuttaItalia;
 
   return (
-    <div className="page public-catalog">
-      <PageHeader
-        description={CATALOGO.descrizione}
-        eyebrow={selectedStakeName}
-        title={CATALOGO.titolo}
-      />
-
-      <div className="public-filters">
-        <div aria-label={CATALOGO.periodo} className="public-filters__time" role="group">
-          {TIME_OPTIONS.map((option) => (
-            <Button
-              aria-pressed={timeFilter === option.value}
-              className="public-filters__toggle"
-              key={option.value}
-              onClick={() => updateSearchParam("time", option.value)}
-              variant="secondary"
+    <main>
+      <section className="page-head">
+        <div className="wrap">
+          <h1>{CATALOGO.titolo}</h1>
+          <p className="sub">{scope}</p>
+          <div aria-label={CATALOGO.periodo} className="seg" role="tablist">
+            <button
+              aria-selected={time === "upcoming"}
+              role="tab"
+              type="button"
+              onClick={() => setParam("time", "upcoming")}
             >
-              {option.label}
-            </Button>
-          ))}
+              {CATALOGO.inProgramma}
+            </button>
+            <button
+              aria-selected={time === "past"}
+              role="tab"
+              type="button"
+              onClick={() => setParam("time", "past")}
+            >
+              {CATALOGO.passate}
+            </button>
+          </div>
         </div>
+      </section>
 
-        <div className="public-filters__selects">
-          <label className="public-field public-field--stake">
-            <span className="public-field__label" id={`${filterIds}-palo`}>Palo</span>
-            {/* The wrapping label would add the options to the accessible name. */}
+      <section className="filters">
+        <div className="wrap">
+          <div className="field">
+            <span id={`${paloId}-label`}>{CATALOGO.palo}</span>
             <select
-              aria-labelledby={`${filterIds}-palo`}
-              className="public-field__select"
-              disabled={stakesLoading || stakes.length === 0}
-              value={selectedStakeId}
-              onChange={(eventInput) => {
-                const nextStakeId = eventInput.target.value;
-
-                storePublicStakeId(nextStakeId);
-                updateSearchParam("stake", nextStakeId);
-              }}
+              aria-labelledby={`${paloId}-label`}
+              className="select"
+              id={paloId}
+              value={stakeId}
+              onChange={(event) => selectStake(event.target.value)}
             >
-              {stakes.length === 0 ? <option value="">Sto caricando i pali...</option> : null}
+              <option value="">{HOME.tuttaItalia}</option>
+              {stakeId && !stakes.some((stake) => stake.id === stakeId) ? (
+                <option value={stakeId}>{CATALOGO.caricamento}</option>
+              ) : null}
               {stakes.map((stake) => (
                 <option key={stake.id} value={stake.id}>
                   {stake.name}
                 </option>
               ))}
             </select>
-          </label>
-
-          <label className="public-field">
-            <span className="public-field__label" id={`${filterIds}-organizzazione`}>Organizzazione</span>
-            <select
-              aria-labelledby={`${filterIds}-organizzazione`}
-              className="public-field__select"
-              value={audienceFilter}
-              onChange={(eventInput) => updateSearchParam("audience", eventInput.target.value)}
-            >
-              <option value="all">Tutte</option>
-              <option value="giovane_uomo">GU</option>
-              <option value="giovane_donna">GD</option>
-              <option value="congiunta">Congiunta</option>
-            </select>
-          </label>
-
-          <label className="public-field">
-            <span className="public-field__label" id={`${filterIds}-iscrizioni`}>Iscrizioni</span>
-            <select
-              aria-labelledby={`${filterIds}-iscrizioni`}
-              className="public-field__select"
-              value={registrationFilter}
-              onChange={(eventInput) =>
-                updateSearchParam("registrations", eventInput.target.value)
-              }
-            >
-              <option value="all">Tutte</option>
-              <option value="open">{CATALOGO.iscrizioniAperte}</option>
-              <option value="closed">{MOMENTI.iscrizioniChiuse}</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      {error ? (
-        <Notice live="alert" title="Caricamento non riuscito" tone="danger">
-          {error}
-        </Notice>
-      ) : null}
-
-      {showSkeleton ? (
-        <div className="public-grid" aria-busy="true" aria-label="Caricamento attività">
-          {[0, 1, 2].map((index) => (
-            <div key={index} className="public-skeleton" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          ))}
-        </div>
-      ) : error ? null : filteredEvents.length === 0 ? (
-        emptyState
-      ) : (
-        <>
-          <p className="public-count">
-            {filteredEvents.length === 1
-              ? CATALOGO.conteggioUna
-              : fillCopy(CATALOGO.conteggio, { numero: String(filteredEvents.length) })}
-          </p>
-          <div className="public-grid">
-            {filteredEvents.map((event) => (
-              <PublicActivityCard
-                event={event}
-                key={event.id}
-                to={getActivityPath(event.id, selectedStakeId)}
-              />
-            ))}
           </div>
-        </>
-      )}
-    </div>
+          <div className="field">
+            <span id={`${meseId}-label`}>{CATALOGO.mese}</span>
+            <select
+              aria-labelledby={`${meseId}-label`}
+              className="select"
+              id={meseId}
+              value={months.includes(month) ? month : ""}
+              onChange={(event) => setParam("month", event.target.value)}
+            >
+              <option value="">{CATALOGO.tuttiIMesi}</option>
+              {months.map((key) => (
+                <option key={key} value={key}>
+                  {monthLabel(key)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <span id={`${tipoId}-label`}>{CATALOGO.tipo}</span>
+            <select
+              aria-labelledby={`${tipoId}-label`}
+              className="select"
+              id={tipoId}
+              value={typeFilter}
+              onChange={(event) => setParam("type", event.target.value)}
+            >
+              <option value="">{CATALOGO.tuttiITipi}</option>
+              <option value="standard">{CATALOGO.tipi.standard}</option>
+              <option value="overnight">{CATALOGO.tipi.overnight}</option>
+              <option value="trip">{CATALOGO.tipi.trip}</option>
+              <option value="camp">{CATALOGO.tipi.camp}</option>
+              <option value="multi_day">{CATALOGO.tipi.multi_day}</option>
+            </select>
+          </div>
+          <p aria-live="polite" className="count">
+            {loading
+              ? CATALOGO.caricamento
+              : rows.length === 1
+                ? CATALOGO.conteggioUna
+                : fillCopy(CATALOGO.conteggio, { numero: String(rows.length) })}
+          </p>
+        </div>
+      </section>
+
+      <section className="wrap list-wrap">
+        {error ? (
+          <p className="pub-alert" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <ol className="list">
+          {loading
+            ? null
+            : rows.map((event) => {
+                const state = getPublicEventState(event);
+                const past = hasEventEnded(event) || state.phase === "ended" || state.phase === "cancelled";
+                const image = coverUrl(event);
+                const name = stakes.find((stake) => stake.id === event.stakeId)?.name;
+
+                return (
+                  <li key={`${event.stakeId}:${event.id}`}>
+                    <Link className="row" to={getActivityPath(event.id, event.stakeId)}>
+                      <span className="date">
+                        <b>{monthDay(event.startDate)}</b>
+                        <small>{shortMonth(event.startDate)}</small>
+                      </span>
+                      <span className="thumb">{image ? <img alt="" src={image} /> : null}</span>
+                      <div>
+                        {name ? <span className="palo-label">{name}</span> : null}
+                        <h2>{event.title}</h2>
+                        <p className="meta">{formatListWhen(event)}</p>
+                        <div className="tags">
+                          <span className={`status ${statusClass(state.phase)}`}>{state.label}</span>
+                          <span className="type">{publicActivityTypeLabel(publicActivityTypeOf(event))}</span>
+                        </div>
+                      </div>
+                      <span className="go btn btn-ghost btn-small">
+                        {past ? CATALOGO.dettagli : CATALOGO.dettagliIscrizione}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+        </ol>
+        <div className="empty" hidden={loading || Boolean(error) || rows.length > 0}>
+          <strong>{CATALOGO.vuotoFiltri}</strong>
+          <p>{CATALOGO.vuotoPaloTesto}</p>
+          <button
+            className="btn btn-ghost btn-small"
+            type="button"
+            onClick={() => selectStake("", ["month", "type"])}
+          >
+            {CATALOGO.togliFiltri}
+          </button>
+        </div>
+        <p className="legend">{CATALOGO.legenda}</p>
+      </section>
+    </main>
   );
 }

@@ -1,7 +1,60 @@
-// Home pubblica (/). Solo le frasi già passate dal glossario; convenzioni in
-// ./parole.ts.
+// Home pubblica (/) e cornice delle pagine pubbliche (tema 2026).
+// Convenzioni in ./parole.ts.
+
+import { PAROLE } from "./parole.ts";
 
 export const HOME = {
   // "minore" resta ai testi legali e all'autorizzazione.
   iscrivitiBody: "In pochi minuti, anche senza account. L'autorizzazione dei genitori è già nel percorso.",
+  wordmark: "Attività",
+  wordmarkMark: "GU GD",
+  kicker: "Giovani Uomini e Giovani Donne",
+  titolo: "Attività dei giovani",
+  lead: "Scegli il tuo palo, guarda cosa c'è in programma e iscriviti in pochi minuti dal telefono.",
+  scopri: "Scopri le attività",
+  accedi: PAROLE.accedi,
+  prossime: "Prossime attività",
+  inTuttaItalia: "In tutta Italia",
+  tuttaItalia: "Tutta Italia",
+  vediTutte: "Vedi tutte",
+  railIndietro: "Indietro",
+  railAvanti: "Avanti",
+  inArrivo: "In arrivo",
+  prossima: "Prossima attività",
+  prossimaQuando: "Compare qui appena pubblicata",
+  vuotoPalo: "Nessuna attività pubblicata per il {palo}",
+  guardaTuttaItalia: "Guarda tutta Italia",
+  comeFunziona: "Come funziona",
+  passo1: "Scegli l'attività",
+  passo1Dove: "nel calendario del tuo palo",
+  passo2: "Iscriviti",
+  passo2Come: "anche senza account",
+  passo3: "Ritrova",
+  passo3Cosa: "iscrizioni, foto e sondaggi nel profilo",
+  temaKicker: "Tema dei giovani 2026",
+  temaTitolo: "Cammina con me",
+  versetto:
+    "«Ecco, il mio spirito è su di te, pertanto giustificherò tutte le tue parole; e le montagne fuggiranno dinanzi a te, e i fiumi devieranno dal loro corso; e tu dimorerai in me e io in te; cammina dunque con me».",
+  versettoCitazione: "Mosè 6:34",
+  versettoBreve: "«…e tu dimorerai in me e io in te; cammina dunque con me».",
+  logoAlt: "Cammina con me, Mosè 6:34 — logo del tema dei giovani 2026",
+  linkTema: "Sito del tema",
+  linkTemaNota: "churchofjesuschrist.org, in italiano",
+  linkSala: "«Cammina con me» è il tema del 2026",
+  linkSalaNota: "Sala Stampa della Chiesa",
+  linkAlbum: "Album musicale «Cammina con me: 2026»",
+  linkAlbumNota: "churchofjesuschrist.org, in italiano",
+  linkPoster: "Poster con il logo",
+  linkPosterNota: "PDF ufficiale, in italiano",
+  palo: "Palo",
+  paloTuo: "Il tuo palo",
+  principale: "Principale",
+  linkUtili: "Link utili",
+  privacy: "Privacy",
+  privacyFoto: "Privacy foto",
+  disclaimerForte: "Attività GU GD non è un sito ufficiale",
+  disclaimerResto:
+    "de La Chiesa di Gesù Cristo dei Santi degli Ultimi Giorni. È uno strumento locale per informazioni, iscrizioni e coordinamento delle attività.",
+  logoCredit: "Logo del tema dei giovani 2026 © Intellectual Reserve, Inc.",
+  tuaPagina: "La tua pagina",
 } as const;
