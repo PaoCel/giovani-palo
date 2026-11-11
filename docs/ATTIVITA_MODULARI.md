@@ -1115,3 +1115,16 @@ Verifica dell'11 novembre, sul mini, copia QA `~/qa/gugd-rapida`:
   Rilievi minori rimasti: task `gugd-rapida-finitura`. Trovato nel collaudo,
   su codice di `main`: `gugd-me-calendario-appeso`.
 
+**In produzione dall'11 novembre 2026**, su conferma di Paolo, dalla copia
+pulita di `83081b1` sul mini. Prima le 17 functions che usano i file
+corretti, per nome (le nove di `parentAuthorization`, le tre di
+`parentConsent`, `roomManagementSave`, `roomMates` e i tre trigger delle
+stanze): rispondono con i loro errori, non con un 404. Poi l'hosting: service
+worker v48, `index-_9z6PaIm.js` e `index-Ceh7B6DD.css` con sha uguale alla
+build su gugditalia.it e web.app. Prima del deploy la produzione serviva la
+v47 e fra quel commit e `main` il client conteneva solo questo incremento.
+Viste da anonimo dopo il reset di service worker e cache: home, catalogo (In
+programma e Passate) e scheda del Gran Galà, senza errori in console. Non
+provati in produzione: il foglio rapido e le aree con login, un'attività
+annunciata vera, un'email o un modulo firmato dopo la correzione del fuso.
+

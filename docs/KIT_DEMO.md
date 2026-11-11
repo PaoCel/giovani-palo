@@ -106,7 +106,8 @@ modalità rapida di «Nuova attività» con lo stato «Annunciata»
 email e i moduli firmati scrivono le date nel giorno italiano. Il seed sulla
 demo è ancora quello del 5 novembre: le tre attività annunciate del seed
 compaiono solo dopo un nuovo `--reset --apply`; fino ad allora un'annunciata
-si vede creandola dalla rapida. Prima: hosting
+si vede creandola dalla rapida. Lo stesso codice è in produzione dall'11
+novembre. Prima: hosting
 riallineato a `main` (`e23d09f`, service worker v47): ci sono anche Crea
 attività a step, le pagine pubbliche col tema 2026 e tutta l'app con colori e
 font del tema dell'anno (vedi [REDESIGN_BRIEF.md](REDESIGN_BRIEF.md), «Tema
