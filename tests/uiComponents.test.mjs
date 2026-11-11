@@ -588,7 +588,7 @@ test("tokens.css: scala, colori, radius, target, livelli, ombre e movimento del 
   // (che non sia quello vecchio lo controlla yearTheme.test.mjs).
   assert.match(
     normalized(tokensRoot["--shadow-card"]),
-    /^04px18pxrgba\(\d+,\d+,\d+,\.05\)$/u,
+    /^04px18pxrgba\((?:\d+,\d+,\d+|var\(--theme-ink-rgb\)),\.05\)$/u,
   );
 });
 
