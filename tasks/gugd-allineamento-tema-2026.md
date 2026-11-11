@@ -1,7 +1,7 @@
 ---
 id: gugd-allineamento-tema-2026
 title: Allineare l'app al tema 2026 delle pagine pubbliche
-status: in-progress
+status: needs-paolo
 impact: 2
 urgency: 2
 effort: M
@@ -12,13 +12,13 @@ opened: 2026-11-11
 started_at: 2026-11-11
 touched: 2026-11-11
 due:
-blocked_by: []
-branch: task/gugd-allineamento-tema-2026
-worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/gugd-allineamento-tema-2026
+blocked_by: ["decisione: deploy hosting in produzione (service worker v47)"]
+branch:
+worktree:
 session: 12edb8fa-c95b-429f-8bda-fe3b3d8ba3df
-stopped_at: "11/11: tavola con le tre direzioni su home e dettaglio a 375 px mostrata a Paolo"
-next: "Dopo la scelta: applicare la direzione a dettaglio, iscrizione e pagine del genitore, poi alle aree con login, con foto prima e dopo sugli emulatori col seed demo"
-verified: ""
+stopped_at: "11/11: direzione 3 in main (e23d09f) e sulla demo, service worker v47; produzione ancora a v45"
+next: "Paolo: guardare la demo da loggato nei quattro ruoli; poi conferma per il deploy hosting in produzione"
+verified: "11/11. Suite client sul mini da main 1919/1919; tsc e build verdi; test del tema (yearTheme, uiComponents) scritti da un altro agente, 158/158 con accenti e titolo. Collaudo fotografico su emulatori sul mini (.claude/qa-tema-2026): 29 pagine di tutti i ruoli a 390 e 1440, prima e dopo; dopo: zero font e zero colori della palette di prima negli stili calcolati, nessuno sbordo, nessun errore in console. Review indipendente Codex gpt-6-astra: BLOCKED con 2 rilievi (contrasto del badge sul gradiente di iscrizione inviata, striscia del tema nella Notte dei Record), corretti e coperti da guardie. Demo: index.html, sw.js, bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; home e dettaglio visti a 375 dopo reset di service worker e cache, senza errori. Non provati: aree con login sulla demo vera (la password la digita Paolo), pagine di firma del genitore, Safari iOS, stampa del certificato"
 links: []
 done_at:
 ---
