@@ -16,9 +16,9 @@ blocked_by: ["decisione: nome e numeri di Roma Est nel video, lingua dei sottoti
 branch:
 worktree:
 session:
-stopped_at: "11/11: demo riallineata a main (hosting 2c3ae38, service worker v46) con il fix del titolo [DEMO]; home, attività e accedi viste nel browser senza errori in console"
-next: "Paolo: prova generale da loggato con i quattro ruoli sulla demo; poi seed col --today del giorno e registrazione"
-verified: "11/11: suite client sul mini 1896/1896 (9 test nuovi del titolo scritti da un altro agente); index.html, sw.js e bundle con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; titolo [DEMO] su /, /activities e /login dopo reset di service worker e cache. Non provati: pagina di firma del genitore, percorsi da loggato dei quattro ruoli"
+stopped_at: "11/11 sera: demo a main 30b16a6 (service worker v48, functions ridistribuite) con la modalità rapida; riga 0:15-0:40 della scaletta riscritta: creare un'attività con la rapida sta nei 25 secondi a stima (tre gesti, 10-15 s), da cronometrare"
+next: "Paolo: prova generale da loggato con i quattro ruoli sulla demo, compresa «Nuova attività» in rapida col cronometro; poi seed col --reset --apply e --today del giorno (porta anche le tre annunciate) e registrazione"
+verified: "11/11 sera: index.html, sw.js (v48), bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; nel bundle ci sono le stringhe della rapida; / e /activities aperte nel browser dopo reset di service worker e cache, titolo [DEMO], nessun errore in console. La rapida è stata collaudata sugli emulatori col seed demo a 320/390/430/1440, non sulla demo vera da loggato (la password la digita Paolo). Non provati: pagina di firma del genitore, percorsi da loggato dei quattro ruoli"
 links: []
 done_at:
 ---
@@ -30,7 +30,7 @@ Video di 3 minuti da dare ad altri pali, scaletta in docs/KIT_DEMO.md (Video di 
 - demo.gugditalia.it serve main (fatto il 2026-11-11, hosting da 2c3ae38, service worker v46)
 - prova generale da loggato sulla demo vera con i quattro ruoli, a 390 e desktop (la password la digita Paolo)
 - seed riapplicato con --reset --apply e --today uguale al giorno della registrazione
-- scaletta riletta: la home è quella nazionale con selettore del palo; la riga 0:15-0:40 è scritta prima di Crea attività a step
+- scaletta riletta: la home è quella nazionale con selettore del palo; la riga 0:15-0:40 ora usa la modalità rapida (fatto l'11/11, da cronometrare nella prova generale)
 - video registrato
 
 ## Decisioni di Paolo

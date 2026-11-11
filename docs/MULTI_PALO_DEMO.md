@@ -66,7 +66,14 @@ e `--config firebase.staging.json`, mai `--project` da solo.
 - Functions: `functions/.env.giovani-palo-staging` (da `functions/.env.staging.example`)
   e secret `BREVO_API_KEY`, `WEB_PUSH_PRIVATE_KEY` nel progetto di staging.
 
-**Stato al 2026-11-11**: solo hosting, da `e23d09f` (service worker v47, tema
+**Stato al 2026-11-11, sera**: functions (39, con `--force`: `functions/index.js`
+non era cambiato, nessuna da cancellare) e poi hosting da `30b16a6` (service
+worker v48, modalità rapida e stato «Annunciata»), dallo specchio pulito di
+`main` sul mini con `--account paolo.celestini97@gmail.com`; prima del deploy
+delle functions servono `mini put .env.staging` e `mini put
+functions/.env.giovani-palo-staging`. Rules, indici e storage non sono
+cambiati dal 5 novembre. Seed non riapplicato.
+**Stato al 2026-11-11, mattina**: solo hosting, da `e23d09f` (service worker v47, tema
 dell'anno su tutta l'app), dallo
 specchio pulito di `main` sul mini con `--account paolo.celestini97@gmail.com`;
 rules, indici, storage e functions non sono cambiati dal 5 novembre.

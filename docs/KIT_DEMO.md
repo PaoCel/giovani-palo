@@ -99,7 +99,14 @@ ambra). Va riallineato prima della sessione di redesign, insieme a `/unit` e
 ## 2. Ambiente demo
 
 Base: progetto `giovani-palo-staging`, dominio `demo.gugditalia.it`
-(`noindex`, `robots.txt` con `Disallow: /`). **Stato al 2026-11-11**: hosting
+(`noindex`, `robots.txt` con `Disallow: /`). **Stato al 2026-11-11, sera**:
+hosting da `30b16a6` (service worker v48) e 39 functions ridistribuite: c'è la
+modalità rapida di «Nuova attività» con lo stato «Annunciata»
+([ATTIVITA_MODULARI.md](ATTIVITA_MODULARI.md), «Settimo incremento»), e le
+email e i moduli firmati scrivono le date nel giorno italiano. Il seed sulla
+demo è ancora quello del 5 novembre: le tre attività annunciate del seed
+compaiono solo dopo un nuovo `--reset --apply`; fino ad allora un'annunciata
+si vede creandola dalla rapida. Prima: hosting
 riallineato a `main` (`e23d09f`, service worker v47): ci sono anche Crea
 attività a step, le pagine pubbliche col tema 2026 e tutta l'app con colori e
 font del tema dell'anno (vedi [REDESIGN_BRIEF.md](REDESIGN_BRIEF.md), «Tema
