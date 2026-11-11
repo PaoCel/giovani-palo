@@ -3,21 +3,21 @@ id: gugd-i18n
 title: Versione inglese e spagnola
 status: ready
 impact: 2
-urgency: 1
+urgency: 3
 effort: L
 delivery: deploy
 surface: [web, functions]
 source: paolo
 opened: 2026-10-18
 started_at:
-touched: 2026-11-03
+touched: 2026-11-11
 due:
 blocked_by: []
 branch:
 worktree:
 session: 324c0270-ecd5-4491-ac05-a5580bd6c85f
 stopped_at: ""
-next: "Dopo le fondamenta di gugd-restyling: catalogo per schermata (chiave = frase italiana), selettore della lingua, poi traduzione di tutti i testi con un agente specializzato"
+next: "Urgente per Paolo dall'11/11 (serve anche per il video demo in inglese). Dopo le fondamenta di gugd-restyling: catalogo per schermata (chiave = frase italiana), selettore della lingua, poi traduzione di tutti i testi con un agente specializzato"
 verified: ""
 links: []
 done_at:
