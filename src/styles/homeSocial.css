@@ -21,7 +21,7 @@
 .social-next-card p { margin:0; font-size:15px; line-height:1.4; }
 .social-next-status { font-size:var(--text-xs); color:#fff; border:1px solid rgba(255,255,255,.38); border-radius:var(--radius-pill); padding:4px 10px; }
 .social-next-card .status-badge { background:rgba(255,255,255,.93); color:var(--ink); max-width:100%; white-space:normal; }
-.social-next-action { display:inline-flex; align-items:center; justify-content:space-between; gap:var(--space-5); min-height:var(--target); border-radius:var(--radius-pill); margin-top:var(--space-2); padding:9px var(--space-4); color:var(--ink); background:var(--action-sand); font-size:var(--text-sm); font-weight:700; text-decoration:none; }
+.social-next-action { display:inline-flex; align-items:center; justify-content:space-between; gap:var(--space-5); min-height:var(--target); border-radius:var(--radius-pill); margin-top:var(--space-2); padding:9px var(--space-4); color:var(--on-sand); background:var(--action-sand); font-size:var(--text-sm); font-weight:700; text-decoration:none; }
 .social-next-art { position:absolute; z-index:0; width:160px; bottom:8px; right:-6px; opacity:1; pointer-events:none; }
 .social-next-empty { padding:var(--space-5); border-radius:var(--radius-card); background:var(--surface-cool); }
 .social-next-empty h2 { margin:0; font:500 24px/1.2 var(--font-display); }

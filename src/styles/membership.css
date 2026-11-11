@@ -228,7 +228,7 @@
 
 .mship-count--hot {
   background: var(--ms-amber, var(--action-sand));
-  color: #2a1d0c;
+  color: var(--on-sand);
 }
 
 .mship-tag {
