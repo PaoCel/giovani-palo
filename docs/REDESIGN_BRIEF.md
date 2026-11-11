@@ -20,6 +20,42 @@ browser loggato da dirigente di unità (Roma 5) e nel codice di `main`
   375), con il cambio vista nel menu dell'avatar. Fase 4.
 - 2026-11-03: **barra laterale admin a desktop** al posto della barra in
   alto. Fase 4. Le scelte di prodotto della fase 4 sono tutte prese.
+- 2026-11-11, sulla tavola dei mockup: **colori e font dal tema dell'anno,
+  forme dell'app** (direzione 3 di tre). «I colori li prenderemo sempre dal
+  tema dell'anno». Home, catalogo e accedi col tema 2026 (PR #10) sono il
+  riferimento; il resto dell'app prende blu, ambra, inchiostro, grigi e font
+  da lì e tiene pill e card arrotondate, che passano anche alle pagine
+  pubbliche. Supera la palette della direzione A (blu `#235d90`, sabbia
+  `#e8a857`, Fraunces e Manrope): dove questo brief cita quei valori vale
+  la sezione «Tema dell'anno» qui sotto.
+
+## Tema dell'anno (11 novembre 2026)
+
+Ogni anno il tema dei giovani cambia, e con lui colori, font e logo dell'app.
+
+- **Un file solo**: `src/styles/yearTheme.css` definisce su `:root` le
+  variabili `--theme-*` (blu primario e sue varianti, ambra, inchiostro,
+  grigi, superfici, font, logo). Per l'anno nuovo si cambiano quel file e il
+  logo in `public/theme-<anno>/`, poi `theme-color` in `index.html` e
+  `theme_color` in `public/manifest.webmanifest`. Le pagine non si toccano.
+- **I token leggono dal tema**: in `tokens.css` e nel `:root` di `base.css`
+  `--primary`, `--primary-strong`, `--ink`, `--heading`, `--text`, `--muted`,
+  `--action-sand`, `--sand-soft`, `--info-ink`, `--line`, `--bg`,
+  `--font-display`, `--font-body` puntano alle `--theme-*`. Le trasparenze si
+  scrivono `rgba(var(--theme-primary-rgb), .12)`.
+- **Le forme non sono del tema**: radius, pill, spaziature e ombre restano in
+  `tokens.css` e valgono anche per `.pub26` (pagine pubbliche).
+- **Mai colori o font scritti a mano** nei CSS di `src/styles/`: lo blocca
+  `tests/yearTheme.test.mjs`, che controlla anche le coppie di contrasto AA
+  sui valori risolti. Sul testo sopra l'ambra va `--on-sand`, non `--ink`
+  (col blu 2026 farebbe 4,495:1).
+- **Fuori dal tema, di proposito**: la Notte dei Record e il certificato
+  (`recordNight*.css`, `recordCertificate.css`) hanno una pelle loro; le
+  illustrazioni SVG tengono i loro colori; `--focus-ring` resta `#bb7626`
+  perché l'ambra del tema su bianco non arriva a 3:1.
+- **Collaudo**: `.claude/qa-tema-2026/run-tema.sh <tag> <sorgente>` sul mini
+  fotografa 29 pagine di tutti i ruoli a 390 e 1440 e conta, sugli stili
+  calcolati, font e colori della palette di prima rimasti a schermo.
 
 ## Contesto prodotto
 
