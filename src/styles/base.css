@@ -26,8 +26,8 @@
   --warning-soft: rgba(155, 106, 31, 0.14);
   --danger: #b14e44;
   --danger-soft: rgba(177, 78, 68, 0.15);
-  --shadow: 0 20px 60px rgba(16, 28, 48, 0.08);
-  --shadow-soft: 0 12px 34px rgba(16, 28, 48, 0.06);
+  --shadow: 0 20px 60px rgba(var(--theme-ink-rgb), 0.08);
+  --shadow-soft: 0 12px 34px rgba(var(--theme-ink-rgb), 0.06);
   --radius-xl: 2rem;
   --radius-lg: 1.45rem;
   --radius-md: 1.1rem;
@@ -438,7 +438,7 @@ button {
   padding: 0 0.3rem;
   border-radius: var(--radius-pill);
   background: var(--action-sand);
-  color: var(--ink);
+  color: var(--on-sand);
   font-size: var(--text-xs);
   font-weight: 800;
   line-height: 1;

@@ -89,8 +89,8 @@
   --z-toast: 1400;
 
   /* Ombre e movimento */
-  --shadow-card: 0 4px 18px rgba(27, 63, 103, 0.05);
-  --shadow-float: 0 12px 30px rgba(16, 28, 48, 0.12);
+  --shadow-card: 0 4px 18px rgba(var(--theme-ink-rgb), 0.05);
+  --shadow-float: 0 12px 30px rgba(var(--theme-ink-rgb), 0.12);
   --duration-fast: 150ms;
   --duration: 220ms;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);

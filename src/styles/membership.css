@@ -312,7 +312,7 @@
 .mship-tabs .mship-count--hot,
 .mship-tabs button[aria-selected="true"] .mship-count {
   background: var(--action-sand);
-  color: var(--ink);
+  color: var(--on-sand);
 }
 
 /* La lista misura sé stessa: la stessa pagina sta nell'area admin (con la

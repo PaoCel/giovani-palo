@@ -149,6 +149,13 @@ for (const match of stripComments(baseCss).matchAll(/(?:^|[};])\s*:root\s*\{([^}
   Object.assign(baseRoot, customProperties(parseDeclarations(match[1])));
 }
 
+// Il tema dell'anno (`yearTheme.css`) è l'unico posto con i colori veri: i token
+// di tokens.css e di base.css ci puntano con var(--theme-…).
+const yearThemeRoot = {};
+for (const match of stripComments(readSource("src/styles/yearTheme.css")).matchAll(/(?:^|[};])\s*:root\s*\{([^}]*)\}/gu)) {
+  Object.assign(yearThemeRoot, customProperties(parseDeclarations(match[1])));
+}
+
 const tokensRules = parseCss(tokensCss);
 const uiRules = parseCss(uiCss);
 
@@ -160,7 +167,7 @@ for (const rule of tokensRules) {
 }
 
 // Quello che vede un componente: token storici di base.css più i nuovi.
-const defined = { ...baseRoot, ...tokensRoot };
+const defined = { ...yearThemeRoot, ...baseRoot, ...tokensRoot };
 
 function resolveVars(value, seen = []) {
   return value.replace(/var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)/gu, (_, name) => {
@@ -546,15 +553,12 @@ test("tokens.css: scala, colori, radius, target, livelli, ombre e movimento del 
     "--title-sm": "22px", "--title-md": "26px", "--title-lg": "30px",
     "--title-xl": "clamp(32px, 7vw, 44px)",
     "--leading-tight": "1.15", "--leading-body": "1.5",
-    "--text-secondary": "#52687b", "--ink": "#1b3f67", "--action-sand": "#e8a857",
-    "--surface-card": "#ffffff", "--surface-cool": "#edf1f2", "--surface-warm": "#edece5",
-    "--focus-ring": "#bb7626", "--line": "#dae1e6", "--sand-soft": "#f8e3c4", "--on-sand-soft": "#6b4a14",
+    "--surface-warm": "#edece5", "--focus-ring": "#bb7626",
     "--radius-inset": "12px", "--radius-control": "16px", "--radius-card": "20px",
     "--radius-sheet": "22px", "--radius-pill": "999px",
     "--target": "44px", "--control": "48px",
     "--z-raised": "1", "--z-sticky": "30", "--z-dock": "40", "--z-popover": "60",
     "--z-sheet": "1000", "--z-modal": "1250", "--z-toast": "1400",
-    "--shadow-card": "0 4px 18px rgba(27,63,103,.05)",
     "--duration-fast": "150ms", "--duration": "220ms", "--ease": "cubic-bezier(.2,.7,.2,1)",
   };
   const mismatches = Object.entries(expected)
@@ -562,9 +566,30 @@ test("tokens.css: scala, colori, radius, target, livelli, ombre e movimento del 
     .map(([name, value]) => `${name}: ${tokensRoot[name] ?? "(manca)"} invece di ${value}`);
   assert.deepEqual(mismatches, []);
 
-  assert.match(tokensRoot["--font-display"], /Fraunces/u);
-  assert.match(tokensRoot["--font-body"], /Manrope/u);
-  assert.match(tokensRoot["--font-body"], /system-ui/u);
+  // Colori e font vengono dal tema dell'anno: il token deve puntare alla variabile
+  // giusta di yearTheme.css (non un esadecimale) e la catena deve arrivare a un
+  // colore leggibile. Quale colore sia è affare del tema, non di questo test.
+  const fromTheme = {
+    "--text-secondary": "--theme-muted", "--ink": "--theme-primary", "--action-sand": "--theme-accent",
+    "--surface-card": "--theme-surface", "--surface-cool": "--theme-arch", "--line": "--theme-line",
+    "--sand-soft": "--theme-accent-tint", "--on-sand-soft": "--theme-on-accent-tint",
+    "--font-display": "--theme-font", "--font-body": "--theme-font",
+  };
+  const notThemed = Object.entries(fromTheme)
+    .filter(([name, source]) => (baseRoot[name] ?? tokensRoot[name])?.replace(/\s+/gu, "") !== `var(${source})`)
+    .map(([name, source]) => `${name}: ${tokensRoot[name] ?? "(manca)"} invece di var(${source})`);
+  assert.deepEqual(notThemed, []);
+  for (const name of Object.keys(fromTheme).filter((key) => !key.startsWith("--font"))) {
+    assert.ok(colorOf(`var(${name})`), `${name}: la catena di var() non arriva a un colore esadecimale`);
+  }
+  assert.match(resolveVars("var(--font-display)"), /sans-serif/u, "il font del tema ha un generico di riserva");
+
+  // Ombra della card: stessa forma di sempre; il colore non è fissato qui
+  // (che non sia quello vecchio lo controlla yearTheme.test.mjs).
+  assert.match(
+    normalized(tokensRoot["--shadow-card"]),
+    /^04px18pxrgba\(\d+,\d+,\d+,\.05\)$/u,
+  );
 });
 
 test("tokens.css: --gutter sale a 24 px da 768 px e il movimento si azzera con prefers-reduced-motion", () => {
@@ -688,11 +713,12 @@ test("contrasto: bianco su --primary (base.css), --ink e --danger-ink", () => {
   );
 });
 
-test("contrasto: inchiostro sulla sabbia dell'azione (brief: 5,2:1)", () => {
+// Il blu del tema (--ink) non è più una coppia usata sulla sabbia: la guardia sui
+// sorgenti sta in yearTheme.test.mjs («testo su sfondo ambra»).
+test("contrasto: testo sulla sabbia dell'azione (--on-sand)", () => {
   assert.deepEqual(
     contrastFailures(
       [
-        ["--ink", "--action-sand", "testo su azione sabbia"],
         ["--on-sand", "--action-sand", "testo su azione sabbia"],
       ],
       AA,

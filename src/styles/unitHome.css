@@ -61,7 +61,7 @@
 
 .page--unit-dashboard .mship-dash-card .mship-count--hot {
   background: var(--action-sand);
-  color: var(--ink);
+  color: var(--on-sand);
 }
 
 .page--unit-dashboard .mship-dash-card__text {

@@ -10,11 +10,11 @@
   --theme-mark-bg: var(--theme-primary-tint);
   --font: var(--theme-font);
   --white: #fff;
-  --grey-50: #f7f7f6;
+  --grey-50: var(--theme-surface-soft);
   --grey-100: #efefed;
-  --grey-200: #e2e2e0;
+  --grey-200: var(--theme-line);
   --grey-400: #a9aaab;
-  --grey-600: #5f6163;
+  --grey-600: var(--theme-muted);
   --ink: var(--theme-ink);
   --r: var(--radius-control);
   --wrap: 1200px;
@@ -171,7 +171,7 @@ html:has(.pub26) {
 .pub26 .status { display: inline-block; font-size: .82rem; font-weight: 500; padding: 3px 8px; border-radius: var(--r); }
 .pub26 .status.open { background: var(--theme-primary-tint); color: var(--theme-primary); }
 .pub26 .status.closed { background: var(--grey-100); color: var(--grey-600); }
-.pub26 .status.soon { background: var(--theme-accent-tint); color: #6b5314; }
+.pub26 .status.soon { background: var(--theme-accent-tint); color: var(--theme-on-accent-tint); }
 .pub26 .palo-label { font-size: .85rem; color: var(--theme-primary); font-weight: 500; }
 
 .pub26 .foot {
