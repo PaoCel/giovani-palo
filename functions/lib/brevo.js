@@ -34,6 +34,11 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+// Le Functions girano in UTC: senza fuso un'attività che inizia alle 00:00
+// italiane (la rapida la salva così quando l'ora non è scelta) uscirebbe col
+// giorno prima in email e moduli firmati.
+const ITALY_TIME_ZONE = "Europe/Rome";
+
 function formatDateRangeIt(startIso, endIso) {
   const safeStart = startIso ? new Date(startIso) : null;
   const safeEnd = endIso ? new Date(endIso) : null;
@@ -46,6 +51,7 @@ function formatDateRangeIt(startIso, endIso) {
     day: "2-digit",
     month: "long",
     year: "numeric",
+    timeZone: ITALY_TIME_ZONE,
   });
 
   if (
@@ -320,6 +326,7 @@ async function sendParentAuthorizationEmail({
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: ITALY_TIME_ZONE,
       }).format(new Date(expiresAt))
     : "data scadenza non disponibile";
 
@@ -804,4 +811,5 @@ module.exports = {
   sendSignedAuthorizationCopyEmail,
   BrevoError,
   formatDateRangeIt,
+  ITALY_TIME_ZONE,
 };

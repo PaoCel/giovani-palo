@@ -9,7 +9,7 @@ import { readRoomFile, type RoomImport } from "@/utils/roomImport";
 import { pickLayout, readRoomLayoutFile, roomsWithLayoutFloors, type RoomLayout } from "@/utils/roomLayout";
 import {
   MISSING_STAFF_ROOM, ageAt, assignmentProblem, buildPreferenceLinks, categoryLabels, eligibleRegistrations,
-  proposeRoomPlan, removeRegistrationReferences, roomSummary, staleRegistrationIds, validateRoomPlan,
+  proposeRoomPlan, referenceDay, removeRegistrationReferences, roomSummary, staleRegistrationIds, validateRoomPlan,
   type Room, type RoomPlan,
 } from "../../../functions/lib/roomPlannerCore.mjs";
 import "@/styles/roomPlanner.css";
@@ -269,7 +269,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
       const result = await fillForesteriaModule(file, plan, namesForRoom);
       downloadFile(result.blob, result.fileName);
       setMessage(`Modulo compilato: ${result.people} ${result.people === 1 ? "persona" : "persone"} in ${result.rooms} ${result.rooms === 1 ? "stanza" : "stanze"}${result.nights > 1 ? ` per ${result.nights} notti` : ""}. Controllalo prima di inviarlo alla Foresteria.`);
-      if (result.night && result.night !== referenceDate.slice(0, 10)) setWarning(`Il file si riferisce alla notte del ${result.night}, mentre l\u2019attivit\u00E0 inizia il ${referenceDate.slice(0, 10)}. Verifica di aver scelto il modulo giusto.`);
+      if (result.night && result.night !== referenceDay(referenceDate)) setWarning(`Il file si riferisce alla notte del ${result.night}, mentre l\u2019attivit\u00E0 inizia il ${referenceDay(referenceDate)}. Verifica di aver scelto il modulo giusto.`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Impossibile compilare il modulo."); }
     finally { setBusy(false); if (moduleInput.current) moduleInput.current.value = ""; }
   }
@@ -462,7 +462,7 @@ export function RoomPlanner({ initialPlan, registrations, referenceDate, onSave,
     </AppModal> : null}
 
     {importDraft ? <AppModal title="Controlla le stanze da importare" subtitle={`${importDraft.rooms.length} stanze · ${importDraft.rooms.reduce((sum, room) => sum + room.capacity, 0)} posti letto`} onClose={() => { setImportDraft(null); setError(""); }} size="wide" footer={<button className="button button--primary" onClick={acceptImport}>Importa nella bozza</button>}>
-      {errorNotice}{importDraft.night && importDraft.night !== referenceDate.slice(0, 10) ? <p className="rp-notice rp-notice--warning">Il file si riferisce alla notte del {importDraft.night}, mentre l’attività inizia il {referenceDate.slice(0, 10)}. Verifica che siano le stanze corrette.</p> : null}
+      {errorNotice}{importDraft.night && importDraft.night !== referenceDay(referenceDate) ? <p className="rp-notice rp-notice--warning">Il file si riferisce alla notte del {importDraft.night}, mentre l’attività inizia il {referenceDay(referenceDate)}. Verifica che siano le stanze corrette.</p> : null}
       {importDraft.warnings.map((warning) => <p className="rp-notice" key={warning}>{warning}</p>)}
       <p className="rp-aside-note">“Da decidere” lascia al calcolatore la scelta tra ragazzi e ragazze. Le stanze accompagnatori e le matrimoniali rimangono riservate.</p>
       <div className="rp-import-table"><table><thead><tr><th>Stanza</th><th>Piano</th><th>Posti</th><th>Riservata a</th></tr></thead><tbody>{importDraft.rooms.map((room, index) => <tr key={room.id}><td><strong>{room.name}</strong>{room.accessible ? <small>Accessibile</small> : null}</td><td>{room.floor}</td><td>{room.capacity}</td><td><CategorySelect label={`Categoria stanza ${room.name}`} value={room.category} onChange={(value) => setImportDraft({ ...importDraft, rooms: importDraft.rooms.map((item, itemIndex) => itemIndex === index ? { ...item, category: value } : item) })} /></td></tr>)}</tbody></table></div>

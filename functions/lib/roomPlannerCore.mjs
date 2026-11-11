@@ -195,16 +195,31 @@ export function removeRegistrationReferences(plan, registrationIds) {
   return { assignments, adultGenders, lockedIds, couples };
 }
 
+const ITALY_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit",
+});
+
+/**
+ * Giorno di calendario (`YYYY-MM-DD`) a cui si riferisce l'inizio di
+ * un'attività. Un istante (Date, o ISO in UTC come lo salva il client) vale il
+ * giorno italiano: un inizio alle 00:00 italiane è `…T22:00:00Z` del giorno
+ * prima, e i primi dieci caratteri direbbero il giorno sbagliato. Una data
+ * senza ora, o con il suo fuso scritto, vale il giorno che c'è scritto.
+ */
+export function referenceDay(referenceDate) {
+  if (typeof referenceDate === "string") {
+    const written = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(referenceDate);
+    if (written && !/(?:Z|[+-]00:?00)$/i.test(referenceDate)) return written[1];
+  }
+  const instant = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  return Number.isNaN(instant.getTime()) ? "" : ITALY_DAY.format(instant);
+}
+
 export function ageAt(birthDate, referenceDate) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text(birthDate));
-  const referenceText = typeof referenceDate === "string" ? referenceDate : "";
-  const referenceMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(referenceText);
-  const reference = referenceMatch
-    ? new Date(Date.UTC(Number(referenceMatch[1]), Number(referenceMatch[2]) - 1, Number(referenceMatch[3])))
-    : referenceDate instanceof Date
-      ? referenceDate
-      : new Date(referenceDate);
-  if (!match || Number.isNaN(reference.getTime())) return null;
+  const referenceMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(referenceDay(referenceDate));
+  if (!match || !referenceMatch) return null;
+  const reference = new Date(Date.UTC(Number(referenceMatch[1]), Number(referenceMatch[2]) - 1, Number(referenceMatch[3])));
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);

@@ -8,7 +8,7 @@
 const fs = require("fs");
 const path = require("path");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
-const { formatDateRangeIt } = require("./brevo");
+const { formatDateRangeIt, ITALY_TIME_ZONE } = require("./brevo");
 
 const TEMPLATE_PATH = path.join(
   __dirname,
@@ -34,21 +34,42 @@ function formatDateIt(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("it-IT").format(date);
+  return new Intl.DateTimeFormat("it-IT", { timeZone: ITALY_TIME_ZONE }).format(date);
+}
+
+const ITALY_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: ITALY_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+// Giorno di calendario italiano: una data di nascita `YYYY-MM-DD` resta com'è,
+// un istante (inizio attività, conferma) vale il giorno che è in Italia. Con i
+// getter del runtime (UTC) un inizio alle 00:00 italiane era il giorno prima e
+// l'età usciva più bassa di un anno il giorno del compleanno.
+function italyDayParts(value) {
+  const written = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof value === "string" ? value : "");
+  if (written) {
+    // Un giorno che non esiste (31 febbraio) non è una data: niente età.
+    const [year, month, day] = written.slice(1).map(Number);
+    const check = new Date(Date.UTC(year, month - 1, day));
+    const real = check.getUTCFullYear() === year && check.getUTCMonth() === month - 1 && check.getUTCDate() === day;
+    return real ? [year, month, day] : null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return ITALY_DAY.format(date).split("-").map(Number);
 }
 
 function calculateAge(birthDate, referenceDate) {
   if (!birthDate) return "";
-  const birth = new Date(birthDate);
-  const reference = referenceDate ? new Date(referenceDate) : new Date();
-  if (Number.isNaN(birth.getTime()) || Number.isNaN(reference.getTime())) return "";
+  const birth = italyDayParts(birthDate);
+  const reference = italyDayParts(referenceDate || new Date());
+  if (!birth || !reference) return "";
 
-  let age = reference.getFullYear() - birth.getFullYear();
-  const monthDelta = reference.getMonth() - birth.getMonth();
-  if (
-    monthDelta < 0 ||
-    (monthDelta === 0 && reference.getDate() < birth.getDate())
-  ) {
+  let age = reference[0] - birth[0];
+  if (reference[1] < birth[1] || (reference[1] === birth[1] && reference[2] < birth[2])) {
     age -= 1;
   }
   return age >= 0 ? String(age) : "";
@@ -351,5 +372,6 @@ async function generateChurchActivityConductPdf() {
 module.exports = {
   generateOfficialConsentPdf,
   generateChurchActivityConductPdf,
+  calculateAge,
   isMinorBirthDate,
 };

@@ -9,6 +9,7 @@ import {
   emptyRoomPlan,
   isRoomEligibleStatus,
   proposeRoomPlan,
+  referenceDay,
   removeRegistrationReferences,
   roomSummary,
   staleRegistrationIds,
@@ -647,4 +648,24 @@ test("dopo l'annullamento la rimozione dei riferimenti riporta il piano valido e
   assert.equal(proposed.assignments.boy, undefined);
   assert.equal(proposed.assignments.moglie, undefined);
   assert.deepEqual(validateRoomPlan(proposed, after, DATE), []);
+});
+
+test("il giorno di riferimento è italiano per un istante UTC e scritto per il resto", () => {
+  assert.equal(referenceDay("2026-07-14T22:00:00.000Z"), "2026-07-15");
+  assert.equal(referenceDay("2026-07-15"), "2026-07-15");
+  assert.equal(referenceDay("2026-07-15T23:30:00-10:00"), "2026-07-15");
+  assert.equal(referenceDay(new Date("2026-12-11T23:00:00.000Z")), "2026-12-12");
+  assert.equal(referenceDay("non-una-data"), "");
+});
+
+test("l'età alle 00:00 italiane usa il giorno italiano, non i primi dieci caratteri UTC", () => {
+  assert.equal(ageAt("2008-07-15", "2026-07-14T22:00:00.000Z"), 18);
+  assert.equal(ageAt("2008-07-16", "2026-07-14T22:00:00.000Z"), 17);
+});
+
+// +00:00 è lo stesso istante di Z, con o senza millisecondi: le 22:00 UTC di
+// luglio sono già il giorno dopo in Italia.
+test("referenceDay: +00:00 con e senza millisecondi è il giorno italiano", () => {
+  assert.equal(referenceDay("2026-07-14T22:00:00+00:00"), "2026-07-15");
+  assert.equal(referenceDay("2026-07-14T22:00:00.000+00:00"), "2026-07-15");
 });

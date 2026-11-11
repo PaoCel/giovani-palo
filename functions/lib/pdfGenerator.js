@@ -5,7 +5,7 @@
 
 const PDFDocument = require("pdfkit");
 const { LEGAL_DOCS, PARENT_CONSENT_CHECKBOXES } = require("./legalDocs");
-const { formatDateRangeIt } = require("./brevo");
+const { formatDateRangeIt, ITALY_TIME_ZONE } = require("./brevo");
 
 function formatDateTimeIt(iso) {
   if (!iso) return "-";
@@ -17,6 +17,7 @@ function formatDateTimeIt(iso) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: ITALY_TIME_ZONE,
   }).format(date);
 }
 
@@ -144,7 +145,7 @@ async function generateParentAuthorizationPdf(payload) {
       labelValue(
         doc,
         "Data di nascita:",
-        new Intl.DateTimeFormat("it-IT").format(
+        new Intl.DateTimeFormat("it-IT", { timeZone: ITALY_TIME_ZONE }).format(
           new Date(payload.participant.birthDate),
         ),
       );
