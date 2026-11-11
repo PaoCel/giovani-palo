@@ -1,7 +1,7 @@
 ---
 id: gugd-allineamento-tema-2026
 title: Allineare l'app al tema 2026 delle pagine pubbliche
-status: needs-paolo
+status: in-progress
 impact: 2
 urgency: 2
 effort: M
@@ -9,13 +9,13 @@ delivery: deploy
 surface: [web]
 source: paolo
 opened: 2026-11-11
-started_at:
+started_at: 2026-11-11
 touched: 2026-11-11
 due:
-blocked_by: ["decisione: direzione dell allineamento (1 tema 2026, 2 stile app, 3 ibrido) sulla tavola dei mockup"]
-branch:
-worktree:
-session:
+blocked_by: []
+branch: task/gugd-allineamento-tema-2026
+worktree: /Users/paolocelestini/Developer/giovani-palo/.claude/worktrees/gugd-allineamento-tema-2026
+session: 12edb8fa-c95b-429f-8bda-fe3b3d8ba3df
 stopped_at: "11/11: tavola con le tre direzioni su home e dettaglio a 375 px mostrata a Paolo"
 next: "Dopo la scelta: applicare la direzione a dettaglio, iscrizione e pagine del genitore, poi alle aree con login, con foto prima e dopo sugli emulatori col seed demo"
 verified: ""
