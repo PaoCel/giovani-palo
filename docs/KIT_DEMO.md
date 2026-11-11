@@ -423,7 +423,7 @@ stanze, gruppi e programma della settimana.
    che ha usato l'app?
 3. **Canale tramite i dirigenti**: chi è il riferimento per FSY Italia e chi per
    la sede europea, e se serve una lettera della presidenza di palo.
-4. Si possono citare **il nome e i numeri** del Palo di Roma Est?
+4. Si possono citare **il nome e i numeri** del Palo di Roma Est? Sì, deciso da Paolo il 2026-11-11.
 5. **Punti di conformità** delle note private: si chiudono prima della demo, in
    una sessione dedicata?
 6. Demo da far provare: **solo su invito** (consigliato) o sandbox pubblica?
