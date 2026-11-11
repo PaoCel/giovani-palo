@@ -273,3 +273,107 @@ for (const [foreground, background, what] of PAIRS) {
     );
   });
 }
+
+// ---------------------------------------------------------------------------
+// 6. Guardie su due punti dove il tema incontra altro CSS
+// ---------------------------------------------------------------------------
+
+// Dichiarazioni (con riga) di tutte le regole che hanno ESATTAMENTE questo selettore,
+// anche in @media; nessun blocco annidato oltre il primo livello.
+function declarationsFor(file, selector) {
+  const text = blankComments(read(join(ROOT, file)));
+  const found = [];
+  for (const block of text.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+    const selectors = block[1].split(",").map((part) => part.trim().replace(/\s+/gu, " "));
+    if (!selectors.includes(selector)) continue;
+    const startLine = text.slice(0, block.index).split("\n").length + (block[1].match(/^\s*/u)[0].match(/\n/gu) ?? []).length;
+    for (const part of block[2].split(/;(?![^(]*\))/u)) {
+      const at = part.indexOf(":");
+      if (at > 0) found.push({ prop: part.slice(0, at).trim().toLowerCase(), value: part.slice(at + 1).trim(), line: startLine });
+    }
+  }
+  return found;
+}
+
+// Spezza a livello 0 di parentesi.
+function splitCommas(text) {
+  const parts = [];
+  let depth = 0;
+  let current = "";
+  for (const char of text) {
+    if (char === "(") depth += 1;
+    if (char === ")") depth -= 1;
+    if (char === "," && depth === 0) {
+      parts.push(current.trim());
+      current = "";
+    } else current += char;
+  }
+  parts.push(current.trim());
+  return parts;
+}
+
+// Contenuto di `name(...)` dentro `value`, con parentesi bilanciate; null se manca.
+function functionArgs(value, name) {
+  const start = value.indexOf(`${name}(`);
+  if (start < 0) return null;
+  let depth = 0;
+  for (let index = start + name.length; index < value.length; index += 1) {
+    if (value[index] === "(") depth += 1;
+    if (value[index] === ")" && --depth === 0) return value.slice(start + name.length + 1, index);
+  }
+  return null;
+}
+
+// Colore di uno stop: var(--theme-…), var(--altra) che arriva al tema, oppure esadecimale.
+function stopColor(stop, where) {
+  const token = /^(var\(\s*(--[\w-]+)\s*\)|#[0-9a-f]{3,6})/iu.exec(stop);
+  assert.ok(token, `${where}: non riesco a leggere il colore dello stop «${stop}»`);
+  return token[2] ? hexToRgb(resolveTheme(token[2])) : hexToRgb(token[1]);
+}
+
+test("registerFlow.css .inviata-next: il badge bianco 13 px arriva a 4,5:1 su entrambi i capi del gradiente", () => {
+  const FILE = "src/styles/registerFlow.css";
+  const box = declarationsFor(FILE, ".inviata-next").filter(({ prop }) => prop === "background");
+  assert.ok(box.length > 0, `${FILE}: la regola .inviata-next con background non si trova più: il test non sa dove guardare`);
+  const where = `${FILE}:${box.at(-1).line}`;
+  const gradient = functionArgs(box.at(-1).value, "linear-gradient");
+  assert.ok(gradient, `${where}: .inviata-next non ha più un linear-gradient leggibile («${box.at(-1).value}»)`);
+  const stops = splitCommas(gradient).filter((part) => !/^(?:to\s|-?[\d.]+(?:deg|turn|rad|grad)\b)/u.test(part));
+  assert.ok(stops.length >= 2, `${where}: servono almeno due capi nel linear-gradient, trovati ${stops.length}`);
+
+  const tag = declarationsFor(FILE, ".inviata-next__tag");
+  const tagBg = tag.filter(({ prop }) => prop === "background" || prop === "background-color").at(-1);
+  assert.ok(tagBg, `${FILE}: .inviata-next__tag non ha più un background`);
+  const alpha = /^rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*([\d.]+)\s*\)$/u.exec(tagBg.value);
+  assert.ok(alpha, `${FILE}:${tagBg.line}: il background del badge non è più rgba(255, 255, 255, alfa): «${tagBg.value}»`);
+  const tagColor = tag.filter(({ prop }) => prop === "color").at(-1)?.value ?? "(eredita)";
+  assert.ok(["#fff", "#ffffff", "white", "(eredita)"].includes(tagColor.toLowerCase()), `${FILE}: il testo del badge non è bianco: ${tagColor}`);
+  const inherited = declarationsFor(FILE, ".inviata-next").find(({ prop }) => prop === "color")?.value;
+  if (tagColor === "(eredita)") assert.ok(["#fff", "#ffffff", "white"].includes(inherited?.toLowerCase()), `${FILE}: il testo del badge eredita ${inherited}, non bianco`);
+
+  const opacity = Number(alpha[1]);
+  const failures = [];
+  const report = [];
+  for (const stop of stops) {
+    const base = stopColor(stop, where);
+    const composed = base.map((part) => Math.round(255 * opacity + part * (1 - opacity)));
+    const measured = ratio([255, 255, 255], composed);
+    report.push(`${stop} → ${measured.toFixed(2)}:1`);
+    if (measured < AA_TEXT) failures.push(`${where}: bianco su ${stop} con badge a ${opacity} = rgb(${composed}): ${measured.toFixed(2)}:1, sotto ${AA_TEXT}:1`);
+  }
+  assert.deepEqual(failures, []);
+  console.log(`# inviata-next capi: ${report.join("; ")}`);
+});
+
+test("base.css: la striscia del tema .topbar::before è spenta nella pelle Notte dei Record", () => {
+  const FILE = "src/styles/base.css";
+  const strip = declarationsFor(FILE, ".topbar::before");
+  const usesTheme = strip.some(({ prop, value }) => prop.startsWith("background") && /var\(\s*--theme-/u.test(value));
+  if (!usesTheme) return; // niente striscia del tema: niente da spegnere
+  const off = declarationsFor(FILE, "html.rn-skin .topbar::before");
+  const switchedOff = off.some(({ prop, value }) => (prop === "content" && value === "none") || (prop === "display" && value === "none"));
+  assert.ok(
+    switchedOff,
+    `${FILE}:${strip[0].line}: .topbar::before usa var(--theme-…) ma manca «html.rn-skin .topbar::before» con content: none o display: none: la Notte dei Record eredita la striscia`,
+  );
+});
