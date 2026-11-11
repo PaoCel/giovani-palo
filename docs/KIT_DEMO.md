@@ -342,6 +342,9 @@ delle note private (§4).
 
 ### Video di 3 minuti
 
+Per gli altri pali c'è una versione promozionale più corta, con le stesse
+riprese: [VIDEO_PROMO_PALI.md](VIDEO_PROMO_PALI.md).
+
 Si registra solo su `demo.gugditalia.it`, mai su gugditalia.it: in produzione ci
 sono nomi e dati di ragazzi veri. Il ragazzo e il genitore si mostrano sul
 telefono (390 px), l'admin e il dirigente sul desktop. Voce di Paolo, con i

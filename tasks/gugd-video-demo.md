@@ -25,18 +25,21 @@ done_at:
 
 Video di 3 minuti da dare ad altri pali, scaletta in docs/KIT_DEMO.md (Video di 3 minuti). Si registra solo su demo.gugditalia.it.
 
+Dall'11/11 c'è anche la versione promozionale per i pali (90 s in 16:9 e teaser verticale di 30 s), in docs/VIDEO_PROMO_PALI.md: stesse riprese, montaggio diverso.
+
 ## Fatto quando
 
 - demo.gugditalia.it serve main (fatto il 2026-11-11, hosting da 2c3ae38, service worker v46)
 - prova generale da loggato sulla demo vera con i quattro ruoli, a 390 e desktop (la password la digita Paolo)
 - seed riapplicato con --reset --apply e --today uguale al giorno della registrazione
 - scaletta riletta: la home è quella nazionale con selettore del palo; la riga 0:15-0:40 ora usa la modalità rapida (fatto l'11/11, da cronometrare nella prova generale)
-- video registrato
+- video registrato (giro guidato e versione promozionale)
 
 ## Decisioni di Paolo
 
 - citare nome e numeri del Palo di Roma Est nel titolo finale (domanda 4 del kit)
 - sottotitoli solo in italiano o anche in inglese
+- versione promozionale: contatto del titolo finale, voce di Paolo o solo testo e musica
 
 ## Trovato il 2026-11-11
 
