@@ -12,6 +12,13 @@
   gap: 6px;
 }
 
+/* «Iscrizioni aperte» come nel catalogo pubblico: il blu tenue del tema, non
+   il verde di conferma delle aree con login. */
+.public-pills .ui-pill--success {
+  background: var(--theme-primary-tint);
+  color: var(--theme-primary);
+}
+
 .public-meta {
   display: grid;
   gap: var(--space-1);

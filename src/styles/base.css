@@ -395,6 +395,12 @@ button {
   flex-shrink: 0;
 }
 
+/* Da non entrati «Accedi» è pieno, come nelle pagine pubbliche del tema. */
+.shell--public .button.topbar__auth-link {
+  background: var(--primary);
+  color: #fff;
+}
+
 .brand__label--short {
   display: none;
 }
