@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { ActivityScene } from "@/components/activities/ActivityScene";
 import { usePublicStake } from "@/components/publicSite/PublicStakeProvider";
 import { CATALOGO } from "@/copy/catalogo";
 import { HOME } from "@/copy/home";
@@ -188,7 +189,9 @@ export function ActivitiesPage() {
                         <b>{monthDay(event.startDate)}</b>
                         <small>{shortMonth(event.startDate)}</small>
                       </span>
-                      <span className="thumb">{image ? <img alt="" src={image} /> : null}</span>
+                      <span className="thumb">
+                        {image ? <img alt="" src={image} /> : <ActivityScene className="media-scene" />}
+                      </span>
                       <div>
                         {name ? <span className="palo-label">{name}</span> : null}
                         <h2>{event.title}</h2>

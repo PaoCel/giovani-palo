@@ -12,7 +12,7 @@ export function ProgramAgendaMark() {
       />
       <path
         d="M25 17q0-6 7-6h65q7 0 7 7v80q0 8-8 8H32q-7 0-7-7z"
-        fill="#235d90"
+        style={{ fill: "var(--primary)" }}
       />
       <path d="M32 12h60v83H32z" fill="#fffaf2" />
       <path d="M32 95h62v8H32q-8-4 0-8" fill="#e7d6bd" />
@@ -25,7 +25,7 @@ export function ProgramAgendaMark() {
       />
       <path
         d="M47 54h29M47 66h34M47 78h21"
-        stroke="#235d90"
+        style={{ stroke: "var(--primary)" }}
         strokeWidth="4"
         strokeLinecap="round"
         opacity=".55"

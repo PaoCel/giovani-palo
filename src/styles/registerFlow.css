@@ -1203,8 +1203,8 @@
   border-radius: 1.625rem;
   color: #fff;
   background:
-    radial-gradient(circle at 90% 0%, rgba(201, 163, 109, 0.35), transparent 40%),
-    linear-gradient(150deg, #2c6597, var(--ink));
+    radial-gradient(circle at 90% 0%, rgba(var(--theme-accent-rgb), 0.35), transparent 40%),
+    linear-gradient(150deg, var(--theme-primary-bright), var(--ink));
   box-shadow: 0 22px 44px -18px rgba(var(--theme-primary-rgb), 0.6);
 }
 

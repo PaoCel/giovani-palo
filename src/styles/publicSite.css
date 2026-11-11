@@ -607,3 +607,7 @@ html:has(.pub26) {
 .pub26 .status { padding: 4px 10px; }
 .pub26 .card .media { border-radius: var(--radius-card); }
 .pub26 .date-tag { border-radius: 0 0 var(--radius-inset) var(--radius-inset); }
+
+/* Attività senza locandina: lo stesso paesaggio disegnato del dettaglio, non un
+   riquadro vuoto. */
+.pub26 .media-scene { display: block; width: 100%; height: 100%; }

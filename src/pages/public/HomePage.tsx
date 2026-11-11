@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Link, Navigate } from "react-router-dom";
 
+import { ActivityScene } from "@/components/activities/ActivityScene";
 import { usePublicStake } from "@/components/publicSite/PublicStakeProvider";
 import { CATALOGO } from "@/copy/catalogo";
 import { HOME } from "@/copy/home";
@@ -147,7 +148,7 @@ export function HomePage() {
                           <b>{monthDay(event.startDate)}</b>
                           <small>{shortMonth(event.startDate)}</small>
                         </span>
-                        {image ? <img alt="" src={image} /> : null}
+                        {image ? <img alt="" src={image} /> : <ActivityScene className="media-scene" />}
                       </div>
                       {name ? <span className="palo-label">{name}</span> : null}
                       <h3>{event.title}</h3>

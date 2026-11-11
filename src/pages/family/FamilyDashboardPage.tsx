@@ -43,7 +43,7 @@ import { isConnectionError, isOffline, withWriteTimeout } from "@/utils/writeTim
 
 import "@/styles/family.css";
 
-const AVATAR_PALETTE = ["#235d90", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
+const AVATAR_PALETTE = ["var(--primary)", "#b58a50", "#2d6b56", "#7a4f8f", "#b14e44", "#1f6f7d"];
 
 function getChildInitials(child: ChildProfile) {
   const first = child.firstName?.trim().charAt(0) ?? "";
