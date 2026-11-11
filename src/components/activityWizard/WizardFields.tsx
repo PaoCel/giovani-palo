@@ -24,10 +24,15 @@ export function Switches({ children }: { children: ReactNode }) {
   return <div className="wz-switches">{children}</div>;
 }
 
-export function DateTimeField({ label, value, error, fallbackTime, onChange, id }: {
-  label: string; value: string; error?: string; fallbackTime: string; onChange: (next: string) => void; id: string;
+export function DateTimeField({ label, value, error, fallbackTime, hiddenTime, onChange, id }: {
+  label: string; value: string; error?: string; fallbackTime: string;
+  /** A time that stands for «not chosen yet»: shown as an empty field. */
+  hiddenTime?: string;
+  onChange: (next: string) => void; id: string;
 }) {
-  const { date, time } = splitLocalDateTime(value);
+  const parts = splitLocalDateTime(value);
+  const date = parts.date;
+  const time = hiddenTime && parts.time === hiddenTime ? "" : parts.time;
   const errorId = `${id}-error`;
   const describedBy = error ? errorId : undefined;
   return <fieldset className="wz-when">

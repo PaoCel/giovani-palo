@@ -1,6 +1,7 @@
 import "@/styles/unitActivity.css";
 import dirigenteUrl from "@/assets/flusso-genitore/dirigente.webp";
 import giovaniUrl from "@/assets/flusso-genitore/giovani.webp";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { CAMP } from "@/copy/camp";
 import { fillCopy } from "@/copy/parole";
 import { getCampGroupLabels, getCommitteeInitials } from "@/utils/campGroups";
@@ -792,6 +793,7 @@ export function UnitActivityPage() {
           <div className="unit-activity-hero__body">
             <div className="unit-activity-hero__pills">
               <Pill tone="info">La tua unità</Pill>
+              {data.event.status === "planned" ? <Pill dot tone="info">{ANNUNCIATA.statoStaff}</Pill> : null}
               {data.event.overnight ? <Pill>Pernottamento</Pill> : null}
             </div>
             <h1 className="unit-activity-hero__title">{data.event.title}</h1>
@@ -800,10 +802,10 @@ export function UnitActivityPage() {
                 <Icon name="calendar" />
                 <span>{formatUnitDateRange(data.event.startDate, data.event.endDate)}</span>
               </p>
-              {data.event.location ? (
+              {data.event.location || data.event.status === "planned" ? (
                 <p>
                   <Icon name="map-pin" />
-                  <span>{data.event.location}</span>
+                  <span>{data.event.location || ANNUNCIATA.luogoDaDefinire}</span>
                 </p>
               ) : null}
             </div>

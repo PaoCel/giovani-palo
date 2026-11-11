@@ -3,6 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 
 import { ActivityScene } from "@/components/activities/ActivityScene";
 import { usePublicStake } from "@/components/publicSite/PublicStakeProvider";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { CATALOGO } from "@/copy/catalogo";
 import { HOME } from "@/copy/home";
 import { usePublishedActivities } from "@/hooks/usePublishedActivities";
@@ -10,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { fillCopy } from "@/copy/parole";
 import { getActivitiesPath, getActivityPath } from "@/utils/activityLinks";
 import { formatHomeWhen, monthDay, shortMonth } from "@/utils/publicCatalog";
-import { hasEventEnded } from "@/utils/publicEventState";
+import { getPublicEventState, hasEventEnded } from "@/utils/publicEventState";
 import type { Event } from "@/types";
 
 const SYMBOL = "/theme-2026/simbolo-cammina-con-me.png";
@@ -136,7 +137,10 @@ export function HomePage() {
           {loading
             ? null
             : upcoming.map((event) => {
-                const when = formatHomeWhen(event);
+                const when = formatHomeWhen(event, { missingPlace: ANNUNCIATA.luogoDaDefinire });
+                // In home lo stato si dice solo quando cambia cosa aspettarsi dalla card.
+                const state = getPublicEventState(event);
+                const flag = state.phase === "announced" ? "soon" : state.phase === "cancelled" ? "closed" : "";
                 const image = coverUrl(event);
                 const name = stakes.find((stake) => stake.id === event.stakeId)?.name;
 
@@ -156,6 +160,7 @@ export function HomePage() {
                         <b>{when.date}</b>
                         {when.suffix}
                       </p>
+                      {flag ? <span className={`status ${flag}`}>{state.label}</span> : null}
                     </Link>
                   </li>
                 );

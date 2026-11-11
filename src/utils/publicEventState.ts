@@ -9,11 +9,14 @@
 
 import type { Event } from "@/types";
 
+import { ANNUNCIATA } from "../copy/annunciata.ts";
 import { CATALOGO } from "../copy/catalogo.ts";
 import { MOMENTI } from "../copy/momenti.ts";
 import { fillCopy } from "../copy/parole.ts";
 
-export type PublicEventPhase = "draft" | "open" | "upcoming" | "closed" | "ended" | "cancelled";
+// "announced": status "planned" (settimo incremento, docs/ATTIVITA_MODULARI.md).
+// Visibile a tutti, iscrizioni non ancora aperte, nessuna data provvisoria.
+export type PublicEventPhase = "draft" | "announced" | "open" | "upcoming" | "closed" | "ended" | "cancelled";
 export type PublicEventTone = "success" | "info" | "warning" | "neutral" | "danger";
 
 export interface PublicEventState {
@@ -61,6 +64,11 @@ export function getPublicEventPhase(event: StateEvent, now = Date.now()): Public
     return "ended";
   }
 
+  // Le date d'iscrizione di un'annunciata sono provvisorie: non decidono nulla.
+  if (event.status === "planned") {
+    return "announced";
+  }
+
   const opensAt = toTime(event.registrationOpen);
   const closesAt = toTime(event.registrationClose);
   const beforeOpening = opensAt !== null && now < opensAt;
@@ -82,6 +90,8 @@ export function getPublicEventState(event: StateEvent, now = Date.now()): Public
   switch (phase) {
     case "open":
       return { phase, label: CATALOGO.iscrizioniAperte, tone: "success" };
+    case "announced":
+      return { phase, label: ANNUNCIATA.iscrizioniABreve, tone: "info" };
     case "upcoming":
       return {
         phase,

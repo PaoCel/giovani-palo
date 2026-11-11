@@ -330,3 +330,7 @@
     grid-row: 1;
   }
 }
+
+.page--unit-dashboard .unit-home-row__info .ui-pill {
+  justify-self: start;
+}

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { ActivityScene } from "@/components/activities/ActivityScene";
 import { usePublicStake } from "@/components/publicSite/PublicStakeProvider";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { CATALOGO } from "@/copy/catalogo";
 import { HOME } from "@/copy/home";
 import { usePublishedActivities } from "@/hooks/usePublishedActivities";
@@ -30,7 +31,8 @@ function statusClass(phase: ReturnType<typeof getPublicEventState>["phase"]) {
     return "open";
   }
 
-  if (phase === "upcoming") {
+  // Annunciata: «Iscrizioni a breve», stesso segno di «Iscrizioni dal…».
+  if (phase === "upcoming" || phase === "announced") {
     return "soon";
   }
 
@@ -179,6 +181,8 @@ export function ActivitiesPage() {
             : rows.map((event) => {
                 const state = getPublicEventState(event);
                 const past = hasEventEnded(event) || state.phase === "ended" || state.phase === "cancelled";
+                // Il modulo c'è solo con le iscrizioni aperte o con una data d'apertura.
+                const canRegister = !past && (state.phase === "open" || state.phase === "upcoming");
                 const image = coverUrl(event);
                 const name = stakes.find((stake) => stake.id === event.stakeId)?.name;
 
@@ -195,14 +199,16 @@ export function ActivitiesPage() {
                       <div>
                         {name ? <span className="palo-label">{name}</span> : null}
                         <h2>{event.title}</h2>
-                        <p className="meta">{formatListWhen(event)}</p>
+                        <p className="meta">
+                          {formatListWhen(event, { missingPlace: ANNUNCIATA.luogoDaDefinire })}
+                        </p>
                         <div className="tags">
                           <span className={`status ${statusClass(state.phase)}`}>{state.label}</span>
                           <span className="type">{publicActivityTypeLabel(publicActivityTypeOf(event))}</span>
                         </div>
                       </div>
                       <span className="go btn btn-ghost btn-small">
-                        {past ? CATALOGO.dettagli : CATALOGO.dettagliIscrizione}
+                        {canRegister ? CATALOGO.dettagliIscrizione : CATALOGO.dettagli}
                       </span>
                     </Link>
                   </li>

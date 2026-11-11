@@ -16,8 +16,9 @@ import { surveysService } from "@/services/firestore/surveysService";
 import { userActivitiesService } from "@/services/firestore/userActivitiesService";
 import { getActivityPath, getActivityRegistrationPath, getMyActivityPath } from "@/utils/activityLinks";
 import { getSurveyHref } from "@/utils/surveyLinks";
-import { formatEventWindow } from "@/utils/formatters";
-import { getEffectiveEventStatus, isPastEvent } from "@/utils/events";
+import { ANNUNCIATA } from "@/copy/annunciata";
+import { formatEventCardWhen } from "@/utils/eventCardWhen";
+import { getEffectiveEventStatus, isAnnouncedEvent, isPastEvent } from "@/utils/events";
 import { getRegistrationStatusLabel, getRegistrationStatusTone } from "@/utils/registrations";
 import { isGalleryUploadOpen } from "@/utils/galleryWindow";
 
@@ -39,7 +40,7 @@ export function MeDashboardPage() {
   );
   const feed = result.key === sessionKey ? result.items : [];
   const upcoming = feed.find(({ event, registration }) => !isPastEvent(event) && event.status !== "cancelled" && event.status !== "completed" &&
-    ((Boolean(registration) && registration?.registrationStatus !== "cancelled") || getEffectiveEventStatus(event) === "registrations_open"));
+    ((Boolean(registration) && registration?.registrationStatus !== "cancelled") || getEffectiveEventStatus(event) === "registrations_open" || isAnnouncedEvent(event)));
   const pastEvents = feed.filter(({ event }) => isPastEvent(event)).slice(0, 6);
   const { access } = useStakeMembership(stakeId);
   const isMember = access === "member";
@@ -56,6 +57,7 @@ export function MeDashboardPage() {
   const event = upcoming?.event;
   const registration = upcoming?.registration;
   const registered = Boolean(registration) && registration?.registrationStatus !== "cancelled";
+  const announced = event ? isAnnouncedEvent(event) : false;
   const opens = event ? getEffectiveEventStatus(event) === "registrations_open" : false;
   const primaryTo = event ? registered ? getMyActivityPath(event.id) : opens ? getActivityRegistrationPath(event.id, stakeId) : getActivityPath(event.id, stakeId) : "/me/activities";
   const primaryLabel = registered ? "Dettagli attività" : opens ? "Iscriviti" : "Dettagli attività";
@@ -83,8 +85,8 @@ export function MeDashboardPage() {
       {loading && !event ? <div className="social-skeleton" role="status" aria-label="Carico la prossima attività"><span /><span /></div> : event ? <>
         <article className="social-next-card">
           <div className="social-next-copy"><span className="social-eyebrow">La tua prossima attività</span>
-            <h2>{event.title}</h2><p>{formatEventWindow(event)}</p><p>{event.location}</p>
-            {registration ? <StatusBadge label={getRegistrationStatusLabel(registration.registrationStatus)} tone={getRegistrationStatusTone(registration.registrationStatus)} /> : <span className="social-next-status">Iscrizioni aperte</span>}
+            <h2>{event.title}</h2><p>{formatEventCardWhen(event)}</p><p>{event.location.trim() || (announced ? ANNUNCIATA.luogoDaDefinire : "")}</p>
+            {registration ? <StatusBadge label={getRegistrationStatusLabel(registration.registrationStatus)} tone={getRegistrationStatusTone(registration.registrationStatus)} /> : <span className="social-next-status">{announced ? ANNUNCIATA.iscrizioniABreve : "Iscrizioni aperte"}</span>}
             <Link className="social-next-action" to={primaryTo}>{primaryLabel}<span aria-hidden="true">↗</span></Link>
           </div><img className="social-next-art" src={giovani} alt="" />
         </article>

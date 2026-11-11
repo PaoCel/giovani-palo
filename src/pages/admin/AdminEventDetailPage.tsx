@@ -17,6 +17,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
 import { AppIcon } from "@/components/AppIcon";
 import { ANNULLA } from "@/copy/annulla";
+import { ANNUNCIATA } from "@/copy/annunciata";
+import { EVENT_CREATION } from "@/copy/eventCreation";
 import { ADMIN } from "@/copy/admin";
 import { EVENTO } from "@/copy/evento";
 import { SONDAGGIO } from "@/copy/sondaggio";
@@ -107,7 +109,9 @@ import {
   planAdminReactivate,
 } from "@/utils/adminRegistration";
 import { isOffline, withWriteTimeout } from "@/utils/writeTimeout";
-import { formatDateOnly, formatDateRange, formatDateTime } from "@/utils/formatters";
+import { formatDateOnly, formatDateTime, formatEventWhen } from "@/utils/formatters";
+import { getPublicationChecklist, stepNumber, type WizardStepId } from "@/utils/activityWizard";
+import { getAnnouncementIssues } from "@/utils/eventCreation";
 import {
   downloadCampManagementExcel,
   downloadRegistrationsExcel,
@@ -123,6 +127,7 @@ import {
   getEventAudienceLabel,
   getEventStatusLabel,
   getEventStatusTone,
+  isAnnouncedEvent,
   isCampEvent,
 } from "@/utils/events";
 import { getPhotoConsentBadges } from "@/utils/parentAuthorization";
@@ -368,6 +373,9 @@ function getParentAuthorizationBadge(
 // Foglio di conferma aperto (mai un dialogo del browser). Ognuno si lega
 // all'oggetto con cui è stato aperto: se sparisce, o se cambiano account o
 // rotta, il foglio si chiude e nessuna azione parte per l'oggetto sbagliato.
+// Where the activity editor opens (AdminEventEditorModal initialStep).
+type EditorStep = "overview" | "options" | "preview" | "firstTodo" | WizardStepId;
+
 type AdminConfirm =
   | { kind: "removePatrol"; patrolId: string }
   | { kind: "removeCommittee"; committeeId: string }
@@ -376,6 +384,8 @@ type AdminConfirm =
   | { kind: "reloadCamp" }
   | { kind: "deleteQuestion"; questionId: string }
   | { kind: "deleteActivity" }
+  | { kind: "announce" }
+  | { kind: "unpublish" }
   | { kind: "legacyApprovals" }
   | { kind: "consentCompletion"; digest: string; total: number }
   | { kind: "cancelRegistration"; registrationId: string }
@@ -401,10 +411,12 @@ export function AdminEventDetailPage() {
   const [roomDraftDirty, setRoomDraftDirty] = useState(false);
   const [editorBlockedByRooms, setEditorBlockedByRooms] = useState(false);
   const [editorFocusField, setEditorFocusField] = useState<"roomsInfo" | undefined>(undefined);
-  const [editorInitialStep, setEditorInitialStep] = useState<"overview" | "options" | "preview">("overview");
+  const [editorInitialStep, setEditorInitialStep] = useState<EditorStep>("overview");
   const [busy, setBusy] = useState<
     | null
     | "publish"
+    | "announce"
+    | "unpublish"
     | "delete"
     | "resendParentAuth"
     | "saveParentEmail"
@@ -977,6 +989,11 @@ export function AdminEventDetailPage() {
   const resolvedEvent = event;
   const resolvedEventId = eventId;
   const effectiveStatus = getEffectiveEventStatus(resolvedEvent);
+  // Annunciata (settimo incremento): what is missing to open registrations.
+  const announced = isAnnouncedEvent(resolvedEvent);
+  const publicationChecks = getPublicationChecklist(resolvedEvent);
+  const draftActive = !resolvedEvent.isPublic && resolvedEvent.status !== "cancelled" && resolvedEvent.status !== "completed";
+  const canAnnounce = draftActive && getAnnouncementIssues(resolvedEvent).length === 0;
   const currentCount = activeRegistrations.length;
   const authenticatedCount = activeRegistrations.filter(
     (registration) => registration.submittedByMode === "authenticated",
@@ -1759,7 +1776,36 @@ export function AdminEventDetailPage() {
     openEditor("preview");
   }
 
-  function openEditor(step: "overview" | "options" | "preview", focusField?: "roomsInfo") {
+  // «Annuncia» from a draft, and «Togli dal catalogo» from an announced
+  // activity (settimo incremento): the same services and confirmations as step 6.
+  async function handleVisibilityChange(kind: "announce" | "unpublish") {
+    const run = confirmRunRef.current;
+    const startedFor = eventContextRef.current;
+    const expectedUpdatedAt = resolvedEvent.updatedAt;
+    setBusy(kind);
+    setConfirmError(null);
+    setActionInfo(null);
+    try {
+      await withWriteTimeout(kind === "announce"
+        ? eventsService.announceEvent(stakeId, resolvedEventId, expectedUpdatedAt)
+        : eventsService.unpublishEvent(stakeId, resolvedEventId, expectedUpdatedAt));
+      if (eventContextRef.current !== startedFor) return;
+      if (run === confirmRunRef.current) showConfirm(null);
+      setActionInfo(kind === "announce" ? ANNUNCIATA.annunciaFatto : ANNUNCIATA.togliFatto);
+      setRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      if (run === confirmRunRef.current) {
+        setConfirmError(getAdminActionError(caughtError, kind === "announce" ? EVENT_CREATION.announceError : EVENT_CREATION.unpublishError));
+      }
+      // A refused announcement may have written and reverted: reload the
+      // revision, or the next tap would meet a conflict.
+      if (kind === "announce" && eventContextRef.current === startedFor) setRefreshKey((current) => current + 1);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openEditor(step: EditorStep, focusField?: "roomsInfo") {
     setEditorInitialStep(step);
     setEditorFocusField(focusField);
     if (activeTab === "overnight" && roomDraftDirty) {
@@ -2301,6 +2347,8 @@ export function AdminEventDetailPage() {
     busyLabel: string;
     busy: boolean;
     onConfirm: () => void;
+    // Default "danger"; «Annuncia» takes nothing away.
+    tone?: "neutral" | "danger";
   } => {
     if (!confirmSheet) return null;
     // Un'altra azione in corso: il foglio aspetta, non ne parte una seconda.
@@ -2393,6 +2441,27 @@ export function AdminEventDetailPage() {
           onConfirm: guard(() => handleDeleteQuestion(question)),
         };
       }
+      case "announce":
+        return {
+          title: ANNUNCIATA.annunciaDaBozzaTitolo,
+          body: ANNUNCIATA.annunciaDaBozzaTesto,
+          cancelLabel: ANNUNCIATA.lasciaInBozza,
+          confirmLabel: ANNUNCIATA.annuncia,
+          busyLabel: ADMIN.salvataggio,
+          busy: busy === "announce",
+          tone: "neutral",
+          onConfirm: guard(() => handleVisibilityChange("announce")),
+        };
+      case "unpublish":
+        return {
+          title: EVENT_CREATION.unpublishTitle,
+          body: EVENT_CREATION.unpublishBody,
+          cancelLabel: ANNUNCIATA.togliSceltaSicura,
+          confirmLabel: EVENT_CREATION.unpublish,
+          busyLabel: EVENT_CREATION.unpublishing,
+          busy: busy === "unpublish",
+          onConfirm: guard(() => handleVisibilityChange("unpublish")),
+        };
       case "deleteActivity":
         return {
           title: fillCopy(ADMIN.eliminaAttivitaTitolo, {
@@ -2614,15 +2683,27 @@ export function AdminEventDetailPage() {
                     Modifica
                   </Button>
                   {/* Su un'attività già pubblica il tasto non ha niente da fare:
-                      al suo posto c'è Condividi. */}
-                  {!resolvedEvent.isPublic ? (
+                      al suo posto c'è Condividi. Un'annunciata ha il riquadro
+                      «Da completare» sotto la testata; una bozza si annuncia o,
+                      se completa, apre le iscrizioni (la conferma è al passo 6). */}
+                  {canAnnounce ? (
+                    <Button
+                      disabled={busy !== null}
+                      icon="eye"
+                      onClick={() => showConfirm({ kind: "announce" })}
+                      variant="secondary"
+                    >
+                      {ANNUNCIATA.annuncia}
+                    </Button>
+                  ) : null}
+                  {!resolvedEvent.isPublic && (!draftActive || publicationChecks.length === 0) ? (
                     <Button
                       disabled={busy === "delete"}
                       icon="globe"
                       onClick={() => void handlePublish()}
                       variant="secondary"
                     >
-                      Rendi pubblica
+                      {draftActive ? ANNUNCIATA.apriIscrizioni : "Rendi pubblica"}
                     </Button>
                   ) : null}
                 </>
@@ -2631,7 +2712,7 @@ export function AdminEventDetailPage() {
                 <ShareButton
                   className="admin-event-hero__icon-button"
                   iconOnly
-                  text="Guarda questa attività e apri l'iscrizione."
+                  text={announced ? ANNUNCIATA.condividi : "Guarda questa attività e apri l'iscrizione."}
                   title={resolvedEvent.title}
                   url={getAbsoluteUrl(getActivityPath(resolvedEvent.id, stakeId))}
                 />
@@ -2656,16 +2737,12 @@ export function AdminEventDetailPage() {
             <>
               <span className="admin-event-hero__meta">
                 <Icon name="calendar" />
-                <span>
-                  {formatDateRange(resolvedEvent.startDate, resolvedEvent.endDate)}
-                </span>
+                <span>{formatEventWhen(resolvedEvent)}</span>
               </span>
-              {resolvedEvent.location ? (
-                <span className="admin-event-hero__meta">
-                  <Icon name="map-pin" />
-                  <span>{resolvedEvent.location}</span>
-                </span>
-              ) : null}
+              <span className="admin-event-hero__meta">
+                <Icon name="map-pin" />
+                <span>{resolvedEvent.location.trim() || ANNUNCIATA.luogoDaDefinire}</span>
+              </span>
             </>
           }
           eyebrow={
@@ -2690,6 +2767,49 @@ export function AdminEventDetailPage() {
           title={resolvedEvent.title}
         />
       </section>
+
+      {announced && !isCampManagerOnly ? (
+        // Al posto di «Rendi pubblica»: ogni voce apre il suo passo, il tasto
+        // il primo da completare; a lista vuota porta al passo 6, dove sta
+        // l'unica conferma di «Apri le iscrizioni».
+        <section aria-labelledby="announce-todo-title" className="surface-panel surface-panel--subtle announce-todo">
+          <h3 id="announce-todo-title">{ANNUNCIATA.daCompletareTitolo}</h3>
+          {publicationChecks.length ? (
+            <ul>
+              {publicationChecks.map((check) => (
+                <li key={check.message}>
+                  <button className="announce-todo__item" onClick={() => openEditor(check.step)} type="button">
+                    <i aria-hidden="true" className="announce-todo__dot" />
+                    <span>
+                      {check.message}
+                      <small>{`${stepNumber(check.step)} · ${EVENT_CREATION.steps[check.step]}`}</small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="announce-todo__actions">
+            <Button
+              disabled={busy !== null}
+              onClick={() => {
+                setActionInfo(null);
+                openEditor(publicationChecks.length ? "firstTodo" : "preview");
+              }}
+            >
+              {publicationChecks.length ? ANNUNCIATA.completaDettagli : ANNUNCIATA.apriIscrizioni}
+            </Button>
+            <Button
+              disabled={busy !== null}
+              onClick={() => showConfirm({ kind: "unpublish" })}
+              variant="ghost"
+            >
+              {EVENT_CREATION.unpublish}
+            </Button>
+          </div>
+          <p>{ANNUNCIATA.passiAvviso}</p>
+        </section>
+      ) : null}
 
       {!isCampManagerOnly ? (
         // Ogni scheda è una rotta: è una navigazione (aria-current), non un
@@ -2729,16 +2849,11 @@ export function AdminEventDetailPage() {
               </div>
               <div>
                 <dt>Quando</dt>
-                <dd>
-                  {formatDateRange(
-                    resolvedEvent.startDate,
-                    resolvedEvent.endDate,
-                  )}
-                </dd>
+                <dd>{formatEventWhen(resolvedEvent)}</dd>
               </div>
               <div>
                 <dt>Luogo</dt>
-                <dd>{resolvedEvent.location || "-"}</dd>
+                <dd>{resolvedEvent.location.trim() || ANNUNCIATA.luogoDaDefinire}</dd>
               </div>
               <div>
                 <dt>Apertura iscrizioni</dt>
@@ -4888,9 +5003,10 @@ export function AdminEventDetailPage() {
           sessionUid={session.firebaseUser.uid}
           stakeId={stakeId}
           onClose={() => setEditModalOpen(false)}
-          onCompleted={() => {
+          onCompleted={(_eventId, notice) => {
             setRefreshKey((current) => current + 1);
             setEditModalOpen(false);
+            if (notice) setActionInfo(notice);
           }}
         />
       ) : null}
@@ -4984,7 +5100,7 @@ export function AdminEventDetailPage() {
           onCancel={() => showConfirm(null)}
           onConfirm={confirmView.onConfirm}
           title={confirmView.title}
-          tone="danger"
+          tone={confirmView.tone ?? "danger"}
         >
           {confirmView.people && confirmView.people.length > 0 ? (
             <ul className="plain-list plain-list--compact camp-confirm-people">

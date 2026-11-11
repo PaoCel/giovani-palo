@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 
 import type { Event, EventFormConfig, Registration } from "@/types";
-import { formatDateRange } from "@/utils/formatters";
+import { formatEventWhen } from "@/utils/formatters";
 import { getRegistrationAnswerEntries } from "@/utils/registrations";
 
 interface RegistrationPdfArgs {
@@ -37,7 +37,7 @@ export function downloadRegistrationPdf({
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   writeLine("Attivita", event.title);
-  writeLine("Date", formatDateRange(event.startDate, event.endDate));
+  writeLine("Date", formatEventWhen(event));
   writeLine("Luogo", event.location);
   writeLine("Nome completo", registration.fullName);
   writeLine("Email", registration.email);

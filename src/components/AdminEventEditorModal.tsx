@@ -6,6 +6,7 @@ import { BottomSheet } from "@/components/register/BottomSheet";
 import { Icon } from "@/components/ui";
 import { StepIndexList, StepParticipants, StepPoster, StepRegistrations, StepReview, StepWhat, StepWhen, type SetValue } from "@/components/activityWizard/WizardSteps";
 import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { ACTIVITY_TYPES, EVENT_CREATION as COPY } from "@/copy/eventCreation";
 import { fillCopy } from "@/copy/parole";
 import { storageService } from "@/services/firebase/storageService";
@@ -32,7 +33,8 @@ import {
   type WizardValues,
 } from "@/utils/activityWizard";
 import { getAdminActionError } from "@/utils/adminErrors";
-import { getPublicationIssues } from "@/utils/eventCreation";
+import { getAnnouncementIssues, getPublicationIssues } from "@/utils/eventCreation";
+import { isAnnouncedEvent } from "@/utils/events";
 import { getVisibleStandardFieldDefinitions, isRoomRelatedStandardFieldKey } from "@/utils/formFields";
 import { isOffline, withWriteTimeout, WRITE_TIMEOUT_CODE } from "@/utils/writeTimeout";
 import "@/styles/activityWizard.css";
@@ -43,14 +45,19 @@ interface AdminEventEditorModalProps {
   sessionUid: string;
   initialEvent?: Event | null;
   initialFormConfig?: EventFormConfig | null;
-  /** overview and preview open step 6; options opens step 5. */
-  initialStep?: "overview" | "options" | "preview";
+  /**
+   * overview and preview open step 6; options opens step 5; firstTodo opens
+   * the first step with something to complete (step 6 when none is left);
+   * a step id opens that step.
+   */
+  initialStep?: "overview" | "options" | "preview" | "firstTodo" | WizardStepId;
   /** With initialStep "options": the field to focus (Alloggio). */
   focusField?: "roomsInfo";
   /** Active registrations, for the notices of decision 3 and of a draft with registrations. */
   activeRegistrations?: number;
   onClose: () => void;
-  onCompleted?: (eventId: string) => void;
+  /** `notice`: what to tell after closing (Esci from an announced activity). */
+  onCompleted?: (eventId: string, notice?: string) => void;
 }
 
 type Confirm =
@@ -58,6 +65,7 @@ type Confirm =
   | { kind: "leaveStep"; then: () => void }
   | { kind: "discardReturn" }
   | { kind: "unpublish" }
+  | { kind: "announce" }
   | { kind: "cancel" };
 
 const REQUIREMENT_KEYS = ["requiresAccount", "requiresParentAuthorization", "requiresEmergencyContacts", "requiresMedicalNotes", "requiresImageConsent"] as const;
@@ -69,7 +77,10 @@ export function AdminEventEditorModal(props: AdminEventEditorModalProps) {
 
 function firstStep(initialEvent: Event | null | undefined, initialStep: AdminEventEditorModalProps["initialStep"]): WizardStepId {
   if (!initialEvent) return "what";
-  return initialStep === "options" ? "participants" : "review";
+  if (initialStep === "options") return "participants";
+  if (initialStep === "firstTodo") return getStepSummaries(initialEvent).find(item => item.state === "todo")?.step ?? "review";
+  if (initialStep && (WIZARD_STEPS as readonly string[]).includes(initialStep)) return initialStep as WizardStepId;
+  return "review";
 }
 
 function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent, initialFormConfig, initialStep, focusField, activeRegistrations, onClose, onCompleted }: AdminEventEditorModalProps) {
@@ -203,7 +214,9 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
   };
 
   const guestReviewMissing = values.recordsEnabled && values.recordsGuestEnabled && savedEvent?.recordsGuestEnabled !== true && !guestReviewed;
-  const validate = (target: WizardStepId) => validateWizardStep(target, values, { guestReviewMissing });
+  // An activity that exists already (announced from the quick sheet, or a
+  // draft) needs the place only to open registrations: it is in the checklist.
+  const validate = (target: WizardStepId) => validateWizardStep(target, values, { guestReviewMissing, locationOptional: Boolean(savedEvent) });
   const dirty = (target: WizardStepId) => savedEvent ? isStepDirty(target, values, savedValues) : isStepDirty(target, values, emptyValues);
   const stepDirty = dirty(step);
   const hasTyped = WIZARD_STEPS.some(target => dirty(target));
@@ -237,9 +250,10 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
     if (!event) return;
     const steps = validSteps();
     const payload = buildWizardPayload(values, event, steps, LEGAL_DOC_VERSIONS);
-    if (event.isPublic) {
+    if (event.isPublic && !isAnnouncedEvent(event)) {
       // A published activity must stay publishable: an emptied description or
-      // window is refused here, on the step that holds it.
+      // window is refused here, on the step that holds it. An announced one is
+      // completed step by step: what is missing stays in the checklist.
       const issues = getPublicationIssues({ ...payload, status: "draft" });
       if (issues.length) { setError(issues.join(" ")); return; }
     }
@@ -308,8 +322,8 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
     setErrors({});
   }
 
-  function finish() {
-    if (savedEvent) onCompleted?.(savedEvent.id);
+  function finish(notice?: string) {
+    if (savedEvent) onCompleted?.(savedEvent.id, notice);
     // A queued creation has a stable id and already appears in the local list.
     else if (waiting) onCompleted?.(creationId.current);
     onClose();
@@ -332,9 +346,11 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
     // A step left invalid with Indietro keeps its fields in memory: closing
     // asks before losing them, like the current step.
     const invalidDirty = WIZARD_STEPS.some(target => dirty(target) && Object.keys(validate(target)).length > 0);
-    if (invalidDirty) { setConfirm({ kind: "leaveStep", then: () => finish() }); return; }
-    if (!stepDirty) { finish(); return; }
-    save(step, () => finish());
+    // Esci from an announced activity: what was saved is already visible.
+    const notice = isAnnouncedEvent(savedEvent) ? ANNUNCIATA.esciSalvata : undefined;
+    if (invalidDirty) { setConfirm({ kind: "leaveStep", then: () => finish(notice) }); return; }
+    if (!stepDirty) { finish(notice); return; }
+    save(step, () => finish(notice));
   }
 
   function jump(target: WizardStepId) {
@@ -391,10 +407,12 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
     setUploading(false);
   }
 
+  // «Apri le iscrizioni»: a draft or an announced activity becomes open.
   function publish() {
-    if (!savedEvent || savedEvent.isPublic || getPublicationChecklist(savedEvent, Date.now()).length) return;
+    if (!savedEvent || (savedEvent.isPublic && !isAnnouncedEvent(savedEvent)) || getPublicationChecklist(savedEvent, Date.now()).length) return;
     const event = savedEvent;
-    void run(async () => { await eventsService.publishEvent(stakeId, event.id, event.updatedAt); }, () => finish(), COPY.publishError);
+    void run(async () => { await eventsService.publishEvent(stakeId, event.id, event.updatedAt); }, () => finish(),
+      isAnnouncedEvent(event) ? COPY.openRegistrationsError : COPY.publishError);
   }
 
   function unpublish() {
@@ -404,7 +422,26 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
     void run(async () => {
       await eventsService.unpublishEvent(stakeId, event.id, event.updatedAt);
       await refreshSavedEvent(event.id, "all");
-    }, () => setFeedback(COPY.unpublished), COPY.unpublishError);
+    }, () => setFeedback(isAnnouncedEvent(event) ? ANNUNCIATA.togliFatto : COPY.unpublished), COPY.unpublishError);
+  }
+
+  // «Annuncia», from a draft or back from open registrations (only without
+  // registrations: the service counts them again and refuses otherwise).
+  function announce() {
+    if (!savedEvent) return;
+    const event = savedEvent;
+    setConfirm(null);
+    void run(async () => {
+      try {
+        await eventsService.announceEvent(stakeId, event.id, event.updatedAt);
+      } catch (caughtError) {
+        // A refused announcement may have written and reverted (a registration
+        // arrived meanwhile): read the new revision before the next tap.
+        await refreshSavedEvent(event.id, "all").catch(() => undefined);
+        throw caughtError;
+      }
+      await refreshSavedEvent(event.id, "all");
+    }, () => setFeedback(ANNUNCIATA.annunciaFatto), COPY.announceError);
   }
 
   function setCancelled(cancelled: boolean) {
@@ -444,7 +481,12 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
   const summaries = getStepSummaries(savedEvent, now);
   const checks = savedEvent ? getPublicationChecklist(savedEvent, Date.now()) : [];
   const questionCount = savedValues.customFields.length + savedValues.enabledStandardFields.filter(key => key !== "parentConfirmed").length;
-  const kicker = !savedEvent ? COPY.kickerNew : fillCopy(savedEvent.isPublic ? COPY.kickerPublished : COPY.kickerDraft, { titolo: savedEvent.title });
+  const announced = Boolean(savedEvent && isAnnouncedEvent(savedEvent));
+  // Open, or cancelled/completed after being public: step 6 is «Gestisci».
+  const managing = Boolean(savedEvent?.isPublic) && !announced;
+  const kicker = !savedEvent ? COPY.kickerNew
+    : fillCopy(announced ? ANNUNCIATA.passiKicker : savedEvent.isPublic ? COPY.kickerPublished : COPY.kickerDraft, { titolo: savedEvent.title });
+  const stepLabel = (target: WizardStepId) => target !== "review" ? COPY.steps[target] : managing ? COPY.steps.manage : announced ? COPY.reviewAnnounced : COPY.steps.review;
   const overnight = hasOvernight(values);
   const addable = fieldDefinitions.filter(field => !values.enabledStandardFields.includes(field.key) && field.key !== "parentConfirmed"
     && (overnight || !isRoomRelatedStandardFieldKey(field.key))
@@ -461,10 +503,10 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
   const savedPill = savedEvent && !stepDirty && !busy ? <span className="wz-saved" role="status"><Icon name="check" />{COPY.saved}</span> : null;
   const stepper = <div className="wz-top">
     <div className="wz-top__row">
-    <button type="button" className="wz-stepper" aria-haspopup="dialog" aria-label={`${fillCopy(COPY.stepOf, { n: String(stepNumber(step)) })} · ${step === "review" && savedEvent?.isPublic ? COPY.steps.manage : COPY.steps[step]}. ${COPY.openIndex}`}
+    <button type="button" className="wz-stepper" aria-haspopup="dialog" aria-label={`${fillCopy(COPY.stepOf, { n: String(stepNumber(step)) })} · ${stepLabel(step)}. ${COPY.openIndex}`}
       onClick={() => setIndexOpen(true)} disabled={busy}>
       <strong>{fillCopy(COPY.stepOf, { n: String(stepNumber(step)) })}</strong>
-      <span>· {step === "review" && savedEvent?.isPublic ? COPY.steps.manage : COPY.steps[step]}</span>
+      <span>· {stepLabel(step)}</span>
       <Icon name="arrow-right" />
     </button>
     </div>
@@ -485,12 +527,14 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
   const footer = <div className="wz-foot">
     {step === "review"
       ? <>
-        <button type="button" className={savedEvent?.isPublic ? "wz-button wz-button--soft wz-button--block" : "wz-button wz-button--ghost"} disabled={locked}
-          onClick={() => savedEvent?.isPublic ? finish() : goTo("participants")}>
-          {savedEvent?.isPublic ? COPY.close : <><Icon name="arrow-left" />{COPY.back}</>}
+        <button type="button" className={managing ? "wz-button wz-button--soft wz-button--block" : "wz-button wz-button--ghost"} disabled={locked}
+          onClick={() => managing ? finish() : goTo("participants")}>
+          {managing ? COPY.close : <><Icon name="arrow-left" />{COPY.back}</>}
         </button>
-        {!savedEvent?.isPublic ? <button type="button" className="wz-button wz-button--primary" disabled={locked || checks.length > 0} onClick={publish}>
-          {busy ? COPY.publishing : COPY.publish}
+        {/* «Apri le iscrizioni», for a draft and for an announced activity:
+            switched off, with the reasons above, until the checklist is empty. */}
+        {!managing ? <button type="button" className="wz-button wz-button--primary" disabled={locked || checks.length > 0} onClick={publish}>
+          {busy ? COPY.saving : ANNUNCIATA.apriIscrizioni}
         </button> : null}
       </>
       : <>
@@ -503,7 +547,16 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
       </>}
   </div>;
 
-  const manage = savedEvent && (savedEvent.isPublic || savedEvent.status === "cancelled") ? <div className="wz-manage">
+  const ended = savedEvent?.status === "cancelled" || savedEvent?.status === "completed";
+  // «Annuncia»: from a draft (name and day are enough), or back from open
+  // registrations only while nobody is registered.
+  const canAnnounceDraft = Boolean(savedEvent && !savedEvent.isPublic && !ended && !getAnnouncementIssues(savedEvent).length);
+  const openRegistrations = Boolean(savedEvent?.isPublic && savedEvent.status === "registrations_open");
+  const manage = savedEvent && (savedEvent.isPublic || savedEvent.status === "cancelled" || canAnnounceDraft) ? <div className="wz-manage">
+    {canAnnounceDraft || openRegistrations
+      ? <button type="button" className="wz-button wz-button--soft" disabled={locked || (openRegistrations && registrationsCount > 0)}
+        aria-describedby={openRegistrations && registrationsCount > 0 ? "wz-announce-blocked" : undefined}
+        onClick={() => setConfirm({ kind: "announce" })}>{ANNUNCIATA.annuncia}</button> : null}
     {savedEvent.isPublic && savedEvent.status !== "cancelled" && savedEvent.status !== "completed"
       ? <button type="button" className="wz-button wz-button--soft" disabled={locked} onClick={() => setConfirm({ kind: "unpublish" })}>{COPY.unpublish}</button> : null}
     {savedEvent.status === "cancelled"
@@ -511,6 +564,7 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
       : savedEvent.isPublic && savedEvent.status !== "completed"
         ? <button type="button" className="wz-button wz-button--link wz-button--danger" disabled={locked} onClick={() => setConfirm({ kind: "cancel" })}>{COPY.cancelActivity}</button>
         : null}
+    {openRegistrations && registrationsCount > 0 ? <small className="wz-manage__note" id="wz-announce-blocked">{ANNUNCIATA.annunciaConIscritti}</small> : null}
   </div> : null;
 
   return <>
@@ -538,13 +592,14 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
             }} /> : null}
           {step === "review" && savedEvent ? <StepReview event={savedEvent} headingRef={headingRef} checks={checks} now={Date.now()} questionCount={questionCount}
             onEdit={target => goTo(target, { fromReview: true })} manage={manage} returningCount={savedEvent.isPublic ? 0 : registrationsCount} /> : null}
+          {announced && step !== "review" ? <p className="wz-announce">{ANNUNCIATA.passiAvviso}</p> : null}
         </fieldset>
       </div>
     </AppModal>
 
     {indexOpen ? <BottomSheet title={COPY.index.title} closeLabel={COPY.index.close} onClose={() => setIndexOpen(false)}
       footer={<button type="button" className="wz-button wz-button--ghost wz-button--block" onClick={() => setIndexOpen(false)}>{COPY.index.close}</button>}>
-      <StepIndexList summaries={summaries} current={step} hasDraft={Boolean(savedEvent)} onPick={jump} />
+      <StepIndexList summaries={summaries} current={step} hasDraft={Boolean(savedEvent)} onPick={jump} labelOf={stepLabel} />
     </BottomSheet> : null}
 
     {addOpen ? <BottomSheet title={COPY.addQuestionTitle} lead={COPY.addQuestionLead} closeLabel={COPY.close} onClose={() => setAddOpen(false)}
@@ -585,8 +640,13 @@ function ActivityWizardSession({ organization, stakeId, sessionUid, initialEvent
       onCancel={() => setConfirm(null)} onConfirm={() => { const then = confirm.then; setConfirm(null); then(); }} /> : null}
     {confirm?.kind === "discardReturn" ? <ConfirmSheet title={COPY.discardReturnTitle} body={COPY.discardReturnBody} cancelLabel={COPY.keepEditing} confirmLabel={COPY.discardReturn} tone="danger"
       onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); resetStep(step); goTo("review"); }} /> : null}
-    {confirm?.kind === "unpublish" ? <ConfirmSheet title={COPY.unpublishTitle} body={COPY.unpublishBody} cancelLabel={COPY.unpublishKeep} confirmLabel={COPY.unpublish} tone="danger"
-      onCancel={() => setConfirm(null)} onConfirm={unpublish} /> : null}
+    {confirm?.kind === "unpublish" ? <ConfirmSheet title={COPY.unpublishTitle} body={COPY.unpublishBody} cancelLabel={announced ? ANNUNCIATA.togliSceltaSicura : COPY.unpublishKeep}
+      confirmLabel={COPY.unpublish} tone="danger" onCancel={() => setConfirm(null)} onConfirm={unpublish} /> : null}
+    {/* Safe choice first; scrim and Indietro keep the activity as it is. */}
+    {confirm?.kind === "announce" ? <ConfirmSheet title={openRegistrations ? ANNUNCIATA.annunciaDaAperteTitolo : ANNUNCIATA.annunciaDaBozzaTitolo}
+      body={openRegistrations ? ANNUNCIATA.annunciaDaAperteTesto : ANNUNCIATA.annunciaDaBozzaTesto}
+      cancelLabel={openRegistrations ? ANNUNCIATA.lasciaAperte : ANNUNCIATA.lasciaInBozza} confirmLabel={ANNUNCIATA.annuncia}
+      onCancel={() => setConfirm(null)} onConfirm={announce} /> : null}
     {confirm?.kind === "cancel" ? <ConfirmSheet title={COPY.cancelTitle} body={COPY.cancelBody} cancelLabel={COPY.cancelKeep} confirmLabel={COPY.cancelActivity} tone="danger"
       onCancel={() => setConfirm(null)} onConfirm={() => setCancelled(true)} /> : null}
   </>;

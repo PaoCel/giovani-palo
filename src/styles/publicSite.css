@@ -318,6 +318,7 @@ html:has(.pub26) {
 .pub26 .card h3 { font-size: 1.2rem; font-weight: 500; margin-top: 12px; font-family: var(--font); }
 .pub26 .card .when { color: var(--grey-600); font-size: .95rem; margin-top: 2px; }
 .pub26 .card .when b { color: var(--ink); font-weight: 500; }
+.pub26 .card .status { margin-top: 8px; }
 .pub26 .card .palo-label { display: block; margin-top: 10px; }
 .pub26 .card.feature { width: calc(var(--rail-h) * .75); }
 .pub26 .card.feature h3 { font-size: 1.4rem; margin-top: 2px; }

@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 
 import type { Event, Registration } from "@/types";
-import { formatDateOnly, formatDateRange } from "@/utils/formatters";
+import { formatDateOnly, formatEventWhen } from "@/utils/formatters";
 
 export type ConsentPdfKind = "parental" | "photo";
 
@@ -122,7 +122,7 @@ export async function downloadConsentPdf({
   // Section: Dati attività
   writeWrapped("Dati dell'attività", "bold", 12);
   writeWrapped(`Titolo: ${event.title}`);
-  writeWrapped(`Date: ${formatDateRange(event.startDate, event.endDate)}`);
+  writeWrapped(`Date: ${formatEventWhen(event)}`);
   writeWrapped(`Luogo: ${event.location || "-"}`);
   if (event.program) {
     writeWrapped(`Programma: ${event.program}`);

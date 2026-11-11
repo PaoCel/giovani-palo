@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { AdminEventEditorModal } from "@/components/AdminEventEditorModal";
+import { QuickActivitySheet } from "@/components/activityWizard/QuickActivitySheet";
 import { AdminPushSettingsCard } from "@/components/AdminPushSettingsCard";
 import { AppModal } from "@/components/AppModal";
 import { ModalFeedback } from "@/components/admin/ModalFeedback";
@@ -1086,12 +1086,11 @@ export function AdminSettingsPage() {
           ) : null}
 
           {createModalOpen && session ? (
-            <AdminEventEditorModal
+            <QuickActivitySheet
               organization={organization}
               sessionUid={session.firebaseUser.uid}
               stakeId={stakeId}
               onClose={() => setCreateModalOpen(false)}
-              onCompleted={(eventId) => navigate(`/admin/events/${eventId}`)}
             />
           ) : null}
         </>

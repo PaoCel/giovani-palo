@@ -2000,7 +2000,7 @@ describe("dati demo: palo seminato con seedDemo contro rules e callable", () => 
   test("l'admin demo elenca attività e iscrizioni del proprio palo ma non del palo A", async () => {
     const { db } = clients.admin;
     const activityCount = docs.filter((entry) => /^stakes\/[^/]+\/activities\/[^/]+$/.test(entry.path)).length;
-    assert.equal(activityCount, 3, "viaggio, campeggio estivo e campeggio concluso");
+    assert.equal(activityCount, 6, "viaggio, campeggio estivo, campeggio concluso e tre annunciate");
     assert.equal((await listAll(db, `stakes/${copyStakeId}/activities`)).size, activityCount);
     const expected = registrationDocs.filter((entry) => entry.path.startsWith(`${viaggio}/`)).length;
     assert.equal((await listAll(db, `${viaggio}/registrations`)).size, expected);

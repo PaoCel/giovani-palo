@@ -233,6 +233,39 @@
   font: 500 var(--text-md) / 1.1 var(--font-display);
 }
 
+/* Calendario admin (docs/ATTIVITA_MODULARI.md, «Resa con dati mancanti»):
+   il segno della pill di stato. Annunciate piene color sabbia, bozze
+   tratteggiate; le altre come sempre. */
+.cal-month__event--planned .cal-day,
+.cal-day--planned {
+  background: var(--sand-soft);
+  color: var(--on-sand-soft);
+}
+
+.cal-month__event--draft .cal-day,
+.cal-day--draft {
+  background: transparent;
+  border: 1.5px dashed var(--line-strong);
+  color: var(--text-secondary);
+}
+
+.cal-month__event--draft .cal-month__title {
+  color: var(--text-secondary);
+}
+
+.cal-mark {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.cal-list__content .cal-list__mark {
+  color: var(--on-sand-soft);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
 @media (min-width: 520px) {
   .cal-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));

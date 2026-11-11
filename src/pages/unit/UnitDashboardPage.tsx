@@ -5,7 +5,8 @@ import { ActivityMediaHighlight } from "@/components/gallery/ActivityMediaHighli
 import { FamilyHomeSection } from "@/components/family/FamilyHomeSection";
 import { HomeFeed } from "@/components/feed/HomeFeed";
 import { MembershipQueueCards } from "@/components/membership/MembershipQueueCards";
-import { Card, EmptyState, Icon, Notice, PageHeader } from "@/components/ui";
+import { Card, EmptyState, Icon, Notice, PageHeader, Pill } from "@/components/ui";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { HOME_UNITA } from "@/copy/homeUnita";
 import { fillCopy } from "@/copy/parole";
 import { useAsyncData } from "@/hooks/useAsyncData";
@@ -56,6 +57,7 @@ function ActivityRow({ summary }: { summary: UnitActivitySummary }) {
         <span className="unit-home-row__info">
           <strong className="unit-home-row__title">{summary.eventTitle}</strong>
           <span className="unit-home-row__date">{formatDate(summary.eventStartDate)}</span>
+          {summary.eventStatus === "planned" ? <Pill dot tone="info">{ANNUNCIATA.statoStaff}</Pill> : null}
         </span>
         <span className="unit-home-row__stats">
           {shown.map((stat) => (

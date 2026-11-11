@@ -19,8 +19,9 @@ import {
   getVisibleStandardFieldDefinitions,
   normalizeStandardFieldKeys,
 } from "@/utils/formFields";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { ATTIVITA } from "@/copy/attivita";
-import { formatDateRange, formatDateTime } from "@/utils/formatters";
+import { formatDateTime, formatEventWhen } from "@/utils/formatters";
 import {
   getAudienceRestrictionMessage,
   getEventAudienceLabel,
@@ -172,6 +173,12 @@ export function ActivityDetailPage() {
   // un'attività finita (src/utils/publicEventState.ts).
   const publicState = event ? getPublicEventState(event) : null;
   const ended = publicState?.phase === "ended";
+  // Annunciata: nessuna data d'iscrizione, nessun tasto spento, solo «Condividi».
+  const announced = publicState?.phase === "announced";
+  // Annunciata già conclusa (un giorno passato, o mai aperta): le date
+  // d'iscrizione sono vuote o provvisorie, il riquadro non serve a nessuno.
+  const announcedEnded = event?.status === "planned" && ended;
+  const shareText = announced ? ANNUNCIATA.condividi : "Guarda questa attività e apri l'iscrizione.";
   // Solo i sondaggi aperti a tutti: quelli del campeggio stanno nell'area dei
   // partecipanti, che da iscritti arrivano alla loro scheda.
   const hasSurvey = Boolean(event && ended && hasPublicSurvey(event.id));
@@ -201,6 +208,10 @@ export function ActivityDetailPage() {
           La tua scheda
         </ButtonLink>
       );
+    }
+
+    if (announced) {
+      return null;
     }
 
     if (ended) {
@@ -268,7 +279,7 @@ export function ActivityDetailPage() {
 
   const parentLineBar = renderParentLine("public-cta-bar__parent");
   // Barra in basso solo se c'è un'azione: un'attività finita senza sondaggio non ne ha.
-  const hasBar = Boolean(event && formConfig && (data.registration || !ended || hasSurvey));
+  const hasBar = Boolean(event && formConfig && (data.registration || (!ended && !announced) || hasSurvey));
   const usefulDetails = event
     ? [
         renderOptionalInfo("Menu", event.menuInfo),
@@ -299,7 +310,7 @@ export function ActivityDetailPage() {
           <div className="public-hero__body">
             <div className="public-pills">
               {publicState ? (
-                <Pill dot tone={publicState.tone}>
+                <Pill className={announced ? "public-pill--soon" : undefined} dot tone={publicState.tone}>
                   {publicState.label}
                 </Pill>
               ) : null}
@@ -310,12 +321,12 @@ export function ActivityDetailPage() {
             <div className="public-meta">
               <p>
                 <Icon name="calendar" />
-                <span>{formatDateRange(event.startDate, event.endDate)}</span>
+                <span>{formatEventWhen(event)}</span>
               </p>
-              {event.location.trim() ? (
+              {event.location.trim() || announced ? (
                 <p>
                   <Icon name="map-pin" />
-                  <span>{event.location}</span>
+                  <span>{event.location.trim() || ANNUNCIATA.luogoDaDefinire}</span>
                 </p>
               ) : null}
             </div>
@@ -329,13 +340,15 @@ export function ActivityDetailPage() {
             {formConfig ? (
               <div className="public-hero__actions">
                 {renderPrimaryAction("hero")}
-                <ShareButton
-                  className="public-share"
-                  iconOnly
-                  title={event.title}
-                  text="Guarda questa attività e apri l'iscrizione."
-                  url={shareUrl}
-                />
+                {announced ? null : (
+                  <ShareButton
+                    className="public-share"
+                    iconOnly
+                    title={event.title}
+                    text={shareText}
+                    url={shareUrl}
+                  />
+                )}
               </div>
             ) : null}
             {hasSurvey && !data.registration ? (
@@ -408,6 +421,24 @@ export function ActivityDetailPage() {
               </Notice>
             ) : null}
 
+            {announcedEnded ? null : announced ? (
+              <div className="public-soon">
+                <span className="public-soon__icon">
+                  <Icon name="clock" />
+                </span>
+                <div>
+                  <strong>{ANNUNCIATA.iscrizioniABreve}</strong>
+                  <span>{ANNUNCIATA.schedaRiquadroTesto}</span>
+                </div>
+                {/* Mockup: the only action is a wide «Condividi», no greyed-out button. */}
+                <ShareButton
+                  className="button button--soft public-soon__share"
+                  title={event.title}
+                  text={shareText}
+                  url={shareUrl}
+                />
+              </div>
+            ) : (
             <Card
               footer={
                 formConfig ? <div className="public-detail__aside-action">{renderPrimaryAction("aside")}</div> : null
@@ -449,6 +480,7 @@ export function ActivityDetailPage() {
                 </>
               ) : null}
             </Card>
+            )}
           </aside>
         </div>
       ) : null}
@@ -461,7 +493,7 @@ export function ActivityDetailPage() {
               className="public-share"
               iconOnly
               title={event.title}
-              text="Guarda questa attività e apri l'iscrizione."
+              text={shareText}
               url={shareUrl}
             />
           </div>

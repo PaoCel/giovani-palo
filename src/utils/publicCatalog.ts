@@ -1,12 +1,21 @@
 // Pagine pubbliche (home e /activities): palo «Tutta Italia» e date come nel
 // mockup approvato. Lo carica anche Node (tests/): niente alias "@/".
 
+import { ANNUNCIATA } from "../copy/annunciata.ts";
 import { CATALOGO } from "../copy/catalogo.ts";
+import { fillCopy } from "../copy/parole.ts";
 
 export interface PublicWhenEvent {
   startDate: string;
   endDate?: string;
   location?: string;
+  /** Attività annunciata senza ora: le 00:00 e le 23:59 salvate non si mostrano. */
+  timeToBeDefined?: boolean;
+}
+
+export interface PublicWhenOptions {
+  /** Testo al posto del luogo quando manca («Luogo da definire» per un'annunciata). */
+  missingPlace?: string;
 }
 
 export interface HomeWhenParts {
@@ -68,8 +77,12 @@ function hoursMinutes(date: Date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function placeSuffix(location: string | undefined) {
-  const place = location?.trim() ?? "";
+function placeOf(event: PublicWhenEvent, options: PublicWhenOptions) {
+  return event.location?.trim() || options.missingPlace?.trim() || "";
+}
+
+function placeSuffix(event: PublicWhenEvent, options: PublicWhenOptions) {
+  const place = placeOf(event, options);
   return place ? ` · ${place}` : "";
 }
 
@@ -148,25 +161,29 @@ export function monthDay(isoDate: string) {
 }
 
 /** Riga della home: data corta in grassetto, poi ora e luogo. */
-export function formatHomeWhen(event: PublicWhenEvent): HomeWhenParts {
+export function formatHomeWhen(event: PublicWhenEvent, options: PublicWhenOptions = {}): HomeWhenParts {
   const start = asDate(event.startDate);
 
   if (!start) {
-    return { date: "", suffix: placeSuffix(event.location) };
+    return { date: "", suffix: placeSuffix(event, options) };
   }
 
   const date = `${capitalize(GIORNI_CORTI[start.getDay()])} ${start.getDate()} ${MESI[start.getMonth()]} ${start.getFullYear()}`;
-  const time = isMidnight(start) ? "" : `, ${hoursMinutes(start)}`;
+  // Con l'ora di fine ancora da scegliere l'inizio si legge «dalle 19:00», come in elenco.
+  const clock = event.timeToBeDefined
+    ? fillCopy(ANNUNCIATA.dalle, { ora: hoursMinutes(start) })
+    : hoursMinutes(start);
+  const time = isMidnight(start) ? "" : `, ${clock}`;
 
-  return { date, suffix: `${time}${placeSuffix(event.location)}` };
+  return { date, suffix: `${time}${placeSuffix(event, options)}` };
 }
 
 /** Riga dell'elenco: giorno lungo e, se è lo stesso giorno, l'orario. */
-export function formatListWhen(event: PublicWhenEvent) {
+export function formatListWhen(event: PublicWhenEvent, options: PublicWhenOptions = {}) {
   const start = asDate(event.startDate);
 
   if (!start) {
-    return placeSuffix(event.location).replace(/^ · /, "");
+    return placeOf(event, options);
   }
 
   const end = asDate(event.endDate) ?? start;
@@ -178,7 +195,10 @@ export function formatListWhen(event: PublicWhenEvent) {
     const endTime = hoursMinutes(end);
     const showTime = !isMidnight(start) || !isMidnight(end);
 
-    if (!showTime) {
+    if (event.timeToBeDefined) {
+      // Senza ora la fine è salvata alle 23:59: non si mostra mai; l'inizio solo se scelto.
+      when = isMidnight(start) ? day : `${day}, ${fillCopy(ANNUNCIATA.dalle, { ora: startTime })}`;
+    } else if (!showTime) {
       when = day;
     } else if (startTime === endTime) {
       when = `${day}, ${startTime}`;
@@ -194,6 +214,5 @@ export function formatListWhen(event: PublicWhenEvent) {
     when = `${left} – ${right}`;
   }
 
-  const place = event.location?.trim();
-  return place ? `${when} · ${place}` : when;
+  return `${when}${placeSuffix(event, options)}`;
 }

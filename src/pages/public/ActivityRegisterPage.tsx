@@ -1,3 +1,4 @@
+import { hasEventEnded } from "@/utils/publicEventState";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Link,
@@ -31,6 +32,7 @@ import {
 import { SectionCard } from "@/components/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ACCEDI } from "@/copy/accedi";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { CHI_ISCRIVI } from "@/copy/chiIscrivi";
 import { CHI_PARTECIPA } from "@/copy/chiPartecipa";
 import { INVIATA } from "@/copy/inviata";
@@ -80,7 +82,7 @@ import {
   writeAdultGuardConfirmation,
 } from "@/utils/adultGuard";
 import { canManageFamily, suggestsChildAfterOwn } from "@/utils/family";
-import { formatDateOnly, formatDateRange } from "@/utils/formatters";
+import { formatDateOnly, formatEventWhen } from "@/utils/formatters";
 import { getVisibleStandardFieldDefinitions } from "@/utils/formFields";
 import {
   getAudienceRestrictionMessage,
@@ -1463,7 +1465,7 @@ export function ActivityRegisterPage() {
   }
 
   const registrationPath = getActivityRegistrationPath(event.id, data.stakeId);
-  const eventDates = formatDateRange(event.startDate, event.endDate);
+  const eventDates = formatEventWhen(event);
   // Finestra delle iscrizioni, uguale per tutti (il pubblico si guarda dopo).
   const registrationWindow = formConfig
     ? getRegistrationAvailability(event, formConfig, null)
@@ -1629,6 +1631,31 @@ export function ActivityRegisterPage() {
       />
     ) : null;
 
+
+  // Annunciata: il modulo non esiste ancora per nessuno (ospite, adulto,
+  // genitore). Chi ha già un'iscrizione la rivede come prima.
+  if (event.status === "planned" && !hasOwnRegistration && !hasEventEnded(event)) {
+    return (
+      <div className="page page--flow">
+        {header}
+        <section className="flow-step">
+          <EmptyState
+            title={ANNUNCIATA.registerChiuso}
+            description={ANNUNCIATA.schedaRiquadroTesto}
+            action={
+              <Link
+                className="button button--primary"
+                to={getActivityPath(event.id, requestedStakeId || undefined)}
+              >
+                {ANNUNCIATA.registerTornaScheda}
+              </Link>
+            }
+          />
+        </section>
+        {exitSheet}
+      </div>
+    );
+  }
 
   // Iscrizioni chiuse o non ancora aperte: niente percorso, salvo chi ha già
   // un'iscrizione da rivedere (o i figli: l'account da genitore, o un adulto

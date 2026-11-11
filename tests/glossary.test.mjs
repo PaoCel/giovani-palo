@@ -11,6 +11,7 @@ import { ADMIN_ELENCHI } from "../src/copy/adminElenchi.ts";
 import { ANNULLA } from "../src/copy/annulla.ts";
 import { ATTIVITA } from "../src/copy/attivita.ts";
 import { CAMP, CAMP_GROUPS } from "../src/copy/camp.ts";
+import { ANNUNCIATA } from "../src/copy/annunciata.ts";
 import { CATALOGO } from "../src/copy/catalogo.ts";
 import { CHI_ISCRIVI } from "../src/copy/chiIscrivi.ts";
 import { CHI_PARTECIPA } from "../src/copy/chiPartecipa.ts";
@@ -519,6 +520,7 @@ const COPY = {
   ADMIN,
   ADMIN_ELENCHI,
   ANNULLA,
+  ANNUNCIATA,
   ATTIVITA,
   CAMP,
   CAMP_GROUPS,

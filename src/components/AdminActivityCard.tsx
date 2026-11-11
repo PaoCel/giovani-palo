@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { ActivityScene } from "@/components/activities/ActivityScene";
 import { Icon, Pill } from "@/components/ui";
 import { ADMIN_ELENCHI as COPY } from "@/copy/adminElenchi";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { fillCopy } from "@/copy/parole";
 import type { Event } from "@/types";
-import { formatEventWindow } from "@/utils/formatters";
+import { formatEventWhen } from "@/utils/formatters";
 import {
   getEffectiveEventStatus,
   getEventAudienceLabel,
@@ -48,11 +49,11 @@ export function AdminActivityCard({ event, to, registrationsCount, past = false 
           <div className="admin-card__meta">
             <p>
               <Icon name="calendar" />
-              <span>{formatEventWindow(event)}</span>
+              <span>{formatEventWhen(event)}</span>
             </p>
             <p>
               <Icon name="map-pin" />
-              <span>{event.location.trim() || COPY.luogoDaDefinire}</span>
+              <span>{event.location.trim() || ANNUNCIATA.luogoDaDefinire}</span>
             </p>
           </div>
           {typeof registrationsCount === "number" || event.overnight ? (

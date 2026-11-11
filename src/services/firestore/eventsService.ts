@@ -25,9 +25,17 @@ import { LEGAL_DOC_VERSIONS } from "@/constants/legalDocs";
 import { normalizeStandardFieldKeys, removeRoomStandardFieldKeys, type StandardFieldDefinition } from "@/utils/formFields";
 import { eventSpansMultipleCalendarDays, sanitizeEventAudience } from "@/utils/events";
 import { cachedFetch, invalidateCache } from "@/utils/sessionCache";
-import { assertEventRevision, getPublicationIssues, nextEventRevision } from "@/utils/eventCreation";
+import { assertEventRevision, getAnnouncementIssues, getPublicationIssues, nextEventRevision } from "@/utils/eventCreation";
+import { ANNUNCIATA } from "@/copy/annunciata";
 import { slugify } from "@/utils/slugify";
 import { LEGACY_DATA_STAKE_ID } from "@/config/app";
+
+/** What «Elimina» of the quick sheet removed, for «Rimetti». */
+export interface AnnouncedEventSnapshot {
+  activity: Record<string, unknown>;
+  form: Record<string, unknown> | null;
+  fields: { id: string; data: Record<string, unknown> }[];
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -112,6 +120,9 @@ function mapEvent(
     status: sanitizeStatus(data.status),
     isPublic: data.isPublic === true,
     isVisible: data.isVisible !== false,
+    timeToBeDefined: data.timeToBeDefined === true,
+    statusBeforeCancel:
+      typeof data.statusBeforeCancel === "string" ? sanitizeStatus(data.statusBeforeCancel) : null,
     allowGuestRegistration:
       typeof data.allowGuestRegistration === "boolean" ? data.allowGuestRegistration : true,
     requireLoginForEdit:
@@ -215,6 +226,7 @@ function normalizeEventInput(input: EventWriteInput) {
     status: input.status,
     isPublic: input.isPublic,
     isVisible: input.isVisible ?? input.isPublic,
+    ...(input.timeToBeDefined !== undefined ? { timeToBeDefined: input.timeToBeDefined } : {}),
     allowGuestRegistration: input.allowGuestRegistration ?? true,
     requireLoginForEdit: input.requireLoginForEdit ?? true,
     registrationOpen: input.registrationOpen,
@@ -497,8 +509,9 @@ export const eventsService = {
       if (!snapshot.exists()) throw new Error("Attività non disponibile.");
       const event = mapEvent(snapshot.id, snapshot.data(), stakeId);
       // A repeated acknowledgement is harmless; another admin's edits must
-      // be reviewed before making them public.
-      if (event.isPublic) return;
+      // be reviewed before making them public. An announced activity
+      // (status planned) is public but not open yet: «Apri le iscrizioni».
+      if (event.isPublic && event.status !== "planned") return;
       assertEventRevision(snapshot.data().updatedAt, expectedUpdatedAt);
       const issues = getPublicationIssues(event);
       if (issues.length) throw new Error(issues.join(" "));
@@ -532,6 +545,112 @@ export const eventsService = {
     return this.getEventById(stakeId, eventId, true);
   },
 
+  /**
+   * «Annuncia» (settimo incremento, docs/ATTIVITA_MODULARI.md): from a draft,
+   * or back from open registrations only without active registrations.
+   * Status planned + public + visible: everybody sees it, the rules refuse
+   * every new registration (`activityAcceptsRegistrations`). Idempotent.
+   */
+  async announceEvent(stakeId: string, eventId: string, expectedUpdatedAt?: string) {
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    // A web transaction reads documents, not queries: the registrations are
+    // counted just before. Once the transaction commits the rules refuse new
+    // ones, so the window is the round trip.
+    const countActive = async () => {
+      const registrations = await getDocs(collection(reference, "registrations"));
+      return registrations.docs.filter((item) => {
+        const status = item.data().registrationStatus;
+        return status !== "cancelled" && status !== "rejected_by_parent";
+      }).length;
+    };
+    const active = await countActive();
+    let fromOpen = false;
+    let announcedRevision = "";
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error("Attività non disponibile.");
+      const event = mapEvent(snapshot.id, snapshot.data(), stakeId);
+      if (event.status === "planned" && event.isPublic && event.isVisible) return;
+      assertEventRevision(snapshot.data().updatedAt, expectedUpdatedAt);
+      const issues = getAnnouncementIssues(event);
+      if (issues.length) throw new Error(issues.join(" "));
+      if (event.isPublic && active > 0) throw new Error(ANNUNCIATA.annunciaConIscritti);
+      fromOpen = event.isPublic && event.status === "registrations_open";
+      announcedRevision = nextEventRevision(event.updatedAt);
+      transaction.update(reference, {
+        status: "planned", isPublic: true, isVisible: true, updatedAt: announcedRevision,
+      });
+    });
+    // A web transaction cannot run a query. From open registrations, recount
+    // after the commit: a registration committed before it is visible now,
+    // one arriving after it is refused by the rules. If one slipped in,
+    // registrations open again, at the revision just written.
+    if (fromOpen && (await countActive()) > 0) {
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(reference);
+        if (!snapshot.exists() || snapshot.data().updatedAt !== announcedRevision) return;
+        transaction.update(reference, {
+          status: "registrations_open", updatedAt: nextEventRevision(announcedRevision),
+        });
+      });
+      invalidateCache("events:public");
+      throw new Error(ANNUNCIATA.annunciaConIscritti);
+    }
+    invalidateCache("events:public");
+    return this.getEventById(stakeId, eventId, true);
+  },
+
+  /**
+   * «Elimina» on a row of the quick sheet: only while the activity is still
+   * announced, at the revision the sheet saw, and without registrations.
+   * Otherwise nothing is written and the sheet sends to the activity page.
+   * Activity, form settings and form fields go in one transaction.
+   */
+  async deleteAnnouncedEvent(stakeId: string, eventId: string, expectedUpdatedAt: string): Promise<AnnouncedEventSnapshot | null> {
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    const formReference = doc(reference, "config", "form");
+    const [fields, registrations] = await Promise.all([
+      getDocs(collection(reference, "formFields")),
+      getDocs(collection(reference, "registrations")),
+    ]);
+    if (!registrations.empty) throw new Error(ANNUNCIATA.cambiataNelFrattempo);
+    const removed = await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      // Already gone (a retry after a timeout): nothing to do.
+      if (!snapshot.exists()) return null;
+      const data = snapshot.data();
+      if (data.status !== "planned" || data.updatedAt !== expectedUpdatedAt) {
+        throw new Error(ANNUNCIATA.cambiataNelFrattempo);
+      }
+      const form = await transaction.get(formReference);
+      for (const field of fields.docs) transaction.delete(field.ref);
+      transaction.delete(formReference);
+      transaction.delete(reference);
+      // Everything «Rimetti» needs to write back the same activity.
+      return {
+        activity: data,
+        form: form.exists() ? form.data() : null,
+        fields: fields.docs.map((field) => ({ id: field.id, data: field.data() })),
+      } satisfies AnnouncedEventSnapshot;
+    });
+    invalidateCache("events:public");
+    return removed;
+  },
+
+  /** «Rimetti»: the same id, activity, form settings and form fields as before Elimina. */
+  async restoreAnnouncedEvent(stakeId: string, eventId: string, snapshot: AnnouncedEventSnapshot) {
+    const reference = doc(db, "stakes", stakeId, "activities", eventId);
+    const previous = snapshot.activity.updatedAt;
+    const updatedAt = nextEventRevision(typeof previous === "string" ? previous : undefined);
+    const batch = writeBatch(db);
+    batch.set(reference, { ...snapshot.activity, updatedAt });
+    if (snapshot.form) batch.set(doc(reference, "config", "form"), snapshot.form);
+    for (const field of snapshot.fields) batch.set(doc(reference, "formFields", field.id), field.data);
+    await batch.commit();
+    invalidateCache("events:public");
+    return this.getEventById(stakeId, eventId, true);
+  },
+
   /** Annulla / Riapri from «Gestisci», against the seen revision. */
   async setEventCancelled(stakeId: string, eventId: string, cancelled: boolean, expectedUpdatedAt?: string) {
     const reference = doc(db, "stakes", stakeId, "activities", eventId);
@@ -541,12 +660,17 @@ export const eventsService = {
       const event = mapEvent(snapshot.id, snapshot.data(), stakeId);
       if ((event.status === "cancelled") === cancelled) return;
       assertEventRevision(snapshot.data().updatedAt, expectedUpdatedAt);
-      transaction.update(reference, {
-        // Reopening a public activity gives back the only status the rules
-        // accept for registrations; a draft goes back to draft.
-        status: cancelled ? "cancelled" : event.isPublic ? "registrations_open" : "draft",
-        updatedAt: nextEventRevision(event.updatedAt),
-      });
+      // Riapri gives back the status before Annulla: an announced activity
+      // goes back announced. Without the field (cancelled before the seventh
+      // increment) a public activity reopens registrations as before.
+      const reopened: EventStatus = !event.isPublic
+        ? "draft"
+        : event.statusBeforeCancel === "planned"
+          ? "planned"
+          : "registrations_open";
+      transaction.update(reference, cancelled
+        ? { status: "cancelled", statusBeforeCancel: event.status, updatedAt: nextEventRevision(event.updatedAt) }
+        : { status: reopened, statusBeforeCancel: null, updatedAt: nextEventRevision(event.updatedAt) });
     });
     invalidateCache("events:public");
     return this.getEventById(stakeId, eventId, true);
