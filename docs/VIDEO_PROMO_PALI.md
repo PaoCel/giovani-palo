@@ -1,6 +1,6 @@
 # Video promozionale per gli altri pali
 
-Stato: **bozza, 2026-11-11**. Da rivedere con Paolo prima di registrare.
+Stato: **scaletta decisa da Paolo il 2026-11-11**, da registrare.
 
 Destinatari: presidenze di palo, dirigenti dei Giovani Uomini e delle Giovani
 Donne, consulenti di altri pali italiani. Lo ricevono su WhatsApp o per mail,
@@ -9,7 +9,7 @@ quasi sempre dal telefono e spesso senza audio.
 È un video diverso da quello di 3 minuti in [KIT_DEMO.md](KIT_DEMO.md), che è un
 giro guidato per FSY e la sede europea. Qui l'obiettivo è uno solo: far venire
 voglia di scrivere "lo vogliamo anche noi". Le riprese sono le stesse: si
-registra una volta sola e si montano due video.
+registra una volta sola e si montano due video, in italiano e in inglese.
 
 ## Il messaggio
 
@@ -20,8 +20,8 @@ condivisi. Non gli si spiega l'app: gli si mostra che i pezzi più faticosi
 (autorizzazioni da rincorrere, stanze, foto sparse) qui sono già risolti, e che
 li usa da mesi un palo come il suo.
 
-Tono: da dirigente a dirigente. Niente "rivoluziona", niente superlativi.
-Frasi corte, ritmo veloce, un solo concetto per scena.
+Tono: da dirigente a dirigente. Niente "rivoluziona", niente superlativi, niente
+frasi personali di Paolo. Testi corti, un solo concetto per scena.
 
 ## Formati
 
@@ -30,21 +30,27 @@ Frasi corte, ritmo veloce, un solo concetto per scena.
 | Principale | 90 s | 16:9, 1080p | mail, presentazioni, consiglio di palo |
 | Teaser | 30 s | 9:16 verticale | WhatsApp e stati, si apre a tutto schermo |
 
-Il teaser usa solo le scene girate sul telefono.
+Il teaser usa solo le scene girate sul telefono. Ognuna delle due esiste in
+italiano e in inglese: cambiano solo i testi, le riprese sono le stesse.
 
 ## Regole di montaggio
 
-- **Sottotitoli impressi** nel video, sempre: su WhatsApp parte muto.
-- Ogni scena apre con un **titolo grande** (il beneficio, non la funzione) che
-  resta leggibile anche senza audio.
+- **Solo testo, nessuna voce.** Ogni scena ha un titolo grande (il beneficio,
+  non la funzione) e, se serve, una riga piccola sotto. I testi sono la
+  scaletta qui sotto, parola per parola.
+- Tempo di lettura: almeno 1 secondo ogni 3 parole, e il testo resta fermo
+  finché non è finita la ripresa.
 - Telefono dentro una cornice di iPhone su sfondo pieno; desktop in una finestra
   del browser pulita, senza schede né segnalibri. Zoom lento sul punto che
   conta, mai il cursore che vaga.
 - Colori e font dei titoli: quelli del tema dell'anno dell'app, così il video e
   l'app sembrano la stessa cosa.
-- Musica senza copyright, allegra ma bassa sotto la voce.
-- Voce di Paolo (consigliato): un dirigente che racconta cosa usa il suo palo è
-  più credibile di uno speaker. In alternativa solo testo e musica.
+- **Musica: una traccia strumentale leggera e bassa (consigliata, non
+  obbligatoria).** Su WhatsApp il video parte muto e non cambia niente; in una
+  presentazione o aperto dal computer, 90 secondi di silenzio sembrano un video
+  rotto. Va presa da una libreria con licenza d'uso libera (per esempio
+  YouTube Audio Library), niente brani commerciali. Il video deve reggere anche
+  senza.
 
 ## Video principale (90 secondi)
 
@@ -53,40 +59,61 @@ l'iscrizione di Sofia è al Campeggio d'inverno, le foto vengono dal campeggio
 d'autunno concluso. In montaggio la scena del dirigente viene dopo la firma,
 ma si registra prima (vedi Registrazione).
 
-| Tempo | Titolo a schermo | Cosa si vede (ripresa) | Voce |
+| Tempo | Titolo | Riga sotto | Cosa si vede (ripresa) |
 | --- | --- | --- | --- |
-| 0:00-0:05 | «Quante autorizzazioni hai rincorso per l'ultimo campeggio?» | titolo su sfondo pieno, logo piccolo in un angolo | nessuna, parte la musica |
-| 0:05-0:25 | «Niente più fogli da raccogliere» | Sofia, telefono: si iscrive al Campeggio d'inverno. Stacco sul genitore: apre il link di Matteo, sceglie per le foto, firma, conferma. In sovrimpressione, alla fine: «N moduli firmati, in PDF» dall'Elenco consensi | "Nel nostro palo i ragazzi si iscrivono dal telefono. Se sono minorenni, al genitore arriva un link: legge, sceglie se le foto si possono usare e firma. Ogni modulo resta in archivio." |
-| 0:25-0:32 | «Il genitore non installa nulla: gli arriva un link» | primo piano del link aperto nel telefono del genitore, poi la conferma | "Non deve scaricare niente." |
-| 0:32-0:45 | «Il dirigente sa chi manca» | dirigente, desktop, `/unit`: la sua unità e l'autorizzazione di Matteo in attesa | "Il dirigente di unità vede subito chi non ha ancora l'autorizzazione, e non deve fare altro." |
-| 0:45-0:58 | «Ognuno vede la sua stanza» | admin, desktop: piano stanze del Viaggio al Tempio; stacco su Sofia, telefono: «La tua stanza» con i compagni | "Le stanze si preparano qui, e ogni ragazzo vede solo la sua." |
-| 0:58-1:08 | «Le foto restano nel palo» | Sofia, telefono: galleria del campeggio d'autunno, una foto a tutto schermo | "Dopo l'attività le foto sono nell'app, e le vedono solo i membri del palo." |
-| 1:08-1:12 | «Un'attività nuova? Nome e giorno.» | lampo dell'admin: «Nuova attività» in rapida, «Salva nel calendario» | nessuna |
-| 1:12-1:20 | «Già in uso in un palo da marzo» (vedi sotto) | riga ferma su sfondo pieno, niente contatori animati | "La usiamo da marzo, per tutte le attività dei giovani." |
-| 1:20-1:30 | «Se serve anche al vostro palo, scriveteci.» + contatto | titolo finale con logo | "Se può servire anche a voi, scriveteci: vi aiutiamo a partire." |
+| 0:00-0:05 | Quante autorizzazioni hai rincorso per l'ultimo campeggio? | | titolo su sfondo pieno, logo piccolo in un angolo |
+| 0:05-0:25 | Niente più fogli da raccogliere | I ragazzi si iscrivono dal telefono. Se sono minorenni, al genitore arriva un link per firmare. | Sofia, telefono: si iscrive al Campeggio d'inverno. Stacco sul genitore: apre il link di Matteo, sceglie per le foto, firma, conferma. Alla fine, in sovrimpressione, «N moduli firmati» dall'Elenco consensi con la riga «Ogni modulo firmato resta in PDF.» |
+| 0:25-0:32 | Il genitore non installa nulla: gli arriva un link. | | primo piano del link aperto nel telefono del genitore, poi la conferma |
+| 0:32-0:45 | Il dirigente sa chi manca | Il dirigente di unità vede chi non ha ancora l'autorizzazione. | dirigente, desktop, `/unit`: la sua unità e l'autorizzazione di Matteo in attesa |
+| 0:45-0:58 | Ognuno vede la sua stanza | Le stanze si preparano nell'app, e ogni ragazzo vede solo la sua. | admin, desktop: piano stanze del Viaggio al Tempio; stacco su Sofia, telefono: «La tua stanza» con i compagni |
+| 0:58-1:08 | Le foto restano nel palo | Dopo l'attività le foto sono nell'app, visibili solo ai membri del palo. | Sofia, telefono: galleria del campeggio d'autunno, una foto a tutto schermo |
+| 1:08-1:12 | Un'attività nuova? Nome e giorno. | | lampo dell'admin: «Nuova attività» in rapida, «Salva nel calendario» |
+| 1:12-1:20 | Palo di Roma Est, da marzo 2026 | 326 iscrizioni, 116 autorizzazioni firmate dal telefono | riga ferma su sfondo pieno, niente contatori animati |
+| 1:20-1:30 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | gugditalia.it | titolo finale con logo |
 
-Durata stimata delle voci: circa 60 secondi parlati, il resto è musica e
-titoli. Va cronometrata alla prova generale.
-
-**Riga di chiusura** (1:12-1:20): senza l'ok di Paolo (domanda 4 del kit) resta
-«Già in uso in un palo da marzo», senza nome né numeri. Con l'ok diventa una
-riga sola e ferma, per esempio «Palo di Roma Est: 326 iscrizioni, 116
-autorizzazioni firmate dal telefono», coi numeri riletti da produzione in sola
-lettura la settimana della registrazione (quelli nel kit sono del 16 ottobre).
-
-**Frase personale facoltativa**, solo se è vera: una riga di Paolo da dirigente
-prima della chiusura, del tipo "Per l'ultimo viaggio al tempio non ho
-rincorso un foglio". È quella che fa dire "lo vogliamo anche noi".
+**Numeri** (1:12-1:20): citati con l'ok di Paolo dell'11/11. Riletti da
+produzione l'11/11 in sola lettura, solo conteggi: 326 iscrizioni non annullate
+(348 create) e 116 autorizzazioni dei genitori firmate online, uguali al 16
+ottobre. Se passano settimane prima di mandare il video, si rileggono (stessa
+procedura delle note del progetto). Il numero di attività non si cita: oggi ne
+risultano 6 contro le 5 del kit, e la differenza non è verificata.
 
 ## Teaser verticale (30 secondi)
 
 | Tempo | Titolo | Ripresa |
 | --- | --- | --- |
-| 0:00-0:04 | «Quante autorizzazioni hai rincorso per l'ultimo campeggio?» | titolo |
-| 0:04-0:16 | «Il genitore non installa nulla: gli arriva un link» | genitore: link, scelta per le foto, firma |
-| 0:16-0:22 | «Ognuno vede la sua stanza» | Sofia: «La tua stanza» |
-| 0:22-0:26 | «Le foto restano nel palo» | Sofia: galleria |
-| 0:26-0:30 | «Se serve anche al vostro palo, scriveteci.» | titolo finale con contatto |
+| 0:00-0:04 | Quante autorizzazioni hai rincorso per l'ultimo campeggio? | titolo |
+| 0:04-0:16 | Il genitore non installa nulla: gli arriva un link. | genitore: link, scelta per le foto, firma |
+| 0:16-0:22 | Ognuno vede la sua stanza | Sofia: «La tua stanza» |
+| 0:22-0:26 | Le foto restano nel palo | Sofia: galleria |
+| 0:26-0:30 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | titolo finale con gugditalia.it |
+
+## Versione in inglese
+
+Si fa subito, perché senza voce costa solo un secondo giro di titoli. Limite da
+sapere: **l'app oggi è solo in italiano** (la traduzione è il task `gugd-i18n`,
+non ancora iniziato), quindi nelle riprese l'interfaccia resta in italiano. Per
+la sede europea va bene così; quando l'app sarà tradotta si rigirano le
+riprese con l'interfaccia in inglese.
+
+Stessi tempi e stesse riprese della versione italiana.
+
+| Tempo | Title | Line below |
+| --- | --- | --- |
+| 0:00-0:05 | How many permission slips did you chase for your last camp? | |
+| 0:05-0:25 | No more paper forms to collect | Youth sign up on their phones. For minors, a parent gets a link to sign. |
+| (sovrimpressione) | | Every signed form is saved as a PDF. |
+| 0:25-0:32 | Parents don't install anything. They just get a link. | |
+| 0:32-0:45 | Leaders know who's missing | Unit leaders see who still needs a permission slip. |
+| 0:45-0:58 | Everyone sees their own room | Leaders assign rooms in the app. Each youth sees only their own. |
+| 0:58-1:08 | Photos stay in the stake | After the activity, photos stay in the app, visible only to stake members. |
+| 1:08-1:12 | New activity? A name and a date. | |
+| 1:12-1:20 | Rome Italy East Stake, since March 2026 | 326 sign-ups, 116 permission slips signed by phone |
+| 1:20-1:30 | Could your stake use it too? Write to Paolo Celestini. | gugditalia.it |
+
+Il teaser in inglese prende gli stessi titoli dalle righe corrispondenti. I
+testi sono stati riletti da Grok l'11/11 sul lessico della Chiesa in inglese
+(stake, youth, permission slip) e sul nome ufficiale del palo.
 
 ## Secondo parere
 
@@ -102,8 +129,8 @@ genitore che non installa nulla.
 
 Ogni frase del video deve essere vera il giorno in cui si manda.
 
-- **«Vi aiutiamo a partire»**, non «registra il tuo palo»: oggi un palo nuovo lo crea
-  Paolo con `tools/create-stake.mjs`. La console dei pali e gli inviti dello
+- **«Scrivete a Paolo Celestini»**, non «registra il tuo palo»: oggi un palo
+  nuovo lo crea Paolo con `tools/create-stake.mjs`. La console dei pali e gli inviti dello
   staff sono in S4, non ancora fatta.
 - **«Dati in Europa»** non si dice finché la migrazione di Storage non è chiusa
   (task `gugd-storage-eu`, fase E in attesa).
@@ -131,11 +158,11 @@ In più, per la versione promozionale:
 - Ogni scena si gira due volte, una lenta e una a ritmo normale: in montaggio
   si sceglie.
 
-## Decisioni per Paolo
+## Decisioni di Paolo (2026-11-11)
 
-1. Nome e numeri del Palo di Roma Est nel video (già aperta nel kit).
-2. Contatto per il titolo finale: mail, numero, o un link a una pagina.
-3. La frase personale prima della chiusura: se è vera e se la dici tu.
-4. Voce tua o solo testo e musica.
-5. Sottotitoli: per i pali italiani bastano in italiano; l'inglese serve solo
-   per la versione della sede europea.
+1. Nome e numeri del Palo di Roma Est: sì.
+2. Contatto nel titolo finale: Paolo Celestini (il video lo manda lui, quindi
+   basta il nome; nessuna mail o numero nel video né in questo file).
+3. Nessuna frase personale in chiusura: suona come una vendita.
+4. Solo testo, nessuna voce. La musica resta da decidere: consigliata bassa.
+5. Sottotitoli in italiano; versione in inglese con gli stessi tempi.

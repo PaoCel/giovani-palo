@@ -12,7 +12,7 @@ opened: 2026-11-11
 started_at:
 touched: 2026-11-11
 due:
-blocked_by: ["decisione: nome e numeri di Roma Est nel video, lingua dei sottotitoli; prova generale da loggato sulla demo"]
+blocked_by: ["prova generale da loggato sulla demo (la password la digita Paolo)"]
 branch:
 worktree:
 session:
@@ -37,9 +37,11 @@ Dall'11/11 c'è anche la versione promozionale per i pali (90 s in 16:9 e teaser
 
 ## Decisioni di Paolo
 
-- citare nome e numeri del Palo di Roma Est nel titolo finale (domanda 4 del kit)
-- sottotitoli solo in italiano o anche in inglese
-- versione promozionale: contatto del titolo finale, voce di Paolo o solo testo e musica
+Prese l'11/11, dettaglio in docs/VIDEO_PROMO_PALI.md:
+- nome e numeri del Palo di Roma Est: sì (riletti l'11/11: 326 iscrizioni, 116 autorizzazioni firmate online)
+- contatto finale: Paolo Celestini, nessuna frase personale
+- solo testo, nessuna voce; musica bassa consigliata, da confermare
+- sottotitoli in italiano, più una versione in inglese con gli stessi tempi (interfaccia ancora in italiano)
 
 ## Trovato il 2026-11-11
 
