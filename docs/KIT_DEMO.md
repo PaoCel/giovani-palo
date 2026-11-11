@@ -99,9 +99,12 @@ ambra). Va riallineato prima della sessione di redesign, insieme a `/unit` e
 ## 2. Ambiente demo
 
 Base: progetto `giovani-palo-staging`, dominio `demo.gugditalia.it`
-(`noindex`, `robots.txt` con `Disallow: /`). **Stato al 2026-11-05**: serve lo
-stesso codice di `main` di gugditalia.it (service worker v43, restyling
-compreso), con rules, indici, storage e 39 functions allineati. Seed
+(`noindex`, `robots.txt` con `Disallow: /`). **Stato al 2026-11-11**: hosting
+riallineato a `main` (`f68bc1f`, service worker v45): ci sono anche Crea
+attività a step e le pagine pubbliche col tema 2026. La home è ora quella
+nazionale, con il selettore del palo su «Tutta Italia»: la prima riga della
+scaletta del video va riletta. Rules, indici, storage e 39 functions sono
+quelli del 5 novembre, uguali a `main`. Seed
 `tools/seed-demo.mjs` applicato con `--today 2026-11-05`: palo `palo-demo`, i
 quattro account di ruolo, tre attività e 40 iscrizioni. Le attività sono un
 viaggio al tempio futuro con piano stanze pubblicato, un campeggio futuro e un

@@ -66,6 +66,9 @@ e `--config firebase.staging.json`, mai `--project` da solo.
 - Functions: `functions/.env.giovani-palo-staging` (da `functions/.env.staging.example`)
   e secret `BREVO_API_KEY`, `WEB_PUSH_PRIVATE_KEY` nel progetto di staging.
 
+**Stato al 2026-11-11**: solo hosting, da `f68bc1f` (service worker v45), dallo
+specchio pulito di `main` sul mini con `--account paolo.celestini97@gmail.com`;
+rules, indici, storage e functions non sono cambiati dal 5 novembre.
 **Stato al 2026-11-05**: staging allineato a `main` (rules, indici, storage, 39
 functions con `--force` per le politiche di retry; hosting v44 da `cfb180e`, sempre il 5/11). Il service
 agent di Storage ha ora `roles/firebaserules.firestoreServiceAgent`, senza il
