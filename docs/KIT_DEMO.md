@@ -100,7 +100,7 @@ ambra). Va riallineato prima della sessione di redesign, insieme a `/unit` e
 
 Base: progetto `giovani-palo-staging`, dominio `demo.gugditalia.it`
 (`noindex`, `robots.txt` con `Disallow: /`). **Stato al 2026-11-11**: hosting
-riallineato a `main` (`f68bc1f`, service worker v45): ci sono anche Crea
+riallineato a `main` (`2c3ae38`, service worker v46): ci sono anche Crea
 attività a step e le pagine pubbliche col tema 2026. La home è ora quella
 nazionale, con il selettore del palo su «Tutta Italia»: la prima riga della
 scaletta del video va riletta. Rules, indici, storage e 39 functions sono
