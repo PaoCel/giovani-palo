@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 
 import { AppIcon } from "@/components/AppIcon";
+import { pageTitle } from "@/utils/pageTitle";
 
 // Pezzi comuni alle pagine pubbliche del genitore (firma e scelte su foto e
 // social): stesso guscio, stesso pannello di stato, stessa data.
@@ -12,7 +13,7 @@ export function useNoIndex(title: string) {
     meta.content = "noindex, nofollow, noarchive";
     document.head.appendChild(meta);
     const previousTitle = document.title;
-    document.title = title;
+    document.title = pageTitle(title);
     return () => {
       document.head.removeChild(meta);
       document.title = previousTitle;

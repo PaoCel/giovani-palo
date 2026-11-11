@@ -8,6 +8,7 @@ import { HOME } from "@/copy/home";
 import { useAuth } from "@/hooks/useAuth";
 import { getActivitiesPath, getLoginPath } from "@/utils/activityLinks";
 import { getAccountHomePath } from "@/utils/family";
+import { pageTitle } from "@/utils/pageTitle";
 import "@/styles/publicSite.css";
 
 function accountPath(session: NonNullable<ReturnType<typeof useAuth>["session"]>) {
@@ -49,7 +50,7 @@ function PublicSiteFrame() {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = title;
+    document.title = pageTitle(title);
 
     return () => {
       document.title = previousTitle;
