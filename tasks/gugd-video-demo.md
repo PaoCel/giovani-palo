@@ -43,4 +43,4 @@ Video di 3 minuti da dare ad altri pali, scaletta in docs/KIT_DEMO.md (Video di 
 - corretto in 7d86357: le pagine pubbliche nuove (PublicSiteLayout) e quelle del genitore sostituivano il titolo della scheda e sulla demo spariva il prefisso [DEMO]. In produzione il fix non cambia nulla ed esce col prossimo deploy hosting (service worker v46)
 - la home pubblica dice «Iscriviti, anche senza account», ma le attività demo non ammettono l'iscrizione senza account
 - con due attività future la home mostra quattro segnaposto «In arrivo»
-- corretto in `e23d09f` (task gugd-allineamento-tema-2026): le card della home senza locandina mostravano un riquadro grigio vuoto; ora c'è il paesaggio disegnato del dettaglio. Tutta l'app ha colori e font del tema dell'anno, sulla demo dall'11/11 (service worker v47)
+- corretto in `e23d09f` (task gugd-allineamento-tema-2026): le card della home senza locandina mostravano un riquadro grigio vuoto; ora c'è il paesaggio disegnato del dettaglio. Tutta l'app ha colori e font del tema dell'anno, sulla demo e in produzione dall'11/11 (service worker v47)

@@ -1,7 +1,7 @@
 ---
 id: gugd-allineamento-tema-2026
 title: Allineare l'app al tema 2026 delle pagine pubbliche
-status: needs-paolo
+status: done
 impact: 2
 urgency: 2
 effort: M
@@ -12,15 +12,15 @@ opened: 2026-11-11
 started_at: 2026-11-11
 touched: 2026-11-11
 due:
-blocked_by: ["decisione: deploy hosting in produzione (service worker v47)"]
+blocked_by: []
 branch:
 worktree:
 session: 12edb8fa-c95b-429f-8bda-fe3b3d8ba3df
-stopped_at: "11/11: direzione 3 in main (e23d09f) e sulla demo, service worker v47; produzione ancora a v45"
-next: "Paolo: guardare la demo da loggato nei quattro ruoli; poi conferma per il deploy hosting in produzione"
-verified: "11/11. Suite client sul mini da main 1919/1919; tsc e build verdi; test del tema (yearTheme, uiComponents) scritti da un altro agente, 158/158 con accenti e titolo. Collaudo fotografico su emulatori sul mini (.claude/qa-tema-2026): 29 pagine di tutti i ruoli a 390 e 1440, prima e dopo; dopo: zero font e zero colori della palette di prima negli stili calcolati, nessuno sbordo, nessun errore in console. Review indipendente Codex gpt-6-astra: BLOCKED con 2 rilievi (contrasto del badge sul gradiente di iscrizione inviata, striscia del tema nella Notte dei Record), corretti e coperti da guardie. Demo: index.html, sw.js, bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; home e dettaglio visti a 375 dopo reset di service worker e cache, senza errori. Non provati: aree con login sulla demo vera (la password la digita Paolo), pagine di firma del genitore, Safari iOS, stampa del certificato"
+stopped_at: "11/11: in produzione (hosting da 6597296, service worker v47) e sulla demo"
+next: ""
+verified: "11/11. Suite client sul mini da main 1919/1919; tsc e build verdi; test del tema (yearTheme, uiComponents) scritti da un altro agente, 158/158 con accenti e titolo. Collaudo fotografico su emulatori sul mini (.claude/qa-tema-2026): 29 pagine di tutti i ruoli a 390 e 1440, prima e dopo; dopo: zero font e zero colori della palette di prima negli stili calcolati, nessuno sbordo, nessun errore in console. Review indipendente Codex gpt-6-astra: BLOCKED con 2 rilievi (contrasto del badge sul gradiente di iscrizione inviata, striscia del tema nella Notte dei Record), corretti e coperti da guardie. Demo: index.html, sw.js, bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; home e dettaglio visti a 375 dopo reset di service worker e cache, senza errori. Non provati: aree con login sulla demo vera (la password la digita Paolo), pagine di firma del genitore, Safari iOS, stampa del certificato Produzione 11/11, su conferma di Paolo in chat: prima del deploy il bundle live index-CgKgxP7j.js aveva lo stesso sha della build di f68bc1f (niente di non pubblicato oltre main) e rules, indici, storage e functions erano invariati; deploy del solo hosting da main pulito (6597296) sul mini; gugditalia.it e giovani-palo.web.app servono service worker v47 con index.html, sw.js, index-CPIBdBny.js, index-U9MMVN6g.css e manifest di sha uguale alla build; home, catalogo e un dettaglio pubblico aperti dopo reset di service worker e cache: Roboto, zero colori e font vecchi negli stili calcolati, nessun errore in console. Non provate in produzione: aree con login"
 links: []
-done_at:
+done_at: 2026-11-11
 ---
 
 Home, catalogo e accedi (PR #10, tema 2026 «Cammina con me») piacciono a Paolo e restano il riferimento: non si toccano. Il resto dell'app parla un'altra lingua visiva (Fraunces e Manrope, blu #235d90, pill, card arrotondate) e il passaggio si vede al primo tap, dalla home al dettaglio attività. Paolo, 11 novembre: «Allineamento va bene ma va fatto con senso, perché mi piace. Deve essere tutto almeno graficamente perfetto per la demo, deve sembrare tutto così intuitivo».
@@ -65,3 +65,7 @@ Trovato fotografando: sulla home nuova le card delle attività senza locandina m
 - Testo sopra l'ambra con `--on-sand` (sei punti usavano `--ink`, che col blu 2026 fa 4,495:1).
 - `theme-color` e manifest sul blu del tema.
 - Regola e procedura per l'anno nuovo in `docs/REDESIGN_BRIEF.md`, «Tema dell'anno».
+
+## In produzione dall'11 novembre
+
+Deploy del solo hosting da `6597296`, service worker v47, su conferma di Paolo. Con il tema è uscito anche `7d86357` (titolo `[DEMO]`, che in produzione non cambia nulla).
