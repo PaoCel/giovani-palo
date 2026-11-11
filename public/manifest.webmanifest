@@ -4,7 +4,7 @@
   "description": "Piattaforma per Attività GU e GD Italia",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6f2ea",
+  "background_color": "#ffffff",
   "theme_color": "#005581",
   "icons": [
     {

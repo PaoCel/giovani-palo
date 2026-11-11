@@ -49,3 +49,19 @@ Tavola `.claude/mockups/allineamento-tema-2026/tavola.png` (fuori da git, con `t
 L'app è già a token (`tokens.css`, variabili di `base.css`): colori e font delle direzioni 1 e 3 si ottengono quasi solo cambiando variabili; le forme della direzione 1 chiedono regole per componente.
 
 Trovato fotografando: sulla home nuova le card delle attività senza locandina mostrano un riquadro grigio vuoto, mentre il dettaglio ha l'illustrazione di ripiego.
+
+## Scelta di Paolo, 11 novembre
+
+**Direzione 3**: «i colori li prenderemo sempre dal tema dell'anno». Quindi il tema è uno strato che si cambia ogni anno, non una ricolorazione una tantum.
+
+## Fatto
+
+- `src/styles/yearTheme.css`: unica fonte di blu, ambra, inchiostro, grigi, font e logo (`--theme-*`). `tokens.css`, il `:root` di `base.css` e `.pub26` leggono da lì.
+- Colori e font scritti a mano sostituiti con token in 17 file CSS (circa 235 righe). Fuori di proposito: Notte dei Record, certificato, illustrazioni SVG.
+- Testata comune: fondo bianco, filo, striscia blu e ambra del tema, nome scritto come nella home («Attività» leggero, «GU GD» in grassetto) e senza logo da non entrati.
+- Pagine pubbliche: pulsanti, scelta del palo e stati a pill, copertine col radius delle card.
+- Home e catalogo: paesaggio di ripiego sulle attività senza locandina, al posto del riquadro grigio.
+- Dettaglio pubblico: «Iscrizioni aperte» nel blu tenue del catalogo, «Accedi» pieno.
+- Testo sopra l'ambra con `--on-sand` (sei punti usavano `--ink`, che col blu 2026 fa 4,495:1).
+- `theme-color` e manifest sul blu del tema.
+- Regola e procedura per l'anno nuovo in `docs/REDESIGN_BRIEF.md`, «Tema dell'anno».

@@ -132,6 +132,11 @@ button {
   background: linear-gradient(90deg, var(--theme-primary) 0 50%, var(--theme-accent) 50% 100%);
 }
 
+/* La Notte dei Record ha una pelle sua (recordNight.css): niente striscia. */
+html.rn-skin .topbar::before {
+  content: none;
+}
+
 /* --rail-width esiste solo con la barra laterale dell'admin (da 1024 px). */
 .topbar__inner,
 .page {
