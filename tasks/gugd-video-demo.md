@@ -40,7 +40,7 @@ Dall'11/11 c'è anche la versione promozionale per i pali (90 s in 16:9 e teaser
 Prese l'11/11, dettaglio in docs/VIDEO_PROMO_PALI.md:
 - nome e numeri del Palo di Roma Est: sì (riletti l'11/11: 326 iscrizioni, 116 autorizzazioni firmate online)
 - contatto finale: Paolo Celestini, nessuna frase personale
-- solo testo, nessuna voce; musica bassa consigliata, da confermare
+- solo testo, nessuna voce, musica strumentale bassa
 - sottotitoli in italiano, più una versione in inglese con gli stessi tempi (interfaccia ancora in italiano)
 
 ## Trovato il 2026-11-11

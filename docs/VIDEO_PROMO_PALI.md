@@ -45,8 +45,8 @@ italiano e in inglese: cambiano solo i testi, le riprese sono le stesse.
   conta, mai il cursore che vaga.
 - Colori e font dei titoli: quelli del tema dell'anno dell'app, così il video e
   l'app sembrano la stessa cosa.
-- **Musica: una traccia strumentale leggera e bassa (consigliata, non
-  obbligatoria).** Su WhatsApp il video parte muto e non cambia niente; in una
+- **Musica: una traccia strumentale leggera e bassa** (decisa da Paolo
+  l'11/11). Su WhatsApp il video parte muto e non cambia niente; in una
   presentazione o aperto dal computer, 90 secondi di silenzio sembrano un video
   rotto. Va presa da una libreria con licenza d'uso libera (per esempio
   YouTube Audio Library), niente brani commerciali. Il video deve reggere anche
@@ -164,5 +164,5 @@ In più, per la versione promozionale:
 2. Contatto nel titolo finale: Paolo Celestini (il video lo manda lui, quindi
    basta il nome; nessuna mail o numero nel video né in questo file).
 3. Nessuna frase personale in chiusura: suona come una vendita.
-4. Solo testo, nessuna voce. La musica resta da decidere: consigliata bassa.
+4. Solo testo, nessuna voce, con una musica strumentale bassa.
 5. Sottotitoli in italiano; versione in inglese con gli stessi tempi.
