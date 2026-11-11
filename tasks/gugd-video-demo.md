@@ -12,13 +12,13 @@ opened: 2026-11-11
 started_at:
 touched: 2026-11-11
 due:
-blocked_by: ["prova generale da loggato sulla demo (la password la digita Paolo)"]
+blocked_by: ["Paolo: guardare i quattro video e dire se vanno"]
 branch:
 worktree:
 session:
-stopped_at: "11/11 sera: demo a main 30b16a6 (service worker v48, functions ridistribuite) con la modalità rapida; riga 0:15-0:40 della scaletta riscritta: creare un'attività con la rapida sta nei 25 secondi a stima (tre gesti, 10-15 s), da cronometrare"
-next: "Paolo: prova generale da loggato con i quattro ruoli sulla demo, compresa «Nuova attività» in rapida col cronometro; poi seed col --reset --apply e --today del giorno (porta anche le tre annunciate) e registrazione"
-verified: "11/11 sera: index.html, sw.js (v48), bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; nel bundle ci sono le stringhe della rapida; / e /activities aperte nel browser dopo reset di service worker e cache, titolo [DEMO], nessun errore in console. La rapida è stata collaudata sugli emulatori col seed demo a 320/390/430/1440, non sulla demo vera da loggato (la password la digita Paolo). Non provati: pagina di firma del genitore, percorsi da loggato dei quattro ruoli"
+stopped_at: "11/11 pomeriggio: video promozionali girati e montati da Claude sugli emulatori col seed demo (90 s e teaser 30 s, italiano e inglese), in ~/Movies/gugd-video-demo sul Mac di Paolo; script in tools/video-demo"
+next: "Paolo guarda i video; ritocchi di testi o tempi si fanno con makeplates/compose senza rigirare. Il giro guidato di 3 minuti per FSY resta da fare (stessi script)"
+verified: "11/11 pomeriggio, video: quattro mp4 (90 s 1920x1080 e 30 s 1080x1920, h264 + aac, picco audio -5 dB) controllati con provini ogni 2-3 s, segmenti tutti presenti; script del repo provati da una cartella vuota sul mini (tavole identiche). Non guardati a velocità reale con l'audio. 11/11 sera: index.html, sw.js (v48), bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; nel bundle ci sono le stringhe della rapida; / e /activities aperte nel browser dopo reset di service worker e cache, titolo [DEMO], nessun errore in console. La rapida è stata collaudata sugli emulatori col seed demo a 320/390/430/1440, non sulla demo vera da loggato (la password la digita Paolo). Non provati: pagina di firma del genitore, percorsi da loggato dei quattro ruoli"
 links: []
 done_at:
 ---
@@ -33,7 +33,7 @@ Dall'11/11 c'è anche la versione promozionale per i pali (90 s in 16:9 e teaser
 - prova generale da loggato sulla demo vera con i quattro ruoli, a 390 e desktop (la password la digita Paolo)
 - seed riapplicato con --reset --apply e --today uguale al giorno della registrazione
 - scaletta riletta: la home è quella nazionale con selettore del palo; la riga 0:15-0:40 ora usa la modalità rapida (fatto l'11/11, da cronometrare nella prova generale)
-- video registrato (giro guidato e versione promozionale)
+- video promozionale prodotto l'11/11 (90 s e teaser, italiano e inglese); giro guidato di 3 minuti ancora da fare
 
 ## Decisioni di Paolo
 

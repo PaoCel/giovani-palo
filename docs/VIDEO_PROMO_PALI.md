@@ -1,6 +1,6 @@
 # Video promozionale per gli altri pali
 
-Stato: **scaletta decisa da Paolo il 2026-11-11**, da registrare.
+Stato: **video prodotti l'11/11/2026**, da rivedere con Paolo prima di mandarli. Quattro file: 90 s in 16:9 e teaser 30 s in 9:16, in italiano e in inglese (fuori dal repo, sul Mac di Paolo in `~/Movies/gugd-video-demo/`).
 
 Destinatari: presidenze di palo, dirigenti dei Giovani Uomini e delle Giovani
 Donne, consulenti di altri pali italiani. Lo ricevono su WhatsApp o per mail,
@@ -59,19 +59,22 @@ l'iscrizione di Sofia è al Campeggio d'inverno, le foto vengono dal campeggio
 d'autunno concluso. In montaggio la scena del dirigente viene dopo la firma,
 ma si registra prima (vedi Registrazione).
 
+Tempi del montaggio prodotto (le scene del telefono sono accelerate 1,6-1,8 volte):
+
 | Tempo | Titolo | Riga sotto | Cosa si vede (ripresa) |
 | --- | --- | --- | --- |
-| 0:00-0:05 | Quante autorizzazioni hai rincorso per l'ultimo campeggio? | | titolo su sfondo pieno, logo piccolo in un angolo |
-| 0:05-0:25 | Niente più fogli da raccogliere | I ragazzi si iscrivono dal telefono. Se sono minorenni, al genitore arriva un link per firmare. | Sofia, telefono: si iscrive al Campeggio d'inverno. Stacco sul genitore: apre il link di Matteo, sceglie per le foto, firma, conferma. Alla fine, in sovrimpressione, «N moduli firmati» dall'Elenco consensi con la riga «Ogni modulo firmato resta in PDF.» |
-| 0:25-0:32 | Il genitore non installa nulla: gli arriva un link. | | primo piano del link aperto nel telefono del genitore, poi la conferma |
-| 0:32-0:45 | Il dirigente sa chi manca | Il dirigente di unità vede chi non ha ancora l'autorizzazione. | dirigente, desktop, `/unit`: la sua unità e l'autorizzazione di Matteo in attesa |
-| 0:45-0:58 | Ognuno vede la sua stanza | Le stanze si preparano nell'app, e ogni ragazzo vede solo la sua. | admin, desktop: piano stanze del Viaggio al Tempio; stacco su Sofia, telefono: «La tua stanza» con i compagni |
-| 0:58-1:08 | Le foto restano nel palo | Dopo l'attività le foto sono nell'app, visibili solo ai membri del palo. | Sofia, telefono: galleria del campeggio d'autunno, una foto a tutto schermo |
-| 1:08-1:12 | Un'attività nuova? Nome e giorno. | | lampo dell'admin: «Nuova attività» in rapida, «Salva nel calendario» |
-| 1:12-1:20 | Palo di Roma Est, da marzo 2026 | 326 iscrizioni, 116 autorizzazioni firmate dal telefono | riga ferma su sfondo pieno, niente contatori animati |
-| 1:20-1:30 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | gugditalia.it | titolo finale con logo |
+| 0:00-0:05 | Quante autorizzazioni hai rincorso per l'ultimo campeggio? | | tavola blu, logo in basso |
+| 0:05-0:15 | Niente più fogli da raccogliere | I ragazzi si iscrivono dal telefono. Se sono minorenni, al genitore arriva un link per firmare. | Sofia, telefono: iscrizione al Campeggio d'inverno fino a «Iscrizione inviata» |
+| 0:15-0:25 | Il genitore non installa nulla: gli arriva un link. | | genitore, telefono: link di Matteo, condizioni, «Acconsento» per foto e social, firma, «Tutto completato» |
+| 0:25-0:32 | Ogni firma, in PDF | Ogni modulo firmato resta in PDF. | admin, desktop: Elenco consensi del campeggio d'autunno, «14 moduli firmati», cursore su «Scarica ZIP» |
+| 0:32-0:45 | Il dirigente sa chi manca | Il dirigente di unità vede chi non ha ancora l'autorizzazione. | dirigente, desktop, `/unit`: riquadro «Autorizzazione genitore mancante», poi Viaggio al Tempio e Matteo in attesa |
+| 0:45-0:58 | Ognuno vede la sua stanza | Le stanze si preparano nell'app, e ogni ragazzo vede solo la sua. | admin, desktop: piano stanze; poi Sofia, telefono: «La tua stanza» |
+| 0:58-1:07 | Le foto restano nel palo | Dopo l'attività le foto sono nell'app, visibili solo ai membri del palo. | Sofia, telefono: galleria del campeggio d'autunno, una foto aperta |
+| 1:07-1:13 | Un'attività nuova? Nome e giorno. | | admin, desktop: «Nuova attività» in rapida, «Serata film», «Salva nel calendario» |
+| 1:13-1:21 | Palo di Roma Est, da marzo 2026 | 326 iscrizioni, 116 autorizzazioni firmate dal telefono | tavola chiara coi due numeri |
+| 1:21-1:30 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | gugditalia.it | tavola blu finale |
 
-**Numeri** (1:12-1:20): citati con l'ok di Paolo dell'11/11. Riletti da
+**Numeri** (1:13-1:21): citati con l'ok di Paolo dell'11/11. Riletti da
 produzione l'11/11 in sola lettura, solo conteggi: 326 iscrizioni non annullate
 (348 create) e 116 autorizzazioni dei genitori firmate online, uguali al 16
 ottobre. Se passano settimane prima di mandare il video, si rileggono (stessa
@@ -157,6 +160,30 @@ In più, per la versione promozionale:
   legga sul telefono di chi guarda.
 - Ogni scena si gira due volte, una lenta e una a ritmo normale: in montaggio
   si sceglie.
+
+## Come sono fatti e come si rigirano
+
+Li ha girati e montati Claude l'11/11, senza toccare la demo vera: emulatori
+Firebase sul Mac mini col seed demo (`--today 2026-11-11`), account di prova
+degli emulatori, browser automatico. Gli script sono in `tools/video-demo/`:
+
+| File | Cosa fa |
+| --- | --- |
+| `record.mjs <scena>` | registra una scena (leader, register, parent, rooms, myroom, gallery, quick, consents) con la cattura di Chrome: telefono 390×844 a densità 2, desktop 1280×800 a densità 1,5, cursore e tocchi disegnati |
+| `build.py <scena> ready end` | trasforma i fotogrammi in un mp4 a 30 fps tra due segni |
+| `makeplates.mjs` | genera sfondi, cornici e testi in italiano e inglese (Roboto e colori del tema dell'anno) |
+| `compose.py it en` | monta i quattro video e ci mette la musica (`MUSIC=<file>`) |
+
+Ordine: emulatori con `firebase.multistake-test.json`, seed con `--reset
+--apply`, dev server con le variabili di `vite-demo-emulators`, poi le scene
+con **leader prima di parent** (la firma di Matteo vale una volta; per rifarla
+si riapplica il seed). Si lancia tutto da una cartella di lavoro fuori dal
+repo, con `PLAYWRIGHT_MODULE` che punta a un `playwright-core` installato lì.
+
+Musica: generata con ElevenLabs Music (strumentale, 95 s) e salvata accanto ai
+video; c'è anche una seconda traccia alternativa (`musica-alternativa-b.mp3`).
+Quando l'app sarà tradotta (task `gugd-i18n`) si rigirano le scene con
+l'interfaccia in inglese e si rimonta solo la versione inglese.
 
 ## Decisioni di Paolo (2026-11-11)
 
