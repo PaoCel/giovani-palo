@@ -12,7 +12,7 @@
   --camp-ink-soft: #4a5768;
   --camp-parchment: #f4f5f1;
   --camp-card: #ffffff;
-  --camp-amber: #e8a857;
+  --camp-amber: var(--action-sand);
   --camp-amber-deep: #c97f2e;
   --camp-sage: #6e8f6b;
   --camp-sage-soft: #e4ebe2;

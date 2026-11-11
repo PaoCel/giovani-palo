@@ -265,7 +265,7 @@
   border-color: transparent;
   background: var(--ink);
   color: #fff;
-  box-shadow: 0 12px 30px rgba(27, 63, 103, 0.09);
+  box-shadow: 0 12px 30px rgba(var(--theme-primary-rgb), 0.09);
 }
 
 .ui-card__head {

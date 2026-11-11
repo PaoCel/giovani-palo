@@ -38,7 +38,7 @@
 .social-feed .feed-card { gap:var(--space-3); padding:var(--space-5); border:1px solid var(--line); border-radius:var(--radius-sheet); box-shadow:var(--shadow-card); overflow:hidden; }
 .social-post-head { display:flex; align-items:center; gap:10px; min-width:0; }
 .social-author-mark { flex:none; width:42px; height:42px; border-radius:50%; background:var(--surface-cool); display:grid; place-items:center; }
-.social-author-mark img { width:31px; height:31px; object-fit:contain; filter:drop-shadow(0 1px 1px rgba(27,63,103,.13)); }
+.social-author-mark img { width:31px; height:31px; object-fit:contain; filter:drop-shadow(0 1px 1px rgba(var(--theme-primary-rgb), .13)); }
 .social-post-head>div { display:grid; gap:2px; }
 .social-post-head strong { font-size:var(--text-sm); color:var(--text); }
 .social-post-head span:not(.social-author-mark) { font-size:var(--text-xs); color:var(--text-secondary); }

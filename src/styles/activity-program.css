@@ -12,7 +12,7 @@
 .moments-header h2 {
   margin: 0;
   font:
-    600 clamp(1.6rem, 4vw, 2rem) / 1.2 "Fraunces",
+    600 clamp(1.6rem, 4vw, 2rem) / 1.2 var(--font-display),
     serif;
   color: var(--heading);
 }
@@ -35,7 +35,7 @@
 .moments-day h3 {
   margin: 0.7rem 0 0;
   font:
-    800 13px/1.4 "Manrope",
+    800 13px/1.4 var(--font-body),
     sans-serif;
   color: var(--primary);
   text-transform: uppercase;
@@ -63,7 +63,7 @@
 }
 .moment-card--signup h3,
 .moment-card--signup h4 {
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 24px;
   font-weight: 500;
   line-height: 1.2;

@@ -465,7 +465,7 @@
     max(var(--gutter), env(safe-area-inset-left));
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -8px 24px rgba(16, 28, 48, 0.06);
+  box-shadow: 0 -8px 24px rgba(var(--theme-ink-rgb), 0.06);
   backdrop-filter: blur(18px);
 }
 

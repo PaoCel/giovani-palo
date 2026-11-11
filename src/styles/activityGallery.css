@@ -13,12 +13,12 @@
   --ag-paper: #f4f5f1;
   --ag-card: #ffffff;
   --ag-line: #e1e3dc;
-  --ag-amber: #e8a857;
+  --ag-amber: var(--action-sand);
   --ag-amber-deep: #c97f2e;
   --ag-sage: #6e8f6b;
   --ag-sage-soft: #e4ebe2;
-  --ag-blue: var(--primary, #235d90);
-  --ag-blue-soft: var(--primary-soft, rgba(35, 93, 144, 0.12));
+  --ag-blue: var(--primary, var(--primary));
+  --ag-blue-soft: var(--primary-soft, rgba(var(--theme-primary-rgb), 0.12));
   --ag-danger: var(--danger, #b14e44);
   --ag-danger-soft: rgba(177, 78, 68, 0.12);
   --ag-shadow: 0 1px 2px rgba(30, 42, 59, 0.04), 0 6px 16px -6px rgba(30, 42, 59, 0.12);
@@ -111,10 +111,10 @@
 
 .ag-card__head h3 {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.32rem;
-  color: var(--heading, #101c30);
+  color: var(--heading, var(--heading));
 }
 
 .ag-card__count {
@@ -178,7 +178,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(16, 28, 48, 0.45);
+  background: rgba(var(--theme-ink-rgb), 0.45);
   color: #fff;
   font-weight: 800;
   font-size: 1.1rem;
@@ -203,7 +203,7 @@
   gap: 0.4rem;
   padding: 0.25rem 0.65rem;
   border-radius: 999px;
-  background: rgba(232, 168, 87, 0.18);
+  background: rgba(var(--theme-accent-rgb), 0.18);
   color: var(--ag-amber);
   font-size: 0.75rem;
   font-weight: 700;
@@ -214,12 +214,12 @@
   height: 0.45rem;
   border-radius: 50%;
   background: var(--ag-amber);
-  box-shadow: 0 0 0 4px rgba(232, 168, 87, 0.25);
+  box-shadow: 0 0 0 4px rgba(var(--theme-accent-rgb), 0.25);
 }
 
 .ag-live h3 {
   margin: 0.6rem 0 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.38rem;
   color: #fff;
@@ -277,11 +277,11 @@
 
 .ag-page__head h1 {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.4rem;
   line-height: 1.1;
-  color: var(--heading, #101c30);
+  color: var(--heading, var(--heading));
 }
 
 .ag-page__head p {
@@ -447,7 +447,7 @@
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 50%;
-  background: rgba(16, 28, 48, 0.55);
+  background: rgba(var(--theme-ink-rgb), 0.55);
   color: #fff;
   backdrop-filter: blur(6px);
 }
@@ -467,7 +467,7 @@
   gap: 0.2rem;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.55);
+  background: rgba(var(--theme-ink-rgb), 0.55);
   color: #fff;
   font-size: 0.72rem;
   font-weight: 700;
@@ -507,9 +507,9 @@
   justify-items: center;
   gap: 0.6rem;
   padding: 2.4rem 1.2rem;
-  border: 1px dashed rgba(16, 28, 48, 0.14);
+  border: 1px dashed rgba(var(--theme-ink-rgb), 0.14);
   border-radius: 1.2rem;
-  background: rgba(16, 28, 48, 0.03);
+  background: rgba(var(--theme-ink-rgb), 0.03);
   color: var(--muted, #66758a);
   text-align: center;
 }
@@ -627,10 +627,10 @@
 
 .ag-sheet h3 {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.35rem;
-  color: var(--heading, #101c30);
+  color: var(--heading, var(--heading));
 }
 
 .ag-sheet > p {
@@ -728,7 +728,7 @@
   border: 1px solid var(--ag-line);
   border-radius: 1.2rem;
   background: var(--ag-card);
-  box-shadow: 0 18px 40px -12px rgba(16, 28, 48, 0.35);
+  box-shadow: 0 18px 40px -12px rgba(var(--theme-ink-rgb), 0.35);
 }
 
 .media-dock__toast {
@@ -766,7 +766,7 @@
   justify-content: space-between;
   gap: 0.5rem;
   font-size: 0.88rem;
-  color: var(--heading, #101c30);
+  color: var(--heading, var(--heading));
 }
 
 .media-dock__head span {
@@ -838,7 +838,7 @@
 
 .media-dock__info b {
   font-size: 0.82rem;
-  color: var(--heading, #101c30);
+  color: var(--heading, var(--heading));
 }
 
 .media-dock__err {

@@ -164,7 +164,7 @@ button {
   place-items: center;
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.84);
   color: var(--heading);
   box-shadow: var(--shadow-soft);
@@ -284,7 +284,7 @@ button {
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.84);
   color: var(--heading);
   box-shadow: var(--shadow-soft);
@@ -309,9 +309,9 @@ button {
   overflow: hidden;
   display: grid;
   border-radius: 1.2rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 22px 48px rgba(16, 28, 48, 0.18);
+  box-shadow: 0 22px 48px rgba(var(--theme-ink-rgb), 0.18);
   backdrop-filter: blur(18px);
   z-index: var(--z-popover);
 }
@@ -322,7 +322,7 @@ button {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.95rem 1rem 0.8rem;
-  border-bottom: 1px solid rgba(16, 28, 48, 0.06);
+  border-bottom: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .topbar__alert-dropdown-head strong {
@@ -343,7 +343,7 @@ button {
   display: grid;
   gap: 0.2rem;
   padding: 0.9rem 1rem;
-  border-bottom: 1px solid rgba(16, 28, 48, 0.05);
+  border-bottom: 1px solid rgba(var(--theme-ink-rgb), 0.05);
 }
 
 .topbar__alert-item:last-child {
@@ -363,7 +363,7 @@ button {
 }
 
 .topbar__alert-item:hover {
-  background: rgba(27, 63, 103, 0.04);
+  background: rgba(var(--theme-primary-rgb), 0.04);
 }
 
 .topbar__alert-empty {
@@ -643,7 +643,7 @@ button {
   border-radius: var(--radius-card);
   border: 1px solid var(--line);
   background: var(--surface-card);
-  box-shadow: 0 22px 48px rgba(16, 28, 48, 0.18);
+  box-shadow: 0 22px 48px rgba(var(--theme-ink-rgb), 0.18);
 }
 
 .shell-account__head {
@@ -846,14 +846,14 @@ button {
   align-items: center;
   padding: 0.85rem 0.95rem;
   border-radius: 1.25rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background:
     linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.96),
       rgba(244, 247, 251, 0.94)
     ),
-    linear-gradient(120deg, rgba(35, 93, 144, 0.05), rgba(181, 138, 80, 0.06));
+    linear-gradient(120deg, rgba(var(--theme-primary-rgb), 0.05), rgba(181, 138, 80, 0.06));
   box-shadow: var(--shadow-soft);
 }
 
@@ -941,7 +941,7 @@ button {
       rgba(255, 255, 255, 0.96),
       rgba(244, 247, 251, 0.92)
     ),
-    linear-gradient(135deg, rgba(35, 93, 144, 0.04), rgba(181, 138, 80, 0.06));
+    linear-gradient(135deg, rgba(var(--theme-primary-rgb), 0.04), rgba(181, 138, 80, 0.06));
 }
 
 .hero::before {
@@ -975,7 +975,7 @@ button {
   font-size: clamp(1.95rem, 5vw, 3.4rem);
   line-height: 1;
   letter-spacing: -0.045em;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
 }
 
 .hero__description {
@@ -1080,7 +1080,7 @@ button {
 
 .home-hero__title {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: clamp(1.9rem, 7vw, 2.6rem);
   line-height: 1.08;
   letter-spacing: -0.03em;
@@ -1166,7 +1166,7 @@ button {
   font-size: clamp(2rem, 8vw, 2.8rem);
   line-height: 1;
   letter-spacing: -0.04em;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
 }
 
 .home-screen__description {
@@ -1263,7 +1263,7 @@ button {
   gap: 0.5rem;
 }
 
-/* Fraunces 27-32 px (docs/FLUSSO_GENITORE.md, "Finitura"). */
+/* Titoli 27-32 px (docs/FLUSSO_GENITORE.md, "Finitura"). */
 .auth-screen__title {
   margin: 0;
   color: var(--heading);
@@ -1271,7 +1271,7 @@ button {
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.03em;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
 }
 
 .auth-screen__lead {
@@ -1309,7 +1309,7 @@ button {
   gap: 3px;
   padding: 4px;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.06);
+  background: rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .auth-tabs__tab {
@@ -1342,7 +1342,7 @@ button {
 .auth-tabs__tab[aria-selected="true"] {
   background: #fff;
   color: var(--heading);
-  box-shadow: 0 2px 8px rgba(16, 28, 48, 0.1);
+  box-shadow: 0 2px 8px rgba(var(--theme-ink-rgb), 0.1);
 }
 
 .auth-tabs__tab:focus-visible {
@@ -1480,7 +1480,7 @@ button {
       180deg,
       rgba(244, 247, 251, 0) 0%,
       rgba(244, 247, 251, 0.96) 26%,
-      #f4f7fb 100%
+      var(--bg) 100%
     );
   }
 
@@ -1689,19 +1689,19 @@ button {
 .button--primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: white;
-  box-shadow: 0 14px 28px rgba(35, 93, 144, 0.2);
+  box-shadow: 0 14px 28px rgba(var(--theme-primary-rgb), 0.2);
 }
 
 .button--ghost {
   background: rgba(255, 255, 255, 0.78);
-  border-color: rgba(16, 28, 48, 0.08);
+  border-color: rgba(var(--theme-ink-rgb), 0.08);
   color: var(--heading);
 }
 
 .button--soft {
   background: var(--primary-soft);
   color: var(--primary);
-  border-color: rgba(35, 93, 144, 0.08);
+  border-color: rgba(var(--theme-primary-rgb), 0.08);
 }
 
 .button:disabled {
@@ -1736,14 +1736,14 @@ button {
 
 .icon-button--soft {
   background: rgba(255, 255, 255, 0.84);
-  border-color: rgba(16, 28, 48, 0.08);
+  border-color: rgba(var(--theme-ink-rgb), 0.08);
   color: var(--heading);
 }
 
 .icon-button--primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: white;
-  box-shadow: 0 10px 22px rgba(35, 93, 144, 0.18);
+  box-shadow: 0 10px 22px rgba(var(--theme-primary-rgb), 0.18);
 }
 
 .card {
@@ -1930,7 +1930,7 @@ button {
 }
 
 .surface-chip--link:hover {
-  border-color: rgba(35, 93, 144, 0.18);
+  border-color: rgba(var(--theme-primary-rgb), 0.18);
   color: var(--primary);
   transform: translateY(-1px);
 }
@@ -2082,7 +2082,7 @@ button {
   min-height: 2.65rem;
   padding: 0.7rem 0.95rem;
   border-radius: 999px;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.72);
   color: var(--heading);
   font-weight: 800;
@@ -2094,15 +2094,15 @@ button {
   min-width: 1.5rem;
   height: 1.5rem;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.06);
+  background: rgba(var(--theme-ink-rgb), 0.06);
   color: var(--muted);
   font-size: 0.76rem;
 }
 
 .filter-chip--active {
-  border-color: rgba(35, 93, 144, 0.18);
+  border-color: rgba(var(--theme-primary-rgb), 0.18);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(35, 93, 144, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(var(--theme-primary-rgb), 0.06);
 }
 
 .filter-chip--active strong {
@@ -2225,7 +2225,7 @@ button {
   padding: 0.9rem;
   border-radius: 1.25rem;
   background: rgba(248, 250, 253, 0.92);
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
 }
 
 .user-event-feature__media {
@@ -2245,7 +2245,7 @@ button {
   display: grid;
   place-items: center;
   background:
-    linear-gradient(180deg, rgba(35, 93, 144, 0.08), rgba(255, 255, 255, 0.96)),
+    linear-gradient(180deg, rgba(var(--theme-primary-rgb), 0.08), rgba(255, 255, 255, 0.96)),
     rgba(248, 250, 253, 0.96);
   color: var(--primary);
 }
@@ -2357,7 +2357,7 @@ button {
 }
 
 .user-event-feature--hero .user-event-feature__title h3 {
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: clamp(1.35rem, 4.5vw, 1.8rem);
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -2515,7 +2515,7 @@ button {
   display: grid;
   place-items: end center;
   padding: 1rem;
-  background: rgba(16, 28, 48, 0.32);
+  background: rgba(var(--theme-ink-rgb), 0.32);
   backdrop-filter: blur(10px);
 }
 
@@ -2527,9 +2527,9 @@ button {
   padding: 1rem;
   overflow: auto;
   border-radius: 1.45rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 24px 60px rgba(16, 28, 48, 0.18);
+  box-shadow: 0 24px 60px rgba(var(--theme-ink-rgb), 0.18);
 }
 
 .calendar-modal__header {
@@ -2556,7 +2556,7 @@ button {
   gap: 0.85rem;
   padding: 0.75rem;
   border-radius: 1.2rem;
-  border: 1px solid rgba(16, 28, 48, 0.07);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.07);
   background: rgba(248, 250, 253, 0.92);
 }
 
@@ -2573,7 +2573,7 @@ button {
   display: grid;
   place-items: center;
   background:
-    linear-gradient(180deg, rgba(35, 93, 144, 0.08), rgba(255, 255, 255, 0.96)),
+    linear-gradient(180deg, rgba(var(--theme-primary-rgb), 0.08), rgba(255, 255, 255, 0.96)),
     rgba(248, 250, 253, 0.96);
   color: var(--primary);
 }
@@ -3022,7 +3022,7 @@ button {
   padding: 0.3rem;
   border-radius: 1.2rem;
   background: rgba(244, 247, 251, 0.92);
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .auth-mode-switch__item {
@@ -3048,7 +3048,7 @@ button {
 .auth-mode-switch__item--active {
   background: rgba(255, 255, 255, 0.98);
   color: var(--heading);
-  box-shadow: 0 10px 24px rgba(16, 28, 48, 0.06);
+  box-shadow: 0 10px 24px rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .auth-divider {
@@ -3083,7 +3083,7 @@ button {
   height: 0.42rem;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.08);
+  background: rgba(var(--theme-ink-rgb), 0.08);
 }
 
 .form-stepper__track span {
@@ -3106,7 +3106,7 @@ button {
   align-items: center;
   padding: 0.8rem 0.9rem;
   border-radius: 1.1rem;
-  border: 1px solid rgba(16, 28, 48, 0.07);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.07);
   background: rgba(255, 255, 255, 0.68);
 }
 
@@ -3133,7 +3133,7 @@ button {
   display: inline-grid;
   place-items: center;
   border-radius: 0.85rem;
-  background: rgba(16, 28, 48, 0.06);
+  background: rgba(var(--theme-ink-rgb), 0.06);
   color: var(--muted);
 }
 
@@ -3143,9 +3143,9 @@ button {
 }
 
 .form-stepper__step--active {
-  border-color: rgba(35, 93, 144, 0.16);
+  border-color: rgba(var(--theme-primary-rgb), 0.16);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 30px rgba(16, 28, 48, 0.06);
+  box-shadow: 0 12px 30px rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .form-stepper__step--active .form-stepper__step-icon,
@@ -3159,7 +3159,7 @@ button {
   gap: 1rem;
   padding: 1rem;
   border-radius: 1.35rem;
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
   background:
     linear-gradient(
       180deg,
@@ -3219,7 +3219,7 @@ button {
   display: grid;
   gap: 0.2rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px dashed rgba(16, 28, 48, 0.12);
+  border-bottom: 1px dashed rgba(var(--theme-ink-rgb), 0.12);
 }
 
 .form-stepper__panel-head h3 {
@@ -3264,8 +3264,8 @@ button {
 }
 
 .form-stepper--registration .form-stepper__step--active {
-  border-color: rgba(35, 93, 144, 0.32);
-  box-shadow: 0 14px 32px rgba(16, 28, 48, 0.1);
+  border-color: rgba(var(--theme-primary-rgb), 0.32);
+  box-shadow: 0 14px 32px rgba(var(--theme-ink-rgb), 0.1);
 }
 
 .form-stepper--registration
@@ -3478,7 +3478,7 @@ button {
   padding: 1rem;
   border-radius: 1.2rem;
   background: rgba(248, 250, 253, 0.88);
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
 }
 
 .form-error {
@@ -3509,7 +3509,7 @@ button {
 
 .admin-parent-fields {
   padding-top: 0.9rem;
-  border-top: 1px solid rgba(16, 28, 48, 0.08);
+  border-top: 1px solid rgba(var(--theme-ink-rgb), 0.08);
 }
 
 .admin-parent-fields legend {
@@ -3657,7 +3657,7 @@ p.admin-person-fields__note {
   display: grid;
   place-items: center;
   padding: 0.75rem;
-  background: rgba(16, 28, 48, 0.34);
+  background: rgba(var(--theme-ink-rgb), 0.34);
   backdrop-filter: blur(14px);
 }
 
@@ -3678,7 +3678,7 @@ p.admin-person-fields__note {
      allarga anche intestazione e corpo (la x di chiusura restava tagliata). */
   grid-template-columns: minmax(0, 1fr);
   border-radius: 1.6rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background:
     linear-gradient(
       180deg,
@@ -3686,7 +3686,7 @@ p.admin-person-fields__note {
       rgba(247, 250, 253, 0.96)
     ),
     rgba(255, 255, 255, 0.98);
-  box-shadow: 0 28px 70px rgba(16, 28, 48, 0.2);
+  box-shadow: 0 28px 70px rgba(var(--theme-ink-rgb), 0.2);
   overflow: hidden;
 }
 
@@ -3710,7 +3710,7 @@ p.admin-person-fields__note {
   justify-content: space-between;
   gap: 0.8rem;
   align-items: flex-start;
-  border-bottom: 1px solid rgba(16, 28, 48, 0.06);
+  border-bottom: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 /* Un titolo lungo a 320 px non stringe "Chiudi" sotto i 44 px. */
@@ -3746,7 +3746,7 @@ p.admin-person-fields__note {
   display: flex;
   justify-content: flex-end;
   gap: 0.65rem;
-  border-top: 1px solid rgba(16, 28, 48, 0.06);
+  border-top: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .admin-editor-modal__steps {
@@ -3758,7 +3758,7 @@ p.admin-person-fields__note {
 
 .surface-chip--active {
   background: var(--primary-soft);
-  border-color: rgba(35, 93, 144, 0.12);
+  border-color: rgba(var(--theme-primary-rgb), 0.12);
   color: var(--primary);
 }
 
@@ -3844,7 +3844,7 @@ p.admin-person-fields__note {
   gap: 0.18rem;
   padding: 0.95rem 1rem 0.9rem;
   border-radius: 1.2rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow-soft);
   overflow: hidden;
@@ -3946,7 +3946,7 @@ p.admin-person-fields__note {
 .admin-detail-action {
   width: 100%;
   height: 3rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.88);
   color: var(--heading);
   box-shadow: var(--shadow-soft);
@@ -3981,7 +3981,7 @@ p.admin-person-fields__note {
   min-width: 0;
   padding: 0.72rem 0.4rem;
   border-radius: 1rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.92);
   text-align: center;
 }
@@ -4020,9 +4020,9 @@ p.admin-person-fields__note {
   gap: 0.45rem;
   padding: 0.55rem;
   border-radius: 1rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 20px 44px rgba(16, 28, 48, 0.14);
+  box-shadow: 0 20px 44px rgba(var(--theme-ink-rgb), 0.14);
   z-index: 5;
 }
 
@@ -4034,7 +4034,7 @@ p.admin-person-fields__note {
   padding: 0.35rem;
   border-radius: 999px;
   background: rgba(244, 247, 251, 0.9);
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -4082,7 +4082,7 @@ p.admin-person-fields__note {
 .admin-subtabs__item--active {
   background: rgba(255, 255, 255, 0.98);
   color: var(--primary);
-  box-shadow: 0 10px 24px rgba(16, 28, 48, 0.08);
+  box-shadow: 0 10px 24px rgba(var(--theme-ink-rgb), 0.08);
 }
 
 .admin-detail-grid,
@@ -4165,14 +4165,14 @@ p.admin-person-fields__note {
 }
 
 .admin-consent-item {
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.68);
   overflow: hidden;
 }
 
 .admin-consent-item--open {
-  border-color: rgba(35, 93, 144, 0.18);
+  border-color: rgba(var(--theme-primary-rgb), 0.18);
   background: rgba(255, 255, 255, 0.9);
 }
 
@@ -4190,7 +4190,7 @@ p.admin-person-fields__note {
 }
 
 .admin-consent-summary:hover {
-  background: rgba(35, 93, 144, 0.04);
+  background: rgba(var(--theme-primary-rgb), 0.04);
 }
 
 .admin-consent-summary__person {
@@ -4227,7 +4227,7 @@ p.admin-person-fields__note {
   gap: 0.55rem;
   padding: 0.75rem;
   border-radius: 0.85rem;
-  background: rgba(35, 93, 144, 0.06);
+  background: rgba(var(--theme-primary-rgb), 0.06);
 }
 
 .admin-consent-email-field {
@@ -4329,7 +4329,7 @@ p.admin-person-fields__note {
   gap: 0.35rem;
   padding: 0.85rem;
   border-radius: 1rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(248, 250, 253, 0.94);
 }
 
@@ -4431,7 +4431,7 @@ p.admin-person-fields__note {
   min-height: 2.4rem;
   padding: 0.46rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(255, 255, 255, 0.78);
   color: var(--heading);
   font: inherit;
@@ -4439,9 +4439,9 @@ p.admin-person-fields__note {
 }
 
 .admin-filter-toggle--active {
-  border-color: rgba(35, 93, 144, 0.18);
+  border-color: rgba(var(--theme-primary-rgb), 0.18);
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 10px 20px rgba(16, 28, 48, 0.06);
+  box-shadow: 0 10px 20px rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .admin-filter-toggle__box {
@@ -4450,13 +4450,13 @@ p.admin-person-fields__note {
   display: inline-grid;
   place-items: center;
   border-radius: 0.35rem;
-  border: 1px solid rgba(16, 28, 48, 0.14);
-  background: rgba(16, 28, 48, 0.03);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.14);
+  background: rgba(var(--theme-ink-rgb), 0.03);
   color: white;
 }
 
 .admin-filter-toggle--active .admin-filter-toggle__box {
-  border-color: rgba(35, 93, 144, 0.16);
+  border-color: rgba(var(--theme-primary-rgb), 0.16);
   background: linear-gradient(135deg, var(--primary), var(--primary-strong));
 }
 
@@ -4494,7 +4494,7 @@ p.admin-person-fields__note {
 }
 
 .admin-roster-row:hover {
-  background: rgba(35, 93, 144, 0.04);
+  background: rgba(var(--theme-primary-rgb), 0.04);
 }
 
 .admin-roster-row strong {
@@ -4542,7 +4542,7 @@ p.admin-person-fields__note {
 }
 
 .admin-roster-row__flag {
-  background: rgba(16, 28, 48, 0.06);
+  background: rgba(var(--theme-ink-rgb), 0.06);
   color: var(--muted);
 }
 
@@ -4598,7 +4598,7 @@ p.admin-person-fields__note {
   min-width: 0;
   border-radius: 1.15rem;
   background:
-    linear-gradient(135deg, rgba(35, 93, 144, 0.08), rgba(45, 107, 86, 0.08)),
+    linear-gradient(135deg, rgba(var(--theme-primary-rgb), 0.08), rgba(45, 107, 86, 0.08)),
     rgba(244, 248, 253, 0.95);
   background-position: center;
   background-size: cover;
@@ -4620,7 +4620,7 @@ p.admin-person-fields__note {
 .activity-ios-hero__content h1 {
   margin: 0;
   color: #081735;
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-body);
   font-size: clamp(1.3rem, 2.4vw, 2rem);
   line-height: 1.14;
   letter-spacing: 0;
@@ -4647,7 +4647,7 @@ p.admin-person-fields__note {
 }
 
 .activity-ios-chip {
-  color: #235d90;
+  color: var(--primary);
   background: rgba(38, 110, 196, 0.1);
 }
 
@@ -4967,8 +4967,8 @@ p.admin-person-fields__note {
   --admin-camp-muted: #647086;
   --admin-camp-card: rgba(255, 255, 255, 0.94);
   --admin-camp-line: rgba(31, 46, 72, 0.1);
-  --admin-camp-blue: #235d90;
-  --admin-camp-blue-soft: rgba(35, 93, 144, 0.11);
+  --admin-camp-blue: var(--primary);
+  --admin-camp-blue-soft: rgba(var(--theme-primary-rgb), 0.11);
   --admin-camp-sage: #5f7d62;
   --admin-camp-sage-soft: rgba(95, 125, 98, 0.13);
   --admin-camp-gold: #b98a2e;
@@ -5050,7 +5050,7 @@ p.admin-person-fields__note {
     linear-gradient(
       32deg,
       transparent 0 34%,
-      rgba(35, 93, 144, 0.48) 34% 58%,
+      rgba(var(--theme-primary-rgb), 0.48) 34% 58%,
       transparent 58%
     ),
     linear-gradient(
@@ -5099,7 +5099,7 @@ p.admin-person-fields__note {
 
 .page--admin-activity-detail .activity-ios-hero__content h1 {
   color: var(--admin-camp-ink);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: clamp(1.45rem, 4vw, 2.05rem);
   font-weight: 650;
 }
@@ -5230,7 +5230,7 @@ p.admin-person-fields__note {
 }
 
 .page--admin-activity-detail .admin-subtabs__item--active svg {
-  border-color: rgba(35, 93, 144, 0.28);
+  border-color: rgba(var(--theme-primary-rgb), 0.28);
   background: var(--admin-camp-blue);
   color: #fff;
   box-shadow: 0 0 0 4px var(--admin-camp-blue-soft);
@@ -5260,7 +5260,7 @@ p.admin-person-fields__note {
 .page--admin-activity-detail .section-head h3,
 .page--admin-activity-detail .admin-section__head h2 {
   color: var(--admin-camp-ink);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 650;
 }
 
@@ -5284,7 +5284,7 @@ p.admin-person-fields__note {
 
 .page--admin-activity-detail .admin-inline-metric strong {
   color: var(--admin-camp-ink);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
 }
 
 @media (max-width: 540px) {
@@ -5342,7 +5342,7 @@ p.admin-person-fields__note {
 .camp-section-title {
   margin: -0.75rem 0 -0.8rem;
   color: var(--camp-ink);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.2;
@@ -5370,7 +5370,7 @@ p.admin-person-fields__note {
   border-radius: 999px;
   background: radial-gradient(
     circle,
-    rgba(232, 168, 87, 0.35),
+    rgba(var(--theme-accent-rgb), 0.35),
     transparent 70%
   );
 }
@@ -5386,7 +5386,7 @@ p.admin-person-fields__note {
 }
 
 .packing-journey-card__top span {
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.02rem;
   font-weight: 600;
 }
@@ -5767,7 +5767,7 @@ p.admin-person-fields__note {
   border-radius: 999px;
   background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: white;
-  box-shadow: 0 20px 42px rgba(35, 93, 144, 0.24);
+  box-shadow: 0 20px 42px rgba(var(--theme-primary-rgb), 0.24);
 }
 
 .admin-fab svg {
@@ -6235,7 +6235,7 @@ p.admin-person-fields__note {
 .signature-pad__surface {
   position: relative;
   border-radius: 0.85rem;
-  border: 1.5px dashed rgba(16, 28, 48, 0.25);
+  border: 1.5px dashed rgba(var(--theme-ink-rgb), 0.25);
   background: #ffffff;
   overflow: hidden;
   width: 100%;
@@ -6302,7 +6302,7 @@ p.admin-person-fields__note {
   gap: 0.85rem;
   padding: 0.95rem 1rem;
   border-radius: 0.95rem;
-  border: 1px solid rgba(16, 28, 48, 0.12);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.12);
   background: rgba(252, 253, 255, 0.85);
 }
 
@@ -6359,7 +6359,7 @@ p.admin-person-fields__note {
   justify-items: center;
   gap: 1.1rem;
   padding: 1.5rem 1rem 2rem;
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-body);
   color: var(--text);
   background:
     radial-gradient(
@@ -6394,7 +6394,7 @@ p.admin-person-fields__note {
   display: grid;
   gap: 0.3rem;
   padding: 1.5rem 1.5rem 1.1rem;
-  border-bottom: 1px dashed rgba(16, 28, 48, 0.12);
+  border-bottom: 1px dashed rgba(var(--theme-ink-rgb), 0.12);
 }
 
 .pc-dialog__eyebrow {
@@ -6407,7 +6407,7 @@ p.admin-person-fields__note {
 
 .pc-dialog__head h1 {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: clamp(1.35rem, 4vw, 1.8rem);
   line-height: 1.12;
   letter-spacing: -0.025em;
@@ -6439,7 +6439,7 @@ p.admin-person-fields__note {
   min-height: 2.3rem;
   padding: 0.3rem 0.5rem;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.05);
+  background: rgba(var(--theme-ink-rgb), 0.05);
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
@@ -6452,7 +6452,7 @@ p.admin-person-fields__note {
   height: 1.35rem;
   flex-shrink: 0;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.08);
+  background: rgba(var(--theme-ink-rgb), 0.08);
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -6505,7 +6505,7 @@ p.admin-person-fields__note {
   display: grid;
   gap: 0.55rem;
   padding: 1.05rem 1.5rem 1.35rem;
-  border-top: 1px dashed rgba(16, 28, 48, 0.12);
+  border-top: 1px dashed rgba(var(--theme-ink-rgb), 0.12);
 }
 
 .pc-dialog__foot-buttons {
@@ -6561,7 +6561,7 @@ p.admin-person-fields__note {
 
 .pc-status h1 {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.5rem;
   letter-spacing: -0.02em;
   color: var(--heading);
@@ -6580,7 +6580,7 @@ p.admin-person-fields__note {
   width: 3.4rem;
   height: 3.4rem;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.06);
+  background: rgba(var(--theme-ink-rgb), 0.06);
   color: var(--muted);
 }
 
@@ -6662,7 +6662,7 @@ p.admin-person-fields__note {
 }
 
 .parent-confirm-checkbox:hover {
-  border-color: rgba(35, 93, 144, 0.4);
+  border-color: rgba(var(--theme-primary-rgb), 0.4);
   background: #f4f7fc;
 }
 
@@ -6717,7 +6717,7 @@ p.admin-person-fields__note {
 }
 
 .parent-confirm-photo-choice label:hover {
-  border-color: rgba(35, 93, 144, 0.4);
+  border-color: rgba(var(--theme-primary-rgb), 0.4);
 }
 
 .parent-confirm-photo-choice label.is-active {
@@ -6782,7 +6782,7 @@ p.admin-person-fields__note {
 .spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(35, 93, 144, 0.2);
+  border: 3px solid rgba(var(--theme-primary-rgb), 0.2);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -7909,7 +7909,7 @@ p.admin-person-fields__note {
   border-radius: 1.25rem;
   background: #fff;
   box-shadow: var(--shadow-soft);
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .feed-card__header {
@@ -7966,7 +7966,7 @@ p.admin-person-fields__note {
   justify-content: flex-end;
   align-items: center;
   padding-top: 0.4rem;
-  border-top: 1px dashed rgba(16, 28, 48, 0.08);
+  border-top: 1px dashed rgba(var(--theme-ink-rgb), 0.08);
 }
 
 /* Like button */
@@ -7974,7 +7974,7 @@ p.admin-person-fields__note {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: #fff;
   color: #555;
   border-radius: 999px;
@@ -8035,7 +8035,7 @@ p.admin-person-fields__note {
   position: relative;
   border: none;
   padding: 0;
-  background: rgba(16, 28, 48, 0.06);
+  background: rgba(var(--theme-ink-rgb), 0.06);
   border-radius: 0.85rem;
   overflow: hidden;
   scroll-snap-align: start;
@@ -8262,7 +8262,7 @@ p.admin-person-fields__note {
   background: rgba(248, 250, 253, 0.95);
   border-radius: 0.75rem;
   padding: 0.6rem 0.7rem 0.55rem;
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .media-comment__head {
@@ -8313,14 +8313,14 @@ p.admin-person-fields__note {
   gap: 0.4rem;
   align-items: center;
   padding-top: 0.2rem;
-  border-top: 1px dashed rgba(16, 28, 48, 0.08);
+  border-top: 1px dashed rgba(var(--theme-ink-rgb), 0.08);
 }
 
 .media-comments__form input {
   flex: 1;
   padding: 0.55rem 0.75rem;
   border-radius: 999px;
-  border: 1px solid rgba(16, 28, 48, 0.12);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.12);
   font-size: 0.92rem;
   background: #fff;
 }
@@ -8374,7 +8374,7 @@ p.admin-person-fields__note {
   align-items: center;
   padding: 0.75rem 0.9rem;
   border-radius: 0.85rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   background: rgba(248, 250, 253, 0.85);
   gap: 0.5rem;
 }
@@ -8404,7 +8404,7 @@ p.admin-person-fields__note {
   display: grid;
   gap: 0.3rem;
   padding: 0.4rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   border-radius: 0.85rem;
   background: #fff;
 }
@@ -8421,7 +8421,7 @@ p.admin-person-fields__note {
   aspect-ratio: 1 / 1;
   display: grid;
   place-items: center;
-  background: rgba(16, 28, 48, 0.85);
+  background: rgba(var(--theme-ink-rgb), 0.85);
   color: #fff;
   border-radius: 0.6rem;
   font-size: 0.85rem;
@@ -8481,7 +8481,7 @@ p.admin-person-fields__note {
   padding: 0.55rem 0.7rem;
   border-radius: 1rem;
   background: rgba(248, 250, 253, 0.92);
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .gallery-toolbar__status {
@@ -8508,7 +8508,7 @@ p.admin-person-fields__note {
   height: 2.2rem;
   font-size: 1rem;
   background: #fff;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -8522,7 +8522,7 @@ p.admin-person-fields__note {
   font-weight: 700;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: rgba(16, 28, 48, 0.08);
+  background: rgba(var(--theme-ink-rgb), 0.08);
   color: var(--heading);
 }
 
@@ -8563,7 +8563,7 @@ p.admin-person-fields__note {
   padding: 0;
   border-radius: 0.75rem;
   overflow: hidden;
-  background: rgba(16, 28, 48, 0.05);
+  background: rgba(var(--theme-ink-rgb), 0.05);
   cursor: pointer;
   transition: transform 120ms ease;
 }
@@ -8590,14 +8590,14 @@ p.admin-person-fields__note {
   display: grid;
   place-items: center;
   font-size: 1.4rem;
-  color: rgba(16, 28, 48, 0.5);
+  color: rgba(var(--theme-ink-rgb), 0.5);
 }
 
 .gallery-tile__badge {
   position: absolute;
   top: 0.3rem;
   right: 0.3rem;
-  background: rgba(16, 28, 48, 0.78);
+  background: rgba(var(--theme-ink-rgb), 0.78);
   color: #fff;
   font-size: 0.65rem;
   width: 1.2rem;
@@ -8625,12 +8625,12 @@ p.admin-person-fields__note {
 .gallery-tile--add {
   background: repeating-linear-gradient(
     135deg,
-    rgba(35, 93, 144, 0.06) 0,
-    rgba(35, 93, 144, 0.06) 6px,
-    rgba(35, 93, 144, 0.02) 6px,
-    rgba(35, 93, 144, 0.02) 12px
+    rgba(var(--theme-primary-rgb), 0.06) 0,
+    rgba(var(--theme-primary-rgb), 0.06) 6px,
+    rgba(var(--theme-primary-rgb), 0.02) 6px,
+    rgba(var(--theme-primary-rgb), 0.02) 12px
   );
-  border: 1.5px dashed rgba(35, 93, 144, 0.35);
+  border: 1.5px dashed rgba(var(--theme-primary-rgb), 0.35);
   display: grid;
   place-items: center;
   gap: 0.15rem;
@@ -8770,7 +8770,7 @@ p.admin-person-fields__note {
 .media-sheet__preview {
   border-radius: 0.85rem;
   overflow: hidden;
-  background: rgba(16, 28, 48, 0.08);
+  background: rgba(var(--theme-ink-rgb), 0.08);
   aspect-ratio: 16 / 10;
   display: grid;
   place-items: center;
@@ -8784,7 +8784,7 @@ p.admin-person-fields__note {
 
 .media-sheet__placeholder {
   font-size: 1.6rem;
-  color: rgba(16, 28, 48, 0.6);
+  color: rgba(var(--theme-ink-rgb), 0.6);
 }
 
 .media-sheet__actions {
@@ -8802,7 +8802,7 @@ p.admin-person-fields__note {
   gap: 0.7rem;
   padding: 0.75rem 0.85rem;
   background: rgba(248, 250, 253, 0.95);
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
   border-radius: 0.85rem;
   text-align: left;
   font-size: 0.95rem;
@@ -8827,7 +8827,7 @@ p.admin-person-fields__note {
   background: #fff;
   border-radius: 999px;
   font-size: 1rem;
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .media-sheet__cancel {
@@ -8858,7 +8858,7 @@ p.admin-person-fields__note {
 
 .form-actions--split {
   justify-content: flex-start;
-  border-top: 1px dashed rgba(16, 28, 48, 0.08);
+  border-top: 1px dashed rgba(var(--theme-ink-rgb), 0.08);
   padding-top: 0.7rem;
   margin-top: 0.3rem;
 }
@@ -8867,8 +8867,8 @@ p.admin-person-fields__note {
   margin: 0.5rem 0 0.75rem;
   padding: 0.6rem 0.75rem;
   border-radius: 0.85rem;
-  background: rgba(35, 93, 144, 0.05);
-  border: 1px solid rgba(35, 93, 144, 0.12);
+  background: rgba(var(--theme-primary-rgb), 0.05);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.12);
 }
 
 .answer-clusters__title {
@@ -8895,7 +8895,7 @@ p.admin-person-fields__note {
   padding: 0.4rem 0.55rem;
   background: #fff;
   border-radius: 0.65rem;
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .answer-clusters__label {
@@ -8930,9 +8930,9 @@ p.admin-person-fields__note {
   padding: 0.95rem;
   border-radius: 1.1rem;
   background:
-    linear-gradient(135deg, rgba(35, 93, 144, 0.08), rgba(245, 196, 112, 0.08)),
+    linear-gradient(135deg, rgba(var(--theme-primary-rgb), 0.08), rgba(245, 196, 112, 0.08)),
     #fff;
-  border: 1px solid rgba(35, 93, 144, 0.18);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.18);
 }
 
 .survey-results__total {
@@ -8966,7 +8966,7 @@ p.admin-person-fields__note {
   padding: 0.3rem 0.65rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   font-size: 0.82rem;
 }
 
@@ -8991,12 +8991,12 @@ p.admin-person-fields__note {
 
 .survey-question-card {
   background: #fff;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   border-radius: 1.1rem;
   padding: 0.95rem;
   display: grid;
   gap: 0.7rem;
-  box-shadow: 0 4px 14px rgba(16, 28, 48, 0.04);
+  box-shadow: 0 4px 14px rgba(var(--theme-ink-rgb), 0.04);
 }
 
 .survey-question-card__head {
@@ -9066,7 +9066,7 @@ p.admin-person-fields__note {
   gap: 0.55rem;
   padding: 0.45rem 0.55rem;
   background: rgba(248, 250, 253, 0.85);
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
   border-radius: 0.7rem;
 }
 
@@ -9115,7 +9115,7 @@ p.admin-person-fields__note {
 .survey-rating-breakdown__count {
   font-size: 0.75rem;
   color: var(--muted);
-  background: rgba(16, 28, 48, 0.05);
+  background: rgba(var(--theme-ink-rgb), 0.05);
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
 }
@@ -9141,8 +9141,8 @@ p.admin-person-fields__note {
   gap: 0.4rem;
   padding: 0.32rem 0.7rem;
   border-radius: 999px;
-  background: rgba(35, 93, 144, 0.08);
-  border: 1px solid rgba(35, 93, 144, 0.16);
+  background: rgba(var(--theme-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.16);
   font-size: 0.85rem;
   color: var(--heading);
 }
@@ -9162,12 +9162,12 @@ p.admin-person-fields__note {
 }
 
 .survey-cluster--rank-2 {
-  background: rgba(35, 93, 144, 0.13);
+  background: rgba(var(--theme-primary-rgb), 0.13);
 }
 
 .survey-cluster--rank-3 {
-  background: rgba(35, 93, 144, 0.2);
-  border-color: rgba(35, 93, 144, 0.32);
+  background: rgba(var(--theme-primary-rgb), 0.2);
+  border-color: rgba(var(--theme-primary-rgb), 0.32);
 }
 
 .survey-results__toggle {
@@ -9200,7 +9200,7 @@ p.admin-person-fields__note {
   padding: 0.45rem 0.55rem;
   background: rgba(248, 250, 253, 0.85);
   border-radius: 0.6rem;
-  border: 1px solid rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.06);
   font-size: 0.85rem;
 }
 
@@ -9251,7 +9251,7 @@ p.admin-person-fields__note {
 }
 
 .star-display__background {
-  color: rgba(16, 28, 48, 0.18);
+  color: rgba(var(--theme-ink-rgb), 0.18);
 }
 
 .star-display__foreground {
@@ -9320,7 +9320,7 @@ p.admin-person-fields__note {
   display: flex;
   flex-direction: column;
   color: #fff;
-  background: linear-gradient(135deg, #235d90, #14314f 72%);
+  background: linear-gradient(135deg, var(--primary), #14314f 72%);
 }
 
 .camp-hero__bg {
@@ -9430,8 +9430,8 @@ p.admin-person-fields__note {
   gap: 0.6rem;
   padding: 2.4rem 1.2rem;
   border-radius: 1.2rem;
-  background: rgba(16, 28, 48, 0.03);
-  border: 1px dashed rgba(16, 28, 48, 0.14);
+  background: rgba(var(--theme-ink-rgb), 0.03);
+  border: 1px dashed rgba(var(--theme-ink-rgb), 0.14);
   color: var(--muted, #55617a);
 }
 
@@ -9487,8 +9487,8 @@ p.admin-person-fields__note {
   border-radius: 1.1rem;
   overflow: hidden;
   background: #fff;
-  border: 1px solid rgba(16, 28, 48, 0.08);
-  box-shadow: 0 6px 18px rgba(16, 28, 48, 0.06);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
+  box-shadow: 0 6px 18px rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .camp-highlight-card__media {
@@ -9503,7 +9503,7 @@ p.admin-person-fields__note {
   min-height: 8.5rem;
   background-size: cover;
   background-position: center;
-  background-color: rgba(16, 28, 48, 0.06);
+  background-color: rgba(var(--theme-ink-rgb), 0.06);
 }
 
 .camp-highlight-card__poster--fallback {
@@ -9579,7 +9579,7 @@ p.admin-person-fields__note {
 
 .landing-hero__title {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 500;
   font-size: clamp(2.2rem, 9vw, 3.4rem);
   line-height: 1.02;
@@ -9724,7 +9724,7 @@ p.admin-person-fields__note {
 
 .dash-head__title {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-weight: 500;
   font-size: clamp(1.9rem, 7vw, 2.6rem);
   line-height: 1.05;
@@ -9925,7 +9925,7 @@ p.admin-person-fields__note {
   width: 9rem;
   height: 3px;
   border-radius: 999px;
-  background: rgba(35, 93, 144, 0.12);
+  background: rgba(var(--theme-primary-rgb), 0.12);
   overflow: hidden;
 }
 
@@ -10017,7 +10017,7 @@ p.admin-person-fields__note {
 .roommate-field__spinner {
   width: 0.95rem;
   height: 0.95rem;
-  border: 2px solid rgba(16, 28, 48, 0.16);
+  border: 2px solid rgba(var(--theme-ink-rgb), 0.16);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: roommate-spin 0.7s linear infinite;
@@ -10039,7 +10039,7 @@ p.admin-person-fields__note {
   display: grid;
   gap: 0.6rem;
   padding: 0.85rem 0.95rem;
-  border: 1px solid rgba(16, 28, 48, 0.08);
+  border: 1px solid rgba(var(--theme-ink-rgb), 0.08);
   border-radius: 0.9rem;
   background: var(--primary-soft);
 }

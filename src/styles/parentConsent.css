@@ -90,7 +90,7 @@
 }
 
 .consent-option:hover {
-  border-color: rgba(35, 93, 144, 0.45);
+  border-color: rgba(var(--theme-primary-rgb), 0.45);
 }
 
 /* Radio nativo tenuto per tastiera e screen reader, nascosto solo alla vista. */

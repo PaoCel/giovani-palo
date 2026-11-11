@@ -226,7 +226,7 @@
   border-radius: var(--radius-pill);
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 10px 24px rgba(27, 63, 103, 0.28);
+  box-shadow: 0 10px 24px rgba(var(--theme-primary-rgb), 0.28);
   cursor: pointer;
 }
 

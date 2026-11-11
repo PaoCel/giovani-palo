@@ -5,9 +5,9 @@
 .camp-config-duty { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55; color: var(--muted); }
 .camp-ios-card--committee .camp-ios-card__icon,
 .camp-ios-card--patrol .camp-ios-card__icon,
-.camp-committee-icon { font: 800 17px/1 "Manrope", sans-serif; }
+.camp-committee-icon { font: 800 17px/1 var(--font-body); }
 .camp-config-responsibilities { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
-.camp-config-initials { font: 800 20px/1 "Manrope", sans-serif; }
+.camp-config-initials { font: 800 20px/1 var(--font-body); }
 
 .camp-config-panel .field__hint, .camp-config-fields .field__hint { font-size: 13px; font-weight: 400; line-height: 1.55; color: var(--muted); }
 

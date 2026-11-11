@@ -356,7 +356,7 @@
 
 .choice-card__title {
   color: var(--heading);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.12;
@@ -391,7 +391,7 @@
   height: auto;
   justify-self: end;
   margin: 0 0.75rem -2px 0;
-  filter: drop-shadow(0 10px 14px rgba(16, 28, 48, 0.22));
+  filter: drop-shadow(0 10px 14px rgba(var(--theme-ink-rgb), 0.22));
 }
 
 .choice-card--compact {
@@ -684,7 +684,7 @@
 }
 
 .kid-avatar--blue {
-  background: linear-gradient(135deg, #3d7bb0, #235d90);
+  background: linear-gradient(135deg, #3d7bb0, var(--primary));
 }
 
 .kid-avatar--sand {
@@ -907,7 +907,7 @@
   width: 100%;
   min-height: 3.5rem;
   padding: 0.5rem 1rem;
-  border: 1.5px dashed rgba(35, 93, 144, 0.35);
+  border: 1.5px dashed rgba(var(--theme-primary-rgb), 0.35);
   border-radius: 1.375rem;
   background: rgba(255, 255, 255, 0.5);
   color: var(--primary);
@@ -1082,7 +1082,7 @@
 .bottom-sheet__title {
   margin: 0.5rem 0 0;
   color: var(--heading);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.5625rem;
   font-weight: 600;
   line-height: 1.12;
@@ -1176,7 +1176,7 @@
   width: 5.25rem;
   height: auto;
   flex: none;
-  filter: drop-shadow(0 10px 14px rgba(16, 28, 48, 0.22));
+  filter: drop-shadow(0 10px 14px rgba(var(--theme-ink-rgb), 0.22));
 }
 
 .inviata__copy {
@@ -1204,8 +1204,8 @@
   color: #fff;
   background:
     radial-gradient(circle at 90% 0%, rgba(201, 163, 109, 0.35), transparent 40%),
-    linear-gradient(150deg, #2c6597, #1b3f67);
-  box-shadow: 0 22px 44px -18px rgba(27, 63, 103, 0.6);
+    linear-gradient(150deg, #2c6597, var(--ink));
+  box-shadow: 0 22px 44px -18px rgba(var(--theme-primary-rgb), 0.6);
 }
 
 .inviata-next__tag {
@@ -1227,7 +1227,7 @@
 
 .inviata-next h2 {
   margin: 0.25rem 0 0;
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.4375rem;
   font-weight: 600;
   line-height: 1.15;
@@ -1479,7 +1479,7 @@
 .flow-guard__title {
   margin: 0;
   color: var(--heading);
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display);
   font-size: 1.3125rem;
   font-weight: 600;
   line-height: 1.15;
@@ -1570,7 +1570,7 @@
 .flow-guard__thumb img {
   width: 2.25rem;
   height: auto;
-  filter: drop-shadow(0 4px 6px rgba(16, 28, 48, 0.2));
+  filter: drop-shadow(0 4px 6px rgba(var(--theme-ink-rgb), 0.2));
 }
 
 .flow-guard__date-icon {
