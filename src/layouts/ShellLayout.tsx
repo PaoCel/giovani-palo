@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { InstallHint } from "@/components/InstallHint";
 import { UnofficialDisclaimer } from "@/components/UnofficialDisclaimer";
+import { HOME } from "@/copy/home";
 import { fillCopy, PAROLE } from "@/copy/parole";
 import { TESTATA } from "@/copy/testata";
 import { useAuth } from "@/hooks/useAuth";
@@ -58,6 +59,20 @@ function getSessionLabel(
 }
 
 const SHORT_BRAND_LABEL = "Attività GU GD";
+
+// Il nome dell'app si scrive come nelle pagine pubbliche: «Attività» leggero
+// e «GU GD» in grassetto. Ogni altro nome (palo, unità) resta com'è.
+function BrandLabel({ label }: { label: string }) {
+  if (label !== SHORT_BRAND_LABEL) {
+    return <>{label}</>;
+  }
+
+  return (
+    <span className="brand__wordmark">
+      {HOME.wordmark} <b>{HOME.wordmarkMark}</b>
+    </span>
+  );
+}
 
 export function ShellLayout({
   area,
@@ -300,7 +315,9 @@ export function ShellLayout({
       {brandLogo}
       <span className="brand__text">
         {brandContext ? <small>{brandContext}</small> : null}
-        <strong>{brandLabel}</strong>
+        <strong>
+          <BrandLabel label={brandLabel} />
+        </strong>
       </span>
     </Link>
   );
@@ -335,9 +352,13 @@ export function ShellLayout({
                 {brandLogo}
                 <span>
                   <strong>
-                    <span className="brand__label">{brandLabel}</span>
+                    <span className="brand__label">
+                      <BrandLabel label={brandLabel} />
+                    </span>
                     {compactBrand ? (
-                      <span className="brand__label brand__label--short">{SHORT_BRAND_LABEL}</span>
+                      <span className="brand__label brand__label--short">
+                        <BrandLabel label={SHORT_BRAND_LABEL} />
+                      </span>
                     ) : null}
                   </strong>
                 </span>

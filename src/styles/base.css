@@ -2,21 +2,22 @@
 
 :root {
   color-scheme: light;
-  font-family: "Manrope", sans-serif;
-  --bg: #eef2f7;
-  --bg-soft: #f7f9fc;
+  font-family: var(--theme-font);
+  /* Blu, inchiostro, grigi e font vengono dal tema dell'anno (yearTheme.css). */
+  --bg: var(--theme-surface);
+  --bg-soft: var(--theme-surface-soft);
   --surface: rgba(255, 255, 255, 0.88);
   --surface-strong: rgba(255, 255, 255, 0.96);
   --surface-muted: rgba(244, 247, 251, 0.94);
-  --surface-border: rgba(17, 35, 58, 0.08);
-  --surface-border-strong: rgba(17, 35, 58, 0.14);
-  --text: #233247;
-  --heading: #101c30;
+  --surface-border: rgba(var(--theme-ink-rgb), 0.1);
+  --surface-border-strong: rgba(var(--theme-ink-rgb), 0.16);
+  --text: var(--theme-ink);
+  --heading: var(--theme-ink);
   /* AA anche sullo sfondo della pagina (4,7:1 su --bg; prima 4,2:1). */
-  --muted: #5e6c81;
-  --primary: #235d90;
-  --primary-strong: #1b3f67;
-  --primary-soft: rgba(35, 93, 144, 0.12);
+  --muted: var(--theme-muted);
+  --primary: var(--theme-primary);
+  --primary-strong: var(--theme-primary-strong);
+  --primary-soft: rgba(var(--theme-primary-rgb), 0.12);
   --accent: #b58a50;
   --accent-soft: rgba(181, 138, 80, 0.14);
   --success: #2d6b56;
@@ -52,18 +53,7 @@ html {
 body {
   margin: 0;
   color: var(--text);
-  background:
-    radial-gradient(
-      circle at top left,
-      rgba(35, 93, 144, 0.08),
-      transparent 28%
-    ),
-    radial-gradient(
-      circle at top right,
-      rgba(181, 138, 80, 0.1),
-      transparent 24%
-    ),
-    linear-gradient(180deg, #f7f9fc 0%, #eef3f8 52%, #f4f7fb 100%);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -130,15 +120,16 @@ button {
   position: sticky;
   top: 0;
   z-index: 30;
-  backdrop-filter: blur(26px);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.78),
-      rgba(240, 245, 251, 0.9)
-    ),
-    linear-gradient(120deg, rgba(35, 93, 144, 0.08), rgba(181, 138, 80, 0.06));
-  border-bottom: 1px solid rgba(16, 28, 48, 0.06);
+  background: var(--theme-surface);
+  border-bottom: 1px solid var(--theme-line);
+}
+
+/* Striscia del tema dell'anno, uguale a quella delle pagine pubbliche. */
+.topbar::before {
+  content: "";
+  display: block;
+  height: 4px;
+  background: linear-gradient(90deg, var(--theme-primary) 0 50%, var(--theme-accent) 50% 100%);
 }
 
 /* --rail-width esiste solo con la barra laterale dell'admin (da 1024 px). */
@@ -250,6 +241,23 @@ button {
 
 .shell--public .brand strong {
   font-size: 0.94rem;
+}
+
+/* Nome dell'app come nelle pagine pubbliche: «Attività» leggero, «GU GD» in
+   grassetto, senza il logo accanto (il logo del tema sta nella home). */
+.brand .brand__wordmark {
+  font-size: clamp(1.05rem, 4.6vw, 1.25rem);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.brand .brand__wordmark b {
+  font-weight: 700;
+}
+
+.shell--public .brand__mark {
+  display: none;
 }
 
 .topbar__actions {

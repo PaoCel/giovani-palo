@@ -1,24 +1,14 @@
-/* Pagine pubbliche col tema 2026 «Cammina con me».
+/* Pagine pubbliche (home, catalogo, accedi) col tema dell'anno.
    Selettori sotto .pub26: non toccano il resto dell'app.
-   Valori presi dal mockup approvato (css/theme-2026.css, base, home, attivita, accedi). */
-@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+   Colori, font e logo vengono da yearTheme.css; le forme (pill, radius)
+   sono quelle dell'app, da tokens.css (direzione 3, 11 novembre 2026). */
 
 .pub26 {
-  --theme-primary: #005581;
-  --theme-primary-bright: #007d9f;
-  --theme-primary-tint: #ddf1f7;
-  --theme-accent: #fcb448;
-  --theme-accent-tint: #feecd1;
-  --theme-on-accent: #1d2a33;
-  --theme-arch: #e6f5f7;
-  --theme-ink: #1d2a33;
-  --theme-logo: url("/theme-2026/logo-cammina-con-me-ita.png");
-  --theme-logo-ratio: 1200 / 1390;
   --theme-logo-max: 360px;
   --theme-logo-max-auth: 340px;
   --theme-logo-max-auth-sm: 170px;
   --theme-mark-bg: var(--theme-primary-tint);
-  --font: "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --font: var(--theme-font);
   --white: #fff;
   --grey-50: #f7f7f6;
   --grey-100: #efefed;
@@ -26,7 +16,7 @@
   --grey-400: #a9aaab;
   --grey-600: #5f6163;
   --ink: var(--theme-ink);
-  --r: 4px;
+  --r: var(--radius-control);
   --wrap: 1200px;
   --pad: clamp(20px, 4vw, 48px);
   --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23221f1f' stroke-width='1.6'/%3E%3C/svg%3E");
@@ -608,3 +598,12 @@ html:has(.pub26) {
   color: var(--ink);
   border-radius: var(--r);
 }
+
+/* Forme dell'app sulle pagine pubbliche: pulsanti e scelte a pill, copertine
+   con il radius delle card. */
+.pub26 .btn,
+.pub26 .top .select,
+.pub26 .status { border-radius: var(--radius-pill); }
+.pub26 .status { padding: 4px 10px; }
+.pub26 .card .media { border-radius: var(--radius-card); }
+.pub26 .date-tag { border-radius: 0 0 var(--radius-inset) var(--radius-inset); }

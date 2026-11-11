@@ -5,7 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f6f2ea",
-  "theme_color": "#1b3f67",
+  "theme_color": "#005581",
   "icons": [
     {
       "src": "/app-icon-192.png",

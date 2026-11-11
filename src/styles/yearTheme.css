@@ -1,0 +1,35 @@
+/* Tema dell'anno: colori, font e logo presi dal tema dei giovani.
+   2026: «Cammina con me» (Mosè 6:34).
+
+   È l'unico posto in cui stanno questi valori. I token dell'app
+   (tokens.css, base.css) e le pagine pubbliche (publicSite.css) leggono da
+   qui: per l'anno nuovo si cambiano questo file e il logo in
+   public/theme-<anno>/, non le pagine.
+
+   Le forme (pill, card arrotondate, spaziature) non fanno parte del tema:
+   restano in tokens.css. */
+
+:root {
+  --theme-primary: #005581;
+  --theme-primary-strong: #00405f;
+  --theme-primary-bright: #007d9f;
+  --theme-primary-tint: #ddf1f7;
+  /* Stesso blu in terne, per le trasparenze: rgba(var(--theme-primary-rgb), .12) */
+  --theme-primary-rgb: 0, 85, 129;
+  --theme-accent: #fcb448;
+  --theme-accent-tint: #feecd1;
+  --theme-accent-rgb: 252, 180, 72;
+  --theme-on-accent: #1d2a33;
+  /* Testo su fondo chiaro dell'accento (AA su --theme-accent-tint) */
+  --theme-on-accent-tint: #6b5314;
+  --theme-arch: #e6f5f7;
+  --theme-ink: #1d2a33;
+  --theme-ink-rgb: 29, 42, 51;
+  --theme-muted: #5f6163;
+  --theme-line: #e2e2e0;
+  --theme-surface: #ffffff;
+  --theme-surface-soft: #f7f7f6;
+  --theme-font: "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --theme-logo: url("/theme-2026/logo-cammina-con-me-ita.png");
+  --theme-logo-ratio: 1200 / 1390;
+}

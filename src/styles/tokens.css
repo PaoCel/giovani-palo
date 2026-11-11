@@ -5,8 +5,10 @@
    I componenti di src/components/ui/ usano solo questi e quelli storici. */
 
 :root {
-  --font-display: "Fraunces", Georgia, serif;
-  --font-body: "Manrope", system-ui, sans-serif;
+  /* Un font solo, quello del tema dell'anno (yearTheme.css). I due nomi
+     restano perché i componenti li usano per titoli e testo. */
+  --font-display: var(--theme-font);
+  --font-body: var(--theme-font);
 
   /* Spaziatura su base 4 */
   --space-1: 4px;
@@ -32,31 +34,33 @@
   --leading-tight: 1.15;
   --leading-body: 1.5;
 
-  /* Colore: valori della home social di ottobre, tutti AA sulle superfici
-     dove si usano (misure nel brief) */
-  --text-secondary: #52687b;
-  --ink: #1b3f67;
-  --line: #dae1e6;
-  --action-sand: #e8a857;
-  --on-sand: #1b2a3f;
-  --sand-soft: #f8e3c4;
-  --on-sand-soft: #6b4a14;
-  --surface-card: #ffffff;
-  --surface-cool: #edf1f2;
+  /* Colore: blu, ambra, inchiostro e grigi vengono dal tema dell'anno
+     (yearTheme.css). Coppie testo/fondo AA sul tema 2026: bianco su --ink
+     7,9:1, --on-sand su --action-sand 8,4:1, --text-secondary su bianco
+     6,3:1. Vanno rimisurate quando cambia il tema. */
+  --text-secondary: var(--theme-muted);
+  --ink: var(--theme-primary);
+  --line: var(--theme-line);
+  --action-sand: var(--theme-accent);
+  --on-sand: var(--theme-on-accent);
+  --sand-soft: var(--theme-accent-tint);
+  --on-sand-soft: var(--theme-on-accent-tint);
+  --surface-card: var(--theme-surface);
+  --surface-cool: var(--theme-arch);
   --surface-warm: #edece5;
   --focus-ring: #bb7626;
   /* Dalla home social (fase 2): testo lungo, bordi, testo su inchiostro */
-  --text-body: #344658;
-  --line-strong: #cad4dc;
-  --line-soft: #e8ecef;
+  --text-body: var(--theme-ink);
+  --line-strong: #c9cbcc;
+  --line-soft: #efefed;
   --on-ink-muted: #e5eef7;
   --like-ink: #a61f3b;
   --like-surface: #fcf0f2;
   --like-line: #e7b9c3;
 
   /* Toni di Notice e Pill: testo e fondo in coppia */
-  --info-ink: #235d90;
-  --info-surface: #e8eef4;
+  --info-ink: var(--theme-primary);
+  --info-surface: var(--theme-primary-tint);
   --success-ink: #2d6b56;
   --success-surface: #e3efe9;
   --warning-ink: #7a5416;
