@@ -1,6 +1,6 @@
 # Video promozionale per gli altri pali
 
-Stato: **video prodotti l'11/11/2026**, da rivedere con Paolo prima di mandarli. Quattro file: 90 s in 16:9 e teaser 30 s in 9:16, in italiano e in inglese (fuori dal repo, sul Mac di Paolo in `~/Movies/gugd-video-demo/`).
+Stato: **seconda versione dei video, 12/11/2026**, dopo la prima prova di Paolo (troppo veloce, schermo che usciva dal telefono). Quattro file: 2:32 in 16:9 e teaser 39 s in 9:16, in italiano e in inglese (fuori dal repo, sul Mac di Paolo in `~/Movies/gugd-video-demo/`).
 
 Destinatari: presidenze di palo, dirigenti dei Giovani Uomini e delle Giovani
 Donne, consulenti di altri pali italiani. Lo ricevono su WhatsApp o per mail,
@@ -27,8 +27,8 @@ frasi personali di Paolo. Testi corti, un solo concetto per scena.
 
 | Versione | Durata | Formato | Per cosa |
 | --- | --- | --- | --- |
-| Principale | 90 s | 16:9, 1080p | mail, presentazioni, consiglio di palo |
-| Teaser | 30 s | 9:16 verticale | WhatsApp e stati, si apre a tutto schermo |
+| Principale | 2:32 | 16:9, 1080p | mail, presentazioni, consiglio di palo |
+| Teaser | 39 s | 9:16 verticale | WhatsApp e stati, si apre a tutto schermo |
 
 Il teaser usa solo le scene girate sul telefono. Ognuna delle due esiste in
 italiano e in inglese: cambiano solo i testi, le riprese sono le stesse.
@@ -47,49 +47,66 @@ italiano e in inglese: cambiano solo i testi, le riprese sono le stesse.
   l'app sembrano la stessa cosa.
 - **Musica: una traccia strumentale leggera e bassa** (decisa da Paolo
   l'11/11). Su WhatsApp il video parte muto e non cambia niente; in una
-  presentazione o aperto dal computer, 90 secondi di silenzio sembrano un video
+  presentazione o aperto dal computer, due minuti e mezzo di silenzio sembrano un video
   rotto. Va presa da una libreria con licenza d'uso libera (per esempio
   YouTube Audio Library), niente brani commerciali. Il video deve reggere anche
   senza.
 
-## Video principale (90 secondi)
+## Video principale (2:32)
 
 La firma di Matteo, «chi manca» e le stanze sono tutte del Viaggio al Tempio;
 l'iscrizione di Sofia è al Campeggio d'inverno, le foto vengono dal campeggio
 d'autunno concluso. In montaggio la scena del dirigente viene dopo la firma,
 ma si registra prima (vedi Registrazione).
 
-Tempi del montaggio prodotto (le scene del telefono sono accelerate 1,6-1,8 volte):
+Ritmo (deciso il 12/11 dopo la prima versione, che a 1,6-1,8 volte non si capiva):
+le riprese vanno a velocità reale con pause da persona fra un gesto e l'altro;
+ogni scena tiene fermo il primo fotogramma per 1,2 secondi mentre compare il
+titolo e l'ultimo per 1,6 secondi; le sole attese di rete (schermo fermo) sono
+accorciate a 1,8 secondi; nell'iscrizione si salta la compilazione dei campi
+del genitore.
 
-| Tempo | Titolo | Riga sotto | Cosa si vede (ripresa) |
-| --- | --- | --- | --- |
 | 0:00-0:05 | Quante autorizzazioni hai rincorso per l'ultimo campeggio? | | tavola blu, logo in basso |
-| 0:05-0:15 | Niente più fogli da raccogliere | I ragazzi si iscrivono dal telefono. Se sono minorenni, al genitore arriva un link per firmare. | Sofia, telefono: iscrizione al Campeggio d'inverno fino a «Iscrizione inviata» |
-| 0:15-0:25 | Il genitore non installa nulla: gli arriva un link. | | genitore, telefono: link di Matteo, condizioni, «Acconsento» per foto e social, firma, «Tutto completato» |
-| 0:25-0:32 | Ogni firma, in PDF | Ogni modulo firmato resta in PDF. | admin, desktop: Elenco consensi del campeggio d'autunno, «14 moduli firmati», cursore su «Scarica ZIP» |
-| 0:32-0:45 | Il dirigente sa chi manca | Il dirigente di unità vede chi non ha ancora l'autorizzazione. | dirigente, desktop, `/unit`: riquadro «Autorizzazione genitore mancante», poi Viaggio al Tempio e Matteo in attesa |
-| 0:45-0:58 | Ognuno vede la sua stanza | Le stanze si preparano nell'app, e ogni ragazzo vede solo la sua. | admin, desktop: piano stanze; poi Sofia, telefono: «La tua stanza» |
-| 0:58-1:07 | Le foto restano nel palo | Dopo l'attività le foto sono nell'app, visibili solo ai membri del palo. | Sofia, telefono: galleria del campeggio d'autunno, una foto aperta |
-| 1:07-1:13 | Un'attività nuova? Nome e giorno. | | admin, desktop: «Nuova attività» in rapida, «Serata film», «Salva nel calendario» |
-| 1:13-1:21 | Palo di Roma Est, da marzo 2026 | 326 iscrizioni, 116 autorizzazioni firmate dal telefono | tavola chiara coi due numeri |
-| 1:21-1:30 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | gugditalia.it | tavola blu finale |
+| 0:05-0:24 | Niente più fogli da raccogliere | I ragazzi si iscrivono dal telefono. Se sono minorenni, al genitore arriva un link per firmare. | Sofia, telefono: iscrizione al Campeggio d'inverno fino a «Iscrizione inviata» |
+| 0:24-0:48 | Il genitore non installa nulla: gli arriva un link. | | genitore, telefono: link di Matteo, condizioni, «Acconsento» per foto e social, firma, «Tutto completato» |
+| 0:48-0:57 | Ogni firma, in PDF | Ogni modulo firmato resta in PDF. | admin, desktop: Elenco consensi del campeggio d'autunno, «14 moduli firmati», cursore su «Scarica ZIP» |
+| 0:57-1:11 | Il dirigente sa chi manca | Il dirigente di unità vede chi non ha ancora l'autorizzazione. | dirigente, desktop, `/unit`: riquadro «Autorizzazione genitore mancante», poi Viaggio al Tempio e Matteo in attesa |
+| 1:11-1:29 | Ognuno vede la sua stanza | Le stanze si preparano nell'app, e ogni ragazzo vede solo la sua. | admin, desktop: piano stanze; poi Sofia, telefono: «La tua stanza» |
+| 1:29-1:36 | Le foto restano nel palo | Dopo l'attività le foto sono nell'app, visibili solo ai membri del palo. | Sofia, telefono: galleria del campeggio d'autunno, una foto aperta |
+| 1:36-1:55 | Un'attività nuova? Nome e giorno. | | admin, desktop: «Nuova attività» in rapida, «Serata film», «Salva nel calendario» |
+| 1:55-2:03 | Palo di Roma Est, da marzo 2026 | 326 iscrizioni, 116 autorizzazioni firmate dal telefono | tavola chiara coi due numeri |
+| 2:03-2:23 | Domande frequenti | cinque righe, domanda e risposta breve (sotto) | tavola chiara di riepilogo |
+| 2:23-2:32 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | gugditalia.it | tavola blu finale |
 
-**Numeri** (1:13-1:21): citati con l'ok di Paolo dell'11/11. Riletti da
+**Domande frequenti** (idea di Paolo del 12/11, una sola tavola per 20 secondi;
+ogni risposta verificata sui testi dell'app):
+
+| Domanda | Risposta |
+| --- | --- |
+| Chi si può iscrivere? | Ragazzi, dirigenti e accompagnatori. I genitori iscrivono i figli dal loro account. |
+| Serve un account? | Lo decide il palo per ogni attività: possono bastare nome ed email. |
+| Bisogna installare qualcosa? | No: si apre dal browser del telefono. |
+| Chi vede i dati? | Note sanitarie: solo gli admin. Foto: solo i membri del palo. |
+| È un'app ufficiale della Chiesa? | No: è uno strumento locale, nato in un palo. |
+
+**Numeri** (1:55-2:03): citati con l'ok di Paolo dell'11/11. Riletti da
 produzione l'11/11 in sola lettura, solo conteggi: 326 iscrizioni non annullate
 (348 create) e 116 autorizzazioni dei genitori firmate online, uguali al 16
 ottobre. Se passano settimane prima di mandare il video, si rileggono (stessa
 procedura delle note del progetto). Il numero di attività non si cita: oggi ne
 risultano 6 contro le 5 del kit, e la differenza non è verificata.
 
-## Teaser verticale (30 secondi)
+## Teaser verticale (39 secondi)
 
 | Tempo | Titolo | Ripresa |
 | --- | --- | --- |
 | 0:00-0:04 | Quante autorizzazioni hai rincorso per l'ultimo campeggio? | titolo |
-| 0:04-0:16 | Il genitore non installa nulla: gli arriva un link. | genitore: link, scelta per le foto, firma |
-| 0:16-0:22 | Ognuno vede la sua stanza | Sofia: «La tua stanza» |
-| 0:22-0:26 | Le foto restano nel palo | Sofia: galleria |
-| 0:26-0:30 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | titolo finale con gugditalia.it |
+| 0:04-0:18 | Il genitore non installa nulla: gli arriva un link. | genitore: dalla firma a «Tutto completato» |
+| 0:18-0:26 | Ognuno vede la sua stanza | Sofia: «La tua stanza» |
+| 0:26-0:34 | Le foto restano nel palo | Sofia: galleria, una foto aperta |
+| 0:34-0:39 | Se serve anche al vostro palo, scrivete a Paolo Celestini. | titolo finale con gugditalia.it |
+
+Sta sotto i 60 secondi degli stati di WhatsApp.
 
 ## Versione in inglese
 
@@ -99,20 +116,21 @@ non ancora iniziato), quindi nelle riprese l'interfaccia resta in italiano. Per
 la sede europea va bene così; quando l'app sarà tradotta si rigirano le
 riprese con l'interfaccia in inglese.
 
-Stessi tempi e stesse riprese della versione italiana.
+Stessi tempi e stesse riprese della versione italiana; cambiano solo i testi.
 
-| Tempo | Title | Line below |
+| Scena | Title | Line below |
 | --- | --- | --- |
-| 0:00-0:05 | How many permission slips did you chase for your last camp? | |
-| 0:05-0:25 | No more paper forms to collect | Youth sign up on their phones. For minors, a parent gets a link to sign. |
-| (sovrimpressione) | | Every signed form is saved as a PDF. |
-| 0:25-0:32 | Parents don't install anything. They just get a link. | |
-| 0:32-0:45 | Leaders know who's missing | Unit leaders see who still needs a permission slip. |
-| 0:45-0:58 | Everyone sees their own room | Leaders assign rooms in the app. Each youth sees only their own. |
-| 0:58-1:08 | Photos stay in the stake | After the activity, photos stay in the app, visible only to stake members. |
-| 1:08-1:12 | New activity? A name and a date. | |
-| 1:12-1:20 | Rome Italy East Stake, since March 2026 | 326 sign-ups, 116 permission slips signed by phone |
-| 1:20-1:30 | Could your stake use it too? Write to Paolo Celestini. | gugditalia.it |
+| apertura | How many permission slips did you chase for your last camp? | |
+| iscrizione | No more paper forms to collect | Youth sign up on their phones. For minors, a parent gets a link to sign. |
+| firma | Parents don't install anything. They just get a link. | |
+| PDF | Every signature, as a PDF | Every signed form is saved as a PDF. |
+| dirigente | Leaders know who's missing | Unit leaders see who still needs a permission slip. |
+| stanze | Everyone sees their own room | Leaders assign rooms in the app. Each youth sees only their own. |
+| foto | Photos stay in the stake | After the activity, photos stay in the app, visible only to stake members. |
+| rapida | New activity? A name and a date. | |
+| numeri | Rome Italy East Stake, since March 2026 | 326 sign-ups, 116 permission slips signed by phone |
+| FAQ | Who can sign up? / Is an account required? / Anything to install? / Who sees the data? / Is it an official Church app? | Youth, leaders and adult helpers. Parents register their children from their own account. / The stake decides for each activity: a name and email can be enough. / No: it opens in the phone's browser. / Medical notes: admins only. Photos: stake members only. / No: it's a local tool, born in one stake. |
+| chiusura | Could your stake use it too? Write to Paolo Celestini. | gugditalia.it |
 
 Il teaser in inglese prende gli stessi titoli dalle righe corrispondenti. I
 testi sono stati riletti da Grok l'11/11 sul lessico della Chiesa in inglese
@@ -163,7 +181,7 @@ In più, per la versione promozionale:
 
 ## Come sono fatti e come si rigirano
 
-Li ha girati e montati Claude l'11/11, senza toccare la demo vera: emulatori
+Li ha girati e montati Claude l'11/11 e rifatti il 12/11, senza toccare la demo vera: emulatori
 Firebase sul Mac mini col seed demo (`--today 2026-11-11`), account di prova
 degli emulatori, browser automatico. Gli script sono in `tools/video-demo/`:
 
@@ -180,8 +198,16 @@ con **leader prima di parent** (la firma di Matteo vale una volta; per rifarla
 si riapplica il seed). Si lancia tutto da una cartella di lavoro fuori dal
 repo, con `PLAYWRIGHT_MODULE` che punta a un `playwright-core` installato lì.
 
-Musica: generata con ElevenLabs Music (strumentale, 95 s) e salvata accanto ai
-video; c'è anche una seconda traccia alternativa (`musica-alternativa-b.mp3`).
+Ritmo: `record.mjs` allunga ogni pausa con `PACE` (1,7 di default) e
+`build.py` accorcia gli schermi fermi (`MAXSTILL` 1,8 s, `LASTSTILL` 2,5 s).
+Sul mini gli emulatori vanno lanciati con `TMPDIR` su DevServer
+(`mini --env 'TMPDIR=$MINI_CACHE/tmp'`): il 12/11 il disco interno aveva 1,7 GB
+liberi e lo Storage emulato si è chiuso a metà del seed, lasciando Firestore
+appeso sulla porta 8180.
+
+Musica: generata con ElevenLabs Music (strumentale) e salvata accanto ai video:
+`musica-lunga.mp3` (172 s, usata nella seconda versione); le tracce da 95 s
+della prima versione restano come alternativa.
 Quando l'app sarà tradotta (task `gugd-i18n`) si rigirano le scene con
 l'interfaccia in inglese e si rimonta solo la versione inglese.
 
