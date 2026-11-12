@@ -23,7 +23,9 @@ const hole = (W, H, o, i) => `<svg class="abs" style="left:0;top:0" width="${W}"
 <path filter="url(#sh)" fill-rule="evenodd" fill="${o.fill}" d="${rr(o.x, o.y, o.w, o.h, o.r)} ${rr(i.x, i.y, i.w, i.h, i.r)}"/>${o.extra || ""}</svg>`;
 function rr(x, y, w, h, r) { return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`; }
 const phoneFrame = (W, H, s, k = 1) => { const b = 14 * k, top = 40 * k; return hole(W, H, { x: s.x - b, y: s.y - top, w: s.w + 2 * b, h: s.h + top + b, r: 58 * k, fill: T.ink,
-  extra: `<rect x="${s.x + s.w / 2 - 46 * k}" y="${s.y - top + 12 * k}" width="${92 * k}" height="${18 * k}" rx="${9 * k}" fill="#0b1217"/><circle cx="${s.x + s.w / 2 + 30 * k}" cy="${s.y - top + 21 * k}" r="${4 * k}" fill="#22313b"/>` }, { ...s, r: 26 * k }); };
+  extra: `<rect x="${s.x + s.w / 2 - 46 * k}" y="${s.y - top + 12 * k}" width="${92 * k}" height="${18 * k}" rx="${9 * k}" fill="#0b1217"/><circle cx="${s.x + s.w / 2 + 30 * k}" cy="${s.y - top + 21 * k}" r="${4 * k}" fill="#22313b"/>` }, { x: s.x + 3 * k, y: s.y + 3 * k, w: s.w - 6 * k, h: s.h - 6 * k, r: 24 * k }); };
+// white rounded rect on black, same size as the phone clip: used as alpha mask
+const phoneMask = (s, k = 1) => `<div class="abs" style="inset:0;background:#000"></div><div class="abs" style="left:0;top:0;width:${s.w}px;height:${s.h}px;border-radius:${28 * k}px;background:#fff"></div>`;
 const deskFrame = (W, H, s, url) => { const bar = 40, b = 6; const o = { x: s.x - b, y: s.y - bar, w: s.w + 2 * b, h: s.h + bar + b, r: 16, fill: "#ffffff" };
   o.extra = [0, 1, 2].map(i => `<circle cx="${o.x + 24 + i * 22}" cy="${o.y + 20}" r="6.5" fill="${["#ff5f57", "#febc2e", "#28c840"][i]}"/>`).join("") +
     `<rect x="${o.x + o.w / 2 - 170}" y="${o.y + 8}" width="340" height="24" rx="12" fill="#f1f3f4"/><text x="${o.x + o.w / 2}" y="${o.y + 25}" font-family="Roboto" font-size="14" fill="#5f6163" text-anchor="middle">${url}</text>`;
@@ -46,4 +48,4 @@ export async function render(jobs) {
   }
   await browser.close();
 }
-export const H = { bgHTML, phoneFrame, deskFrame, textCol, brand, esc };
+export const H = { bgHTML, phoneFrame, phoneMask, deskFrame, textCol, brand, esc };

@@ -13,6 +13,14 @@ const TX = {
     quick: ["Un'attività nuova? Nome e giorno.", null],
     numTitle: "Palo di Roma Est, da marzo 2026", n1: ["326", "iscrizioni"], n2: ["116", "autorizzazioni firmate dal telefono"],
     cta: ["Se serve anche al vostro palo, scrivete a Paolo Celestini.", "gugditalia.it"],
+    faqLabel: "Domande frequenti",
+    faq: [
+      ["Chi si può iscrivere?", "Ragazzi, dirigenti e accompagnatori. I genitori iscrivono i figli dal loro account."],
+      ["Serve un account?", "Lo decide il palo per ogni attività: possono bastare nome ed email."],
+      ["Bisogna installare qualcosa?", "No: si apre dal browser del telefono."],
+      ["Chi vede i dati?", "Note sanitarie: solo gli admin. Foto: solo i membri del palo."],
+      ["È un'app ufficiale della Chiesa?", "No: è uno strumento locale, nato in un palo."],
+    ],
   },
   en: {
     hook: "How many permission slips did you chase for your last camp?",
@@ -25,6 +33,14 @@ const TX = {
     quick: ["New activity? A name and a date.", null],
     numTitle: "Rome Italy East Stake, since March 2026", n1: ["326", "sign-ups"], n2: ["116", "permission slips signed by phone"],
     cta: ["Could your stake use it too? Write to Paolo Celestini.", "gugditalia.it"],
+    faqLabel: "Frequently asked questions",
+    faq: [
+      ["Who can sign up?", "Youth, leaders and adult helpers. Parents register their children from their own account."],
+      ["Is an account required?", "The stake decides for each activity: a name and email can be enough."],
+      ["Anything to install?", "No: it opens in the phone's browser."],
+      ["Who sees the data?", "Medical notes: admins only. Photos: stake members only."],
+      ["Is it an official Church app?", "No: it's a local tool, born in one stake."],
+    ],
   },
 };
 const M = G.main, V = G.vert, jobs = [];
@@ -35,6 +51,8 @@ job("bg-vert", V.w, V.h, H.bgHTML({ w: V.w, h: V.h, sun: { x: 640, y: -160, r: 3
 job("frame-phone", M.w, M.h, H.phoneFrame(M.w, M.h, M.phone));
 job("frame-desk", M.w, M.h, H.deskFrame(M.w, M.h, M.desk, "gugditalia.it"));
 job("frame-vphone", V.w, V.h, H.phoneFrame(V.w, V.h, V.phone, 1.5));
+job("mask-phone", M.phone.w, M.phone.h, H.phoneMask(M.phone));
+job("mask-vphone", V.phone.w, V.phone.h, H.phoneMask(V.phone, 1.5));
 for (const [L, t] of Object.entries(TX)) {
   const col = (title, line) => H.textCol({ x: 130, y: 540, w: 540, title, line }) + H.brand(130, 960);
   for (const k of ["reg", "par", "pdf", "leader", "rooms", "gallery", "quick"]) job(`${L}-text-${k}`, M.w, M.h, col(...t[k]));
@@ -48,6 +66,14 @@ for (const [L, t] of Object.entries(TX)) {
   job(`${L}-numbers`, M.w, M.h, H.bgHTML({ w: M.w, h: M.h, sun: { x: 1380, y: -120, r: 330 } }) +
     `<div class="abs" style="left:0;right:0;top:250px;text-align:center"><div style="width:72px;height:9px;border-radius:5px;background:${T.accent};margin:0 auto 30px"></div><div style="font-size:52px;font-weight:700;color:${T.ink}">${H.esc(t.numTitle)}</div></div>` +
     big(t.n1, 300) + big(t.n2, 980) + H.brand(130, 960));
+  // FAQ: one summary card, a row per question
+  job(`${L}-faq`, M.w, M.h, H.bgHTML({ w: M.w, h: M.h, sun: { x: 1640, y: -330, r: 280 } }) +
+    `<div class="abs" style="left:200px;top:540px;width:1520px;transform:translateY(-50%)">
+      <div style="display:flex;align-items:center;gap:18px;font-size:30px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${T.primary};margin-bottom:34px">
+        <span style="width:72px;height:9px;border-radius:5px;background:${T.accent}"></span>${H.esc(t.faqLabel)}</div>
+      ${t.faq.map(([q, ans], i) => `<div style="display:flex;gap:48px;align-items:baseline;padding:26px 0;border-top:${i ? `2px solid rgba(29,42,51,.10)` : "none"}">
+        <div style="flex:0 0 560px;font-size:40px;line-height:1.2;font-weight:700;color:${T.ink}">${H.esc(q)}</div>
+        <div style="flex:1;font-size:36px;line-height:1.35;color:${T.muted}">${H.esc(ans)}</div></div>`).join("")}</div>` + H.brand(130, 960));
   // vertical teaser
   const vcol = title => H.textCol({ x: 90, y: 300, w: 900, title, size: 70, align: "center" });
   for (const k of ["par", "rooms", "gallery"]) job(`${L}-vtext-${k}`, V.w, V.h, vcol(t[k][0]));

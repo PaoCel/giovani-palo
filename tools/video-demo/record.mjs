@@ -5,7 +5,9 @@ const BASE = "http://127.0.0.1:5173";
 const EXE = process.env.CHROME_PATH || process.env.HOME + "/Library/Caches/ms-playwright/chromium-1248/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const TOKEN = process.env.MATTEO_TOKEN;
 const scene = process.argv[2];
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+// PACE slows every pause so each step can be followed on screen.
+const PACE = Number(process.env.PACE || 1.7);
+const sleep = ms => new Promise(r => setTimeout(r, ms * PACE));
 
 const OVERLAY = ({ mobile }) => {
   const install = () => {
@@ -79,7 +81,7 @@ async function closeInstallHint(page) {
   const b = page.getByRole("button", { name: "Chiudi suggerimento installazione" });
   if (await b.count()) await b.first().click({ timeout: 2000 }).catch(() => {});
 }
-async function glide(page, locator, steps = 25) {
+async function glide(page, locator, steps = 40) {
   const box = await locator.boundingBox(); if (!box) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps }); await sleep(250);
 }
@@ -90,7 +92,7 @@ async function click(s, locator) {
 }
 async function type(locator, text, clear = false) {
   if (clear) await locator.fill("");
-  await locator.pressSequentially(text, { delay: 55 });
+  await locator.pressSequentially(text, { delay: 85 });
 }
 async function smoothScrollTo(page, locator, offset = 120) {
   await page.evaluate(([sel, off]) => {}, ["", 0]);
@@ -116,13 +118,13 @@ const scenes = {
     await smoothScrollTo(page, page.getByRole("link", { name: "Iscriviti", exact: true }).or(page.getByRole("button", { name: "Iscriviti", exact: true })).first(), 420); await sleep(500);
     await click(s, page.getByRole("link", { name: "Iscriviti", exact: true }).or(page.getByRole("button", { name: "Iscriviti", exact: true })).first()); await sleep(1200); await closeInstallHint(page);
     const tel = page.getByLabel("Telefono").first(); await tel.click(); await type(tel, "333 123 4567", true); await sleep(400);
-    await click(s, page.getByRole("button", { name: "Continua" })); await sleep(1000);
+    await click(s, page.getByRole("button", { name: "Continua" })); await sleep(1000); s.mark("step2");
     const pn = page.getByRole("textbox", { name: "Nome genitore", exact: true }); await pn.click(); await type(pn, "Marco", true);
     const pc = page.getByRole("textbox", { name: "Cognome genitore", exact: true }); await pc.click(); await type(pc, "Bianchi", true);
     const pt = page.getByRole("textbox", { name: "Telefono genitore", exact: true }); await pt.click(); await type(pt, "333 765 4321");
     const en = page.getByRole("textbox", { name: "Nome e cognome", exact: true }); await en.click(); await type(en, "Anna Bianchi");
     const et = page.getByRole("textbox", { name: "Telefono", exact: true }); await et.click(); await type(et, "333 222 1100");
-    await sleep(400);
+    await page.getByRole("button", { name: "Conferma iscrizione" }).scrollIntoViewIfNeeded(); await sleep(600); s.mark("beforeConfirm");
     await click(s, page.getByRole("button", { name: "Conferma iscrizione" })); await sleep(3500); s.mark("confirmed");
     await sleep(1500); s.mark("end"); await s.done();
   },
