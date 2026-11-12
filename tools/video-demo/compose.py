@@ -82,9 +82,15 @@ REG = cut("register", [(0, rm["step2"] + 1.8), (rm["beforeConfirm"] - 0.4, rm["e
 # teaser: the parent scene from the signature on
 pm = marks("parent")
 PAR_SIGN = cut("parent", [(pm["sign"] - 0.6, pm["end"])], "clips/parent-sign.mp4")
-# quick: stop on "È nel calendario", before "Fatto"
-qm = marks("quick")
-QUICK = cut("quick", [(0, qm["saved"] + 2.2)], "clips/quick-edit.mp4")
+# registrations: stop on the open sheet, skip closing it
+gm = marks("registrations")
+REGS = cut("registrations", [(0, gm["sheet"] + 3.5)], "clips/registrations-edit.mp4")
+# surveys: start where the results come into view, past the question editor
+SURVEYS = cut("surveys", [(3.0, marks("surveys")["end"])], "clips/surveys-edit.mp4")
+# stats: the unit and organization cards, not the list below
+STATS = cut("stats", [(0, 14.0)], "clips/stats-edit.mp4")
+# unit leader: the four boxes and the first rows, before it scrolls to the gallery
+UNIT = cut("unithome", [(0, 11.5)], "clips/unithome-edit.mp4")
 
 for L in [a for a in sys.argv[1:] if a in ("it", "en")] or ["it", "en"]:
     bg, fp, fd, mk = "plates/bg-main.png", "plates/frame-phone.png", "plates/frame-desk.png", "plates/mask-phone.png"
@@ -96,17 +102,18 @@ for L in [a for a in sys.argv[1:] if a in ("it", "en")] or ["it", "en"]:
         p = f"segs/{L}-{name}.mp4"; segs.append(p); total += fn(p, *a, **kw)
 
     add("01hook", card, f"plates/{L}-hook.png", 5, "1920:1080")
-    add("02reg", media, bg, REG, fp, t("reg"), M["phone"], mk)
-    add("03par", media, bg, C("parent"), fp, t("par"), M["phone"], mk)
-    add("04pdf", media, bg, C("consents"), fd, t("pdf"), M["desk"])
-    add("05leader", media, bg, C("leader"), fd, t("leader"), M["desk"])
-    add("06rooms", media, bg, C("rooms"), fd, t("rooms"), M["desk"], hold_out=0.8, fade_out=False)
-    add("07myroom", media, bg, C("myroom"), fp, t("rooms"), M["phone"], mk, hold_in=0.6, fade_in=False, text_in=False)
-    add("08gallery", media, bg, C("gallery"), fp, t("gallery"), M["phone"], mk)
-    add("09quick", media, bg, QUICK, fd, t("quick"), M["desk"])
-    add("10numbers", card, f"plates/{L}-numbers.png", 8, "1920:1080", color=LIGHT)
-    add("11faq", card, f"plates/{L}-faq.png", 20, "1920:1080", color=LIGHT)
-    add("12cta", card, f"plates/{L}-cta.png", 9, "1920:1080")
+    add("02regs", media, bg, REGS, fd, t("regs"), M["desk"])
+    add("03stats", media, bg, STATS, fd, t("stats"), M["desk"])
+    add("04surveys", media, bg, SURVEYS, fd, t("surveys"), M["desk"])
+    add("05reg", media, bg, REG, fp, t("reg"), M["phone"], mk)
+    add("06par", media, bg, PAR_SIGN, fp, t("par"), M["phone"], mk)
+    add("07unit", media, bg, UNIT, fd, t("unit"), M["desk"])
+    add("08rooms", media, bg, C("rooms"), fd, t("rooms"), M["desk"], hold_out=0.8, fade_out=False)
+    add("09myroom", media, bg, C("myroom"), fp, t("rooms"), M["phone"], mk, hold_in=0.6, fade_in=False, text_in=False)
+    add("10gallery", media, bg, C("gallery"), fp, t("gallery"), M["phone"], mk)
+    add("11numbers", card, f"plates/{L}-numbers.png", 8, "1920:1080", color=LIGHT)
+    add("12faq", card, f"plates/{L}-faq.png", 18, "1920:1080", color=LIGHT)
+    add("13cta", card, f"plates/{L}-cta.png", 9, "1920:1080")
     print(L, "main", round(total, 1), "s")
     if not DRY:
         concat(segs, f"out/gugd-promo-{L}.mp4", MUSIC, total)
@@ -116,7 +123,7 @@ for L in [a for a in sys.argv[1:] if a in ("it", "en")] or ["it", "en"]:
     vt = lambda k: f"plates/{L}-vtext-{k}.png"
     segs, total = [], 0.0
     add("v1hook", card, f"plates/{L}-vhook.png", 4, "1080:1920")
-    add("v2par", media, vb, PAR_SIGN, vf, vt("par"), V["phone"], vm)
+    add("v2reg", media, vb, REG, vf, vt("reg"), V["phone"], vm)
     add("v3room", media, vb, C("myroom"), vf, vt("rooms"), V["phone"], vm)
     add("v4gallery", media, vb, C("gallery"), vf, vt("gallery"), V["phone"], vm)
     add("v5cta", card, f"plates/{L}-vcta.png", 5, "1080:1920")

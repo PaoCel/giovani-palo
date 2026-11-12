@@ -101,6 +101,253 @@ async function smoothScrollTo(page, locator, offset = 120) {
 }
 
 const scenes = {
+// Selettori (testo a schermo → file).
+//
+// adminhome
+//   region «Totali del palo», «Attività create», «Iscrizioni aperte»,
+//   «Partecipanti totali», h2 «Iscrizioni aperte adesso»:
+//     src/copy/adminElenchi.ts (totali, attivitaCreate, iscrizioniAperte,
+//     partecipantiTotali, apertiTitolo)
+//     src/pages/admin/AdminDashboardPage.tsx (section aria-label, ul.admin-stats, h2)
+//   link delle card (titolo attività + «N iscritti»):
+//     src/components/AdminActivityCard.tsx
+//     src/copy/adminElenchi.ts (iscritti «{n} iscritti»)
+//   «Viaggio al Tempio», «Campeggio d'inverno»: titolo nel seed, tools/lib/demoData.mjs
+//
+// registrations
+//   «Attivi», «Attesa», «Annullati»: src/components/admin/registrations/RegistrationsTab.tsx
+//   group «Filtri iscritti»: stesso file (role=group, aria-label)
+//   searchbox «Cerca» (type=search dentro label, placeholder «Nome, cognome o email»):
+//     stesso file. Il nome accessibile è «Cerca», non il placeholder.
+//   riga: button il cui nome contiene il display name.
+//     src/utils/roomPreferences.ts getRegistrationDisplayName → «Rossi Pietro»
+//     (cognome, poi nome). Nel seed è Pietro Rossi (tools/lib/demoData.mjs, index 12).
+//   dialog «Rossi Pietro», «Lista d'attesa», «Rione Aurora»:
+//     src/pages/admin/AdminEventDetailPage.tsx (AppModal title = display name,
+//     subtitle «Dettaglio registrazione»)
+//     src/utils/registrations.ts getRegistrationStatusLabel waitlist → «Lista d'attesa»
+//     src/components/admin/registrations/registrationLabels.ts getUnitLabel
+//   button «Chiudi» (aria-label, icona, dentro il dialog):
+//     src/components/AppModal.tsx
+//
+// stats
+//   region «Totali del palo»: src/copy/adminElenchi.ts totali
+//   «Iscritti attivi del palo», «Registrazioni totali», «Iscritti con account»,
+//   «Iscritti come ospiti», h2 «Unità» / «Organizzazione» / «Città»,
+//   «Rione Aurora», «Ramo Collina», «Rione Brezza», «Giovane donna»,
+//   «Giovane uomo», «Dirigente», h2 «Iscritti globali del palo»:
+//     src/pages/admin/AdminStatsPage.tsx
+//     src/copy/adminElenchi.ts iscrittiGlobali
+//     src/utils/profile.ts getGenderRoleCategoryLabel
+//   h2 della card: src/components/ui/Card.tsx (titleAs h2 → section)
+//   Tre card in riga da 900px: src/styles/adminPages.css .admin-distributions
+//
+// surveys
+//   h3 «Domande del sondaggio», h3 «Risultati»:
+//     src/pages/admin/AdminEventDetailPage.tsx (tab surveys)
+//   «risposte definitive», chip categoria, h4 della domanda, «Aperta»:
+//     src/components/SurveyResultsPanel.tsx
+//     src/utils/profile.ts (Giovane donna / Giovane uomo / Dirigente)
+//   testi domande: tools/lib/demoData.mjs (q-giudizio, q-ricordo).
+//   La frase intera del ricordo sta dietro «Mostra risposte complete»:
+//   la scena non lo preme.
+//
+// unithome
+//   region «Totali delle ultime attività», «Iscritti unità», «Passaggio necessario»,
+//   «Consenso foto mancante», «Autorizzazione genitore mancante»,
+//   h2 «Attività del palo», link della riga:
+//     src/copy/homeUnita.ts
+//     src/pages/unit/UnitDashboardPage.tsx (article del riquadro, Link.unit-home-row)
+//   «Viaggio al Tempio»: titolo nel seed, tools/lib/demoData.mjs
+
+  async adminhome() {
+    const s = await session("admin", false);
+    const { page } = s;
+    await page.goto(BASE + "/admin");
+    const totali = page.getByRole("region", { name: "Totali del palo" });
+    await totali.getByText("Attività create", { exact: true }).waitFor();
+    await totali.getByText("Iscrizioni aperte", { exact: true }).waitFor();
+    await totali.getByText("Partecipanti totali", { exact: true }).waitFor();
+    await totali.getByText(/^\d+$/).nth(2).waitFor();
+    await closeInstallHint(page);
+    await smoothScrollTo(page, totali.getByText("Attività create", { exact: true }), 160);
+    await page.mouse.move(640, 280);
+    s.mark("ready");
+    await sleep(1200);
+    for (const etichetta of ["Attività create", "Iscrizioni aperte", "Partecipanti totali"]) {
+      const riquadro = totali.getByText(etichetta, { exact: true }).locator("xpath=ancestor::li[1]");
+      await glide(page, riquadro);
+      await sleep(1100);
+    }
+    const aperti = page.getByRole("heading", { name: "Iscrizioni aperte adesso", exact: true, level: 2 }).locator("xpath=ancestor::section[1]");
+    await smoothScrollTo(page, aperti.getByRole("heading", { name: "Iscrizioni aperte adesso", exact: true }), 100);
+    await sleep(400);
+    await glide(page, aperti.getByRole("link", { name: /Viaggio al Tempio/ }));
+    await sleep(1400);
+    await glide(page, aperti.getByRole("link", { name: /Campeggio d'inverno/ }));
+    await sleep(1400);
+    s.mark("end");
+    await s.done();
+  },
+  async registrations() {
+    const s = await session("admin", false);
+    const { page } = s;
+    await page.goto(BASE + "/admin/events/viaggio-tempio/registrations");
+    const attivi = page.getByText("Attivi", { exact: true });
+    await attivi.waitFor();
+    await page.getByText("Attesa", { exact: true }).waitFor();
+    await page.getByText("Annullati", { exact: true }).waitFor();
+    await closeInstallHint(page);
+    await smoothScrollTo(page, attivi, 150);
+    await page.mouse.move(620, 260);
+    s.mark("ready");
+    await sleep(1200);
+    await glide(page, page.getByRole("group", { name: "Filtri iscritti" }));
+    await sleep(1200);
+    const cerca = page.getByRole("searchbox", { name: "Cerca" });
+    await click(s, cerca);
+    await type(cerca, "Pietro");
+    await sleep(1200);
+    await click(s, page.getByRole("button", { name: /Rossi Pietro/ }));
+    const foglio = page.getByRole("dialog", { name: "Rossi Pietro" });
+    await foglio.getByText("Lista d'attesa", { exact: true }).first().waitFor();
+    await foglio.getByText("Rione Aurora", { exact: true }).first().waitFor();
+    await sleep(1200);
+    s.mark("sheet");
+    await glide(page, foglio.getByText("Lista d'attesa", { exact: true }).first());
+    await sleep(1200);
+    await glide(page, foglio.getByText("Rione Aurora", { exact: true }).first());
+    await sleep(1400);
+    await click(s, foglio.getByRole("button", { name: "Chiudi", exact: true }));
+    await foglio.waitFor({ state: "hidden" });
+    await sleep(1200);
+    s.mark("end");
+    await s.done();
+  },
+  async stats() {
+    const s = await session("admin", false);
+    const { page } = s;
+    await page.goto(BASE + "/admin/stats");
+    const totali = page.getByRole("region", { name: "Totali del palo" });
+    await totali.getByText("Iscritti attivi del palo", { exact: true }).waitFor();
+    await totali.getByText("Registrazioni totali", { exact: true }).waitFor();
+    await totali.getByText("Iscritti con account", { exact: true }).waitFor();
+    await totali.getByText("Iscritti come ospiti", { exact: true }).waitFor();
+    await totali.getByText(/^\d+$/).nth(3).waitFor();
+    await closeInstallHint(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.mouse.move(700, 320);
+    await sleep(800);
+    s.mark("ready");
+    await sleep(1200);
+    const unita = page.getByRole("heading", { name: "Unità", exact: true, level: 2 });
+    await smoothScrollTo(page, unita, 180);
+    const nomi = page.getByRole("heading", { name: "Iscritti globali del palo", exact: true, level: 2 });
+    const nomiBox = await nomi.boundingBox();
+    const vista = page.viewportSize();
+    if (nomiBox && vista && nomiBox.y < vista.height - 8) {
+      await page.evaluate((top) => {
+        window.scrollBy({ top: top - window.innerHeight - 24, behavior: "smooth" });
+      }, nomiBox.y);
+      await sleep(1100);
+    }
+    // Tre card affiancate (adminPages.css, min-width 900px): sposta la riga
+    // quel tanto che «Città» resti tagliata a destra, «Organizzazione» dentro.
+    await page.evaluate(() => {
+      const h2 = (name) => [...document.querySelectorAll("h2")].find((el) => el.textContent.trim() === name);
+      const unitaCard = h2("Unità")?.closest("section");
+      const orgCard = h2("Organizzazione")?.closest("section");
+      const cityCard = h2("Città")?.closest("section");
+      const row = cityCard?.parentElement;
+      if (!unitaCard || !orgCard || !cityCard || !row) return;
+      const cityBox = cityCard.getBoundingClientRect();
+      const orgBox = orgCard.getBoundingClientRect();
+      const unitaBox = unitaCard.getBoundingClientRect();
+      if (Math.abs(cityBox.top - unitaBox.top) > 40) return;
+      const visible = Math.min(cityBox.right, window.innerWidth) - Math.max(cityBox.left, 0);
+      if (visible < cityBox.width * 0.45) return;
+      const keep = cityBox.width * 0.3;
+      let shift = Math.round(Math.min(cityBox.right, window.innerWidth) - cityBox.left - keep);
+      const room = window.innerWidth - orgBox.right - 16;
+      if (shift > room) shift = Math.max(0, Math.floor(room));
+      if (shift < 12) return;
+      row.style.transition = "transform .7s ease";
+      row.style.transform = `translateX(${shift}px)`;
+    });
+    await sleep(1000);
+    const unitaCard = unita.locator("xpath=ancestor::section[1]");
+    for (const nome of ["Rione Aurora", "Ramo Collina", "Rione Brezza"]) {
+      await glide(page, unitaCard.getByText(nome, { exact: true }));
+      await sleep(1100);
+    }
+    const orgCard = page.getByRole("heading", { name: "Organizzazione", exact: true, level: 2 }).locator("xpath=ancestor::section[1]");
+    await glide(page, orgCard);
+    await sleep(1500);
+    s.mark("end");
+    await s.done();
+  },
+  async surveys() {
+    const s = await session("admin", false);
+    const { page } = s;
+    await page.goto(BASE + "/admin/events/campeggio-autunno/surveys");
+    const risultati = page.locator("article").filter({ has: page.getByRole("heading", { name: "Risultati", exact: true, level: 3 }) });
+    await risultati.getByRole("heading", { name: "Risultati", exact: true }).waitFor();
+    await risultati.getByText("risposte definitive", { exact: true }).waitFor();
+    await closeInstallHint(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.mouse.move(680, 360);
+    await sleep(800);
+    s.mark("ready");
+    await sleep(1000);
+    await smoothScrollTo(page, risultati.getByRole("heading", { name: "Risultati", exact: true }), 92);
+    await sleep(500);
+    await glide(page, risultati.getByText("risposte definitive", { exact: true }));
+    await sleep(1200);
+    for (const nome of ["Giovane donna", "Giovane uomo", "Dirigente"]) {
+      await glide(page, risultati.getByText(nome, { exact: true }).first());
+      await sleep(1000);
+    }
+    const stelle = risultati.getByRole("heading", { name: "Quanto ti è piaciuto il campeggio?", exact: true });
+    await glide(page, stelle);
+    await sleep(1400);
+    const aperta = risultati.getByRole("heading", { name: "Qual è il momento che ti porti a casa?", exact: true });
+    await smoothScrollTo(page, aperta, 200);
+    await sleep(400);
+    await glide(page, aperta);
+    await sleep(1400);
+    s.mark("end");
+    await s.done();
+  },
+  async unithome() {
+    const s = await session("dirigente", false);
+    const { page } = s;
+    await page.goto(BASE + "/unit");
+    const totali = page.getByRole("region", { name: "Totali delle ultime attività" });
+    await totali.waitFor();
+    await closeInstallHint(page);
+    await smoothScrollTo(page, totali.getByText("Iscritti unità", { exact: true }), 150);
+    await page.mouse.move(640, 300);
+    s.mark("ready");
+    await sleep(1200);
+    for (const etichetta of [
+      "Iscritti unità",
+      "Passaggio necessario",
+      "Consenso foto mancante",
+      "Autorizzazione genitore mancante",
+    ]) {
+      const riquadro = totali.getByText(etichetta, { exact: true }).locator("xpath=ancestor::article[1]");
+      await glide(page, riquadro);
+      await sleep(900);
+    }
+    const elenco = page.getByRole("heading", { name: "Attività del palo", exact: true, level: 2 }).locator("xpath=ancestor::section[1]");
+    const viaggio = elenco.getByRole("link", { name: /Viaggio al Tempio/ });
+    await smoothScrollTo(page, viaggio, 260);
+    await sleep(400);
+    await glide(page, viaggio);
+    await sleep(1500);
+    s.mark("end");
+    await s.done();
+  },
   async leader() {
     const s = await session("dirigente", false); const { page } = s;
     await page.mouse.move(700, 450);
