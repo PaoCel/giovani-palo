@@ -12,13 +12,13 @@ opened: 2026-11-11
 started_at:
 touched: 2026-11-12
 due:
-blocked_by: ["Paolo: guardare la seconda versione dei video"]
+blocked_by: ["Paolo: guardare la terza versione dei video"]
 branch:
 worktree:
 session:
-stopped_at: "12/11: seconda versione dopo la prova di Paolo: riprese rifatte a ritmo umano, niente accelerazioni, soste su titoli e risultati, angoli dello schermo mascherati, FAQ in una tavola; 2:32 e teaser 39 s, italiano e inglese, in ~/Movies/gugd-video-demo (la prima versione in versione-1/)"
-next: "Paolo guarda la seconda versione; ritocchi di testi o tempi con makeplates/compose senza rigirare. Giro guidato di 3 minuti per FSY ancora da fare (stessi script)"
-verified: "12/11, seconda versione: quattro mp4 (2:32 1920x1080, 39 s 1080x1920) controllati con provini ogni 3-5 s; bordo del telefono ingrandito su entrambi i formati, angoli dentro la cornice; tavole FAQ lette in italiano e in inglese. Non guardati a velocità reale con l'audio. 11/11 pomeriggio, video: quattro mp4 (90 s 1920x1080 e 30 s 1080x1920, h264 + aac, picco audio -5 dB) controllati con provini ogni 2-3 s, segmenti tutti presenti; script del repo provati da una cartella vuota sul mini (tavole identiche). Non guardati a velocità reale con l'audio. 11/11 sera: index.html, sw.js (v48), bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; nel bundle ci sono le stringhe della rapida; / e /activities aperte nel browser dopo reset di service worker e cache, titolo [DEMO], nessun errore in console. La rapida è stata collaudata sugli emulatori col seed demo a 320/390/430/1440, non sulla demo vera da loggato (la password la digita Paolo). Non provati: pagina di firma del genitore, percorsi da loggato dei quattro ruoli"
+stopped_at: "12/11 pomeriggio: terza versione, focus su iscrizioni, statistiche e sondaggi (scaletta e 5 scene nuove scritte da Grok, verificate e girate da Claude); 2:51 e teaser 43 s, italiano e inglese, in ~/Movies/gugd-video-demo (versioni precedenti in versione-1/ e versione-2/)"
+next: "Paolo guarda la terza versione; ritocchi di testi o tempi con makeplates/compose senza rigirare. Giro guidato di 3 minuti per FSY ancora da fare (stessi script)"
+verified: "12/11 pomeriggio, terza versione: provini ogni 3-5 s di lungo e teaser, fotogrammi a piena risoluzione delle statistiche (card Città tagliata sul bordo), durate 170,7 s e 43 s con musica di 172 s; non guardati a velocità reale con l'audio. 12/11, seconda versione: quattro mp4 (2:32 1920x1080, 39 s 1080x1920) controllati con provini ogni 3-5 s; bordo del telefono ingrandito su entrambi i formati, angoli dentro la cornice; tavole FAQ lette in italiano e in inglese. Non guardati a velocità reale con l'audio. 11/11 pomeriggio, video: quattro mp4 (90 s 1920x1080 e 30 s 1080x1920, h264 + aac, picco audio -5 dB) controllati con provini ogni 2-3 s, segmenti tutti presenti; script del repo provati da una cartella vuota sul mini (tavole identiche). Non guardati a velocità reale con l'audio. 11/11 sera: index.html, sw.js (v48), bundle JS e CSS con sha uguale alla build su demo.gugditalia.it e giovani-palo-staging.web.app; nel bundle ci sono le stringhe della rapida; / e /activities aperte nel browser dopo reset di service worker e cache, titolo [DEMO], nessun errore in console. La rapida è stata collaudata sugli emulatori col seed demo a 320/390/430/1440, non sulla demo vera da loggato (la password la digita Paolo). Non provati: pagina di firma del genitore, percorsi da loggato dei quattro ruoli"
 links: []
 done_at:
 ---
